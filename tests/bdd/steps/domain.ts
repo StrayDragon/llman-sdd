@@ -1,6 +1,18 @@
+import { spawnSync } from 'node:child_process';
 // Domain step definitions: drive the real @llman-sdd/core APIs so the
 // @executable scenarios in llmanspec/specs/*.feature double as acceptance
 // tests for the config / spec-parsing / validation layers.
+import {
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  existsSync,
+  mkdirSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import {
   buildReqRegistry,
   discoverSpecs,
@@ -176,4 +188,133 @@ bdd.thenStep('FAIL 集合包含 spec 条目', (ctx) => {
 bdd.thenStep('退出码非零', (ctx) => {
   const result = ctx.fixtures['校验结果'] as unknown as ValidateResult | undefined;
   if (!result?.failed) throw new Error('expected validation to fail');
+});
+
+// ---------------------------------------------------------------------------
+// change-lifecycle capability — real temp repos driven through the CLI
+// ---------------------------------------------------------------------------
+
+interface CliResult {
+  exitCode: number;
+  stdout: string;
+}
+
+interface TempRepo {
+  root: string;
+  run: (cmd: string, args: string[]) => { code: number; stdout: string };
+}
+
+function makeTempRepo(): TempRepo {
+  const root = mkdtempSync(join(tmpdir(), 'llman-sdd-bdd-'));
+  const gitRun = (args: string[]): { code: number; stdout: string } => {
+    const proc = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+    return { code: proc.status ?? 1, stdout: proc.stdout ?? '' };
+  };
+  gitRun(['init', '-q', '-b', 'main']);
+  mkdirSync(join(root, 'llmanspec', 'specs'), { recursive: true });
+  writeFileSync(join(root, 'llmanspec', 'config.yaml'), 'schema: spec-driven\n');
+  writeFileSync(
+    join(root, 'llmanspec', 'specs', 'sample.feature'),
+    '# language: zh-CN\n# capability: sample\n# purpose: p\n# scope: llmanspec/\n\n功能: sample\n\n  @req:r1 @human\n  场景: ok\n    - 系统 MUST x\n',
+  );
+  gitRun(['add', '-A']);
+  gitRun(['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'init']);
+  return {
+    root,
+    run: (cmd, args) => {
+      const proc = spawnSync(cmd, args, { cwd: root, encoding: 'utf8' });
+      return { code: proc.status ?? 1, stdout: proc.stdout ?? '' };
+    },
+  };
+}
+
+const CLI = join(import.meta.dirname, '..', '..', '..', 'apps', 'cli', 'src', 'main.ts');
+
+bdd.given('一个已提交的临时 git 仓库含 change "{id}" 的 proposal', (ctx, id) => {
+  const repo = makeTempRepo();
+  const proposalDir = join(repo.root, 'llmanspec', 'changes', id);
+  mkdirSync(proposalDir, { recursive: true });
+  writeFileSync(join(proposalDir, 'proposal.md'), '---\ndepends_on: []\n---\n\n## Why\n\nTODO\n');
+  repo.run('git', ['add', '-A']);
+  repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'draft']);
+  ctx.fixtures['仓库'] = { root: repo.root, repo } as unknown as Record<string, unknown>;
+  ctx.fixtures['change'] = { id };
+  void CLI;
+});
+
+bdd.when('对其运行 change start', (ctx) => {
+  const repo = (ctx.fixtures['仓库'] as unknown as { repo: TempRepo }).repo;
+  const id = (ctx.fixtures['change'] as unknown as { id: string }).id;
+  const result = repo.run('bun', [CLI, 'change', 'start', id]);
+  ctx.fixtures['start结果'] = {
+    exitCode: result.code,
+    stdout: result.stdout,
+  } satisfies CliResult as unknown as Record<string, unknown>;
+});
+
+bdd.thenStep('分支 {branch} 被创建且被检出', (ctx, branch) => {
+  const repo = (ctx.fixtures['仓库'] as unknown as { repo: TempRepo }).repo;
+  const current = repo.run('git', ['branch', '--show-current']).stdout.trim();
+  if (current !== branch) throw new Error(`expected branch ${branch}, got ${current}`);
+});
+
+bdd.thenStep('frontmatter 含 branch 与 base_branch', (ctx) => {
+  const repo = (ctx.fixtures['仓库'] as unknown as { repo: TempRepo }).repo;
+  const id = (ctx.fixtures['change'] as unknown as { id: string }).id;
+  const proposal = readFileSync(join(repo.root, 'llmanspec', 'changes', id, 'proposal.md'), 'utf8');
+  if (!proposal.includes('branch: sdd/') || !proposal.includes('base_branch: main')) {
+    throw new Error(`binding keys missing in proposal:\n${proposal}`);
+  }
+});
+
+bdd.given('一个已完成 start 并在特性分支有新提交的临时仓库', (ctx) => {
+  const repo = makeTempRepo();
+  const id = 'demo-add-feature';
+  const proposalDir = join(repo.root, 'llmanspec', 'changes', id);
+  mkdirSync(proposalDir, { recursive: true });
+  writeFileSync(join(proposalDir, 'proposal.md'), '---\ndepends_on: []\n---\n\n## Why\n\nTODO\n');
+  repo.run('git', ['add', '-A']);
+  repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'draft']);
+  repo.run('bun', [CLI, 'change', 'start', id]);
+  writeFileSync(join(repo.root, 'feature.txt'), 'hello\n');
+  repo.run('git', ['add', '-A']);
+  repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'feat: hello']);
+  ctx.fixtures['仓库'] = { root: repo.root, repo } as unknown as Record<string, unknown>;
+  ctx.fixtures['change'] = { id };
+});
+
+bdd.when('对其运行 change finalize', (ctx) => {
+  const repo = (ctx.fixtures['仓库'] as unknown as { repo: TempRepo }).repo;
+  const id = (ctx.fixtures['change'] as unknown as { id: string }).id;
+  const result = repo.run('bun', [CLI, 'change', 'finalize', id]);
+  ctx.fixtures['finalize结果'] = {
+    exitCode: result.code,
+    stdout: result.stdout,
+  } satisfies CliResult as unknown as Record<string, unknown>;
+});
+
+bdd.thenStep('目标分支获得单条 archive(sdd) 提交', (ctx) => {
+  const repo = (ctx.fixtures['仓库'] as unknown as { repo: TempRepo }).repo;
+  const subjects = repo.run('git', ['log', '--format=%s', 'main']).stdout.trim().split('\n');
+  if (subjects[0] !== 'archive(sdd): demo-add-feature') {
+    throw new Error(`expected archive close-out commit, got: ${subjects.join(' | ')}`);
+  }
+});
+
+bdd.thenStep('changes 目录下只剩 archive 改名产物', (ctx) => {
+  const repo = (ctx.fixtures['仓库'] as unknown as { repo: TempRepo }).repo;
+  const entries = readdirSync(join(repo.root, 'llmanspec', 'changes')).toSorted();
+  if (entries.length !== 1 || entries[0] !== 'archive') {
+    throw new Error(`expected only archive/ under changes/, got ${entries.join(', ')}`);
+  }
+  if (!existsSync(join(repo.root, 'llmanspec', 'changes', 'archive'))) {
+    throw new Error('archive dir missing');
+  }
+});
+
+bdd.thenStep('特性分支上的变更内容出现在目标分支', (ctx) => {
+  const repo = (ctx.fixtures['仓库'] as unknown as { repo: TempRepo }).repo;
+  if (!existsSync(join(repo.root, 'feature.txt'))) {
+    throw new Error('feature.txt did not land on target branch');
+  }
 });

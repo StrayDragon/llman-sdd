@@ -1,0 +1,141 @@
+import {
+  currentBranch,
+  defaultBranch,
+  isCleanTree,
+  revParseHead,
+  type GitLike,
+} from '../git/spawnGit.ts';
+import { readBinding, writeBinding } from './frontmatter.ts';
+/**
+ * Change lifecycle (change-lifecycle capability): new / start / attach /
+ * finalize with the v1 git-native contract (r14-r16). All effects flow
+ * through the injected GitLike and FsIo ports — this module stays pure.
+ * FsIo paths are ROOT-RELATIVE (e.g. `llmanspec/changes/<id>/proposal.md`);
+ * the git cwd binding lives in the GitLike adapter.
+ */
+import { DRAFT_PROPOSAL_TEMPLATE, deriveChangeId } from './id.ts';
+
+export interface FsIo {
+  exists(path: string): boolean;
+  readText(path: string): string;
+  /** writeText creates parent directories as needed. */
+  writeText(path: string, content: string): void;
+  rename(from: string, to: string): void;
+  listDir(path: string): string[];
+}
+
+export class LifecycleError extends Error {}
+
+export const CHANGES_DIR = 'llmanspec/changes';
+const proposalPath = (id: string): string => `${CHANGES_DIR}/${id}/proposal.md`;
+
+export function changeExists(io: FsIo, id: string): boolean {
+  return io.exists(proposalPath(id));
+}
+
+/** `change new [id] --from DESC`: derive a legal id and write the draft shell. */
+export function newChange(
+  io: FsIo,
+  opts: { id?: string; from?: string },
+): { id: string; path: string } {
+  const id = opts.id ?? deriveChangeId(opts.from ?? '');
+  const path = proposalPath(id);
+  if (io.exists(path)) throw new LifecycleError(`change \`${id}\` already exists: ${path}`);
+  io.writeText(path, `---\ndepends_on: []\n---\n\n${DRAFT_PROPOSAL_TEMPLATE}`);
+  return { id, path };
+}
+
+/** `change start`: clean-tree + default-branch gates, then branch + binding. */
+export function startChange(
+  git: GitLike,
+  io: FsIo,
+  id: string,
+  opts: { branchPrefix?: string } = {},
+): { branch: string; baseBranch: string; baseSha: string } {
+  const path = proposalPath(id);
+  if (!io.exists(path)) throw new LifecycleError(`proposal not found: ${path}`);
+  if (!isCleanTree(git))
+    throw new LifecycleError('working tree is not clean — commit or stash first');
+  const baseBranch = defaultBranch(git);
+  const here = currentBranch(git);
+  if (here !== baseBranch) {
+    throw new LifecycleError(
+      `must run from the default branch (${baseBranch}), currently on: ${here ?? 'detached'}`,
+    );
+  }
+  const branchPrefix = opts.branchPrefix ?? 'sdd/';
+  const branch = `${branchPrefix}${id}`;
+  git.run(['switch', '-c', branch]);
+  const baseSha = revParseHead(git);
+  io.writeText(path, writeBinding(io.readText(path), { branch, baseBranch, baseSha }));
+  return { branch, baseBranch, baseSha };
+}
+
+/** `change attach`: bind the current branch without gates. */
+export function attachChange(git: GitLike, io: FsIo, id: string): { branch: string } {
+  const path = proposalPath(id);
+  if (!io.exists(path)) throw new LifecycleError(`proposal not found: ${path}`);
+  const branch = currentBranch(git);
+  if (branch === null) throw new LifecycleError('detached HEAD — cannot attach');
+  const baseSha = revParseHead(git);
+  io.writeText(
+    path,
+    writeBinding(io.readText(path), { branch, baseBranch: defaultBranch(git), baseSha }),
+  );
+  return { branch };
+}
+
+export interface FinalizeResult {
+  target: string;
+  archiveDir: string;
+  warnings: string[];
+  commitSubject: string;
+}
+
+/** `change finalize`: merge (squash default) + archive rename + close-out commit. */
+export function finalizeChange(
+  git: GitLike,
+  io: FsIo,
+  id: string,
+  opts: { into?: string; method?: 'squash' | 'ff'; today?: string } = {},
+): FinalizeResult {
+  const path = proposalPath(id);
+  const binding = readBinding(io.readText(path));
+  if (binding === null) {
+    throw new LifecycleError(`change \`${id}\` has no branch binding — run start/attach first`);
+  }
+  const method = opts.method ?? 'squash';
+  const target = opts.into ?? binding.baseBranch ?? defaultBranch(git);
+  const warnings: string[] = [];
+
+  // Read the binding while still on the feature branch (its proposal.md may
+  // carry uncommitted binding edits), then switch and merge.
+  git.run(['switch', target]);
+  const mergeArgs =
+    method === 'ff'
+      ? ['merge', '--ff-only', binding.branch]
+      : ['merge', '--squash', binding.branch];
+  if (git.runOpt(mergeArgs) === null) {
+    git.runOpt(['merge', '--abort']);
+    warnings.push(
+      `merge ${method} failed — resolve manually, e.g. \`git merge ${method === 'ff' ? '--ff-only' : '--squash'} ${binding.branch}\``,
+    );
+  }
+
+  const date = opts.today ?? new Date().toISOString().slice(0, 10);
+  const archiveDir = `${CHANGES_DIR}/archive/${date}-${id}`;
+  io.rename(`${CHANGES_DIR}/${id}`, archiveDir);
+
+  git.run(['add', '-A']);
+  const commitSubject = `archive(sdd): ${id}`;
+  git.run(['commit', '-m', commitSubject]);
+  return { target, archiveDir, warnings, commitSubject };
+}
+
+/** `change diff <id>`: full diff of the bound branch vs base. */
+export function changeDiff(git: GitLike, io: FsIo, id: string): string {
+  const binding = readBinding(io.readText(proposalPath(id)));
+  if (binding === null) throw new LifecycleError(`change \`${id}\` has no branch binding`);
+  const base = binding.baseBranch ?? defaultBranch(git);
+  return git.run(['diff', `${base}...${binding.branch}`]);
+}

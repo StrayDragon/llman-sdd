@@ -41,3 +41,28 @@ export type {
 } from './validation/validate.ts';
 export { validateAllSpecs, validateCapability } from './validation/validate.ts';
 export { discoverSpecs, type DiscoveryIo } from './validation/discover.ts';
+export type { ChangeBinding } from './change/frontmatter.ts';
+export { readBinding, writeBinding } from './change/frontmatter.ts';
+export {
+  GitError,
+  defaultBranch,
+  isCleanTree,
+  makeSpawnGit,
+  mergeBase,
+  currentBranch,
+  branchExists,
+  revParseHead,
+  type GitLike,
+} from './git/spawnGit.ts';
+export { DRAFT_PROPOSAL_TEMPLATE, deriveChangeId, isLegalChangeId } from './change/id.ts';
+export {
+  CHANGES_DIR,
+  LifecycleError,
+  attachChange,
+  changeDiff,
+  finalizeChange,
+  newChange,
+  startChange,
+  type FinalizeResult,
+  type FsIo,
+} from './change/lifecycle.ts';
