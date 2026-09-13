@@ -1,6 +1,9 @@
 ---
 depends_on:
-  - port-config-and-parsing
+- port-config-and-parsing
+branch: sdd/port-validation-engine
+base_sha: 453740cdfa3ff501c216691ca73d0cf95879e66b
+base_branch: main
 ---
 
 # Port:校验引擎(Phase 3)
