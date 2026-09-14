@@ -90,3 +90,30 @@ export {
   type TemplateIo,
 } from './templates/skills.ts';
 export { runInit, updateFileWithMarkers, type InitResult } from './init/init.ts';
+export {
+  collectChanges,
+  renderChangesList,
+  renderChangesJson,
+  statusFor,
+  stageFor,
+  relativeTime,
+  statusHuman,
+  type ChangeFsIo,
+  type ChangeStatus,
+  type ChangeSummary,
+} from './report/collect.ts';
+export { graphMermaid, type GraphFsIo } from './report/graph.ts';
+export { showChangeJson, type ShowDeps, type ShowFsIo } from './report/show.ts';
+export {
+  nextReqId,
+  scaffoldSpec,
+  skeletonContent,
+  type SpecHelperIo,
+} from './report/specHelpers.ts';
+export {
+  collectSpecs,
+  renderSpecsJson,
+  renderSpecsList,
+  type SpecMorphology,
+  type SpecSummary,
+} from './report/specs.ts';

@@ -41,6 +41,9 @@ golden-generate:
 golden-check:
     bun run golden:check
 
+golden-cli:
+    bun run golden:cli
+
 # config schema artifact:生成 / 漂移门
 gen-schema:
     bun run gen:schema

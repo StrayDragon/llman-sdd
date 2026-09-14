@@ -21,7 +21,8 @@
     "golden:generate": "bun tests/golden/generate.ts",
     "golden:check": "bun tests/golden/check.ts",
     "gen:schema": "bun scripts/gen-schema.ts",
-    "check:schema": "bun scripts/gen-schema.ts --check"
+    "check:schema": "bun scripts/gen-schema.ts --check",
+    "golden:cli": "bun tests/golden/check-cli.ts"
   },
   "dependencies": {
     "nunjucks": "^3.2.4"

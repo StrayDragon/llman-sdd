@@ -8,24 +8,36 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 
 import {
   VERSION,
   attachChange,
+  collectChanges,
+  collectSpecs,
+  graphMermaid,
+  nextReqId,
   changeDiff,
   deriveChangeId,
   finalizeChange,
   loadConfig,
   makeSpawnGit,
   newChange,
-  runInit,
   parseCapability,
+  renderChangesJson,
+  renderChangesList,
+  renderSpecsJson,
+  renderSpecsList,
+  runInit,
+  scaffoldSpec,
+  showChangeJson,
   startChange,
   validateAllSpecs,
+  type ChangeFsIo,
   type DiscoveryIo,
   type FsIo,
   type GitLike,
+  type GraphFsIo,
 } from '@llman-sdd/core';
 import { Command } from 'commander';
 
@@ -33,22 +45,24 @@ import { Command } from 'commander';
 // package version when running from source.
 const version = process.env.LLMAN_SDD_VERSION ?? VERSION;
 
-/** Root-relative FsIo + GitLike adapters over node:fs / git subprocess. */
+/** Root-relative FsIo + GitLike adapters over node:fs / git subprocess.
+ * Absolute paths pass through untouched. */
 function makeFsIo(root: string): FsIo {
+  const full = (p: string): string => (isAbsolute(p) ? p : join(root, p));
   return {
-    exists: (p) => existsSync(join(root, p)),
-    readText: (p) => readFileSync(join(root, p), 'utf8'),
+    exists: (p) => existsSync(full(p)),
+    readText: (p) => readFileSync(full(p), 'utf8'),
     writeText: (p, content) => {
-      const full = join(root, p);
-      mkdirSync(full.slice(0, full.lastIndexOf('/')), { recursive: true });
-      writeFileSync(full, content);
+      const abs = full(p);
+      mkdirSync(abs.slice(0, abs.lastIndexOf('/')), { recursive: true });
+      writeFileSync(abs, content);
     },
     rename: (from, to) => {
-      const target = join(root, to);
+      const target = full(to);
       mkdirSync(target.slice(0, target.lastIndexOf('/')), { recursive: true });
-      renameSync(join(root, from), target);
+      renameSync(full(from), target);
     },
-    listDir: (p) => readdirSync(join(root, p)),
+    listDir: (p) => readdirSync(full(p)),
   };
 }
 
@@ -73,6 +87,12 @@ const FS_IO: DiscoveryIo = {
   listDir: (p) => readdirSync(p),
   readText: (p) => readFileSync(p, 'utf8'),
 };
+
+function ioWrite(p: string, content: string): void {
+  const full = join(process.cwd(), p);
+  mkdirSync(full.slice(0, full.lastIndexOf('/')) || '.', { recursive: true });
+  writeFileSync(full, content);
+}
 
 function runValidateSpecs(options: { specs?: boolean; check: boolean }): number {
   const entries = collectFeatureFiles('llmanspec/specs').map((path) => ({
@@ -198,6 +218,153 @@ change
     for (const w of result.warnings) console.error(`[WARNING] ${w}`);
     console.log(
       `finalized \`${id}\` → ${result.archiveDir} (commit "${result.commitSubject}" on ${result.target})`,
+    );
+  });
+
+program
+  .command('list')
+  .description('List changes or specs')
+  .option('--specs', 'list specs instead of changes')
+  .option('--json', 'machine-readable output')
+  .action((options: { specs?: boolean; json?: boolean }) => {
+    if (options.specs) {
+      const entries = collectFeatureFiles('llmanspec/specs').map((path) => ({
+        fileName: path,
+        doc: parseCapability(readFileSync(path, 'utf8'), path),
+      }));
+      const summaries = collectSpecs(entries);
+      console.log(
+        options.json ? renderSpecsJson(summaries) : renderSpecsList(summaries).join('\n'),
+      );
+      return;
+    }
+    const io: ChangeFsIo & GraphFsIo = {
+      exists: (p) => existsSync(p),
+      readText: (p) => readFileSync(p, 'utf8'),
+      listDir: (p) => readdirSync(p),
+      isDirectory: (p) => existsSync(p) && statSync(p).isDirectory(),
+      mtimeMs: (p) => statSync(p).mtimeMs,
+    };
+    const changes = collectChanges(io, process.cwd(), new Date());
+    console.log(
+      options.json ? renderChangesJson(changes) : renderChangesList(changes, new Date()).join('\n'),
+    );
+  });
+
+program
+  .command('show')
+  .description('Show a change (JSON) or a spec (text)')
+  .argument('<item>')
+  .option('--output <format>', 'output format: json, meta-only, reqs-only, no-scenarios')
+  .option('--type <itemType>', 'item type hint: change|spec')
+  .action((item: string, options: { output?: string; type?: string }) => {
+    const isSpec =
+      options.type === 'spec' || existsSync(join('llmanspec', 'specs', `${item}.feature`));
+    if (isSpec) {
+      const path = join('llmanspec', 'specs', `${item}.feature`);
+      if (!existsSync(path)) {
+        console.error(`spec not found: ${item}`);
+        process.exit(1);
+      }
+      const entries = collectFeatureFiles('llmanspec/specs').map((specPath) => ({
+        fileName: specPath,
+        doc: parseCapability(readFileSync(specPath, 'utf8'), specPath),
+      }));
+      const summary = collectSpecs(entries).find((x) => x.id === item);
+      const morphology = summary
+        ? `\n\n## Morphology\nruleCount=${summary.morphology.ruleCount} enforced=${summary.morphology.ruleEnforcedCount} manual=${summary.morphology.ruleManualCount} pending=${summary.morphology.rulePendingCount} acceptanceCount=${summary.morphology.acceptanceCount}`
+        : '';
+      console.log(`## Spec\n${readFileSync(path, 'utf8').trimEnd()}${morphology}`);
+      return;
+    }
+    if (options.output !== 'json') {
+      console.error('only --output json is supported for changes in v2 (text format pending)');
+      process.exit(1);
+    }
+    const io = makeFsIo(process.cwd());
+    const result = showChangeJson(
+      {
+        io: io as unknown as import('@llman-sdd/core').ShowFsIo,
+        discovery: FS_IO,
+        root: process.cwd(),
+        specsDir: 'llmanspec/specs',
+        now: new Date(),
+      },
+      item,
+    );
+    console.log(JSON.stringify(result, null, 2));
+  });
+
+program
+  .command('graph')
+  .description('Generate a change dependency graph (mermaid)')
+  .option('--format <format>', 'output format', 'mermaid')
+  .action((options: { format: string }) => {
+    if (options.format !== 'mermaid') {
+      console.error(`unsupported format: ${options.format}`);
+      process.exit(1);
+    }
+    const io: GraphFsIo = {
+      exists: (p) => existsSync(p),
+      readText: (p) => readFileSync(p, 'utf8'),
+      listDir: (p) => readdirSync(p),
+      isDirectory: (p) => existsSync(p) && statSync(p).isDirectory(),
+    };
+    console.log(graphMermaid(io, process.cwd()).join('\n'));
+  });
+
+const spec = program.command('spec').description('Spec authoring helpers');
+
+spec
+  .command('skeleton')
+  .description('Generate a single-track spec skeleton for a capability')
+  .argument('<capability>')
+  .action((capability: string) => {
+    const locale = existsSync('llmanspec/config.yaml')
+      ? loadConfig(readFileSync('llmanspec/config.yaml', 'utf8')).locale
+      : 'en';
+    const io = makeFsIo(process.cwd());
+    const specIo = {
+      exists: (p: string) => io.exists(p),
+      readText: (p: string) => io.readText(p),
+      writeText: (p: string, content: string) => io.writeText(p, content),
+      mkdirp: (p: string) => io.writeText(join(p, '.keep'), ''),
+      isDirectory: (p: string) => existsSync(p) && statSync(p).isDirectory(),
+      listDir: (p: string) => readdirSync(p),
+    };
+    const path = scaffoldSpec(specIo, 'llmanspec/specs', capability, locale);
+    console.log(`wrote ${path}`);
+  });
+
+spec
+  .command('next-req-id')
+  .description('Allocate the next free global req id (rN)')
+  .action(() => {
+    const specIo = {
+      exists: (p: string) => existsSync(p),
+      readText: (p: string) => readFileSync(p, 'utf8'),
+      writeText: (p: string, content: string) => ioWrite(p, content),
+      mkdirp: (p: string) => ioWrite(join(p, '.keep'), ''),
+      isDirectory: (p: string) => existsSync(p) && statSync(p).isDirectory(),
+      listDir: (p: string) => readdirSync(p),
+    };
+    console.log(nextReqId(specIo, 'llmanspec/specs'));
+  });
+
+const project = program.command('project').description('Project management commands');
+
+project
+  .command('migrate')
+  .description('Legacy migration entry (no-op in v2)')
+  .action(() => {
+    console.log(
+      'v2 不携带 legacy 迁移实现:spec.toon / specs-flatten 等迁移请使用 v1(Rust llman <= 0.0.x),',
+    );
+    console.log(
+      '例如 `cargo install llman@0.0.77 --features` 后运行 `llman sdd project migrate --kind toon2features --yes`。',
+    );
+    console.log(
+      'v2 直接读取 v1 的 llmanspec 布局(config.yaml / specs/*.feature / changes/),零迁移可读。',
     );
   });
 
