@@ -1,7 +1,15 @@
 // Domain step definitions: drive the real @llman-sdd/core APIs so the
 // @executable scenarios in llmanspec/specs/*.feature double as acceptance
-// tests for the config / spec-parsing layers.
-import { buildReqRegistry, loadConfig, parseCapability, type CapabilityDoc } from '@llman-sdd/core';
+// tests for the config / spec-parsing / validation layers.
+import {
+  buildReqRegistry,
+  discoverSpecs,
+  loadConfig,
+  parseCapability,
+  validateAllSpecs,
+  type CapabilityDoc,
+  type DiscoveryIo,
+} from '@llman-sdd/core';
 
 import { bdd } from '../runner.ts';
 
@@ -115,4 +123,57 @@ bdd.thenStep('报告包含重复对 {reqId}', (ctx, reqId) => {
   if (!reg?.duplicates.some((d) => d.reqId === reqId)) {
     throw new Error(`expected duplicate pair for ${reqId}, got ${JSON.stringify(reg?.duplicates)}`);
   }
+});
+
+// ---------------------------------------------------------------------------
+// validation capability — seeded-defect specs directory
+// ---------------------------------------------------------------------------
+
+interface SpecsDirFixture {
+  io: DiscoveryIo;
+  specsDir: string;
+}
+
+interface ValidateResult {
+  failed: boolean;
+  lines: string[];
+}
+
+bdd.given('一个含互斥 tag 与重复 req_id 缺陷的 specs 目录', (ctx) => {
+  const files: Record<string, string> = {
+    'llmanspec/specs/mutual.feature': `# language: zh-CN\n# capability: mutual\n# purpose: p\n# scope: llmanspec/\n\n功能: mutual\n\n  @req:r11 @human @executable\n  场景: 互斥\n    - 系统 MUST x\n`,
+    'llmanspec/specs/dupa.feature': `# language: zh-CN\n# capability: dupa\n# purpose: p\n# scope: llmanspec/\n\n功能: dupa\n\n  @req:r20 @human\n  场景: ok\n    - 系统 MUST x\n`,
+    'llmanspec/specs/dupb.feature': `# language: zh-CN\n# capability: dupb\n# purpose: p\n# scope: llmanspec/\n\n功能: dupb\n\n  @req:r20 @human\n  场景: ok\n    - 系统 MUST x\n`,
+  };
+  const io: DiscoveryIo = {
+    exists: (p) => p.startsWith('llmanspec/'),
+    isDirectory: (p) => p === 'llmanspec/' || p === 'llmanspec/specs' || p === 'llmanspec/specs/',
+    listDir: (p) => {
+      const names = Object.keys(files).map((f) => f.slice('llmanspec/specs/'.length));
+      return p === 'llmanspec/specs' || p === 'llmanspec/specs/' ? names : [];
+    },
+    readText: (p) => files[p] ?? '',
+  };
+  ctx.fixtures['缺陷目录'] = { io, specsDir: 'llmanspec/specs' };
+});
+
+bdd.when('运行 specs 校验', (ctx) => {
+  const fixture = ctx.fixtures['缺陷目录'] as unknown as SpecsDirFixture | undefined;
+  if (!fixture) throw new Error('no specs-dir fixture — did the 假如 step run?');
+  const entries = discoverSpecs(fixture.specsDir, fixture.io);
+  const report = validateAllSpecs(entries, fixture.io);
+  ctx.fixtures['校验结果'] = { failed: report.failed, lines: report.lines };
+});
+
+bdd.thenStep('FAIL 集合包含 spec 条目', (ctx) => {
+  const result = ctx.fixtures['校验结果'] as unknown as ValidateResult | undefined;
+  const failLines = result?.lines.filter((l) => l.startsWith('FAIL spec/')) ?? [];
+  if (failLines.length === 0) {
+    throw new Error(`no FAIL spec entries in:\n${result?.lines.join('\n')}`);
+  }
+});
+
+bdd.thenStep('退出码非零', (ctx) => {
+  const result = ctx.fixtures['校验结果'] as unknown as ValidateResult | undefined;
+  if (!result?.failed) throw new Error('expected validation to fail');
 });

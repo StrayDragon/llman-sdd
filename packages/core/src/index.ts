@@ -31,3 +31,13 @@ export {
   parseFeatureSource,
 } from './spec/parser.ts';
 export { buildReqRegistry, type ReqRegistry, type RegistryDuplicate } from './spec/reqRegistry.ts';
+export type {
+  SpecEntry,
+  SpecIo,
+  SpecVerdict,
+  ValidationItem,
+  ValidationLevel,
+  ValidationReport,
+} from './validation/validate.ts';
+export { validateAllSpecs, validateCapability } from './validation/validate.ts';
+export { discoverSpecs, type DiscoveryIo } from './validation/discover.ts';
