@@ -27,6 +27,8 @@ import {
 
 import { bdd } from '../runner.ts';
 
+const REPO_ROOT = join(import.meta.dirname, '..', '..', '..');
+
 interface ParseResult {
   doc: CapabilityDoc;
 }
@@ -393,5 +395,69 @@ bdd.thenStep('每个 SKILL.md 通过 ethics 治理门', (ctx) => {
     for (const key of ETHICS_KEYS) {
       if (!content.includes(key)) throw new Error(`${dir}/SKILL.md missing ethics key ${key}`);
     }
+  }
+});
+
+// ---------------------------------------------------------------------------
+// peripheral-commands capability — live v1 ↔ v2 comparison
+// ---------------------------------------------------------------------------
+
+function normalizeCliText(s: string): string {
+  return s
+    .split('\n')
+    .map((l) => l.trim().replaceAll(/\s+/gu, ' '))
+    .filter((l) => l !== '' && !l.startsWith('INFO:'))
+    .join('\n')
+    .replaceAll(/\b\d+[smhd]\s+ago\b/gu, '<REL>')
+    .replaceAll('just now', '<REL>')
+    .replaceAll(/\d{4}-\d{2}-\d{2}T[\d:.]+Z/gu, '<TS>');
+}
+
+interface CliPairResult {
+  same: boolean;
+  sample: string;
+}
+
+bdd.given('本仓库的真实 llmanspec 工作区', (ctx) => {
+  ctx.fixtures['工作区'] = { root: REPO_ROOT };
+});
+
+bdd.when('分别运行 v1 与 v2 的 list/show/graph 命令', (ctx) => {
+  const run = (cmd: string, args: string[]): string => {
+    const proc = spawnSync(cmd, args, { cwd: REPO_ROOT, encoding: 'utf8' });
+    return proc.stdout ?? '';
+  };
+  const pairs: [string[], string[]][] = [
+    [
+      ['sdd', 'list', '--json'],
+      ['list', '--json'],
+    ],
+    [
+      ['sdd', 'list', '--specs', '--json'],
+      ['list', '--specs', '--json'],
+    ],
+    [
+      ['sdd', 'graph', '--format', 'mermaid'],
+      ['graph', '--format', 'mermaid'],
+    ],
+  ];
+  const compared = pairs.map(([v1, v2]) => {
+    const a = normalizeCliText(run('llman', v1));
+    const b = normalizeCliText(run('bun', [CLI, ...v2]));
+    const sorted = v1.includes('graph');
+    return sorted
+      ? a.split('\n').toSorted().join('\n') === b.split('\n').toSorted().join('\n')
+      : a === b;
+  });
+  ctx.fixtures['对比结果'] = {
+    same: compared.every(Boolean),
+    sample: compared.join(','),
+  } satisfies CliPairResult as unknown as Record<string, unknown>;
+});
+
+bdd.thenStep('归一化后的输出结构一致', (ctx) => {
+  const result = ctx.fixtures['对比结果'] as unknown as CliPairResult | undefined;
+  if (!result?.same) {
+    throw new Error(`v1/v2 outputs diverge (${result?.sample ?? 'no result'})`);
   }
 });

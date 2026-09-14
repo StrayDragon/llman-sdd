@@ -1,0 +1,131 @@
+import { describe, expect, test } from 'bun:test';
+
+import {
+  collectChanges,
+  graphMermaid,
+  nextReqId,
+  renderChangesJson,
+  renderChangesList,
+  stageFor,
+  statusFor,
+  type ChangeFsIo,
+  type GraphFsIo,
+  type SpecHelperIo,
+} from '@llman-sdd/core';
+
+const NOW = new Date('2026-09-14T12:00:00Z');
+
+function fakeChangeIo(): ChangeFsIo {
+  const files = new Map<string, string>([
+    [
+      './llmanspec/changes/add-alpha/proposal.md',
+      '---\nbranch: sdd/add-alpha\nbase_branch: main\nbase_sha: abc123\ndepends_on:\n  - add-beta\n---\n\n# Alpha 标题\n\nbody\n',
+    ],
+    ['./llmanspec/changes/add-alpha/tasks.md', '# Tasks\n\n- [x] A\n- [ ] B\n'],
+    ['./llmanspec/changes/add-alpha/design.md', '# Design\n'],
+    ['./llmanspec/changes/add-beta/proposal.md', '---\ndepends_on: []\n---\n\n## Why\n\nx\n'],
+    ['./llmanspec/changes/archive/2026-09-01-add-old/proposal.md', '## Why\n\nx\n'],
+  ]);
+  const mtimes = new Map<string, number>([
+    ['./llmanspec/changes/add-alpha/proposal.md', NOW.getTime() - 3_600_000],
+    ['./llmanspec/changes/add-alpha/tasks.md', NOW.getTime() - 1_800_000],
+    ['./llmanspec/changes/add-alpha/design.md', NOW.getTime() - 7_200_000],
+    ['./llmanspec/changes/add-beta/proposal.md', NOW.getTime() - 5 * 86_400_000],
+  ]);
+  return {
+    exists: (p) =>
+      files.has(p) ||
+      p.endsWith('changes') ||
+      p.endsWith('archive') ||
+      p.endsWith('add-alpha') ||
+      p.endsWith('add-beta') ||
+      p.endsWith('add-old'),
+    readText: (p) => files.get(p) ?? '',
+    listDir: (p) =>
+      p.endsWith('changes')
+        ? ['add-alpha', 'add-beta', 'archive']
+        : p.endsWith('archive')
+          ? ['2026-09-01-add-old']
+          : [],
+    isDirectory: (p) => !p.endsWith('.md'),
+    mtimeMs: (p) => mtimes.get(p) ?? 0,
+  };
+}
+
+describe('collectChanges', () => {
+  test('skips archive, derives stage/status/idle', () => {
+    const changes = collectChanges(fakeChangeIo(), '.', NOW);
+    expect(changes.map((c) => c.name)).toEqual(['add-alpha', 'add-beta']);
+    expect(changes[0]?.stage).toBe('full');
+    expect(changes[0]?.completedTasks).toBe(1);
+    expect(changes[0]?.totalTasks).toBe(2);
+    expect(changes[0]?.idleDays).toBe(0);
+    expect(changes[1]?.stage).toBe('draft');
+    expect(changes[1]?.idleDays).toBe(5);
+  });
+
+  test('status enum and list/json rendering', () => {
+    expect(statusFor(0, 0)).toBe('no-tasks');
+    expect(statusFor(2, 2)).toBe('complete');
+    expect(statusFor(2, 1)).toBe('in-progress');
+    expect(stageFor(false, false, false)).toBe('draft');
+    expect(stageFor(true, false, false)).toBe('designed');
+    expect(stageFor(true, true, false)).toBe('planned');
+    expect(stageFor(true, true, true)).toBe('full');
+
+    const changes = collectChanges(fakeChangeIo(), '.', NOW);
+    const json = JSON.parse(renderChangesJson(changes));
+    expect(json.changes[0]).toMatchObject({
+      name: 'add-alpha',
+      stage: 'full',
+      status: 'in-progress',
+      completedTasks: 1,
+      totalTasks: 2,
+    });
+    const lines = renderChangesList(changes, NOW);
+    expect(lines[0]).toBe('Active changes:');
+    // no-tasks 行才带 idle 段
+    expect(lines[1]).not.toContain('(idle');
+    expect(lines[2]).toContain('(idle 5d)');
+  });
+});
+
+describe('graphMermaid', () => {
+  test('sanitizes ids, annotates referenced archived only, keeps edges', () => {
+    const io: GraphFsIo = {
+      exists: () => true,
+      readText: (p) =>
+        p.includes('add-alpha')
+          ? '---\ndepends_on:\n  - add-beta\n  - add-old\n---\n\nx\n'
+          : '---\ndepends_on: []\n---\n\nx\n',
+      listDir: (p) =>
+        p.endsWith('archive')
+          ? ['2026-09-01-add-old', '2026-09-01-add-unreferenced']
+          : ['add-alpha', 'add-beta', 'archive'],
+      isDirectory: () => true,
+    };
+    const lines = graphMermaid(io, '.');
+    expect(lines[0]).toBe('flowchart TD');
+    expect(lines).toContain('    add_alpha["add-alpha"]');
+    expect(lines).toContain('    add_old["add-old ✓ done"]:::archived');
+    expect(lines.some((l) => l.includes('add_unreferenced'))).toBe(false);
+    expect(lines).toContain('    add_alpha -->|depends on| add_beta');
+    expect(lines).toContain('    add_alpha -->|depends on| add_old');
+    expect(lines.at(-1)).toContain('classDef archived');
+  });
+});
+
+describe('nextReqId', () => {
+  test('reads TAGS only — @req in step text must not count (v1 parity)', () => {
+    const io: SpecHelperIo = {
+      exists: () => true,
+      readText: () =>
+        '# language: zh-CN\n# capability: t\n# purpose: p\n# scope: x/\n\n功能: t\n\n  @req:r5 @human\n  场景: ok\n    - 系统 MUST x\n\n  @req:r5 @executable\n  场景: acc\n    假如 一个 spec 文件都含 @req:r99 标签\n',
+      writeText: () => {},
+      mkdirp: () => {},
+      isDirectory: () => false,
+      listDir: () => ['t.feature'],
+    };
+    expect(nextReqId(io, 'llmanspec/specs')).toBe('r6');
+  });
+});

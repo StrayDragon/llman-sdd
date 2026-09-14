@@ -1,7 +1,10 @@
 ---
 depends_on:
-  - port-change-lifecycle
-  - port-init-and-generators
+- port-change-lifecycle
+- port-init-and-generators
+branch: sdd/port-peripheral-commands
+base_sha: 8f6f3c713c92bc4092c5f9675ba718c99429f9f8
+base_branch: main
 ---
 
 # Port:周边命令面(list/show/graph/spec 助手)(Phase 6)
