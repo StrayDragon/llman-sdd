@@ -1,0 +1,35 @@
+{
+  "name": "llman-sdd",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Spec-driven development workflow for LLM agent collaboration (TypeScript rewrite of llman sdd)",
+  "license": "MIT",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "format:check": "oxfmt --check",
+    "format:write": "oxfmt --write",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test tests/",
+    "build": "bun --filter '@llman-sdd/cli' build",
+    "check": "bun run typecheck && bun run lint && bun run format:check",
+    "qa": "bun run check && bun run test",
+    "golden:generate": "bun tests/golden/generate.ts",
+    "golden:check": "bun tests/golden/check.ts"
+  },
+  "devDependencies": {
+    "@cucumber/gherkin": "^42.0.1",
+    "@types/bun": "^1.4.2",
+    "oxfmt": "^0.67.0",
+    "oxlint": "^1.82.0",
+    "typescript": "^7.0.2"
+  },
+  "engines": {
+    "bun": ">=1.4.0",
+    "node": ">=24.0.0"
+  }
+}

@@ -1,0 +1,107 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn",
+    "pedantic": "warn",
+    "perf": "warn"
+  },
+  "plugins": ["typescript", "import", "unicorn", "promise", "node"],
+  "rules": {
+    // –– correctness (error) ––
+    "eslint/eqeqeq": "error",
+    "eslint/no-dupe-keys": "error",
+    "eslint/use-isnan": "error",
+    "eslint/valid-typeof": "error",
+
+    // –– suspicious / explicit errors ––
+    "typescript/no-misused-promises": "error",
+    "typescript/return-await": "error",
+    "typescript/only-throw-error": "error",
+    "eslint/no-throw-literal": "error",
+
+    // –– imports ––
+    "import/no-cycle": "error",
+    "import/no-self-import": "error",
+    "import/no-duplicates": "error",
+    "import/first": "error",
+    "import/extensions": "off",
+
+    // –– node / unicorn ––
+    "unicorn/error-message": "error",
+    "unicorn/throw-new-error": "error",
+    "unicorn/catch-error-name": "error",
+    "node/no-new-require": "error",
+    "node/no-path-concat": "error",
+
+    // –– code style ––
+    // no-console: off — CLI 工具,console 本就是输出通道。
+    "eslint/no-console": "off",
+    "eslint/no-eval": "error",
+    "eslint/no-implied-eval": "error",
+
+    // –– intentionally relaxed ––
+    "eslint/no-shadow": "off",
+    "eslint/no-useless-return": "off",
+    "eslint/max-lines-per-function": "off",
+    "eslint/max-lines": "off",
+    "eslint/max-depth": "off",
+    "eslint/no-negated-condition": "off",
+    "eslint/no-underscore-dangle": "off",
+    "eslint/require-await": "off",
+    "eslint/no-await-in-loop": "off",
+    "typescript/no-explicit-any": "off",
+    "typescript/no-non-null-assertion": "off",
+    "typescript/consistent-type-imports": "off",
+    "typescript/consistent-return": "off",
+    "typescript/strict-boolean-expressions": "off",
+    "typescript/prefer-readonly-parameter-types": "off",
+    "unicorn/explicit-length-check": "off",
+    "unicorn/no-negated-condition": "off",
+    "unicorn/no-useless-undefined": "off",
+    "unicorn/no-lonely-if": "off",
+    "unicorn/no-array-callback-reference": "off",
+    "unicorn/consistent-function-scoping": "off",
+    "import/max-dependencies": "off",
+    "promise/always-return": "off"
+  },
+  "overrides": [
+    {
+      "files": ["**/*.test.ts", "**/tests/**/*.ts", "tests/**/*.ts"],
+      "rules": {
+        "eslint/no-console": "off",
+        "eslint/no-shadow": "off",
+        "eslint/no-unused-vars": "off",
+        "eslint/no-inline-comments": "off",
+        "eslint/require-unicode-regexp": "off",
+        "eslint/no-promise-executor-return": "off",
+        "typescript/no-explicit-any": "off",
+        "typescript/no-non-null-assertion": "off",
+        "typescript/only-throw-error": "off",
+        "typescript/no-misused-promises": "off",
+        "import/no-cycle": "off",
+        "import/first": "off",
+        "import/no-duplicates": "off",
+        "unicorn/catch-error-name": "off",
+        "import/no-unassigned-import": "off"
+      }
+    },
+    {
+      "files": ["apps/cli/scripts/**/*.ts", "tests/golden/**/*.ts"],
+      "rules": {
+        // 构建与脚手架脚本允许直连进程/文件系统。
+        "typescript/no-misused-promises": "off",
+        "typescript/only-throw-error": "off"
+      }
+    }
+  ],
+  "ignorePatterns": [
+    "dist/",
+    "coverage/",
+    "node_modules/",
+    ".git/",
+    "bun.lock",
+    ".agents/skills/",
+    "tests/golden/baseline/"
+  ]
+}

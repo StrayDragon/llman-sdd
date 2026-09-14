@@ -16,9 +16,9 @@ project-specific rules, context, or conventions that you want AI agents to follo
 
 ## 技术栈(已定案)
 
-- 运行时 Bun(`.bun-version` 钉版)+ TypeScript(仅 typecheck,不参与构建)
+- 运行时 Bun(`.bun-version` 钉版)+ TypeScript(仅 typecheck,不参与构建);**双运行时兼容:Node >= 24**(`.node-version` 钉版 + engines 声明)——运行时代码(packages/*、apps/* 的 src)只准用 `node:` / Web 标准API,禁用 Bun 专属 API(Bun.$、Bun.file、Bun.Glob 等);Bun 专属 API 仅允许出现在构建/测试脚本(scripts、build-binary、tests/)
 - Monorepo:Bun workspaces;`packages/core` 纯域逻辑 / `apps/cli` 命令入口;`apps/web` 预留(rsbuild 届时再引入)
-- 工具链:oxlint + oxfmt(oxc 双件套)、tsc --noEmit、prek(git hooks)、justfile(任务编排)
+- 工具链:oxlint + oxfmt(oxc 双件套)、tsc --noEmit、prek(git hooks)、justfile(任务编排);oxfmt 忽略 `llmanspec/` 与 `AGENTS.md`(SDD 托管文件,格式归 llman 管,避免 `init --update` 回打漂移)
 - 依赖映射:commander(CLI)/ nunjucks(模板)/ @inquirer/prompts(向导交互)/
   @cucumber/gherkin(spec 解析,官方 i18n 已含 zh-CN「规则」)/
   zod + zod-to-json-schema + yaml(配置契约与注释保留)/ 7z-wasm(冻结冷备)/

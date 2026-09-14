@@ -1,5 +1,8 @@
 ---
 depends_on: []
+branch: sdd/bootstrap-monorepo-scaffold
+base_sha: 4b84edf1c6944d1007f6e835db66aea5cc2be02a
+base_branch: main
 ---
 
 # Bootstrap:Bun/TS 重写地基与工程契约(Phase 0+1)
