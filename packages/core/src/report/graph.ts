@@ -57,9 +57,26 @@ function collectNodes(io: GraphFsIo, root: string): GraphNode[] {
     for (const name of io.listDir(archiveDir).toSorted()) {
       if (!/\d{4}-\d{2}-\d{2}-/u.test(name)) continue;
       const id = name.replace(/^\d{4}-\d{2}-\d{2}-/u, '');
-      if (referenced.has(id)) {
-        nodes.push({ id, archived: true, dependsOn: [] });
+      if (!referenced.has(id)) continue;
+      // archived nodes keep their real depends_on — v1 emits their edges too
+      const deps: string[] = [];
+      const proposal = `${archiveDir}/${name}/proposal.md`;
+      if (io.exists(proposal)) {
+        const fm = io.readText(proposal).match(/^---\n([\s\S]*?)\n---/u);
+        let inDeps = false;
+        for (const line of fm?.[1]?.split('\n') ?? []) {
+          if (/^depends_on:\s*$/u.test(line)) {
+            inDeps = true;
+            continue;
+          }
+          if (inDeps) {
+            const m = line.match(/^\s*-\s+(\S+)/u);
+            if (m?.[1]) deps.push(m[1]);
+            else if (line.trim() !== '') inDeps = false;
+          }
+        }
       }
+      nodes.push({ id, archived: true, dependsOn: deps });
     }
   }
   return nodes;
@@ -76,11 +93,9 @@ export function graphMermaid(io: GraphFsIo, root: string): string[] {
   const byId = new Set(nodes.map((n) => n.id));
   for (const node of nodes) {
     for (const dep of node.dependsOn) {
-      // edges to archived nodes keep pointing at the un-dated id
-      const depId = byId.has(dep) ? dep : dep;
-      lines.push(
-        `    ${node.id.replaceAll('-', '_')} -->|depends on| ${depId.replaceAll('-', '_')}`,
-      );
+      // edges render only when both endpoints are shown nodes
+      if (!byId.has(dep)) continue;
+      lines.push(`    ${node.id.replaceAll('-', '_')} -->|depends on| ${dep.replaceAll('-', '_')}`);
     }
   }
   lines.push('    classDef archived fill:#d4edda,stroke:#28a745,color:#333');

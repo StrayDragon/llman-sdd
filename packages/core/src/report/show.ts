@@ -1,6 +1,6 @@
 import { readBinding } from '../change/frontmatter.ts';
 import { CHANGES_DIR } from '../change/lifecycle.ts';
-import { defaultBranch, isCleanTree, currentBranch, makeSpawnGit } from '../git/spawnGit.ts';
+import { isCleanTree, currentBranch, makeSpawnGit } from '../git/spawnGit.ts';
 import { discoverSpecs, type DiscoveryIo } from '../validation/discover.ts';
 /**
  * show change JSON (peripheral-commands capability, r21): v1 field set and
@@ -62,7 +62,6 @@ export function showChangeJson(deps: ShowDeps, id: string): Record<string, unkno
 
   const git = makeSpawnGit(root);
   const cleanTree = isCleanTree(git);
-  const onDefault = currentBranch(git) === defaultBranch(git);
   const onBoundBranch = binding !== null && currentBranch(git) === binding.branch;
 
   // specs landing: bound changes must have touched llmanspec/specs/ since base
@@ -93,7 +92,7 @@ export function showChangeJson(deps: ShowDeps, id: string): Record<string, unkno
     },
     {
       name: 'on-bound-branch',
-      pass: onBoundBranch || (binding === null && onDefault),
+      pass: onBoundBranch,
       hint: onBoundBranch ? '' : 'change is not attached; run `llman sdd change start <id>`',
     },
     {

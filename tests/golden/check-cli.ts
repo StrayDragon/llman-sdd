@@ -28,8 +28,8 @@ const COMMANDS: { name: string; v1: string[]; v2: string[]; json: boolean }[] = 
   },
   {
     name: 'show change json',
-    v1: ['sdd', 'show', 'port-peripheral-commands', '--output', 'json', '--type', 'change'],
-    v2: ['show', 'port-peripheral-commands', '--output', 'json'],
+    v1: ['sdd', 'show', 'port-review-freeze-context', '--output', 'json', '--type', 'change'],
+    v2: ['show', 'port-review-freeze-context', '--output', 'json'],
     json: true,
   },
   {
