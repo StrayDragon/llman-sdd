@@ -41,6 +41,13 @@ golden-generate:
 golden-check:
     bun run golden:check
 
+# config schema artifact:生成 / 漂移门
+gen-schema:
+    bun run gen:schema
+
+check-schema:
+    bun run check:schema
+
 # 清理构建产物
 clean:
     rm -rf apps/cli/dist

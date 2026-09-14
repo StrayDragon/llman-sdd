@@ -14,5 +14,9 @@
     "format:check": "bun run --cwd ../.. format:check",
     "format:write": "bun run --cwd ../.. format:write",
     "typecheck": "bun run --cwd ../.. typecheck"
+  },
+  "dependencies": {
+    "yaml": "^2.9.1",
+    "zod": "^4.6.5"
   }
 }

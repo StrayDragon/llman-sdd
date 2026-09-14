@@ -1,0 +1,217 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SddConfig",
+  "description": "SDD project configuration for llmanspec.",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "spec-driven",
+      "description": "Schema identifier. Must be \"spec-driven\"."
+    },
+    "locale": {
+      "default": "en",
+      "description": "Locale used for SDD templates and skills.",
+      "type": "string"
+    },
+    "extra_skills": {
+      "description": "Additional optional SDD skills to enable (extend candidates on init --update).",
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "llman-sdd-continue",
+              "llman-sdd-ff",
+              "llman-sdd-validate",
+              "llman-sdd-arch-review",
+              "llman-sdd-wayfinder",
+              "llman-sdd-research"
+            ]
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "archive": {
+      "description": "Archive behaviour settings (defer tracking, completion gates).",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "strict_defer": {
+              "description": "When true, unchecked tasks without a defer link are errors (not just warnings). Default: false.",
+              "type": ["boolean", "null"]
+            },
+            "min_completion_ratio": {
+              "description": "Minimum task completion ratio (0.0-1.0) required for archiving. Default: none (disabled).",
+              "type": ["number", "null"]
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "bdd": {
+      "description": "BDD integration settings. When defined, enables feature-as-spec mode and BDD-aware verify prompts.",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "framework": {
+              "default": "",
+              "description": "BDD framework identifier (optional). Only used to derive a default run_command when run_command is unset.",
+              "type": "string"
+            },
+            "feature_dir": {
+              "description": "Root directory for .feature files, relative to project root.",
+              "type": ["string", "null"]
+            },
+            "default_language": {
+              "description": "Gherkin parsing language code (e.g. 'en', 'zh-CN'). Default: 'en'.",
+              "type": ["string", "null"]
+            },
+            "run_command": {
+              "description": "Custom test run command. Placeholders: {feature_dir}, {feature_name}, {feature_path}. Without placeholders, validate --all/--specs runs the command at most once per batch (batch-once).",
+              "type": ["string", "null"]
+            },
+            "verify_prompt": {
+              "description": "Extra prompt text injected during verify phase.",
+              "type": ["string", "null"]
+            },
+            "bindings": {
+              "description": "Declared harness-binding sources.",
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "tags",
+                            "description": "Tag predicate source kind."
+                          },
+                          "tags": {
+                            "minItems": 1,
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "description": "Required tag names (leading `@` optional)."
+                          }
+                        },
+                        "required": ["kind", "tags"],
+                        "description": "A scenario is bound when its tags contain ALL listed tags."
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "scenario-attrs",
+                            "description": "Per-scenario attribute source kind."
+                          },
+                          "files": {
+                            "minItems": 1,
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "description": "Glob patterns of source files to scan for scenario attribute blocks."
+                          }
+                        },
+                        "required": ["kind", "files"],
+                        "description": "Extract path/name literal pairs from scenario attribute blocks in matched files."
+                      }
+                    ]
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "sdd": {
+      "description": "Unified Git-native flow tuning (branch prefix, worktree, merge method).",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "branch_prefix": {
+              "description": "Prefix for feature branches created by `change start`. Default: \"sdd/\".",
+              "type": ["string", "null"]
+            },
+            "worktree_root": {
+              "description": "Root directory for worktrees created by `change start --worktree`.",
+              "type": ["string", "null"]
+            },
+            "worktree_naming": {
+              "description": "Worktree directory naming: \"id\" (default) or \"hash\" (base32(sha256(change_id))[:8]).",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["id", "hash"]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "merge_method": {
+              "description": "Default merge method for finalize/archive close-out. \"squash\" (default) or \"ff\".",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["squash", "ff"]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "change_id": {
+      "description": "Optional machine-readable change id naming convention.",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "pattern": {
+              "description": "Regex active change ids MUST fully match (anchored full-match).",
+              "type": ["string", "null"]
+            },
+            "template": {
+              "description": "Template rendered by `change new --from` with preset vars.",
+              "type": ["string", "null"]
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": ["schema"]
+}

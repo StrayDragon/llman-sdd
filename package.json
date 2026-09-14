@@ -19,10 +19,14 @@
     "check": "bun run typecheck && bun run lint && bun run format:check",
     "qa": "bun run check && bun run test",
     "golden:generate": "bun tests/golden/generate.ts",
-    "golden:check": "bun tests/golden/check.ts"
+    "golden:check": "bun tests/golden/check.ts",
+    "gen:schema": "bun scripts/gen-schema.ts",
+    "check:schema": "bun scripts/gen-schema.ts --check"
   },
   "devDependencies": {
     "@cucumber/gherkin": "^42.0.1",
+    "@cucumber/messages": "^34.2.1",
+    "@llman-sdd/core": "workspace:*",
     "@types/bun": "^1.4.2",
     "oxfmt": "^0.67.0",
     "oxlint": "^1.82.0",
