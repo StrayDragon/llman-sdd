@@ -12,7 +12,7 @@ export const GOLDEN_DIR = import.meta.dirname;
 export const BASELINE_DIR = join(GOLDEN_DIR, 'baseline');
 
 /** Equivalent to the repo's llmanspec/config.yaml (locale zh-Hans + bdd-on). */
-const CONFIG_YAML = `# yaml-language-server: $schema=https://raw.githubusercontent.com/StrayDragon/llman/main/artifacts/schema/configs/en/llmanspec-config.schema.json
+export const CONFIG_YAML = `# yaml-language-server: $schema=https://raw.githubusercontent.com/StrayDragon/llman/main/artifacts/schema/configs/en/llmanspec-config.schema.json
 schema: spec-driven
 locale: zh-Hans
 

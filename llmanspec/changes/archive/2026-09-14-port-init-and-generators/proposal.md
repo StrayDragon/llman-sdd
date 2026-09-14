@@ -1,6 +1,9 @@
 ---
 depends_on:
-  - port-config-and-parsing
+- port-config-and-parsing
+branch: sdd/port-init-and-generators
+base_sha: 7ec0c91003dce8e4fa3198811fd96bcace3c03d3
+base_branch: main
 ---
 
 # Port:init 与模板生成器(Phase 5)

@@ -19,6 +19,7 @@ import {
   loadConfig,
   makeSpawnGit,
   newChange,
+  runInit,
   parseCapability,
   startChange,
   validateAllSpecs,
@@ -99,6 +100,21 @@ program
   .name('llman-sdd')
   .description('Spec-driven development workflow (TypeScript rewrite of llman sdd)')
   .version(version);
+
+program
+  .command('init')
+  .description('Initialize llmanspec in your project (--update to refresh existing)')
+  .option('--update', 'refresh an existing installation')
+  .option('--locale <locale>', 'locale for generated templates (defaults to config or en)')
+  .action((options: { update?: boolean; locale?: string }) => {
+    const result = runInit(process.cwd(), {
+      update: options.update ?? false,
+      locale: options.locale,
+      version,
+    });
+    const removed = result.removed.length > 0 ? `, removed: ${result.removed.join(', ')}` : '';
+    console.log(`initialized llmanspec (${result.skills.length} skills${removed})`);
+  });
 
 program
   .command('validate')

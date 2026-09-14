@@ -2,7 +2,7 @@
 name: "llman-sdd-verify"
 description: "验证已实施的 llman SDD 变更是否与 specs/design/tasks 一致。产出分级报告（CRITICAL / WARNING / SUGGESTION），对比代码与工件。在 apply 完成后运行；全绿则可归档。"
 metadata:
-  version: "0.0.77"
+  version: "0.1.0"
 ---
 
 # LLMAN SDD Verify
@@ -48,6 +48,7 @@ llman sdd show <id> --json --type change
 | `stage=planned`（proposal + design + tasks） | STOP 直到绑定：跑 `change start` / `attach`（Branch binding）→ `full`。 |
 | `stage=full` 且 `readyToImplement=false` | STOP。在**绑定分支**完成 Specs landing（编辑 `llmanspec/specs/**` 并 commit），或设 `needs_specs_change: false`。**不要**再跑 `change start`。丢失绑定分支 specs → checkout/重建 + 必要时 `attach --force`。 |
 | `readyToImplement=true` | 可通过 apply/verify 前置检查。`changes/<id>/specs/` 预期**不存在**，勿当缺失。 |
+
 
 ## 步骤
 1. 确定 change id（不明确时让用户从 `llman sdd list --json` 选择）。
@@ -109,6 +110,7 @@ llman sdd show <id> --json --type change
 2. 无 live 合约变更 → `needs_specs_change: false`。apply 前须 `readyToImplement=true`。
 3. 收口用 `change finalize`（自动提交 `archive(sdd): <id>`；`--no-commit` 可跳过）。`change checkpoint` 已移除（调用即以非零退出报错，指向 finalize）。
 4. **禁止**在默认分支 commit live specs；已 attach 勿重复 `start`。
+
 # 人读摘要（强制）
 
 在本工作流中产出的每一份报告、交接或门禁输出，MUST 在任何机器细节之前
@@ -119,6 +121,7 @@ llman sdd show <id> --json --type change
 - **待决策** — 明确的提问，或「无」。
 
 控制在十行以内；细节放在折叠线以下。
+
 > 命令细节用 `llman sdd <cmd> --help` 查看；命令参考以 CLI 为准，skill 不内嵌命令表。
 > 文中「规约」= 本项目 `llmanspec/specs/` 下的 `.feature` 文件；用 `llman sdd list --specs` / `llman sdd show <capability>` 查全文。
 
@@ -146,6 +149,7 @@ Git-native 护栏：
 - 锁定规则（报告制）：改/删既有 `@human` 场景只出 WARNING，不阻断 validate / change finalize / change diff；报告按 `@req:<id>` 指明被改的是哪条规则。控制点：git 分支对比 + `llman sdd review` / `change diff` 的报告浮现。旧的锁定确认元数据（frontmatter `rules_touched` / `agent_acked`、`@agent` tag、`--yes` 的确认语义）已全部删除，无别名、无兼容层。
 - apply 前须 `readyToImplement=true`（或 `needs_specs_change: false`）。收尾优先 `change finalize`。
 - 勿使用 `change delta` / solidify / `*.feature.delta.toon`。
+
 
 ## Context
 - 先查状态再动手：change/spec 状态以 `llman sdd show/list/validate` 输出为准。
