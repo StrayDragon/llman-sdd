@@ -1,6 +1,9 @@
 ---
 depends_on:
-  - port-config-and-parsing
+- port-config-and-parsing
+branch: sdd/port-change-lifecycle
+base_sha: a1bd7a93fe6efb1b640040b8b547d3b6bf4d3e2e
+base_branch: main
 ---
 
 # Port:change 生命周期(git-native)(Phase 4)
