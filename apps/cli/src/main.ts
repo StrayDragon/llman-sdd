@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 import {
   existsSync,
   mkdirSync,
+  rmSync,
   readdirSync,
   readFileSync,
   renameSync,
@@ -13,6 +14,7 @@ import { isAbsolute, join } from 'node:path';
 import {
   VERSION,
   attachChange,
+  buildReview,
   collectChanges,
   collectSpecs,
   graphMermaid,
@@ -32,8 +34,14 @@ import {
   scaffoldSpec,
   showChangeJson,
   startChange,
+  makeWasmSevenZip,
+  runFreeze,
+  runList,
+  runThaw,
   validateAllSpecs,
   type ChangeFsIo,
+  type FreezeIo,
+  type TagBinding,
   type DiscoveryIo,
   type FsIo,
   type GitLike,
@@ -367,6 +375,160 @@ project
       'v2 直接读取 v1 的 llmanspec 布局(config.yaml / specs/*.feature / changes/),零迁移可读。',
     );
   });
+
+const archive = program
+  .command('archive')
+  .description(
+    'Archive workflow commands (cold backup). Prefer `change finalize` to seal a change',
+  );
+
+archive
+  .command('freeze')
+  .description('Freeze dated archived changes into a single 7z cold backup')
+  .option('--before <date>', 'freeze entries older than this date (YYYY-MM-DD)')
+  .option('--keep-recent <n>', 'keep N most recent candidates unfrozen', '0')
+  .option('--dry-run', 'list candidates without freezing')
+  .option('--list', 'list entries already in the cold-backup archive')
+  .action(
+    async (options: { before?: string; keepRecent: string; dryRun?: boolean; list?: boolean }) => {
+      const sz = await makeWasmSevenZip();
+      const root = process.cwd();
+      const io: FreezeIo = {
+        exists: (p) => existsSync(join(root, p)),
+        listDir: (p) => readdirSync(join(root, p)),
+        removeDir: (p) => rmSync(join(root, p), { recursive: true, force: true }),
+        mkdirp: (p) => mkdirSync(join(root, p), { recursive: true }),
+        moveDir: (from, to) => renameSync(join(root, from), join(root, to)),
+      };
+      if (options.list) {
+        for (const line of await runList(io, sz, root)) console.log(line);
+        return;
+      }
+      const result = await runFreeze(io, sz, root, {
+        before: options.before,
+        keepRecent: Number(options.keepRecent),
+        dryRun: options.dryRun,
+      });
+      for (const line of result.lines) console.log(line);
+    },
+  );
+
+archive
+  .command('thaw')
+  .description('Restore archived change directories from the cold-backup archive')
+  .requiredOption(
+    '--change <name>',
+    'archived change directory to restore (repeatable)',
+    (v: string, prev: string[]) => {
+      prev.push(v);
+      return prev;
+    },
+    [] as string[],
+  )
+  .action(async (options: { change: string[] }) => {
+    const sz = await makeWasmSevenZip();
+    const root = process.cwd();
+    const io: FreezeIo = {
+      exists: (p) => existsSync(join(root, p)),
+      listDir: (p) => readdirSync(join(root, p)),
+      removeDir: (p) => rmSync(join(root, p), { recursive: true, force: true }),
+      mkdirp: (p) => mkdirSync(join(root, p), { recursive: true }),
+      moveDir: (from, to) => renameSync(join(root, from), join(root, to)),
+    };
+    try {
+      const result = await runThaw(io, sz, root, options.change);
+      for (const line of result.lines) console.log(line);
+    } catch (error) {
+      console.error((error as Error).message);
+      process.exit(1);
+    }
+  });
+
+const review = program
+  .command('review')
+  .description('Aggregate review: pending/manual/unbound/stale signals plus a validate sweep');
+
+review
+  .option('--capability <capability>', 'restrict the sweep to one capability/spec id')
+  .option('--json', 'emit structured JSON (signals + summary)')
+  .option('--export-html <path>', 'write a self-contained HTML report')
+  .action((options: { capability?: string; json?: boolean; exportHtml?: string }) => {
+    const entries = collectFeatureFiles('llmanspec/specs').map((path) => ({
+      fileName: path,
+      doc: parseCapability(readFileSync(path, 'utf8'), path),
+    }));
+    const config = existsSync('llmanspec/config.yaml')
+      ? loadConfig(readFileSync('llmanspec/config.yaml', 'utf8'))
+      : null;
+    const bindings = config?.bdd?.bindings?.filter((b) => b.kind === 'tags') ?? [];
+    const changeIo: ChangeFsIo = {
+      exists: (p) => existsSync(p),
+      readText: (p) => readFileSync(p, 'utf8'),
+      listDir: (p) => readdirSync(p),
+      isDirectory: (p) => existsSync(p) && statSync(p).isDirectory(),
+      mtimeMs: (p) => statSync(p).mtimeMs,
+    };
+    const boundCount = collectChanges(changeIo, process.cwd(), new Date()).filter(
+      (c) => c.hasBinding,
+    ).length;
+    const activeChanges = collectChanges(changeIo, process.cwd(), new Date());
+    const result = buildReview(
+      {
+        entries,
+        bindings: bindings as TagBinding[],
+        boundChangeCount: boundCount,
+        activeChanges,
+      },
+      FS_IO,
+    );
+    if (options.exportHtml !== undefined) {
+      writeFileSync(options.exportHtml, renderReviewHtml(result));
+      console.log(`wrote ${options.exportHtml}`);
+    }
+    if (options.json) {
+      console.log(JSON.stringify({ signals: result.signals, summary: result.summary }, null, 2));
+    } else {
+      console.log(result.lines.join('\n'));
+    }
+    if (result.exitCode !== 0) process.exit(result.exitCode);
+  });
+
+/** Self-contained HTML report via the v1 shared/review.html template. */
+function renderReviewHtml(result: {
+  signals: { kind: string; capability: string; count: number; detail: string }[];
+  summary: { criticalCount: number; warningCount: number };
+}): string {
+  // main.ts sits at <root>/apps/cli/src — three levels up is the repo root.
+  const templatePath = join(
+    import.meta.dirname ?? '.',
+    '..',
+    '..',
+    '..',
+    'packages',
+    'core',
+    'templates',
+    'shared',
+    'review.html',
+  );
+  const template = readFileSync(templatePath, 'utf8');
+  const esc = (input: string): string =>
+    input.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+  let mermaid = 'graph TD\n';
+  const sigJson: unknown[] = [];
+  result.signals.forEach((s, idx) => {
+    const label = esc(
+      `${s.capability} [${s.kind}] = ${s.count} — ${s.detail === '' ? 'ok' : s.detail}`,
+    );
+    mermaid += `    s${idx}["${label}"]\n`;
+    sigJson.push({ kind: s.kind, capability: s.capability, count: s.count, detail: s.detail });
+  });
+  return template
+    .replaceAll('__CRITICAL__', String(result.summary.criticalCount))
+    .replaceAll('__WARNING__', String(result.summary.warningCount))
+    .replaceAll('__SIGNALS__', JSON.stringify(sigJson))
+    .replaceAll('__MERMAID__', mermaid)
+    .replaceAll('__GENERATED__', new Date().toISOString());
+}
 
 async function main(): Promise<void> {
   await program.parseAsync(process.argv);

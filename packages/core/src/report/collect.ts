@@ -102,7 +102,8 @@ export function collectChanges(io: ChangeFsIo, root: string, now: Date): ChangeS
       idleDays,
     });
   }
-  return out;
+  // v1 lists newest-first
+  return out.toSorted((a, b) => b.lastModified.getTime() - a.lastModified.getTime());
 }
 
 export function statusHuman(c: ChangeSummary): string {

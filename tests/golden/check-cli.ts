@@ -58,19 +58,23 @@ function normalizeText(s: string): string {
     .replaceAll(/\d{4}-\d{2}-\d{2}/gu, '<DATE>');
 }
 
-function normalizeJson(v: unknown): unknown {
+function normalizeJson(v: unknown, staleSignal = false): unknown {
   if (typeof v === 'string') {
+    // v2 的 stale 信号为占位(detail=DEFERRED),v1 为 staleness 状态字——归一化排除
+    if (staleSignal) return '<STALE>';
     return v
       .replaceAll(/\d{4}-\d{2}-\d{2}T[\d:.]+Z/gu, '<TS>')
       .replaceAll(/\d{4}-\d{2}-\d{2}/gu, '<DATE>');
   }
-  if (Array.isArray(v)) return v.map(normalizeJson);
+  if (Array.isArray(v)) return v.map((item) => normalizeJson(item, staleSignal));
   if (v !== null && typeof v === 'object') {
+    const obj = v as Record<string, unknown>;
     const out: Record<string, unknown> = {};
-    for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+    const isStaleSignal = obj['kind'] === 'stale';
+    for (const [k, val] of Object.entries(obj)) {
       // advisory gate hints are wording-level, not contract
       if (k === 'hint') continue;
-      out[k] = normalizeJson(val);
+      out[k] = normalizeJson(val, isStaleSignal);
     }
     return out;
   }

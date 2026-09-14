@@ -1,6 +1,9 @@
 ---
 depends_on:
-  - port-peripheral-commands
+- port-peripheral-commands
+branch: sdd/port-review-freeze-context
+base_sha: aa63fe74e2fccc5cb223a80ce954e48ad7023c0b
+base_branch: main
 ---
 
 # Port:review 聚合审查与 freeze/thaw 冷备(Phase 7)
