@@ -66,3 +66,27 @@ export {
   type FinalizeResult,
   type FsIo,
 } from './change/lifecycle.ts';
+export { normalizeLocale, localeFallbacks } from './templates/locale.ts';
+export {
+  MAX_UNIT_NESTING_DEPTH,
+  MissingUnitError,
+  renderTemplate,
+  renderWithUnits,
+  type UnitRegistry,
+} from './templates/engine.ts';
+export {
+  DEFAULT_SKILL_FILES,
+  ETHICS_KEYS,
+  OPTIONAL_SKILL_FILES,
+  UNIT_FILES,
+  buildTemplateVars,
+  effectiveRunCommand,
+  enforceEthicsGovernance,
+  loadLocaleResource,
+  loadSkillTemplates,
+  loadUnitRegistry,
+  skillCandidates,
+  type SkillTemplate,
+  type TemplateIo,
+} from './templates/skills.ts';
+export { runInit, updateFileWithMarkers, type InitResult } from './init/init.ts';

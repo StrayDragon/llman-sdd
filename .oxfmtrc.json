@@ -22,6 +22,7 @@
     "bun.lock",
     ".agents/skills/",
     "tests/golden/baseline/",
+    "packages/core/templates/",
     "llmanspec/",
     "AGENTS.md"
   ]

@@ -102,6 +102,7 @@
     ".git/",
     "bun.lock",
     ".agents/skills/",
-    "tests/golden/baseline/"
+    "tests/golden/baseline/",
+    "packages/core/templates/"
   ]
 }

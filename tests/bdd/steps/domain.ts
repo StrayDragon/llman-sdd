@@ -8,6 +8,7 @@ import {
   readFileSync,
   existsSync,
   mkdirSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -16,6 +17,7 @@ import { join } from 'node:path';
 import {
   buildReqRegistry,
   discoverSpecs,
+  runInit,
   loadConfig,
   parseCapability,
   validateAllSpecs,
@@ -316,5 +318,80 @@ bdd.thenStep('特性分支上的变更内容出现在目标分支', (ctx) => {
   const repo = (ctx.fixtures['仓库'] as unknown as { repo: TempRepo }).repo;
   if (!existsSync(join(repo.root, 'feature.txt'))) {
     throw new Error('feature.txt did not land on target branch');
+  }
+});
+
+// ---------------------------------------------------------------------------
+// init-generators capability — v2 render vs golden baseline (normalized)
+// ---------------------------------------------------------------------------
+
+const ETHICS_KEYS = [
+  'ethics.risk_level',
+  'ethics.prohibited_actions',
+  'ethics.required_evidence',
+  'ethics.refusal_contract',
+  'ethics.escalation_policy',
+];
+
+bdd.given('本仓库的等价 config(zh-Hans 与 bdd 配置)', (ctx) => {
+  const root = mkdtempSync(join(tmpdir(), 'llman-sdd-init-'));
+  mkdirSync(join(root, 'llmanspec'), { recursive: true });
+  writeFileSync(
+    join(root, 'llmanspec', 'config.yaml'),
+    'schema: spec-driven\nlocale: zh-Hans\n\nbdd:\n  run_command: "bun test tests/bdd"\n  bindings:\n    - kind: tags\n      tags: [executable]\n',
+  );
+  ctx.fixtures['init'] = { root };
+});
+
+bdd.when('v2 渲染全部 skills', (ctx) => {
+  const root = (ctx.fixtures['init'] as unknown as { root: string }).root;
+  runInit(root, { update: true, version: '0.1.0' });
+});
+
+bdd.thenStep('与 golden 基线归一化版本号后 diff 为空', (ctx) => {
+  const root = (ctx.fixtures['init'] as unknown as { root: string }).root;
+  const baselineDir = join(
+    import.meta.dirname,
+    '..',
+    '..',
+    '..',
+    'tests',
+    'golden',
+    'baseline',
+    'skills',
+  );
+  const versionRe = /\b\d+\.\d+\.\d+\b/gu;
+  const readTree = (dir: string): Map<string, string> => {
+    const out = new Map<string, string>();
+    const walk = (rel: string): void => {
+      for (const name of readdirSync(join(dir, rel)).toSorted()) {
+        const child = rel === '' ? name : `${rel}/${name}`;
+        if (statSync(join(dir, child)).isDirectory()) walk(child);
+        else out.set(child, readFileSync(join(dir, child), 'utf8').replaceAll(versionRe, '<VER>'));
+      }
+    };
+    walk('');
+    return out;
+  };
+  const baseline = readTree(baselineDir);
+  const produced = readTree(join(root, '.agents', 'skills'));
+  for (const [file, content] of baseline) {
+    if (produced.get(file) !== content) {
+      throw new Error(`rendered product ${file} differs from golden baseline`);
+    }
+  }
+  if (produced.size !== baseline.size) {
+    throw new Error(`file count mismatch: baseline ${baseline.size} vs v2 ${produced.size}`);
+  }
+});
+
+bdd.thenStep('每个 SKILL.md 通过 ethics 治理门', (ctx) => {
+  const root = (ctx.fixtures['init'] as unknown as { root: string }).root;
+  const skillsDir = join(root, '.agents', 'skills');
+  for (const dir of readdirSync(skillsDir)) {
+    const content = readFileSync(join(skillsDir, dir, 'SKILL.md'), 'utf8');
+    for (const key of ETHICS_KEYS) {
+      if (!content.includes(key)) throw new Error(`${dir}/SKILL.md missing ethics key ${key}`);
+    }
   }
 });

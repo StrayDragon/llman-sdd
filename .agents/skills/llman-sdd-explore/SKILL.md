@@ -2,7 +2,7 @@
 name: "llman-sdd-explore"
 description: "进入 llman SDD 探索模式：理清思路、调查需求、分析问题。仅思考，禁止写代码。用于意图不明确或需要分析后再行动的场景。"
 metadata:
-  version: "0.0.77"
+  version: "0.1.0"
 ---
 
 # LLMAN SDD Explore
@@ -26,6 +26,7 @@ metadata:
 2. 无 live 合约变更 → `needs_specs_change: false`。apply 前须 `readyToImplement=true`。
 3. 收口用 `change finalize`（自动提交 `archive(sdd): <id>`；`--no-commit` 可跳过）。`change checkpoint` 已移除（调用即以非零退出报错，指向 finalize）。
 4. **禁止**在默认分支 commit live specs；已 attach 勿重复 `start`。
+
 
 ### Skill 导航（非生命周期；仅指示当前 skill）
 
