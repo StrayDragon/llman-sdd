@@ -1,0 +1,27 @@
+# prek(https://github.com/j178/prek)驱动的 git hooks。
+# 安装:prek install;手动全量跑:prek run --all-files。
+repos:
+  - repo: local
+    hooks:
+      - id: lint
+        name: oxlint
+        language: system
+        entry: bun run lint
+        pass_filenames: false
+        always_run: true
+      - id: format
+        name: oxfmt --write
+        language: system
+        entry: bun run format:write
+        pass_filenames: false
+        always_run: true
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: ^\.agents/skills/
+      - id: end-of-file-fixer
+        exclude: ^\.agents/skills/
+      - id: check-yaml
+      - id: check-added-large-files
+        args: ['--maxkb=1000']

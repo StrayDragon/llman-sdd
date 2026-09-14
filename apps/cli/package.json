@@ -1,0 +1,26 @@
+{
+  "name": "@llman-sdd/cli",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CLI entry for llman-sdd",
+  "license": "MIT",
+  "bin": {
+    "llman-sdd": "./src/main.ts"
+  },
+  "type": "module",
+  "exports": {
+    ".": "./src/main.ts"
+  },
+  "scripts": {
+    "lint": "bun run --cwd ../.. lint",
+    "lint:fix": "bun run --cwd ../.. lint:fix",
+    "format:check": "bun run --cwd ../.. format:check",
+    "format:write": "bun run --cwd ../.. format:write",
+    "typecheck": "bun run --cwd ../.. typecheck",
+    "build": "bun run ./scripts/build-binary.ts"
+  },
+  "dependencies": {
+    "@llman-sdd/core": "workspace:*",
+    "commander": "^15.0.0"
+  }
+}
