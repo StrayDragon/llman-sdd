@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/StrayDragon/llman/main/artifacts/schema/configs/en/llmanspec-config.schema.json
+schema: spec-driven
+locale: zh-Hans
+
+# BDD-on (feature-as-spec): .feature 即可执行规格。
+# runner = 移植 ../crystalith 的 Gherkin→bun:test 桥接 runner(tests/bdd/),
+# 无 {feature_*} 占位符 → validate --all/--specs 对该命令 batch-once(整批至多一次)。
+# harness bound 口径:带 @executable 标签的场景才算已绑定测试;list --specs / show 据此拆分计数。
+bdd:
+  run_command: "bun test tests/bdd"
+  bindings:
+    - kind: tags
+      tags: [executable]
