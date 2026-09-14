@@ -212,7 +212,7 @@ let counter = 0;
 export function runFeature(
   featurePath: string,
   makeContext: () => TestContext,
-  options: { skipScenarios?: RegExp } = {},
+  options: { skipScenarios?: RegExp; onlyTagged?: string } = {},
 ) {
   const doc = parseFeature(featurePath);
   const feature = doc.feature;
@@ -222,6 +222,12 @@ export function runFeature(
     for (const child of feature.children) {
       const scenario = child.scenario;
       if (!scenario) continue; // skip Background / Rule containers
+
+      // onlyTagged: register nothing for scenarios lacking the tag (used when
+      // driving capability specs whose @human rule scenarios have no steps).
+      if (options.onlyTagged && !(scenario.tags ?? []).some((t) => t.name === options.onlyTagged)) {
+        continue;
+      }
 
       const shouldSkip =
         options.skipScenarios?.test(scenario.name) ||

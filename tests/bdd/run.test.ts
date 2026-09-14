@@ -8,9 +8,12 @@ import { readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 import './steps/smoke.ts';
+import './steps/domain.ts';
 import { runFeature, type TestContext } from './runner.ts';
 
 const FEATURES_DIR = join(import.meta.dirname, 'features');
+// Capability specs (@executable scenarios drive the real core APIs).
+const SPECS_DIR = join(import.meta.dirname, '..', '..', 'llmanspec', 'specs');
 
 function collectFeatures(dir: string): string[] {
   const results: string[] = [];
@@ -31,4 +34,8 @@ function makeContext(): TestContext {
 
 for (const featurePath of collectFeatures(FEATURES_DIR)) {
   runFeature(featurePath, makeContext);
+}
+
+for (const featurePath of collectFeatures(SPECS_DIR)) {
+  runFeature(featurePath, makeContext, { onlyTagged: '@executable' });
 }

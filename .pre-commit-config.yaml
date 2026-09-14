@@ -15,6 +15,12 @@ repos:
         entry: bun run format:write
         pass_filenames: false
         always_run: true
+      - id: check-schema
+        name: config schema artifact drift
+        language: system
+        entry: bun run check:schema
+        pass_filenames: false
+        always_run: true
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
