@@ -52,9 +52,10 @@ describe('buildReview', () => {
     expect(result.summary.criticalCount).toBe(0);
     const pendingA = result.signals.find((s) => s.kind === 'pending' && s.capability === 'a');
     expect(pendingA?.count).toBe(0);
-    // 2 个 bound change → locked 信号
+    // locked 信号:count 恒 0(v1 的锁定确认概念已移除),detail 带绑定数
     const locked = result.signals.find((s) => s.kind === 'locked');
-    expect(locked?.count).toBe(2);
+    expect(locked?.count).toBe(0);
+    expect(locked?.detail).toInclude('2 bound change(s)');
   });
 
   test('unbound acceptance (no matching tag) counts as unbound warning', () => {

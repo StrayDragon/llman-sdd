@@ -23,6 +23,8 @@ export interface ScenarioIR {
   /** Rule statement (description lines, trimmed) + step texts for executables. */
   statement: string;
   stepCount: number;
+  /** Executable-scenario steps with their keyword kinds (context-index tree). */
+  steps: { kind: 'given' | 'when' | 'then'; text: string }[];
 }
 
 export interface SpecStructuralError {
