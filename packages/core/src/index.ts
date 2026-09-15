@@ -117,3 +117,25 @@ export {
   type SpecMorphology,
   type SpecSummary,
 } from './report/specs.ts';
+export { SevenZipError, makeWasmSevenZip, type SevenZipPort } from './archive/sevenzip.ts';
+export {
+  ARCHIVE_DIR_REL,
+  FREEZE_ARCHIVE_NAME,
+  freezeCandidates,
+  runFreeze,
+  runList,
+  runThaw,
+  type FreezeIo,
+  type FreezeOpts,
+  type FreezeRunResult,
+  type ThawResult,
+} from './archive/freeze.ts';
+export {
+  buildReview,
+  collectReviewEntries,
+  type ReviewInput,
+  type ReviewKind,
+  type ReviewResult,
+  type ReviewSignal,
+  type TagBinding,
+} from './review/review.ts';

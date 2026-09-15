@@ -3,7 +3,6 @@
 // with v2 (packages/core) and requires version-normalized parity — the
 // acceptance target of the init-generators capability.
 // Exit code 1 on drift. Requires `llman` (v1) on PATH. Run: bun run golden:check
-import { execFileSync } from 'node:child_process';
 import {
   existsSync,
   mkdirSync,
@@ -71,21 +70,15 @@ const v1 = renderV1Skills();
 try {
   const baselineVersion = readFileSync(join(BASELINE_DIR, 'VERSION'), 'utf8').trim();
   const baselineSkills = join(BASELINE_DIR, 'skills');
-  try {
-    execFileSync('diff', ['-r', '--exclude', 'VERSION', v1.skillsDir, baselineSkills], {
-      stdio: ['ignore', 'ignore', 'pipe'],
-    });
-  } catch (err) {
-    const e = err as { stderr?: Buffer };
-    console.error('golden drift detected:\n' + (e.stderr?.toString() ?? String(err)));
-    process.exit(1);
-  }
+  // v1 determinism leg (version-normalized: the local v1 may be upgraded)
+  const freshV1Tree = normalizeTree(v1.skillsDir);
+  const baselineTree = normalizeTree(baselineSkills);
+  if (!diffTrees(baselineTree, freshV1Tree, 'v1-vs-baseline')) process.exit(1);
   console.log(`golden check passed: fresh v1 render matches baseline (${baselineVersion})`);
 
   // v2 channel: version-normalized parity against the same baseline.
   const v2 = renderV2Skills();
   try {
-    const baselineTree = normalizeTree(baselineSkills);
     const v2Tree = normalizeTree(v2.skillsDir);
     if (!diffTrees(baselineTree, v2Tree, 'v2-vs-baseline')) process.exit(1);
     console.log(`v2 render matches baseline (${v2Tree.size} files, versions normalized)`);

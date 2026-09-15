@@ -28,6 +28,11 @@ import {
 import { bdd } from '../runner.ts';
 
 const REPO_ROOT = join(import.meta.dirname, '..', '..', '..');
+const CLI = join(REPO_ROOT, 'apps', 'cli', 'src', 'main.ts');
+const runCmd = (cmd: string, args: string[]): string => {
+  const proc = spawnSync(cmd, args, { cwd: REPO_ROOT, encoding: 'utf8' });
+  return proc.stdout ?? '';
+};
 
 interface ParseResult {
   doc: CapabilityDoc;
@@ -231,8 +236,6 @@ function makeTempRepo(): TempRepo {
     },
   };
 }
-
-const CLI = join(import.meta.dirname, '..', '..', '..', 'apps', 'cli', 'src', 'main.ts');
 
 bdd.given('一个已提交的临时 git 仓库含 change "{id}" 的 proposal', (ctx, id) => {
   const repo = makeTempRepo();
@@ -460,4 +463,89 @@ bdd.thenStep('归一化后的输出结构一致', (ctx) => {
   if (!result?.same) {
     throw new Error(`v1/v2 outputs diverge (${result?.sample ?? 'no result'})`);
   }
+});
+
+// ---------------------------------------------------------------------------
+// review-freeze capability — live v1 ↔ v2 review + v1 freeze → v2 thaw
+// ---------------------------------------------------------------------------
+
+bdd.when('v2 运行 review', (ctx) => {
+  const proc = spawnSync('bun', [CLI, 'review', '--json'], { cwd: REPO_ROOT, encoding: 'utf8' });
+  const out = proc.stdout ?? '';
+  try {
+    const parsed = JSON.parse(out) as {
+      signals: { kind: string }[];
+      summary: Record<string, number>;
+    };
+    const kinds = new Set(parsed.signals.map((s) => s.kind));
+    ctx.fixtures['review'] = {
+      kinds,
+      summary: parsed.summary,
+      exitCode: proc.status ?? 1,
+    } as unknown as Record<string, unknown>;
+  } catch (error) {
+    throw new Error(`review --json invalid: ${(error as Error).message}\n${out.slice(0, 300)}`, {
+      cause: error,
+    });
+  }
+});
+
+bdd.thenStep('signals 覆盖六种 kind', (ctx) => {
+  const kinds = (ctx.fixtures['review'] as unknown as { kinds: Set<string> }).kinds;
+  for (const kind of ['pending', 'manual', 'unbound', 'stale', 'locked', 'validate']) {
+    if (!kinds.has(kind)) throw new Error(`missing signal kind: ${kind}`);
+  }
+});
+
+bdd.thenStep('summary 含 criticalCount 与 warningCount', (ctx) => {
+  const summary = (ctx.fixtures['review'] as unknown as { summary: Record<string, number> })
+    .summary;
+  if (typeof summary['criticalCount'] !== 'number' || typeof summary['warningCount'] !== 'number') {
+    throw new TypeError(`summary missing counts: ${JSON.stringify(summary)}`);
+  }
+});
+
+bdd.given('一个含已归档目录的临时仓库且已用 v1 冻结', (ctx) => {
+  const repo = makeTempRepo();
+  const archiveDir = join(repo.root, 'llmanspec', 'changes', 'archive');
+  mkdirSync(join(archiveDir, '2026-01-01-old-demo'), { recursive: true });
+  writeFileSync(join(archiveDir, '2026-01-01-old-demo', 'proposal.md'), '# frozen demo\n');
+  repo.run('git', ['add', '-A']);
+  repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'archive dir']);
+  repo.run('llman', ['sdd', 'archive', 'freeze', '--before', '2026-02-01']);
+  if (!existsSync(join(archiveDir, 'freezed_changes.7z.archived'))) {
+    throw new Error('v1 freeze did not produce the cold-backup archive');
+  }
+  ctx.fixtures['冻结仓库'] = { root: repo.root, repo } as unknown as Record<string, unknown>;
+});
+
+bdd.when('v2 运行 thaw 回置该目录', (ctx) => {
+  const repo = (ctx.fixtures['冻结仓库'] as unknown as { repo: TempRepo }).repo;
+  const result = repo.run('bun', [CLI, 'archive', 'thaw', '--change', '2026-01-01-old-demo']);
+  ctx.fixtures['thaw结果'] = {
+    exitCode: result.code,
+    stdout: result.stdout,
+  } satisfies CliResult as unknown as Record<string, unknown>;
+});
+
+bdd.thenStep('目录完整回到 changes/archive 下', (ctx) => {
+  const repo = (ctx.fixtures['冻结仓库'] as unknown as { repo: TempRepo }).repo;
+  if (!existsSync(join(repo.root, 'llmanspec/changes/archive/2026-01-01-old-demo/proposal.md'))) {
+    throw new Error('thawed dir missing proposal.md');
+  }
+});
+
+bdd.thenStep('内容与冻结前一致', (ctx) => {
+  const repo = (ctx.fixtures['冻结仓库'] as unknown as { repo: TempRepo }).repo;
+  const content = readFileSync(
+    join(repo.root, 'llmanspec/changes/archive/2026-01-01-old-demo/proposal.md'),
+    'utf8',
+  );
+  if (!content.includes('# frozen demo')) throw new Error(`content drifted: ${content}`);
+});
+
+bdd.thenStep('退出码为零', (ctx) => {
+  const review = ctx.fixtures['review'] as unknown as { exitCode: number } | undefined;
+  if (review && review.exitCode !== 0)
+    throw new Error(`expected exit code 0, got ${review.exitCode}`);
 });
