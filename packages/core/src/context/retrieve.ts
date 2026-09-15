@@ -38,15 +38,27 @@ export interface TierEntry {
   reason: string;
 }
 
+export interface ContextSummary {
+  totalSpecs: number;
+  tierDirect: number;
+  tierRelated: number;
+  unrelatedCount: number;
+  toolCalls: number;
+  staleWarnings: string[];
+  readRecommended: string[];
+  paths: string[];
+}
+
 export interface ContextResult {
   status: {
     ok: boolean;
-    quality: 'ok' | 'unavailable' | 'error';
+    quality: 'agentic' | 'unavailable' | 'error';
     qualityNote: string;
     errorKind?: string;
   };
   direct: TierEntry[];
   related: TierEntry[];
+  summary: ContextSummary;
 }
 
 const SYSTEM_PROMPT = `You are a spec retriever. Given a task, classify which capability specs MUST be read.
@@ -160,6 +172,7 @@ export async function runContextRetrieval(deps: RetrieveDeps): Promise<ContextRe
   ];
 
   let tiers: { direct: TierEntry[]; related: TierEntry[] } | null = null;
+  let toolCalls = 0;
   for (let round = 0; round <= maxRounds && tiers === null; round += 1) {
     const forceFinal = round === maxRounds;
     const body: Record<string, unknown> = {
@@ -185,6 +198,7 @@ export async function runContextRetrieval(deps: RetrieveDeps): Promise<ContextRe
           errorKind: 'api_error',
         },
         direct: [],
+        summary: emptySummary(deps.tree.docs.length),
         related: [],
       };
     }
@@ -204,6 +218,7 @@ export async function runContextRetrieval(deps: RetrieveDeps): Promise<ContextRe
     if (!message) throw new Error('chat API returned no message');
 
     if (message.tool_calls && message.tool_calls.length > 0) {
+      toolCalls += message.tool_calls.length;
       messages.push({
         role: 'assistant',
         content: message.content ?? '',
@@ -227,15 +242,43 @@ export async function runContextRetrieval(deps: RetrieveDeps): Promise<ContextRe
       },
       direct: [],
       related: [],
+      summary: emptySummary(deps.tree.docs.length),
     };
   }
-  const capped = {
-    direct: tiers.direct.slice(0, deps.top ?? 5),
-    related: tiers.related.slice(0, deps.top ?? 5),
-  };
+  const direct = tiers.direct.slice(0, deps.top ?? 5);
+  const related = tiers.related.slice(0, deps.top ?? 5);
   return {
-    status: { ok: true, quality: 'ok', qualityNote: 'pageindex' },
-    ...capped,
+    status: { ok: true, quality: 'agentic', qualityNote: 'pageindex' },
+    direct,
+    related,
+    summary: {
+      totalSpecs: deps.tree.docs.length,
+      tierDirect: direct.length,
+      tierRelated: related.length,
+      unrelatedCount: Math.max(0, deps.tree.docs.length - direct.length - related.length),
+      toolCalls,
+      staleWarnings: [],
+      readRecommended: direct.map((d) => d.id),
+      paths: deps.paths
+        ? deps.paths
+            .split(',')
+            .map((p) => p.trim())
+            .filter((p) => p !== '')
+        : [],
+    },
+  };
+}
+
+function emptySummary(totalSpecs: number): ContextSummary {
+  return {
+    totalSpecs,
+    tierDirect: 0,
+    tierRelated: 0,
+    unrelatedCount: totalSpecs,
+    toolCalls: 0,
+    staleWarnings: [],
+    readRecommended: [],
+    paths: [],
   };
 }
 
@@ -250,5 +293,6 @@ export function unavailableResult(): ContextResult {
     },
     direct: [],
     related: [],
+    summary: emptySummary(0),
   };
 }

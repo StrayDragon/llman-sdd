@@ -164,8 +164,18 @@ describe('runContextRetrieval (mock fetch agentic loop)', () => {
     });
 
     expect(result.status.ok).toBe(true);
-    expect(result.status.quality).toBe('ok');
+    expect(result.status.quality).toBe('agentic');
     expect(result.direct).toEqual([{ id: 'alpha', reason: 'governs the change' }]);
+    expect(result.summary).toEqual({
+      totalSpecs: 1,
+      tierDirect: 1,
+      tierRelated: 0,
+      unrelatedCount: 0,
+      toolCalls: 1,
+      staleWarnings: [],
+      readRecommended: ['alpha'],
+      paths: [],
+    });
     expect(requests).toHaveLength(2);
     // 第一轮带 tools;回填轮的工具结果消息存在
     expect(requests[0]?.['tools']).toBeDefined();
