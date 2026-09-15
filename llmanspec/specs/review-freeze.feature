@@ -15,7 +15,7 @@
     当 v2 运行 review
     那么 signals 覆盖六种 kind
     而且 summary 含 criticalCount 与 warningCount
-    而且 退出码为零
+    而且 退出码与 criticalCount 一致
 
   @req:r24 @human
   场景: freeze 冷备合同

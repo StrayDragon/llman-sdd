@@ -98,10 +98,12 @@ export function buildReview(input: ReviewInput, io: SpecIo): ReviewResult {
       ],
     });
   }
+  // v1 parity: `count` is the removed locked-rule-confirmation concept (always
+  // 0 now); the detail text carries the bound-change count separately.
   push(
     'locked',
     '-',
-    boundChangeCount,
+    0,
     `${boundChangeCount} bound change(s); inspect with \`llman sdd change diff <id>\``,
   );
   push(

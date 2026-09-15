@@ -44,6 +44,15 @@ export function parseFeatureSource(source: string): { doc: GherkinDocument; lang
 }
 
 const REQ_TAG_RE = /^@?req:(r\d+)$/u;
+
+/** Gherkin keyword (zh-CN + en) → step kind; And/But/* inherit via fallback. */
+function stepKeywordToKind(keyword: string): 'given' | 'when' | 'then' {
+  const kw = keyword.trim();
+  if (/^(假如|Given)/iu.test(kw)) return 'given';
+  if (/^(当|When)/iu.test(kw)) return 'when';
+  if (/^(那么|Then)/iu.test(kw)) return 'then';
+  return 'given';
+}
 const HEADER_RE = /^#\s*(capability|purpose|scope):\s*(.*)$/u;
 
 function extractHeader(source: string): CapabilityHeader {
@@ -134,6 +143,10 @@ export function parseCapability(source: string, fileName = '<inline>'): Capabili
       .filter((l) => l !== '');
     const stepTexts = scenario.steps.map((s) => s.text.trim());
     const statement = [...description, ...stepTexts].join('\n');
+    const steps = scenario.steps.map((s) => ({
+      kind: stepKeywordToKind(s.keyword),
+      text: s.text.trim(),
+    }));
 
     if (kind.classification === 'human' && !/\bMUST\b|\bSHALL\b/u.test(statement)) {
       errors.push({
@@ -150,6 +163,7 @@ export function parseCapability(source: string, fileName = '<inline>'): Capabili
       manual: kind.manual,
       statement,
       stepCount: stepTexts.length,
+      steps,
     });
   }
 

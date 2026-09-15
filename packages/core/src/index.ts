@@ -139,3 +139,39 @@ export {
   type ReviewSignal,
   type TagBinding,
 } from './review/review.ts';
+export {
+  TREE_VERSION,
+  buildDocs,
+  buildTreeIndex,
+  computeSpecHash,
+  type HashIo,
+  type SerializedDocNode,
+  type SerializedScenarioNode,
+  type SerializedReqNode,
+  type SerializedTreeIndex,
+} from './context/tree.ts';
+export {
+  CONTEXT_DIR_REL,
+  PAGEINDEX_DIR_REL,
+  REBUILD_LOCK_REL,
+  TREE_JSON_REL,
+  checkIndexFreshness,
+  loadTree,
+  parseLock,
+  rebuildIndex,
+  type FreshnessResult,
+  type IndexIo,
+  type RebuildOpts,
+  type RebuildResult,
+} from './context/indexStore.ts';
+export {
+  MAX_TOOL_ROUNDS,
+  resolveChatConfig,
+  runContextRetrieval,
+  unavailableResult,
+  type ChatConfig,
+  type ContextResult,
+  type RetrieveDeps,
+  type TierEntry,
+  type TreeToolDeps,
+} from './context/retrieve.ts';

@@ -23,10 +23,12 @@ import {
   deriveChangeId,
   finalizeChange,
   loadConfig,
+  loadTree,
   makeSpawnGit,
   newChange,
   parseCapability,
   renderChangesJson,
+  runContextRetrieval,
   renderChangesList,
   renderSpecsJson,
   renderSpecsList,
@@ -35,6 +37,8 @@ import {
   showChangeJson,
   startChange,
   makeWasmSevenZip,
+  checkIndexFreshness,
+  rebuildIndex,
   runFreeze,
   runList,
   runThaw,
@@ -45,7 +49,9 @@ import {
   type DiscoveryIo,
   type FsIo,
   type GitLike,
+  resolveChatConfig,
   type GraphFsIo,
+  unavailableResult,
 } from '@llman-sdd/core';
 import { Command } from 'commander';
 
@@ -95,6 +101,32 @@ const FS_IO: DiscoveryIo = {
   listDir: (p) => readdirSync(p),
   readText: (p) => readFileSync(p, 'utf8'),
 };
+
+/** IndexIo adapter over node:fs. */
+function makeIndexIo(root: string) {
+  const full = (p: string): string => (isAbsolute(p) ? p : join(root, p));
+  return {
+    exists: (p: string) => existsSync(full(p)),
+    readText: (p: string) => readFileSync(full(p), 'utf8'),
+    writeText: (p: string, content: string) => {
+      const abs = full(p);
+      mkdirSync(abs.slice(0, abs.lastIndexOf('/')) || '.', { recursive: true });
+      writeFileSync(abs, content);
+    },
+    remove: (p: string) => rmSync(full(p), { force: true }),
+    isDirectory: (p: string) => existsSync(full(p)) && statSync(full(p)).isDirectory(),
+    listDir: (p: string) => readdirSync(full(p)),
+    mkdirp: (p: string) => mkdirSync(full(p), { recursive: true }),
+    processAlive: (pid: number) => {
+      try {
+        process.kill(pid, 0);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+  };
+}
 
 function ioWrite(p: string, content: string): void {
   const full = join(process.cwd(), p);
@@ -529,6 +561,76 @@ function renderReviewHtml(result: {
     .replaceAll('__MERMAID__', mermaid)
     .replaceAll('__GENERATED__', new Date().toISOString());
 }
+
+const indexCmd = program
+  .command('index')
+  .description('Index management commands (rebuild, check freshness)');
+
+indexCmd
+  .command('rebuild')
+  .description('Rebuild the pageindex tree from spec IR (no LLM)')
+  .action(() => {
+    const indexIo = makeIndexIo(process.cwd());
+    const entries = collectFeatureFiles('llmanspec/specs').map((path) => ({
+      fileName: path,
+      doc: parseCapability(readFileSync(path, 'utf8'), path),
+    }));
+    const result = rebuildIndex(indexIo, process.cwd(), 'llmanspec/specs', entries, {
+      chatModel: process.env.LLMAN_SDD_INDEX_CHAT_MODEL ?? '',
+    });
+    for (const line of result.lines) console.log(line);
+  });
+
+indexCmd
+  .command('check')
+  .description('Check index freshness without rebuilding')
+  .action(() => {
+    const result = checkIndexFreshness(
+      makeIndexIo(process.cwd()),
+      process.cwd(),
+      'llmanspec/specs',
+    );
+    for (const line of result.lines) console.log(line);
+    if (!result.fresh) process.exit(1);
+  });
+
+program
+  .command('context')
+  .description('Get specs relevant to a task (agent-oriented, pageindex agentic retrieval)')
+  .option('--task <task>', 'natural language task description')
+  .option('--paths <paths>', 'comma-separated file paths')
+  .option('--top <n>', 'max entries per tier', '5')
+  .action((options: { task?: string; paths?: string; top?: string }) => {
+    if (!options.task && !options.paths) {
+      console.error('at least one of --task or --paths is required');
+      process.exit(1);
+    }
+    const config = resolveChatConfig(process.env as Record<string, string | undefined>);
+    if (config === null) {
+      console.log(JSON.stringify(unavailableResult(), null, 2));
+      process.exit(1);
+    }
+    const tree = loadTree(makeIndexIo(process.cwd()), process.cwd());
+    if (tree === null) {
+      const missing = unavailableResult();
+      missing.status.qualityNote = 'index missing — run `llman-sdd index rebuild` first';
+      console.log(JSON.stringify(missing, null, 2));
+      process.exit(1);
+    }
+    const result = runContextRetrieval({
+      config,
+      task: options.task ?? '',
+      paths: options.paths,
+      top: Number(options.top),
+      tree,
+      readFile: (p) => readFileSync(p, 'utf8'),
+      root: process.cwd(),
+    });
+    void result.then((resolved) => {
+      console.log(JSON.stringify(resolved, null, 2));
+      if (!resolved.status.ok) process.exit(1);
+    });
+  });
 
 async function main(): Promise<void> {
   await program.parseAsync(process.argv);

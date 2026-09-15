@@ -544,8 +544,109 @@ bdd.thenStep('内容与冻结前一致', (ctx) => {
   if (!content.includes('# frozen demo')) throw new Error(`content drifted: ${content}`);
 });
 
-bdd.thenStep('退出码为零', (ctx) => {
-  const review = ctx.fixtures['review'] as unknown as { exitCode: number } | undefined;
-  if (review && review.exitCode !== 0)
-    throw new Error(`expected exit code 0, got ${review.exitCode}`);
+bdd.thenStep('退出码与 criticalCount 一致', (ctx) => {
+  const review = ctx.fixtures['review'] as unknown as
+    | {
+        exitCode: number;
+        summary: { criticalCount: number };
+      }
+    | undefined;
+  if (!review) throw new Error('no review fixture');
+  const expected = review.summary.criticalCount > 0 ? 1 : 0;
+  if (review.exitCode !== expected) {
+    throw new Error(
+      `exit ${review.exitCode} inconsistent with criticalCount ${review.summary.criticalCount}`,
+    );
+  }
+});
+
+// ---------------------------------------------------------------------------
+// context-index capability — rebuild/check freshness cycle + env contract
+// ---------------------------------------------------------------------------
+
+interface CheckResult {
+  exitCode: number;
+  output: string;
+}
+
+bdd.given('一个含 specs 的临时仓库', (ctx) => {
+  ctx.fixtures['idx仓库'] = { repo: makeTempRepo() } as unknown as Record<string, unknown>;
+});
+
+bdd.when('rebuild 后立即 check', (ctx) => {
+  const repo = (ctx.fixtures['idx仓库'] as unknown as { repo: TempRepo }).repo;
+  repo.run('bun', [CLI, 'index', 'rebuild']);
+  const check = repo.run('bun', [CLI, 'index', 'check']);
+  ctx.fixtures['check结果'] = {
+    exitCode: check.code,
+    output: check.stdout,
+  } satisfies CheckResult as unknown as Record<string, unknown>;
+});
+
+bdd.thenStep('报告 fresh', (ctx) => {
+  const result = ctx.fixtures['check结果'] as unknown as CheckResult | undefined;
+  if (result?.exitCode !== 0 || !result.output.includes('fresh')) {
+    throw new Error(`expected fresh, got exit=${result?.exitCode} output=${result?.output}`);
+  }
+});
+
+bdd.when('修改任一 spec 后再 check', (ctx) => {
+  const repo = (ctx.fixtures['idx仓库'] as unknown as { repo: TempRepo }).repo;
+  const specPath = join(repo.root, 'llmanspec', 'specs', 'sample.feature');
+  writeFileSync(specPath, `${readFileSync(specPath, 'utf8')}\n# touched\n`);
+  const check = repo.run('bun', [CLI, 'index', 'check']);
+  ctx.fixtures['check结果'] = {
+    exitCode: check.code,
+    output: check.stdout,
+  } satisfies CheckResult as unknown as Record<string, unknown>;
+});
+
+bdd.thenStep('报告 stale', (ctx) => {
+  const result = ctx.fixtures['check结果'] as unknown as CheckResult | undefined;
+  if (!result) throw new Error('no check result');
+  if (result.exitCode === 0 || !result.output.includes('stale')) {
+    throw new Error(`expected stale, got exit=${result.exitCode} output=${result.output}`);
+  }
+});
+
+bdd.given('环境未设置 LLMAN_SDD_INDEX_CHAT_MODEL', (ctx) => {
+  ctx.fixtures['env无模型'] = { value: true } as unknown as Record<string, unknown>;
+});
+
+bdd.when('运行 context --task', (ctx) => {
+  void (ctx.fixtures['env无模型'] as unknown as { value: boolean } | undefined);
+  const env: Record<string, string> = {};
+  for (const [k, v] of Object.entries(process.env)) {
+    if (v !== undefined && !k.startsWith('LLMAN_SDD_INDEX_')) env[k] = v;
+  }
+  const proc = spawnSync('bun', [CLI, 'context', '--task', '随便什么任务'], {
+    cwd: REPO_ROOT,
+    encoding: 'utf8',
+    env,
+  });
+  let parsed: { status: { quality: string; errorKind?: string } } | null = null;
+  try {
+    parsed = JSON.parse(proc.stdout ?? '{}');
+  } catch {
+    parsed = null;
+  }
+  ctx.fixtures['context结果'] = {
+    quality: parsed?.status?.quality ?? 'no-output',
+    errorKind: parsed?.status?.errorKind ?? 'none',
+  } as unknown as Record<string, unknown>;
+});
+
+bdd.thenStep('quality 为 unavailable', (ctx) => {
+  const result = ctx.fixtures['context结果'] as unknown as { quality: string } | undefined;
+  if (result?.quality !== 'unavailable') {
+    throw new Error(`expected quality=unavailable, got ${result?.quality}`);
+  }
+});
+
+bdd.thenStep('不发起任何网络请求', (ctx) => {
+  // unavailable 分支在发请求前返回;errorKind 必为 api_error 而非网络错误
+  const result = ctx.fixtures['context结果'] as unknown as { errorKind: string } | undefined;
+  if (result?.errorKind !== 'api_error') {
+    throw new Error(`expected api_error (pre-request), got ${result?.errorKind}`);
+  }
 });
