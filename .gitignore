@@ -197,3 +197,6 @@ sketch
 
 coverage/
 
+
+### llman sdd derived cache
+llmanspec/.context/
