@@ -1,6 +1,6 @@
 # llman-sdd
 
-`llman sdd` 的 TypeScript + Bun 重写(monorepo:`packages/core` 纯域逻辑 + `apps/cli` commander 入口),行为合约与 v1(Rust llman)对等,由 llman SDD 自身管理开发(见 `llmanspec/`)。
+llman-sdd:spec 驱动开发(SDD)工作流 CLI(monorepo:`packages/core` 纯域逻辑 + `apps/cli` commander 入口),由 llman SDD 自身管理开发(见 `llmanspec/`)。
 
 ## 常用命令
 
