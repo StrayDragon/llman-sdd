@@ -2,7 +2,7 @@
 
 测试边界(seam)声明:全部复用既有 harness——BDD runner 步骤(tests/bdd/steps/*,改写既有场景的步骤实现,不发明新 seam)、golden 脚本骨架(tests/golden/lib.ts 的 runCapture/normalizeCliText)、CLI 子进程 spawn。临时对拍为独立脚本,拆门时随之删除。
 
-- [ ] T1 specs 承接改写(BDD 场景 v2 自承接)
+- [x] T1 specs 承接改写(BDD 场景 v2 自承接)
   - 实现 Specs landing 后的场景步骤:`review-freeze` 冻结解冻自洽(v2 freeze→thaw roundtrip,替代 v1 冻结前置);`peripheral-commands` 输出结构合法(list JSON 字段/枚举断言 + graph 首行断言,替代 v1↔v2 对照)
   - 移除 `tests/bdd/run.test.ts` 的 HAS_V1/V1_PARITY_SCENARIOS 跳过机制(domain.ts 中不再有 v1 步骤)
   - 门:bun test 全绿(BDD 对全部 @executable 场景可执行)
