@@ -1,15 +1,56 @@
-// Shared golden-baseline helper: render skills products with v1 (Rust llman)
-// into a temp dir, using a config equivalent to this repo's llmanspec/config.yaml.
-//
-// The captured products are byte-exact contracts: once v2 implements
-// `init --update`, its output must diff clean against tests/golden/baseline/.
-// The baseline is tied to llman 0.0.77 (see tests/golden/baseline/VERSION).
+// Shared golden/live-parity helpers:
+//   - skills golden: render products with v1 (Rust llman) into a temp dir,
+//     byte-exact against tests/golden/baseline/ (tied to llman 0.0.78).
+//   - live parity gates: spawn helpers + the text normalizer shared by
+//     check-cli.ts / check-validate.ts / tests/bdd/steps/domain.ts.
 import { cpSync, existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 export const GOLDEN_DIR = import.meta.dirname;
 export const BASELINE_DIR = join(GOLDEN_DIR, 'baseline');
+export const REPO_ROOT = join(GOLDEN_DIR, '..', '..');
+export const V2_CLI = join(REPO_ROOT, 'apps', 'cli', 'src', 'main.ts');
+
+/**
+ * Spawn a tool and capture stdout+stderr merged — v1 prints progress lines to
+ * stderr and results to stdout, so gates normalize over both.
+ */
+export function runCapture(cmd: string[], args: string[], cwd: string = REPO_ROOT): string {
+  const proc = Bun.spawnSync([cmd[0] as string, ...cmd.slice(1), ...args], {
+    cwd,
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  return `${proc.stdout.toString()}\n${proc.stderr.toString()}`;
+}
+
+/** Text normalizer for live v1↔v2 comparisons (human tables, relative time,
+ * timestamps, stale-detail wording). Line order is presentation — compare as
+ * sorted sets. */
+export function normalizeCliText(s: string): string {
+  return (
+    s
+      .split('\n')
+      .map((l) => l.trim().replaceAll(/\s+/gu, ' '))
+      .filter((l) => l !== '' && !l.startsWith('INFO:'))
+      .join('\n')
+      .replaceAll(/\b\d+[smhd]\s+ago\b/gu, '<REL>')
+      .replace('just now', '<REL>')
+      .replaceAll(/\d{4}-\d{2}-\d{2}T[\d:.]+Z/gu, '<TS>')
+      .replaceAll(/\d{4}-\d{2}-\d{2}/gu, '<DATE>')
+      .replaceAll(/^stale: \S+ \(\d+\)$/gm, 'stale: <CAP> (<N>)')
+      .replaceAll(/^- (INFO|DEFERRED|OK)$/gm, '  - <STALE>')
+      .replaceAll(/^Error: review found \d+ CRITICAL finding\(s\).*$/gm, '')
+      .replaceAll(/\(built [^,]+,/gu, '(built <TS>,')
+      .replaceAll('chat model: <unset>', 'chat model: <MODEL>')
+      .replaceAll('chat_model=<unset>', 'chat_model=<MODEL>')
+      // replacements above can leave empty lines (e.g. stripped Error lines)
+      .split('\n')
+      .filter((l) => l !== '')
+      .join('\n')
+  );
+}
 
 /** Equivalent to the repo's llmanspec/config.yaml (locale zh-Hans + bdd-on). */
 export const CONFIG_YAML = `# yaml-language-server: $schema=https://raw.githubusercontent.com/StrayDragon/llman/main/artifacts/schema/configs/en/llmanspec-config.schema.json

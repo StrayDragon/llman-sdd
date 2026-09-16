@@ -183,7 +183,7 @@ describe('runContextRetrieval (mock fetch agentic loop)', () => {
     expect(messages.some((m) => m.role === 'tool')).toBe(true);
   });
 
-  test('API error → quality error result', async () => {
+  test('r29 HTTP failure → unavailable + error summary shape', async () => {
     const fetchImpl = (async () =>
       new Response('boom', { status: 500 })) as unknown as typeof fetch;
     const tree = buildTreeIndex([], { specHash: 'h', buildTimestamp: 'x', chatModel: 'mock' });
@@ -196,6 +196,104 @@ describe('runContextRetrieval (mock fetch agentic loop)', () => {
       fetchImpl,
     });
     expect(result.status.ok).toBe(false);
-    expect(result.status.quality).toBe('error');
+    expect(result.status.quality).toBe('unavailable');
+    expect(result.status.errorKind).toBe('api_error');
+    expect(result.summary).toEqual({ totalSpecs: 0, error: true });
+  });
+
+  test('r29 network throw → unavailable + error summary shape', async () => {
+    const fetchImpl = (async () => {
+      throw new Error('ECONNREFUSED');
+    }) as unknown as typeof fetch;
+    const tree = buildTreeIndex([], { specHash: 'h', buildTimestamp: 'x', chatModel: 'mock' });
+    const result = await runContextRetrieval({
+      config: { model: 'mock', host: 'https://mock.example/v1', apiKey: 'k' },
+      task: 't',
+      tree,
+      readFile: () => '',
+      root: '.',
+      fetchImpl,
+    });
+    expect(result.status.ok).toBe(false);
+    expect(result.status.quality).toBe('unavailable');
+    expect(result.status.errorKind).toBe('api_error');
+    expect(result.summary).toEqual({ totalSpecs: 0, error: true });
+  });
+
+  test('r29 loop exhaustion degrades to agentic + truncation note + empty tiers', async () => {
+    const toolCallPayload = {
+      choices: [
+        {
+          message: {
+            content: null,
+            tool_calls: [
+              { id: 'c1', type: 'function', function: { name: 'list_specs', arguments: '{}' } },
+            ],
+          },
+        },
+      ],
+    };
+    const fetchImpl = (async () =>
+      new Response(JSON.stringify(toolCallPayload))) as unknown as typeof fetch;
+    const tree = buildTreeIndex([], { specHash: 'h', buildTimestamp: 'x', chatModel: 'mock' });
+    const result = await runContextRetrieval({
+      config: { model: 'mock', host: 'https://mock.example/v1', apiKey: 'k' },
+      task: 't',
+      tree,
+      readFile: () => '',
+      root: '.',
+      fetchImpl,
+    });
+    expect(result.status.ok).toBe(true);
+    expect(result.status.quality).toBe('agentic');
+    expect(result.status.qualityNote).toContain('12-round tool-call limit');
+    expect(result.direct).toEqual([]);
+    expect(result.related).toEqual([]);
+    if (!('tierDirect' in result.summary)) throw new Error('expected success summary shape');
+    expect(result.summary.tierDirect).toBe(0);
+    expect(result.summary.toolCalls).toBe(13);
+  });
+
+  test('r28 cross-tier duplicate keeps direct entry and drops related', async () => {
+    const finalJson =
+      '{"direct": [{"id": "spec-A", "reason": "a"}, {"id": "spec-B", "reason": "b"}], ' +
+      '"related": [{"id": "spec-B", "reason": "b-dup"}, {"id": "spec-C", "reason": "c"}]}';
+    const fetchImpl = (async () =>
+      new Response(
+        JSON.stringify({ choices: [{ message: { content: finalJson, tool_calls: [] } }] }),
+      )) as unknown as typeof fetch;
+    const tree = buildTreeIndex([], { specHash: 'h', buildTimestamp: 'x', chatModel: 'mock' });
+    const result = await runContextRetrieval({
+      config: { model: 'mock', host: 'https://mock.example/v1', apiKey: 'k' },
+      task: 't',
+      tree,
+      readFile: () => '',
+      root: '.',
+      fetchImpl,
+    });
+    expect(result.direct.map((e) => e.id)).toEqual(['spec-A', 'spec-B']);
+    expect(result.related.map((e) => e.id)).toEqual(['spec-C']);
+    if (!('tierDirect' in result.summary)) throw new Error('expected success summary shape');
+    expect(result.summary.tierDirect).toBe(2);
+    expect(result.summary.tierRelated).toBe(1);
+  });
+
+  test('r28 in-tier duplicate keeps first occurrence', async () => {
+    const finalJson =
+      '{"direct": [{"id": "spec-A", "reason": "first"}, {"id": "spec-A", "reason": "second"}], "related": []}';
+    const fetchImpl = (async () =>
+      new Response(
+        JSON.stringify({ choices: [{ message: { content: finalJson, tool_calls: [] } }] }),
+      )) as unknown as typeof fetch;
+    const tree = buildTreeIndex([], { specHash: 'h', buildTimestamp: 'x', chatModel: 'mock' });
+    const result = await runContextRetrieval({
+      config: { model: 'mock', host: 'https://mock.example/v1', apiKey: 'k' },
+      task: 't',
+      tree,
+      readFile: () => '',
+      root: '.',
+      fetchImpl,
+    });
+    expect(result.direct).toEqual([{ id: 'spec-A', reason: 'first' }]);
   });
 });

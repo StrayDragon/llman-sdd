@@ -4,11 +4,9 @@
 // <DATE>, whitespace runs → single space (human tables), advisory `hint`
 // strings dropped from gateChecks, JSON compared structurally.
 // Requires `llman` (v1) on PATH. Run: bun run golden:cli
-import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 
-const REPO_ROOT = join(import.meta.dirname, '..', '..');
-const V2_CLI = join(REPO_ROOT, 'apps', 'cli', 'src', 'main.ts');
+import { normalizeCliText, REPO_ROOT, runCapture, V2_CLI } from './lib.ts';
 
 const COMMANDS: {
   name: string;
@@ -69,30 +67,6 @@ const COMMANDS: {
   },
 ];
 
-function normalizeText(s: string): string {
-  return (
-    s
-      .split('\n')
-      .map((l) => l.trim().replaceAll(/\s+/gu, ' '))
-      .filter((l) => l !== '' && !l.startsWith('INFO:'))
-      .join('\n')
-      .replaceAll(/\b\d+[smhd]\s+ago\b/gu, '<REL>')
-      .replace('just now', '<REL>')
-      .replaceAll(/\d{4}-\d{2}-\d{2}T[\d:.]+Z/gu, '<TS>')
-      .replaceAll(/\d{4}-\d{2}-\d{2}/gu, '<DATE>')
-      .replaceAll(/^stale: \S+ \(\d+\)$/gm, 'stale: <CAP> (<N>)')
-      .replaceAll(/^- (INFO|DEFERRED|OK)$/gm, '  - <STALE>')
-      .replaceAll(/^Error: review found \d+ CRITICAL finding\(s\).*$/gm, '')
-      .replaceAll(/\(built [^,]+,/gu, '(built <TS>,')
-      .replaceAll('chat model: <unset>', 'chat model: <MODEL>')
-      .replaceAll('chat_model=<unset>', 'chat_model=<MODEL>')
-      // replacements above can leave empty lines (e.g. stripped Error lines)
-      .split('\n')
-      .filter((l) => l !== '')
-      .join('\n')
-  );
-}
-
 function normalizeJson(v: unknown, staleSignal = false): unknown {
   if (typeof v === 'string') {
     // v2 的 stale 信号为占位(detail=DEFERRED),v1 为 staleness 状态字——归一化排除
@@ -116,12 +90,6 @@ function normalizeJson(v: unknown, staleSignal = false): unknown {
   return v;
 }
 
-function run(cmd: string, args: string[]): string {
-  // v1 prints progress lines to stderr and results to stdout — capture both.
-  const proc = spawnSync(cmd, args, { cwd: REPO_ROOT, encoding: 'utf8' });
-  return `${proc.stdout ?? ''}\n${proc.stderr ?? ''}`;
-}
-
 /** Extract the outermost JSON value (object or array) from mixed capture. */
 function extractJson(out: string): unknown {
   const text = `${out}\n`;
@@ -135,13 +103,13 @@ function extractJson(out: string): unknown {
 let failures = 0;
 for (const c of COMMANDS) {
   for (const pre of c.pre ?? []) {
-    run('llman', pre.v1);
-    run('bun', [V2_CLI, ...pre.v2]);
+    runCapture(['llman'], pre.v1);
+    runCapture(['bun'], [V2_CLI, ...pre.v2]);
   }
-  for (const pre of c.pre1 ?? []) run('llman', pre);
-  const v1 = run('llman', c.v1);
-  for (const pre of c.pre2 ?? []) run('bun', [V2_CLI, ...pre]);
-  const v2 = run('bun', [V2_CLI, ...c.v2]);
+  for (const pre of c.pre1 ?? []) runCapture(['llman'], pre);
+  const v1 = runCapture(['llman'], c.v1);
+  for (const pre of c.pre2 ?? []) runCapture(['bun'], [V2_CLI, ...pre]);
+  const v2 = runCapture(['bun'], [V2_CLI, ...c.v2]);
   let equal: boolean;
   if (c.json) {
     try {
@@ -152,15 +120,15 @@ for (const c of COMMANDS) {
       equal = false;
     }
   } else {
-    const a = normalizeText(v1);
-    const b = normalizeText(v2);
+    const a = normalizeCliText(v1);
+    const b = normalizeCliText(v2);
     // 行序在 v1/v2 间是表现层(stderr/stdout 交错、archived 目录序)——集合一致即合同一致
     equal = a.split('\n').toSorted().join('\n') === b.split('\n').toSorted().join('\n');
   }
   if (!equal) {
     failures += 1;
-    const na = normalizeText(v1).split('\n').toSorted();
-    const nb = normalizeText(v2).split('\n').toSorted();
+    const na = normalizeCliText(v1).split('\n').toSorted();
+    const nb = normalizeCliText(v2).split('\n').toSorted();
     console.error(`[drift] ${c.name}\n${JSON.stringify({ v1: na, v2: nb }, null, 1)}`);
   } else {
     console.log(`ok ${c.name}`);

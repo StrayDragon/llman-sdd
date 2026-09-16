@@ -1,9 +1,12 @@
 /**
- * Context agentic retrieval (context-index capability, r27): OpenAI-compatible
- * /chat/completions with tool calling — three local tools, 12-round cap, then
- * one forced no-tools turn. Env contract mirrors v1:
- * LLMAN_SDD_INDEX_CHAT_MODEL (required) / LLMAN_SDD_INDEX_CHAT_API_HOST|KEY
- * with LLMAN_SDD_INDEX_OPENAI_* fallbacks.
+ * Context agentic retrieval (context-index capability, r27-r29):
+ * OpenAI-compatible /chat/completions with tool calling — three local tools,
+ * 12-round cap, then one forced no-tools turn. r28 dedups the model's
+ * direct/related classification (direct wins). r29 pins the output contract:
+ * quality ∈ {agentic, unavailable}, exhaustion degrades to agentic +
+ * truncation note, failures emit summary {totalSpecs:0, error:true}.
+ * Env contract mirrors v1: LLMAN_SDD_INDEX_CHAT_MODEL (required) /
+ * LLMAN_SDD_INDEX_CHAT_API_HOST|KEY with LLMAN_SDD_INDEX_OPENAI_* fallbacks.
  */
 import type { SerializedTreeIndex } from './tree.ts';
 
@@ -38,7 +41,7 @@ export interface TierEntry {
   reason: string;
 }
 
-export interface ContextSummary {
+export interface ContextSuccessSummary {
   totalSpecs: number;
   tierDirect: number;
   tierRelated: number;
@@ -49,10 +52,19 @@ export interface ContextSummary {
   paths: string[];
 }
 
+/** r29: failures collapse to v1's print_err two-field error summary. */
+export interface ContextErrorSummary {
+  totalSpecs: 0;
+  error: true;
+}
+
+export type ContextSummary = ContextSuccessSummary | ContextErrorSummary;
+
 export interface ContextResult {
   status: {
     ok: boolean;
-    quality: 'agentic' | 'unavailable' | 'error';
+    /** r29: value domain is `agentic` (incl. degraded truncation) | `unavailable`. */
+    quality: 'agentic' | 'unavailable';
     qualityNote: string;
     errorKind?: string;
   };
@@ -151,6 +163,32 @@ function parseTiers(content: string): { direct: TierEntry[]; related: TierEntry[
   return { direct: parsed.direct ?? [], related: parsed.related ?? [] };
 }
 
+/**
+ * r28: the model may classify one spec into both tiers (observed with real
+ * models; v1 passes duplicates through). Cross-tier duplicates keep the direct
+ * entry, in-tier duplicates keep the first occurrence; summary counts are
+ * computed after this runs.
+ */
+function dedupTiers(tiers: { direct: TierEntry[]; related: TierEntry[] }): {
+  direct: TierEntry[];
+  related: TierEntry[];
+} {
+  const seenDirect = new Set<string>();
+  const direct: TierEntry[] = [];
+  for (const entry of tiers.direct) {
+    if (seenDirect.has(entry.id)) continue;
+    seenDirect.add(entry.id);
+    direct.push(entry);
+  }
+  const related: TierEntry[] = [];
+  for (const entry of tiers.related) {
+    if (seenDirect.has(entry.id)) continue;
+    if (related.some((kept) => kept.id === entry.id)) continue;
+    related.push(entry);
+  }
+  return { direct, related };
+}
+
 export interface RetrieveDeps extends TreeToolDeps {
   config: ChatConfig;
   task: string;
@@ -173,126 +211,124 @@ export async function runContextRetrieval(deps: RetrieveDeps): Promise<ContextRe
 
   let tiers: { direct: TierEntry[]; related: TierEntry[] } | null = null;
   let toolCalls = 0;
-  for (let round = 0; round <= maxRounds && tiers === null; round += 1) {
-    const forceFinal = round === maxRounds;
-    const body: Record<string, unknown> = {
-      model: deps.config.model,
-      messages,
-      ...(forceFinal ? {} : { tools: TOOL_SCHEMAS, tool_choice: 'auto' }),
-    };
-    const resp = await fetchImpl(`${deps.config.host}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${deps.config.apiKey}`,
-      },
-      body: JSON.stringify(body),
-    });
-    if (!resp.ok) {
-      const text = await resp.text();
-      return {
-        status: {
-          ok: false,
-          quality: 'error',
-          qualityNote: `chat API ${resp.status}: ${text.slice(0, 200)}`,
-          errorKind: 'api_error',
-        },
-        direct: [],
-        summary: emptySummary(deps.tree.docs.length),
-        related: [],
+  try {
+    for (let round = 0; round <= maxRounds && tiers === null; round += 1) {
+      const forceFinal = round === maxRounds;
+      const body: Record<string, unknown> = {
+        model: deps.config.model,
+        messages,
+        ...(forceFinal ? {} : { tools: TOOL_SCHEMAS, tool_choice: 'auto' }),
       };
-    }
-    const data = (await resp.json()) as {
-      choices: {
-        message: {
-          content: string | null;
-          tool_calls?: {
-            id: string;
-            type: string;
-            function: { name: string; arguments: string };
-          }[];
-        };
-      }[];
-    };
-    const message = data.choices?.[0]?.message;
-    if (!message) throw new Error('chat API returned no message');
-
-    if (message.tool_calls && message.tool_calls.length > 0) {
-      toolCalls += message.tool_calls.length;
-      messages.push({
-        role: 'assistant',
-        content: message.content ?? '',
-        tool_calls: message.tool_calls,
+      const resp = await fetchImpl(`${deps.config.host}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${deps.config.apiKey}`,
+        },
+        body: JSON.stringify(body),
       });
-      for (const call of message.tool_calls) {
-        const result = executeTool(deps, call.function.name, call.function.arguments);
-        messages.push({ role: 'tool', tool_call_id: call.id, content: result });
+      if (!resp.ok) {
+        const text = await resp.text();
+        return errorResult(`chat API ${resp.status}: ${text.slice(0, 200)}`, 'api_error');
       }
-      continue;
+      const data = (await resp.json()) as {
+        choices: {
+          message: {
+            content: string | null;
+            tool_calls?: {
+              id: string;
+              type: string;
+              function: { name: string; arguments: string };
+            }[];
+          };
+        }[];
+      };
+      const message = data.choices?.[0]?.message;
+      if (!message) throw new Error('chat API returned no message');
+
+      if (message.tool_calls && message.tool_calls.length > 0) {
+        toolCalls += message.tool_calls.length;
+        messages.push({
+          role: 'assistant',
+          content: message.content ?? '',
+          tool_calls: message.tool_calls,
+        });
+        for (const call of message.tool_calls) {
+          const result = executeTool(deps, call.function.name, call.function.arguments);
+          messages.push({ role: 'tool', tool_call_id: call.id, content: result });
+        }
+        continue;
+      }
+      tiers = parseTiers(message.content ?? '');
     }
-    tiers = parseTiers(message.content ?? '');
+  } catch (error) {
+    // v1 print_err semantics: network/transport/parse failures degrade to
+    // unavailable + api_error, never crash the CLI without JSON output.
+    return errorResult(`retrieval failed: ${(error as Error).message}`, 'api_error');
   }
   if (tiers === null) {
+    // r29: loop exhaustion degrades to agentic + truncation note + empty
+    // tiers (v1 truncated RetrievalOutput), with the success summary shape.
+    const noTiers: TierEntry[] = [];
     return {
       status: {
-        ok: false,
-        quality: 'error',
-        qualityNote: `no final answer after ${maxRounds} tool rounds`,
-        errorKind: 'loop_exhausted',
+        ok: true,
+        quality: 'agentic',
+        qualityNote: `agentic loop hit the ${maxRounds}-round tool-call limit; result may be incomplete`,
       },
-      direct: [],
+      direct: noTiers,
       related: [],
-      summary: emptySummary(deps.tree.docs.length),
+      summary: successSummary(deps.tree.docs.length, noTiers, [], toolCalls, deps.paths),
     };
   }
-  const direct = tiers.direct.slice(0, deps.top ?? 5);
-  const related = tiers.related.slice(0, deps.top ?? 5);
+  const deduped = dedupTiers(tiers);
+  const direct = deduped.direct.slice(0, deps.top ?? 5);
+  const related = deduped.related.slice(0, deps.top ?? 5);
   return {
     status: { ok: true, quality: 'agentic', qualityNote: 'pageindex' },
     direct,
     related,
-    summary: {
-      totalSpecs: deps.tree.docs.length,
-      tierDirect: direct.length,
-      tierRelated: related.length,
-      unrelatedCount: Math.max(0, deps.tree.docs.length - direct.length - related.length),
-      toolCalls,
-      staleWarnings: [],
-      readRecommended: direct.map((d) => d.id),
-      paths: deps.paths
-        ? deps.paths
-            .split(',')
-            .map((p) => p.trim())
-            .filter((p) => p !== '')
-        : [],
-    },
+    summary: successSummary(deps.tree.docs.length, direct, related, toolCalls, deps.paths),
   };
 }
 
-function emptySummary(totalSpecs: number): ContextSummary {
+function successSummary(
+  totalSpecs: number,
+  direct: TierEntry[],
+  related: TierEntry[],
+  toolCalls: number,
+  paths?: string,
+): ContextSuccessSummary {
+  const pathList = paths
+    ? paths
+        .split(',')
+        .map((p) => p.trim())
+        .filter((p) => p !== '')
+    : [];
   return {
     totalSpecs,
-    tierDirect: 0,
-    tierRelated: 0,
-    unrelatedCount: totalSpecs,
-    toolCalls: 0,
+    tierDirect: direct.length,
+    tierRelated: related.length,
+    unrelatedCount: Math.max(0, totalSpecs - direct.length - related.length),
+    toolCalls,
     staleWarnings: [],
-    readRecommended: [],
-    paths: [],
+    readRecommended: direct.map((d) => d.id),
+    paths: pathList,
+  };
+}
+
+function errorResult(qualityNote: string, errorKind: string): ContextResult {
+  return {
+    status: { ok: false, quality: 'unavailable', qualityNote, errorKind },
+    direct: [],
+    related: [],
+    summary: { totalSpecs: 0, error: true },
   };
 }
 
 export function unavailableResult(): ContextResult {
-  return {
-    status: {
-      ok: false,
-      quality: 'unavailable',
-      qualityNote:
-        'LLMAN_SDD_INDEX_CHAT_MODEL unset; set a tool-calling chat model: LLMAN_SDD_INDEX_CHAT_MODEL is required for the pageindex backend (agentic retrieval needs a chat model that supports tool/function calling)',
-      errorKind: 'api_error',
-    },
-    direct: [],
-    related: [],
-    summary: emptySummary(0),
-  };
+  return errorResult(
+    'LLMAN_SDD_INDEX_CHAT_MODEL unset; set a tool-calling chat model: LLMAN_SDD_INDEX_CHAT_MODEL is required for the pageindex backend (agentic retrieval needs a chat model that supports tool/function calling)',
+    'api_error',
+  );
 }

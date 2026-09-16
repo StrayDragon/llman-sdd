@@ -1,4 +1,3 @@
-import { discoverSpecs, type DiscoveryIo } from '../validation/discover.ts';
 /**
  * Review aggregation (review-freeze capability, r23): five-signal review over
  * spec IR + validate sweep. Port of v1 sdd/review.rs observable contract.
@@ -140,8 +139,4 @@ export function buildReview(input: ReviewInput, io: SpecIo): ReviewResult {
     lines,
     exitCode: criticalCount > 0 ? 1 : 0,
   };
-}
-
-export function collectReviewEntries(discovery: DiscoveryIo, specsDir: string): SpecEntry[] {
-  return discoverSpecs(specsDir, discovery);
 }

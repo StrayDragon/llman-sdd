@@ -132,7 +132,6 @@ export {
 } from './archive/freeze.ts';
 export {
   buildReview,
-  collectReviewEntries,
   type ReviewInput,
   type ReviewKind,
   type ReviewResult,

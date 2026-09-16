@@ -25,6 +25,7 @@ import {
   type DiscoveryIo,
 } from '@llman-sdd/core';
 
+import { normalizeCliText } from '../../golden/lib.ts';
 import { bdd } from '../runner.ts';
 
 const REPO_ROOT = join(import.meta.dirname, '..', '..', '..');
@@ -246,7 +247,6 @@ bdd.given('一个已提交的临时 git 仓库含 change "{id}" 的 proposal', (
   repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'draft']);
   ctx.fixtures['仓库'] = { root: repo.root, repo } as unknown as Record<string, unknown>;
   ctx.fixtures['change'] = { id };
-  void CLI;
 });
 
 bdd.when('对其运行 change start', (ctx) => {
@@ -404,17 +404,6 @@ bdd.thenStep('每个 SKILL.md 通过 ethics 治理门', (ctx) => {
 // ---------------------------------------------------------------------------
 // peripheral-commands capability — live v1 ↔ v2 comparison
 // ---------------------------------------------------------------------------
-
-function normalizeCliText(s: string): string {
-  return s
-    .split('\n')
-    .map((l) => l.trim().replaceAll(/\s+/gu, ' '))
-    .filter((l) => l !== '' && !l.startsWith('INFO:'))
-    .join('\n')
-    .replaceAll(/\b\d+[smhd]\s+ago\b/gu, '<REL>')
-    .replaceAll('just now', '<REL>')
-    .replaceAll(/\d{4}-\d{2}-\d{2}T[\d:.]+Z/gu, '<TS>');
-}
 
 interface CliPairResult {
   same: boolean;
@@ -606,47 +595,5 @@ bdd.thenStep('报告 stale', (ctx) => {
   if (!result) throw new Error('no check result');
   if (result.exitCode === 0 || !result.output.includes('stale')) {
     throw new Error(`expected stale, got exit=${result.exitCode} output=${result.output}`);
-  }
-});
-
-bdd.given('环境未设置 LLMAN_SDD_INDEX_CHAT_MODEL', (ctx) => {
-  ctx.fixtures['env无模型'] = { value: true } as unknown as Record<string, unknown>;
-});
-
-bdd.when('运行 context --task', (ctx) => {
-  void (ctx.fixtures['env无模型'] as unknown as { value: boolean } | undefined);
-  const env: Record<string, string> = {};
-  for (const [k, v] of Object.entries(process.env)) {
-    if (v !== undefined && !k.startsWith('LLMAN_SDD_INDEX_')) env[k] = v;
-  }
-  const proc = spawnSync('bun', [CLI, 'context', '--task', '随便什么任务'], {
-    cwd: REPO_ROOT,
-    encoding: 'utf8',
-    env,
-  });
-  let parsed: { status: { quality: string; errorKind?: string } } | null = null;
-  try {
-    parsed = JSON.parse(proc.stdout ?? '{}');
-  } catch {
-    parsed = null;
-  }
-  ctx.fixtures['context结果'] = {
-    quality: parsed?.status?.quality ?? 'no-output',
-    errorKind: parsed?.status?.errorKind ?? 'none',
-  } as unknown as Record<string, unknown>;
-});
-
-bdd.thenStep('quality 为 unavailable', (ctx) => {
-  const result = ctx.fixtures['context结果'] as unknown as { quality: string } | undefined;
-  if (result?.quality !== 'unavailable') {
-    throw new Error(`expected quality=unavailable, got ${result?.quality}`);
-  }
-});
-
-bdd.thenStep('不发起任何网络请求', (ctx) => {
-  // unavailable 分支在发请求前返回;errorKind 必为 api_error 而非网络错误
-  const result = ctx.fixtures['context结果'] as unknown as { errorKind: string } | undefined;
-  if (result?.errorKind !== 'api_error') {
-    throw new Error(`expected api_error (pre-request), got ${result?.errorKind}`);
   }
 });

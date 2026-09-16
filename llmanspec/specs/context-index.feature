@@ -1,6 +1,6 @@
 # language: zh-CN
 # capability: context-index
-# purpose: 定义 pageindex 索引构建/新鲜度合同与 context agentic 检索的 env、工具与循环上限契约。
+# purpose: 定义 pageindex 索引构建/新鲜度合同与 context agentic 检索的 env、工具、循环上限、输出去重与汇总/降级契约。
 # scope: packages/core/src/context/, apps/cli/src/, llmanspec/.context/
 
 功能: context-index
@@ -27,3 +27,32 @@
     当 运行 context --task
     那么 quality 为 unavailable
     而且 不发起任何网络请求
+
+  @req:r28 @human
+  场景: 检索结果去重
+    - `context --task` 输出 MUST 去重:同一 spec_id 同时出现在 direct 与 related 时 MUST 仅保留 direct 档条目并从 related 移除;同一档内重复 spec_id MUST 仅保留首个条目;summary 的 tierDirect/tierRelated/unrelatedCount MUST 在去重后计算。
+
+  @req:r28 @executable
+  场景: 跨档与同档重复条目去重
+    假如 注入 mock 模型其最终回答 direct 含 spec-A 与 spec-B 且 related 含 spec-B 与 spec-C
+    当 运行 context --task
+    那么 direct 仅含 spec-A 与 spec-B 且 related 仅含 spec-C
+    而且 summary 的 tierDirect 为 2 且 tierRelated 为 1
+
+  @req:r29 @human
+  场景: 输出汇总与降级契约
+    - `context --task` 成功输出 MUST 含 summary{totalSpecs,tierDirect,tierRelated,unrelatedCount,toolCalls,staleWarnings,readRecommended,paths} 且 readRecommended MUST 为 direct 档 id 序列;quality 值域 MUST 为 agentic 与 unavailable;工具轮耗尽 MUST 降级为 ok 且 quality agentic、qualityNote 注明截断、direct/related 为空;检索失败(网络或 HTTP 非 2xx)MUST 输出 quality unavailable、errorKind api_error 与 summary{totalSpecs:0,error:true};进度与调试信息 MUST 走 stderr,结果 JSON MUST 走 stdout。
+
+  @req:r29 @executable
+  场景: 工具轮耗尽降级
+    假如 注入 mock 模型每轮都请求工具且从不给出最终回答
+    当 运行 context --task 直至轮次耗尽
+    那么 quality 为 agentic 且 qualityNote 含截断注记
+    而且 direct 与 related 均为空
+
+  @req:r29 @executable
+  场景: 检索失败错误输出
+    假如 注入 mock 模型端点返回 HTTP 500
+    当 运行 context --task
+    那么 quality 为 unavailable 且 errorKind 为 api_error
+    而且 summary 为 totalSpecs 0 且 error true
