@@ -15,11 +15,11 @@ project-specific rules, context, or conventions that you want AI agents to follo
 
 ## 项目定位
 
-本仓库是 `../llman`(Rust)中 llman-sdd 子系统的 TypeScript + Bun 重写(v2)。
-重写全程用 llman SDD 管理(狗粮模式):v1 Rust llman 0.0.x 是流水线工具本身。
+llman-sdd:spec 驱动开发(SDD)工作流(TypeScript + Bun),将完全接替 Rust llman 中的 sdd 子系统。
+项目全程用 llman SDD 管理(狗粮模式):SDD 流水线当前由 Rust llman 0.0.x 承载,发布切换后由本工具自身承载。
 
 - v1 契约参考(只读,禁止修改):`../llman/crates/llman-sdd`
-- v2 行为契约:`llmanspec/specs/*.feature`(随各 change 在特性分支上落地)
+- 本工具行为契约:`llmanspec/specs/*.feature`(随各 change 在特性分支上落地)
 - 总路线图:Phase 0–7 见首个 change 的 proposal.md
 
 ## 技术栈(已定案)

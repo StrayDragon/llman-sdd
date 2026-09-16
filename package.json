@@ -2,7 +2,7 @@
   "name": "llman-sdd",
   "version": "0.1.0",
   "private": true,
-  "description": "Spec-driven development workflow for LLM agent collaboration (TypeScript rewrite of llman sdd)",
+  "description": "Spec-driven development workflow for LLM agent collaboration",
   "license": "MIT",
   "workspaces": [
     "packages/*",

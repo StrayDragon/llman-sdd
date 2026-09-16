@@ -79,10 +79,7 @@ function runValidateSpecs(options: { specs?: boolean; check: boolean }): number 
 
 const program = new Command();
 
-program
-  .name('llman-sdd')
-  .description('Spec-driven development workflow (TypeScript rewrite of llman sdd)')
-  .version(version);
+program.name('llman-sdd').description('Spec-driven development workflow').version(version);
 
 program
   .command('init')
@@ -101,7 +98,7 @@ program
 
 program
   .command('validate')
-  .description('Validate specs under llmanspec/specs (structural gates, v1 verdict parity)')
+  .description('Validate specs under llmanspec/specs (structural gates)')
   .option('--specs', 'validate specs (default and only scope for now)')
   .option('--no-check', 'skip the bdd.run_command check (structural validation only)')
   .action((options: { specs?: boolean; check: boolean }) => {
@@ -234,7 +231,7 @@ program
       return;
     }
     if (options.output !== 'json') {
-      console.error('only --output json is supported for changes in v2 (text format pending)');
+      console.error('only --output json is supported for changes (text format pending)');
       process.exit(1);
     }
     const io = makeIo(process.cwd());
