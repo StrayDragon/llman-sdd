@@ -1,12 +1,15 @@
 ---
 depends_on:
-  - port-validation-engine
-  - port-change-lifecycle
-  - port-init-and-generators
-  - port-peripheral-commands
-  - port-review-freeze-context
-  - port-context-index
-  - refine-slop-qa-release
+- port-validation-engine
+- port-change-lifecycle
+- port-init-and-generators
+- port-peripheral-commands
+- port-review-freeze-context
+- port-context-index
+- refine-slop-qa-release
+branch: sdd/release-v2-and-cutover
+base_sha: 9742d01d6215108b8e7f9ee89b9391d6d12632f7
+base_branch: main
 ---
 
 # Release:v2 发布与切换(Phase 7)
