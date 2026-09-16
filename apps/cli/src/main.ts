@@ -617,7 +617,7 @@ program
       console.log(JSON.stringify(missing, null, 2));
       process.exit(1);
     }
-    const result = runContextRetrieval({
+    void runContextRetrieval({
       config,
       task: options.task ?? '',
       paths: options.paths,
@@ -625,8 +625,7 @@ program
       tree,
       readFile: (p) => readFileSync(p, 'utf8'),
       root: process.cwd(),
-    });
-    void result.then((resolved) => {
+    }).then((resolved) => {
       console.log(JSON.stringify(resolved, null, 2));
       if (!resolved.status.ok) process.exit(1);
     });
