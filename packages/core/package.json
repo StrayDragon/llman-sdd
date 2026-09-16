@@ -1,9 +1,16 @@
 {
   "name": "@llman-sdd/core",
   "version": "0.1.0",
-  "private": true,
   "description": "Pure domain logic for llman-sdd (config, gherkin specs, validation, templates)",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/StrayDragon/llman-sdd.git",
+    "directory": "packages/core"
+  },
+  "files": [
+    "src"
+  ],
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
@@ -18,5 +25,9 @@
   "dependencies": {
     "yaml": "^2.9.1",
     "zod": "^4.6.5"
+  },
+  "engines": {
+    "bun": ">=1.4.0",
+    "node": ">=24.0.0"
   }
 }

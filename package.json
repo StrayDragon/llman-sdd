@@ -15,7 +15,7 @@
     "format:write": "oxfmt --write",
     "typecheck": "tsc --noEmit",
     "test": "bun test tests/",
-    "build": "bun --filter '@llman-sdd/cli' build",
+    "build": "bun --filter 'llman-sdd' build",
     "check": "bun run typecheck && bun run lint && bun run format:check",
     "qa": "bun run check && bun run test",
     "golden:generate": "bun tests/golden/generate.ts",

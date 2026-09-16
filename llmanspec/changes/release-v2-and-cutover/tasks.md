@@ -12,7 +12,7 @@
   - 复用 lib.ts runCapture/normalizeCliText;结果与漂移记录进 `docs/acceptance-v2.md` 临时章节
   - 门:扩充矩阵全绿(发现漂移即修后重跑)
 
-- [ ] T3 发布工程(本地就绪,不外发)
+- [x] T3 发布工程(本地就绪,不外发)
   - npm 包布局:单包 `llman-sdd`,bin 指向 apps/cli/src/main.ts,engines(bun>=1.4 || node>=24),files 白名单;`npm pack` 干跑验证内容集
   - `--compile` 二进制矩阵本地构建冒烟(linux x64 至少一平台)+ sha256
   - `.github/workflows/release.yml`:tag 触发,fetch-depth: 0,构建 matrix + sha256 + smoke,产物挂 release(仅落盘配置,不触发)

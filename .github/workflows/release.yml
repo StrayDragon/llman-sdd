@@ -1,0 +1,90 @@
+# Release pipeline — tag-triggered. Publishing (tag push / npm publish) is a
+# user decision; this workflow only runs after the tag lands.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  binaries:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: bun-linux-x64
+            out: llman-sdd-linux-x64
+          - os: ubuntu-24.04-arm
+            target: bun-linux-arm64
+            out: llman-sdd-linux-arm64
+          - os: macos-latest
+            target: bun-darwin-x64
+            out: llman-sdd-darwin-x64
+          - os: macos-latest
+            target: bun-darwin-arm64
+            out: llman-sdd-darwin-arm64
+          - os: windows-latest
+            target: bun-windows-x64
+            out: llman-sdd-windows-x64.exe
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # 版本 SSOT 是 git tag,需要完整历史
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+        env:
+          BIN_NAME: ${{ matrix.out }}
+          BUN_COMPILE_TARGET: ${{ matrix.target }}
+      - run: ./dist/${{ matrix.out }} --version
+      - name: sha256
+        run: cd dist && sha256sum ${{ matrix.out }} > ${{ matrix.out }}.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.out }}
+          path: dist/${{ matrix.out }}*
+
+  npm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+      - run: bun install --frozen-lockfile
+      - run: bun run qa
+      # bun publish 会把 workspace:* 替换为解析后的版本;--access 对 scoped 包必须显式
+      - run: cd packages/core && bun publish --access public
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - run: cd apps/cli && bun publish
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  github-release:
+    needs: [binaries, npm]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: dist
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
