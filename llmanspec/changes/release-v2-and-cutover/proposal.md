@@ -4,6 +4,9 @@ depends_on:
   - port-change-lifecycle
   - port-init-and-generators
   - port-peripheral-commands
+  - port-review-freeze-context
+  - port-context-index
+  - refine-slop-qa-release
 ---
 
 # Release:v2 发布与切换(Phase 7)
