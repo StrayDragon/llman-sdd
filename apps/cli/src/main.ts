@@ -103,7 +103,8 @@ program
   .option('--specs', 'validate specs (default and only scope for now)')
   .option('--no-check', 'skip the bdd.run_command check (structural validation only)')
   .action((options: { specs?: boolean; check: boolean }) => {
-    process.exit(runValidateSpecs(options));
+    // Node 下管道 stdout 写入异步,process.exit 会截断输出;exitCode 等价且安全。
+    process.exitCode = runValidateSpecs(options);
   });
 
 const change = program
@@ -118,7 +119,8 @@ change
   .action((id: string | undefined, options: { from?: string }) => {
     if ((id === undefined) === (options.from === undefined)) {
       console.error('<CHANGE> and --from are mutually exclusive; pass one or the other');
-      process.exit(1);
+      process.exitCode = 1;
+      return;
     }
     const io = makeIo(process.cwd());
     const result = newChange(io, { id, from: options.from });
@@ -175,7 +177,8 @@ change
   .action((id: string, options: { into?: string; method: string }) => {
     if (options.method !== 'squash' && options.method !== 'ff') {
       console.error(`invalid --method: ${options.method}`);
-      process.exit(1);
+      process.exitCode = 1;
+      return;
     }
     const result = finalizeChange(makeCliGit(process.cwd()), makeIo(process.cwd()), id, {
       into: options.into,
@@ -223,7 +226,8 @@ program
       const path = join('llmanspec', 'specs', `${item}.feature`);
       if (!existsSync(path)) {
         console.error(`spec not found: ${item}`);
-        process.exit(1);
+        process.exitCode = 1;
+        return;
       }
       const entries = collectFeatureFiles('llmanspec/specs').map((specPath) => ({
         fileName: specPath,
@@ -238,7 +242,8 @@ program
     }
     if (options.output !== 'json') {
       console.error('only --output json is supported for changes (text format pending)');
-      process.exit(1);
+      process.exitCode = 1;
+      return;
     }
     const io = makeIo(process.cwd());
     const result = showChangeJson(
@@ -261,7 +266,8 @@ program
   .action((options: { format: string }) => {
     if (options.format !== 'mermaid') {
       console.error(`unsupported format: ${options.format}`);
-      process.exit(1);
+      process.exitCode = 1;
+      return;
     }
     console.log(graphMermaid(makeIo(process.cwd()), process.cwd()).join('\n'));
   });
@@ -351,7 +357,7 @@ archive
       for (const line of result.lines) console.log(line);
     } catch (error) {
       console.error((error as Error).message);
-      process.exit(1);
+      process.exitCode = 1;
     }
   });
 
@@ -395,7 +401,7 @@ review
     } else {
       console.log(result.lines.join('\n'));
     }
-    if (result.exitCode !== 0) process.exit(result.exitCode);
+    if (result.exitCode !== 0) process.exitCode = result.exitCode;
   });
 
 /** Self-contained HTML report via the v1 shared/review.html template. */
@@ -460,7 +466,7 @@ indexCmd
   .action(() => {
     const result = checkIndexFreshness(makeIo(process.cwd()), process.cwd(), 'llmanspec/specs');
     for (const line of result.lines) console.log(line);
-    if (!result.fresh) process.exit(1);
+    if (!result.fresh) process.exitCode = 1;
   });
 
 program
@@ -469,10 +475,11 @@ program
   .option('--task <task>', 'natural language task description')
   .option('--paths <paths>', 'comma-separated file paths')
   .option('--top <n>', 'max entries per tier', '5')
-  .action((options: { task?: string; paths?: string; top?: string }) => {
+  .action(async (options: { task?: string; paths?: string; top?: string }) => {
     if (!options.task && !options.paths) {
       console.error('at least one of --task or --paths is required');
-      process.exit(1);
+      process.exitCode = 1;
+      return;
     }
     const config = resolveChatConfig(process.env as Record<string, string | undefined>);
     if (config === null) {
@@ -487,7 +494,7 @@ program
       console.log(JSON.stringify(missing, null, 2));
       return;
     }
-    void runContextRetrieval({
+    const result = await runContextRetrieval({
       config,
       task: options.task ?? '',
       paths: options.paths,
@@ -495,9 +502,8 @@ program
       tree,
       readFile: (p) => readFileSync(p, 'utf8'),
       root: process.cwd(),
-    }).then((resolved) => {
-      console.log(JSON.stringify(resolved, null, 2));
     });
+    console.log(JSON.stringify(result, null, 2));
   });
 
 async function main(): Promise<void> {
