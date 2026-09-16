@@ -7,7 +7,7 @@
   - 移除 `tests/bdd/run.test.ts` 的 HAS_V1/V1_PARITY_SCENARIOS 跳过机制(domain.ts 中不再有 v1 步骤)
   - 门:bun test 全绿(BDD 对全部 @executable 场景可执行)
 
-- [ ] T2 临时对拍扩充(v1 在场,临时门) [blocked-by: T1]
+- [x] T2 临时对拍扩充(v1 在场,临时门) [blocked-by: T1]
   - `scripts/temp-parity-v1.ts` + justfile `parity-v1-temp`:change 全子命令(临时仓)、fresh init 双栈产物对照(记录 AGENTS.md 托管块分歧)、freeze/thaw 全参数、review --export-html、context 守卫/错误路径
   - 复用 lib.ts runCapture/normalizeCliText;结果与漂移记录进 `docs/acceptance-v2.md` 临时章节
   - 门:扩充矩阵全绿(发现漂移即修后重跑)

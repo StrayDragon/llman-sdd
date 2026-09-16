@@ -111,13 +111,18 @@ const change = program
 
 change
   .command('new')
-  .description('Create a change draft (id derived from --from when omitted)')
+  .description('Create a change draft (exactly one of <id> or --from)')
   .argument('[id]')
-  .requiredOption('--from <description>', 'description the id is derived from')
-  .action((id: string | undefined, options: { from: string }) => {
+  .option('--from <description>', 'description the id is derived from')
+  .action((id: string | undefined, options: { from?: string }) => {
+    if ((id === undefined) === (options.from === undefined)) {
+      console.error('<CHANGE> and --from are mutually exclusive; pass one or the other');
+      process.exit(1);
+    }
     const io = makeIo(process.cwd());
     const result = newChange(io, { id, from: options.from });
-    console.log(`${result.id}\t${result.path}`);
+    if (options.from !== undefined) console.log(`derived change id: ${result.id}`);
+    console.log(result.path);
   });
 
 change
@@ -475,15 +480,16 @@ program
     }
     const config = resolveChatConfig(process.env as Record<string, string | undefined>);
     if (config === null) {
+      // v1 parity: unavailable/error JSON on stdout, exit 0.
       console.log(JSON.stringify(unavailableResult(), null, 2));
-      process.exit(1);
+      return;
     }
     const tree = loadTree(makeIo(process.cwd()), process.cwd());
     if (tree === null) {
       const missing = unavailableResult();
       missing.status.qualityNote = 'index missing — run `llman-sdd index rebuild` first';
       console.log(JSON.stringify(missing, null, 2));
-      process.exit(1);
+      return;
     }
     void runContextRetrieval({
       config,
@@ -495,7 +501,6 @@ program
       root: process.cwd(),
     }).then((resolved) => {
       console.log(JSON.stringify(resolved, null, 2));
-      if (!resolved.status.ok) process.exit(1);
     });
   });
 

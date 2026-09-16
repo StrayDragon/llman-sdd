@@ -57,7 +57,16 @@ cd ../llman && git worktree remove --force /tmp/llman-sdd-pilot && git worktree 
 
 结论:9→60 caps 全操作均值 <130ms,规模近平坦(bun 启动主导);真实 LLM 检索延迟由端点决定(实测冒烟 23.6s/12 轮上限内 5 次工具调用)。
 
-## 4. 已知差异(裁决记录,不阻断验收)
+## 4. 临时 v1 行为对拍(扩充矩阵,切换后随对拍门一并移除)
+
+`bun scripts/temp-parity-v1.ts`(2026-09-16,25 项全绿):
+
+- change 生命周期(new --from 推导/start/分支/绑定键)双栈一致;`change new` 的 id+--from 互斥与 `derived change id:` 输出格式对齐 v1(修复)
+- fresh init:skills 树/内容、根 AGENTS.md 托管块一致;llmanspec/AGENTS.md 的托管块差异为已裁决行为(spec r19,v2 形态)
+- freeze --dry-run/--keep-recent/--list、thaw 未知名报错:输出格式对齐 v1(修复 dry-run 首行/`./` 路径前缀/`found` 措辞)
+- review --export-html 自包含;context 守卫(model 未设)与 show 未知名错误路径:unavailable JSON + 退出码对齐 v1(修复 context 退出码 1→0)
+
+## 5. 已知差异(裁决记录,不阻断验收)
 
 - `Agent pid` 存活检测的噪声细节不移植(环境相关,非合约;design D5)。
 - v2 `context` 成功时 `qualityNote: "pageindex"`,v1 为 `null`(语义等价)。
