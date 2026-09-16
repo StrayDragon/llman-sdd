@@ -44,6 +44,18 @@ golden-check:
 golden-cli:
     bun run golden:cli
 
+# golden 四门统一入口:skills 渲染(免 v1)+ validate 对照 + 活体 CLI 对照 + 冷备兼容
+# (后三门需要 PATH 上的 v1 `llman`;CI 只跑 golden:check)
+golden:
+    bun run golden:check
+    bun run golden:validate
+    bun run golden:cli
+    bun test tests/integration/freeze-compat.test.ts
+
+# 真实 LLM 链路冒烟(env 守卫,未配置模型时干净跳过)
+smoke-context:
+    bun run smoke:context
+
 # config schema artifact:生成 / 漂移门
 gen-schema:
     bun run gen:schema

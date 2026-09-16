@@ -1,8 +1,11 @@
 ---
 depends_on:
-  - port-context-index
+- port-context-index
 blocks:
-  - release-v2-and-cutover
+- release-v2-and-cutover
+branch: sdd/refine-slop-qa-release
+base_sha: 458260ad0d82b6e6464b0e2ebf25a4ca0f489daf
+base_branch: main
 ---
 
 # Refine:全链路 slop 重构、QA 链路适配与工程化收尾(插队,先于 release)

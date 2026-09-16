@@ -34,6 +34,8 @@ jobs:
           bun-version-file: .bun-version
       - run: bun install --frozen-lockfile
       - run: bun test tests/
+      # v1-free golden 门(skills 渲染 vs 已提交基线;活体对照门需 PATH v1,仅本地 just golden)
+      - run: bun run golden:check
       # 双运行时兼容冒烟(spec monorepo-structure r1:Node >= 24)
       - uses: actions/setup-node@v4
         with:

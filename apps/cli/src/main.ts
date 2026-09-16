@@ -1,15 +1,6 @@
 import { spawnSync } from 'node:child_process';
-import {
-  existsSync,
-  mkdirSync,
-  rmSync,
-  readdirSync,
-  readFileSync,
-  renameSync,
-  statSync,
-  writeFileSync,
-} from 'node:fs';
-import { isAbsolute, join } from 'node:path';
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 import {
   VERSION,
@@ -24,7 +15,6 @@ import {
   finalizeChange,
   loadConfig,
   loadTree,
-  makeSpawnGit,
   newChange,
   parseCapability,
   renderChangesJson,
@@ -43,46 +33,18 @@ import {
   runList,
   runThaw,
   validateAllSpecs,
-  type ChangeFsIo,
-  type FreezeIo,
   type TagBinding,
-  type DiscoveryIo,
-  type FsIo,
   type GitLike,
   resolveChatConfig,
-  type GraphFsIo,
   unavailableResult,
 } from '@llman-sdd/core';
 import { Command } from 'commander';
 
+import { makeCliGit, makeIo } from './io.ts';
+
 // Injected at binary build time by scripts/build-binary.ts; falls back to the
 // package version when running from source.
 const version = process.env.LLMAN_SDD_VERSION ?? VERSION;
-
-/** Root-relative FsIo + GitLike adapters over node:fs / git subprocess.
- * Absolute paths pass through untouched. */
-function makeFsIo(root: string): FsIo {
-  const full = (p: string): string => (isAbsolute(p) ? p : join(root, p));
-  return {
-    exists: (p) => existsSync(full(p)),
-    readText: (p) => readFileSync(full(p), 'utf8'),
-    writeText: (p, content) => {
-      const abs = full(p);
-      mkdirSync(abs.slice(0, abs.lastIndexOf('/')), { recursive: true });
-      writeFileSync(abs, content);
-    },
-    rename: (from, to) => {
-      const target = full(to);
-      mkdirSync(target.slice(0, target.lastIndexOf('/')), { recursive: true });
-      renameSync(full(from), target);
-    },
-    listDir: (p) => readdirSync(full(p)),
-  };
-}
-
-function makeCliGit(root: string): GitLike {
-  return makeSpawnGit(root);
-}
 
 function collectFeatureFiles(dir: string): string[] {
   if (!existsSync(dir) || !statSync(dir).isDirectory()) return [];
@@ -95,51 +57,12 @@ function collectFeatureFiles(dir: string): string[] {
   return out;
 }
 
-const FS_IO: DiscoveryIo = {
-  exists: (p) => existsSync(p),
-  isDirectory: (p) => existsSync(p) && statSync(p).isDirectory(),
-  listDir: (p) => readdirSync(p),
-  readText: (p) => readFileSync(p, 'utf8'),
-};
-
-/** IndexIo adapter over node:fs. */
-function makeIndexIo(root: string) {
-  const full = (p: string): string => (isAbsolute(p) ? p : join(root, p));
-  return {
-    exists: (p: string) => existsSync(full(p)),
-    readText: (p: string) => readFileSync(full(p), 'utf8'),
-    writeText: (p: string, content: string) => {
-      const abs = full(p);
-      mkdirSync(abs.slice(0, abs.lastIndexOf('/')) || '.', { recursive: true });
-      writeFileSync(abs, content);
-    },
-    remove: (p: string) => rmSync(full(p), { force: true }),
-    isDirectory: (p: string) => existsSync(full(p)) && statSync(full(p)).isDirectory(),
-    listDir: (p: string) => readdirSync(full(p)),
-    mkdirp: (p: string) => mkdirSync(full(p), { recursive: true }),
-    processAlive: (pid: number) => {
-      try {
-        process.kill(pid, 0);
-        return true;
-      } catch {
-        return false;
-      }
-    },
-  };
-}
-
-function ioWrite(p: string, content: string): void {
-  const full = join(process.cwd(), p);
-  mkdirSync(full.slice(0, full.lastIndexOf('/')) || '.', { recursive: true });
-  writeFileSync(full, content);
-}
-
 function runValidateSpecs(options: { specs?: boolean; check: boolean }): number {
   const entries = collectFeatureFiles('llmanspec/specs').map((path) => ({
     fileName: path,
     doc: parseCapability(readFileSync(path, 'utf8'), path),
   }));
-  const report = validateAllSpecs(entries, FS_IO);
+  const report = validateAllSpecs(entries, makeIo(process.cwd()));
   for (const line of report.lines) console.log(line);
 
   let failed = report.failed;
@@ -195,7 +118,7 @@ change
   .argument('[id]')
   .requiredOption('--from <description>', 'description the id is derived from')
   .action((id: string | undefined, options: { from: string }) => {
-    const io = makeFsIo(process.cwd());
+    const io = makeIo(process.cwd());
     const result = newChange(io, { id, from: options.from });
     console.log(`${result.id}\t${result.path}`);
   });
@@ -207,7 +130,7 @@ change
   .option('--branch-prefix <prefix>', 'feature branch prefix', 'sdd/')
   .action((id: string, options: { branchPrefix: string }) => {
     const git: GitLike = makeCliGit(process.cwd());
-    const result = startChange(git, makeFsIo(process.cwd()), id, {
+    const result = startChange(git, makeIo(process.cwd()), id, {
       branchPrefix: options.branchPrefix,
     });
     console.log(
@@ -220,7 +143,7 @@ change
   .description('Bind the change to the current branch (no gates)')
   .argument('<id>')
   .action((id: string) => {
-    const result = attachChange(makeCliGit(process.cwd()), makeFsIo(process.cwd()), id);
+    const result = attachChange(makeCliGit(process.cwd()), makeIo(process.cwd()), id);
     console.log(`attached change \`${id}\` → branch \`${result.branch}\``);
   });
 
@@ -237,7 +160,7 @@ change
   .description('Print the bound branch diff vs base')
   .argument('<id>')
   .action((id: string) => {
-    console.log(changeDiff(makeCliGit(process.cwd()), makeFsIo(process.cwd()), id));
+    console.log(changeDiff(makeCliGit(process.cwd()), makeIo(process.cwd()), id));
   });
 
 change
@@ -251,7 +174,7 @@ change
       console.error(`invalid --method: ${options.method}`);
       process.exit(1);
     }
-    const result = finalizeChange(makeCliGit(process.cwd()), makeFsIo(process.cwd()), id, {
+    const result = finalizeChange(makeCliGit(process.cwd()), makeIo(process.cwd()), id, {
       into: options.into,
       method: options.method,
     });
@@ -278,14 +201,7 @@ program
       );
       return;
     }
-    const io: ChangeFsIo & GraphFsIo = {
-      exists: (p) => existsSync(p),
-      readText: (p) => readFileSync(p, 'utf8'),
-      listDir: (p) => readdirSync(p),
-      isDirectory: (p) => existsSync(p) && statSync(p).isDirectory(),
-      mtimeMs: (p) => statSync(p).mtimeMs,
-    };
-    const changes = collectChanges(io, process.cwd(), new Date());
+    const changes = collectChanges(makeIo(process.cwd()), process.cwd(), new Date());
     console.log(
       options.json ? renderChangesJson(changes) : renderChangesList(changes, new Date()).join('\n'),
     );
@@ -321,11 +237,11 @@ program
       console.error('only --output json is supported for changes in v2 (text format pending)');
       process.exit(1);
     }
-    const io = makeFsIo(process.cwd());
+    const io = makeIo(process.cwd());
     const result = showChangeJson(
       {
-        io: io as unknown as import('@llman-sdd/core').ShowFsIo,
-        discovery: FS_IO,
+        io,
+        discovery: makeIo(process.cwd()),
         root: process.cwd(),
         specsDir: 'llmanspec/specs',
         now: new Date(),
@@ -344,13 +260,7 @@ program
       console.error(`unsupported format: ${options.format}`);
       process.exit(1);
     }
-    const io: GraphFsIo = {
-      exists: (p) => existsSync(p),
-      readText: (p) => readFileSync(p, 'utf8'),
-      listDir: (p) => readdirSync(p),
-      isDirectory: (p) => existsSync(p) && statSync(p).isDirectory(),
-    };
-    console.log(graphMermaid(io, process.cwd()).join('\n'));
+    console.log(graphMermaid(makeIo(process.cwd()), process.cwd()).join('\n'));
   });
 
 const spec = program.command('spec').description('Spec authoring helpers');
@@ -363,16 +273,7 @@ spec
     const locale = existsSync('llmanspec/config.yaml')
       ? loadConfig(readFileSync('llmanspec/config.yaml', 'utf8')).locale
       : 'en';
-    const io = makeFsIo(process.cwd());
-    const specIo = {
-      exists: (p: string) => io.exists(p),
-      readText: (p: string) => io.readText(p),
-      writeText: (p: string, content: string) => io.writeText(p, content),
-      mkdirp: (p: string) => io.writeText(join(p, '.keep'), ''),
-      isDirectory: (p: string) => existsSync(p) && statSync(p).isDirectory(),
-      listDir: (p: string) => readdirSync(p),
-    };
-    const path = scaffoldSpec(specIo, 'llmanspec/specs', capability, locale);
+    const path = scaffoldSpec(makeIo(process.cwd()), 'llmanspec/specs', capability, locale);
     console.log(`wrote ${path}`);
   });
 
@@ -380,15 +281,7 @@ spec
   .command('next-req-id')
   .description('Allocate the next free global req id (rN)')
   .action(() => {
-    const specIo = {
-      exists: (p: string) => existsSync(p),
-      readText: (p: string) => readFileSync(p, 'utf8'),
-      writeText: (p: string, content: string) => ioWrite(p, content),
-      mkdirp: (p: string) => ioWrite(join(p, '.keep'), ''),
-      isDirectory: (p: string) => existsSync(p) && statSync(p).isDirectory(),
-      listDir: (p: string) => readdirSync(p),
-    };
-    console.log(nextReqId(specIo, 'llmanspec/specs'));
+    console.log(nextReqId(makeIo(process.cwd()), 'llmanspec/specs'));
   });
 
 const project = program.command('project').description('Project management commands');
@@ -425,13 +318,7 @@ archive
     async (options: { before?: string; keepRecent: string; dryRun?: boolean; list?: boolean }) => {
       const sz = await makeWasmSevenZip();
       const root = process.cwd();
-      const io: FreezeIo = {
-        exists: (p) => existsSync(join(root, p)),
-        listDir: (p) => readdirSync(join(root, p)),
-        removeDir: (p) => rmSync(join(root, p), { recursive: true, force: true }),
-        mkdirp: (p) => mkdirSync(join(root, p), { recursive: true }),
-        moveDir: (from, to) => renameSync(join(root, from), join(root, to)),
-      };
+      const io = makeIo(root);
       if (options.list) {
         for (const line of await runList(io, sz, root)) console.log(line);
         return;
@@ -460,13 +347,7 @@ archive
   .action(async (options: { change: string[] }) => {
     const sz = await makeWasmSevenZip();
     const root = process.cwd();
-    const io: FreezeIo = {
-      exists: (p) => existsSync(join(root, p)),
-      listDir: (p) => readdirSync(join(root, p)),
-      removeDir: (p) => rmSync(join(root, p), { recursive: true, force: true }),
-      mkdirp: (p) => mkdirSync(join(root, p), { recursive: true }),
-      moveDir: (from, to) => renameSync(join(root, from), join(root, to)),
-    };
+    const io = makeIo(root);
     try {
       const result = await runThaw(io, sz, root, options.change);
       for (const line of result.lines) console.log(line);
@@ -493,13 +374,7 @@ review
       ? loadConfig(readFileSync('llmanspec/config.yaml', 'utf8'))
       : null;
     const bindings = config?.bdd?.bindings?.filter((b) => b.kind === 'tags') ?? [];
-    const changeIo: ChangeFsIo = {
-      exists: (p) => existsSync(p),
-      readText: (p) => readFileSync(p, 'utf8'),
-      listDir: (p) => readdirSync(p),
-      isDirectory: (p) => existsSync(p) && statSync(p).isDirectory(),
-      mtimeMs: (p) => statSync(p).mtimeMs,
-    };
+    const changeIo = makeIo(process.cwd());
     const boundCount = collectChanges(changeIo, process.cwd(), new Date()).filter(
       (c) => c.hasBinding,
     ).length;
@@ -511,7 +386,7 @@ review
         boundChangeCount: boundCount,
         activeChanges,
       },
-      FS_IO,
+      makeIo(process.cwd()),
     );
     if (options.exportHtml !== undefined) {
       writeFileSync(options.exportHtml, renderReviewHtml(result));
@@ -570,7 +445,7 @@ indexCmd
   .command('rebuild')
   .description('Rebuild the pageindex tree from spec IR (no LLM)')
   .action(() => {
-    const indexIo = makeIndexIo(process.cwd());
+    const indexIo = makeIo(process.cwd());
     const entries = collectFeatureFiles('llmanspec/specs').map((path) => ({
       fileName: path,
       doc: parseCapability(readFileSync(path, 'utf8'), path),
@@ -585,11 +460,7 @@ indexCmd
   .command('check')
   .description('Check index freshness without rebuilding')
   .action(() => {
-    const result = checkIndexFreshness(
-      makeIndexIo(process.cwd()),
-      process.cwd(),
-      'llmanspec/specs',
-    );
+    const result = checkIndexFreshness(makeIo(process.cwd()), process.cwd(), 'llmanspec/specs');
     for (const line of result.lines) console.log(line);
     if (!result.fresh) process.exit(1);
   });
@@ -610,7 +481,7 @@ program
       console.log(JSON.stringify(unavailableResult(), null, 2));
       process.exit(1);
     }
-    const tree = loadTree(makeIndexIo(process.cwd()), process.cwd());
+    const tree = loadTree(makeIo(process.cwd()), process.cwd());
     if (tree === null) {
       const missing = unavailableResult();
       missing.status.qualityNote = 'index missing — run `llman-sdd index rebuild` first';

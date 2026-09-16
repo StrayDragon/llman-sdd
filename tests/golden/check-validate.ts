@@ -4,12 +4,12 @@
 // line sets (`OK|FAIL spec/*` + `Totals:`). staleness/coverage lines are
 // v1-side details outside this phase's scope and are excluded by the filter.
 // Requires `llman` (v1) on PATH. Run: bun run golden:validate
-import { execFileSync } from 'node:child_process'; // retained for potential debug capture
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const REPO_ROOT = join(import.meta.dirname, '..', '..');
+import { REPO_ROOT, runCapture } from './lib.ts';
 
 const GOOD = (cap: string, req: string): string => `# language: zh-CN
 # capability: ${cap}
@@ -61,20 +61,15 @@ try {
       .filter((l) => /^(OK|FAIL) spec\//.test(l) || l.startsWith('Totals:'))
       .toSorted();
 
-  const runCapture = (cmd: string[], args: string[]): string => {
-    const proc = Bun.spawnSync([cmd[0] as string, ...cmd.slice(1), ...args], {
-      cwd: tmpRoot,
-      stdout: 'pipe',
-      stderr: 'pipe',
-    });
-    // v1 prints FAIL entries on stderr and OK entries on stdout; normalize over both.
-    return `${proc.stdout.toString()}\n${proc.stderr.toString()}`;
-  };
-
-  const v1 = runCapture(['llman'], ['sdd', 'validate', '--specs', '--no-check', '--strict']);
+  const v1 = runCapture(
+    ['llman'],
+    ['sdd', 'validate', '--specs', '--no-check', '--strict'],
+    tmpRoot,
+  );
   const v2 = runCapture(
     ['bun', join(REPO_ROOT, 'apps', 'cli', 'src', 'main.ts')],
     ['validate', '--specs', '--no-check'],
+    tmpRoot,
   );
 
   const v1Lines = entryLines(v1);
