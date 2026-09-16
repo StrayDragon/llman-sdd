@@ -48,6 +48,10 @@ golden:
 smoke-context:
     bun run smoke:context
 
+# 单文件二进制冒烟:先构建再跑 tests/integration/binary.test.ts
+smoke-binary: build
+    bun test tests/integration/binary.test.ts
+
 # config schema artifact:生成 / 漂移门
 gen-schema:
     bun run gen:schema
