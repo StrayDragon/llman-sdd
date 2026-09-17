@@ -39,6 +39,10 @@ llman-sdd:spec 驱动开发(SDD)工作流(TypeScript + Bun),将完全接替 Rust
   bun:test + Gherkin runner 承担同等角色;rsbuild/rspack 属 web 阶段(见技术栈
   Monorepo 条),现阶段 CLI/测试链路零打包器——后续需求直接引用本条,勿重新调研
 
+- 输出对齐口径(2026-09 定案):v1→v2 对齐只覆盖影响脚本/agent 消费的面(JSON 输出字段、退出码、结构化报告、CLI flag 面);人读文案细节(init 输出行、list 时间戳精度、start/finalize 文案、skeleton 头注释 locale 文案)不做逐字节对齐
+- 不移植(定案维持):`show --output deltas/reqs-only` 与 `change checkpoint/delta` 随 checkpoint/delta 机制移除(相关调用固化为报错+指引,r53);worktree 并行、project import、migrate 实现体维持移除
+- `llmanspec/AGENTS.md` 托管块:v2 init 写入 LLMANSPEC:START/END 标记(v1 不写),属有意改进,保留
+
 ## 工程规则
 
 - `packages/core` 保持纯域逻辑:文件系统 / git / 终端副作用一律经接口注入,便于 golden 对照测试
