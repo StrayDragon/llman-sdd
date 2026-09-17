@@ -1,3 +1,4 @@
+#!/usr/bin/env bun
 import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -111,13 +112,18 @@ const change = program
 
 change
   .command('new')
-  .description('Create a change draft (id derived from --from when omitted)')
+  .description('Create a change draft (exactly one of <id> or --from)')
   .argument('[id]')
-  .requiredOption('--from <description>', 'description the id is derived from')
-  .action((id: string | undefined, options: { from: string }) => {
+  .option('--from <description>', 'description the id is derived from')
+  .action((id: string | undefined, options: { from?: string }) => {
+    if ((id === undefined) === (options.from === undefined)) {
+      console.error('<CHANGE> and --from are mutually exclusive; pass one or the other');
+      process.exit(1);
+    }
     const io = makeIo(process.cwd());
     const result = newChange(io, { id, from: options.from });
-    console.log(`${result.id}\t${result.path}`);
+    if (options.from !== undefined) console.log(`derived change id: ${result.id}`);
+    console.log(result.path);
   });
 
 change
@@ -285,16 +291,11 @@ const project = program.command('project').description('Project management comma
 
 project
   .command('migrate')
-  .description('Legacy migration entry (no-op in v2)')
+  .description('Legacy migration entry (informational only)')
   .action(() => {
+    console.log('legacy 迁移实现(spec.toon / specs-flatten 等)不随本工具提供;');
     console.log(
-      'v2 不携带 legacy 迁移实现:spec.toon / specs-flatten 等迁移请使用 v1(Rust llman <= 0.0.x),',
-    );
-    console.log(
-      '例如 `cargo install llman@0.0.77 --features` 后运行 `llman sdd project migrate --kind toon2features --yes`。',
-    );
-    console.log(
-      'v2 直接读取 v1 的 llmanspec 布局(config.yaml / specs/*.feature / changes/),零迁移可读。',
+      '本工具直接读取既有 llmanspec 布局(config.yaml / specs/*.feature / changes/),零迁移可读。',
     );
   });
 
@@ -475,15 +476,16 @@ program
     }
     const config = resolveChatConfig(process.env as Record<string, string | undefined>);
     if (config === null) {
+      // v1 parity: unavailable/error JSON on stdout, exit 0.
       console.log(JSON.stringify(unavailableResult(), null, 2));
-      process.exit(1);
+      return;
     }
     const tree = loadTree(makeIo(process.cwd()), process.cwd());
     if (tree === null) {
       const missing = unavailableResult();
       missing.status.qualityNote = 'index missing — run `llman-sdd index rebuild` first';
       console.log(JSON.stringify(missing, null, 2));
-      process.exit(1);
+      return;
     }
     void runContextRetrieval({
       config,
@@ -495,7 +497,6 @@ program
       root: process.cwd(),
     }).then((resolved) => {
       console.log(JSON.stringify(resolved, null, 2));
-      if (!resolved.status.ok) process.exit(1);
     });
   });
 

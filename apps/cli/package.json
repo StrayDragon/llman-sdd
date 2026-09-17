@@ -1,12 +1,20 @@
 {
   "name": "@llman-sdd/cli",
-  "version": "0.1.0",
-  "private": true,
-  "description": "CLI entry for llman-sdd",
+  "version": "0.1.2",
+  "description": "Spec-driven development workflow CLI (provides both `llman-sdd` and `llmanspec` commands)",
   "license": "MIT",
-  "bin": {
-    "llman-sdd": "./src/main.ts"
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/StrayDragon/llman-sdd.git",
+    "directory": "apps/cli"
   },
+  "bin": {
+    "llman-sdd": "./src/main.ts",
+    "llmanspec": "./src/main.ts"
+  },
+  "files": [
+    "src"
+  ],
   "type": "module",
   "exports": {
     ".": "./src/main.ts"
@@ -22,5 +30,8 @@
   "dependencies": {
     "@llman-sdd/core": "workspace:*",
     "commander": "^15.0.0"
+  },
+  "engines": {
+    "bun": ">=1.4.0"
   }
 }

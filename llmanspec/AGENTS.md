@@ -4,6 +4,7 @@
 此文件由根目录的 `AGENTS.md` 托管块引用。可在此添加项目特定的规则、
 上下文或约定，以便 AI 代理遵守。
 
+<!-- 在此行下方添加你的规则 -->
 <!-- LLMANSPEC:END -->
 
 ## 项目定位
@@ -42,9 +43,9 @@ llman-sdd:spec 驱动开发(SDD)工作流(TypeScript + Bun),将完全接替 Rust
 
 - `packages/core` 保持纯域逻辑:文件系统 / git / 终端副作用一律经接口注入,便于 golden 对照测试
 - 模板引擎收敛在 TemplateEngine 适配器后:nunjucks 需 `autoescape: false`,trim/尾换行语义对齐 minijinja
-- 验收基线:同一 fixture 上 v1 与 v2 的 validate/list/show 输出 diff 为空;
-  skills 生成物与 v1 在相同 config(locale/bdd)下的渲染产物 diff 为空
-- BDD:移植 crystalith 的 Gherkin→bun:test runner(~200 行)至 `tests/bdd/`;
+- 验收基线:行为合约 SSOT 为 `llmanspec/specs/*.feature`;skills 生成物与
+  v2 自有快照基线(tests/golden/baseline)在相同 config(locale/bdd)下归一化 diff 为空
+- BDD:Gherkin→bun:test runner(`tests/bdd/`,~200 行,源自 crystalith 移植);
   带 `@executable` 标签的场景必须可被 `bun test tests/bdd` 执行
 - specs 写法:zh-CN Gherkin 关键字(功能/场景/规则),与 `locale: zh-Hans` 一致
 

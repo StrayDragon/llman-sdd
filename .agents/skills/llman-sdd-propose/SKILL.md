@@ -51,7 +51,6 @@ flowchart TB
 2. 无 live 合约变更时可设 frontmatter `needs_specs_change: false`。进入 apply 前 `llman sdd show <id> --json` 的 `readyToImplement` 须为 true（`Full ∧ gateChecks 全过`；specs-landed 项 = `specsLanded ∨ needs_specs_change=false`；一切范围 = 现算 merge-base，存储 `base_sha` 仅审计）。
 3. `change checkpoint` 已移除（无存档点概念：中途不必存档，`change finalize` 不要求干净树）。收口一律 `llman sdd change finalize <id>`：自动提交 `archive(sdd): <id>`（实现 diff + 改名一次提交）；`--no-commit` 跳过自动提交（CI/手动历史场景）。change 分支上提交自由（分段或 finalize 单次收尾均可）。
 4. **禁止**为过干净树门禁把 live specs commit 到默认分支；已 attach 时不要重复 `start`。
-
 # 人读摘要（强制）
 
 在本工作流中产出的每一份报告、交接或门禁输出，MUST 在任何机器细节之前
@@ -62,7 +61,6 @@ flowchart TB
 - **待决策** — 明确的提问，或「无」。
 
 控制在十行以内；细节放在折叠线以下。
-
 
 ### Skill 导航（非生命周期；仅指示当前 skill）
 
@@ -184,7 +182,6 @@ Git-native 护栏：
 - 锁定规则（报告制）：改/删既有 `@human` 场景只出 WARNING，不阻断 validate / change finalize / change diff；报告按 `@req:<id>` 指明被改的是哪条规则。控制点：git 分支对比 + `llman sdd review` / `change diff` 的报告浮现。旧的锁定确认元数据（frontmatter `rules_touched` / `agent_acked`、`@agent` tag、`--yes` 的确认语义）已全部删除，无别名、无兼容层。
 - apply 前须 `readyToImplement=true`（或 `needs_specs_change: false`）。收尾优先 `change finalize`。
 - 勿使用 `change delta` / solidify / `*.feature.delta.toon`。
-
 
 ## Context
 - 先查状态再动手：change/spec 状态以 `llman sdd show/list/validate` 输出为准。

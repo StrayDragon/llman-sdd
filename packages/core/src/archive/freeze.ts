@@ -66,6 +66,7 @@ export async function runFreeze(
     return {
       candidates,
       lines: [
+        `Dry run: freeze target ./${ARCHIVE_DIR_REL}/${FREEZE_ARCHIVE_NAME}`,
         `Would freeze ${candidates.length} archived changes:`,
         ...candidates.map((c) => `  - ${c}`),
       ],
@@ -79,7 +80,7 @@ export async function runFreeze(
   return {
     candidates,
     lines: [
-      `Froze ${candidates.length} archived changes into ${ARCHIVE_DIR_REL}/${FREEZE_ARCHIVE_NAME}`,
+      `Froze ${candidates.length} archived changes into ./${ARCHIVE_DIR_REL}/${FREEZE_ARCHIVE_NAME}`,
     ],
   };
 }
@@ -87,7 +88,7 @@ export async function runFreeze(
 export async function runList(io: FreezeIo, sz: SevenZipPort, rootAbs: string): Promise<string[]> {
   const archiveAbs = join(rootAbs, ARCHIVE_DIR_REL, FREEZE_ARCHIVE_NAME);
   if (!io.exists(archiveAbs)) {
-    return [`No freeze archive at ${ARCHIVE_DIR_REL}/${FREEZE_ARCHIVE_NAME}`];
+    return [`No freeze archive found at ./${ARCHIVE_DIR_REL}/${FREEZE_ARCHIVE_NAME}`];
   }
   const entries = (await sz.listEntries(archiveAbs))
     .map((n) => n.replace(/\/$/u, ''))
@@ -117,7 +118,7 @@ export async function runThaw(
 ): Promise<ThawResult> {
   const archiveAbs = join(rootAbs, ARCHIVE_DIR_REL, FREEZE_ARCHIVE_NAME);
   if (!io.exists(`${ARCHIVE_DIR_REL}/${FREEZE_ARCHIVE_NAME}`)) {
-    throw new Error(`No freeze archive at ${ARCHIVE_DIR_REL}/${FREEZE_ARCHIVE_NAME}`);
+    throw new Error(`No freeze archive found at ./${ARCHIVE_DIR_REL}/${FREEZE_ARCHIVE_NAME}`);
   }
   const tmpRel = 'llmanspec/.thaw-tmp';
   const tmpAbs = join(rootAbs, tmpRel);

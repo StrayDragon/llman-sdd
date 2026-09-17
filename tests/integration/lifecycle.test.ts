@@ -30,6 +30,9 @@ function mkRepo(): { root: string; git: ReturnType<typeof makeSpawnGit>; io: FsI
   const root = mkdtempSync(join(tmpdir(), 'llman-sdd-life-'));
   TMP_ROOTS.push(root);
   execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: root });
+  // 仓库级身份:CLI 的 finalize 内部也会 commit,CI runner 无全局身份
+  execFileSync('git', ['config', 'user.email', 't@t'], { cwd: root });
+  execFileSync('git', ['config', 'user.name', 't'], { cwd: root });
   const git = makeSpawnGit(root);
   const io: FsIo = {
     exists: (p) => existsSync(join(root, p)),

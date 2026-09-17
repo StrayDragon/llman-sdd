@@ -1,6 +1,6 @@
 # language: zh-CN
 # capability: init-generators
-# purpose: 定义模板渲染语义、locale 兜底链、init 产物面与 skills 命名空间治理,验收基准为 v1 生成物归一化 diff。
+# purpose: 定义模板渲染语义、locale 兜底链、init 产物面与 skills 命名空间治理,验收基准为渲染基线归一化 diff。
 # scope: packages/core/src/templates/, packages/core/src/init/, packages/core/templates/, apps/cli/src/, tests/golden/
 
 功能: init-generators
@@ -18,7 +18,7 @@
     - `init` MUST 产出 llmanspec/config.yaml(含 $schema 头行与 locale 缺省)、specs/.gitkeep、changes/archive/.gitkeep,并以托管块方式写根与 llmanspec 的 AGENTS.md(已有内容保留);`init --update` MUST 渲染默认 10 个 skills 加 extra_skills 扩展到 `.agents/skills/<stem>/SKILL.md`,且 MUST 仅清理 `llman-sdd-` 前缀内候选集外的目录;每个渲染产物 MUST 通过 ethics 治理门(5 个 ethics 键齐全)。
 
   @req:r19 @executable
-  场景: v2 渲染与 v1 生成物归一化一致
+  场景: 渲染与基线归一化一致
     假如 本仓库的等价 config(zh-Hans 与 bdd 配置)
     当 v2 渲染全部 skills
     那么 与 golden 基线归一化版本号后 diff 为空

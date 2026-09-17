@@ -1,6 +1,6 @@
 {
   "name": "llman-sdd",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "private": true,
   "description": "Spec-driven development workflow for LLM agent collaboration",
   "license": "MIT",
@@ -22,8 +22,6 @@
     "golden:check": "bun tests/golden/check.ts",
     "gen:schema": "bun scripts/gen-schema.ts",
     "check:schema": "bun scripts/gen-schema.ts --check",
-    "golden:cli": "bun tests/golden/check-cli.ts",
-    "golden:validate": "bun tests/golden/check-validate.ts",
     "smoke:context": "bun scripts/smoke-context.ts"
   },
   "dependencies": {
@@ -38,7 +36,8 @@
     "@types/nunjucks": "^3.2.6",
     "oxfmt": "^0.67.0",
     "oxlint": "^1.82.0",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "zod": "^4.6.5"
   },
   "engines": {
     "bun": ">=1.4.0",
