@@ -50,6 +50,7 @@ jobs:
           BUN_COMPILE_TARGET: ${{ matrix.target }}
       - run: ./dist/${{ matrix.out }} --version
       - name: sha256
+        shell: bash
         run: cd dist && sha256sum ${{ matrix.out }} > ${{ matrix.out }}.sha256
       - uses: actions/upload-artifact@v4
         with:
@@ -71,12 +72,15 @@ jobs:
       - run: cd packages/core && bun publish --access public
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - run: cd apps/cli && bun publish
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - run: cd packages/llmanspec && bun publish
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   github-release:
     needs: [binaries, npm]
