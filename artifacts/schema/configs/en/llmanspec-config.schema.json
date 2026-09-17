@@ -44,11 +44,17 @@
           "properties": {
             "strict_defer": {
               "description": "When true, unchecked tasks without a defer link are errors (not just warnings). Default: false.",
-              "type": ["boolean", "null"]
+              "type": [
+                "boolean",
+                "null"
+              ]
             },
             "min_completion_ratio": {
               "description": "Minimum task completion ratio (0.0-1.0) required for archiving. Default: none (disabled).",
-              "type": ["number", "null"]
+              "type": [
+                "number",
+                "null"
+              ]
             }
           }
         },
@@ -70,19 +76,31 @@
             },
             "feature_dir": {
               "description": "Root directory for .feature files, relative to project root.",
-              "type": ["string", "null"]
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "default_language": {
               "description": "Gherkin parsing language code (e.g. 'en', 'zh-CN'). Default: 'en'.",
-              "type": ["string", "null"]
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "run_command": {
               "description": "Custom test run command. Placeholders: {feature_dir}, {feature_name}, {feature_path}. Without placeholders, validate --all/--specs runs the command at most once per batch (batch-once).",
-              "type": ["string", "null"]
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "verify_prompt": {
               "description": "Extra prompt text injected during verify phase.",
-              "type": ["string", "null"]
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "bindings": {
               "description": "Declared harness-binding sources.",
@@ -108,7 +126,10 @@
                             "description": "Required tag names (leading `@` optional)."
                           }
                         },
-                        "required": ["kind", "tags"],
+                        "required": [
+                          "kind",
+                          "tags"
+                        ],
                         "description": "A scenario is bound when its tags contain ALL listed tags."
                       },
                       {
@@ -128,7 +149,10 @@
                             "description": "Glob patterns of source files to scan for scenario attribute blocks."
                           }
                         },
-                        "required": ["kind", "files"],
+                        "required": [
+                          "kind",
+                          "files"
+                        ],
                         "description": "Extract path/name literal pairs from scenario attribute blocks in matched files."
                       }
                     ]
@@ -154,18 +178,27 @@
           "properties": {
             "branch_prefix": {
               "description": "Prefix for feature branches created by `change start`. Default: \"sdd/\".",
-              "type": ["string", "null"]
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "worktree_root": {
               "description": "Root directory for worktrees created by `change start --worktree`.",
-              "type": ["string", "null"]
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "worktree_naming": {
               "description": "Worktree directory naming: \"id\" (default) or \"hash\" (base32(sha256(change_id))[:8]).",
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": ["id", "hash"]
+                  "enum": [
+                    "id",
+                    "hash"
+                  ]
                 },
                 {
                   "type": "null"
@@ -177,7 +210,10 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": ["squash", "ff"]
+                  "enum": [
+                    "squash",
+                    "ff"
+                  ]
                 },
                 {
                   "type": "null"
@@ -199,11 +235,17 @@
           "properties": {
             "pattern": {
               "description": "Regex active change ids MUST fully match (anchored full-match).",
-              "type": ["string", "null"]
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "template": {
               "description": "Template rendered by `change new --from` with preset vars.",
-              "type": ["string", "null"]
+              "type": [
+                "string",
+                "null"
+              ]
             }
           }
         },
@@ -213,5 +255,7 @@
       ]
     }
   },
-  "required": ["schema"]
+  "required": [
+    "schema"
+  ]
 }
