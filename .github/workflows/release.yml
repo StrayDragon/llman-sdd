@@ -48,14 +48,14 @@ jobs:
         env:
           BIN_NAME: ${{ matrix.out }}
           BUN_COMPILE_TARGET: ${{ matrix.target }}
-      - run: ./dist/${{ matrix.out }} --version
+      - run: ./apps/cli/dist/${{ matrix.out }} --version
       - name: sha256
         shell: bash
-        run: cd dist && sha256sum ${{ matrix.out }} > ${{ matrix.out }}.sha256
+        run: cd apps/cli/dist && sha256sum ${{ matrix.out }} > ${{ matrix.out }}.sha256
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.out }}
-          path: dist/${{ matrix.out }}*
+          path: apps/cli/dist/${{ matrix.out }}*
 
   npm:
     runs-on: ubuntu-latest

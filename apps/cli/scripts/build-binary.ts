@@ -8,6 +8,9 @@
 //   BUN_COMPILE_TARGET — bun cross-compile target, e.g. bun-linux-arm64
 //                        (default: host target)
 import { readFileSync } from 'node:fs';
+// fileURLToPath is required for Windows runners: URL.pathname yields "/D:/..."
+// which Bun.build cannot open as a directory.
+import { fileURLToPath } from 'node:url';
 
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {
   version: string;
@@ -28,9 +31,9 @@ const compileTarget = process.env.BUN_COMPILE_TARGET as
       : never)
   | undefined;
 
-const outfile = new URL(`../dist/${binName}`, import.meta.url).pathname;
+const outfile = fileURLToPath(new URL(`../dist/${binName}`, import.meta.url));
 const result = await Bun.build({
-  entrypoints: [new URL('../src/main.ts', import.meta.url).pathname],
+  entrypoints: [fileURLToPath(new URL('../src/main.ts', import.meta.url))],
   target: 'bun',
   define: {
     'process.env.LLMAN_SDD_VERSION': JSON.stringify(version),

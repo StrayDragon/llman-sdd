@@ -36,7 +36,8 @@
     "@types/nunjucks": "^3.2.6",
     "oxfmt": "^0.67.0",
     "oxlint": "^1.82.0",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "zod": "^4.6.5"
   },
   "engines": {
     "bun": ">=1.4.0",
