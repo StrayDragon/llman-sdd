@@ -63,7 +63,7 @@ function buildMockTree(): ReturnType<typeof buildTreeIndex> {
 }
 
 async function runMockRetrieval(
-  ctx: { fixtures: Record<string, Record<string, unknown>> },
+  ctx: { fixtures: Record<string, unknown> },
   mode: MockMode,
 ): Promise<void> {
   const fetchImpl = (async () => {
@@ -85,12 +85,12 @@ async function runMockRetrieval(
     quality: result.status.quality,
     errorKind: result.status.errorKind ?? 'none',
     result,
-  } as unknown as Record<string, unknown>;
+  };
 }
 
 bdd.given('环境未设置 LLMAN_SDD_INDEX_CHAT_MODEL', (ctx) => {
   ctx.fixtures['env无模型'] = { value: true };
-  return ctx.fixtures['env无模型'] as Record<string, unknown>;
+  return ctx.fixtures['env无模型'];
 });
 
 bdd.given('注入 mock 模型{scene}', (ctx, scene: string) => {
@@ -100,11 +100,11 @@ bdd.given('注入 mock 模型{scene}', (ctx, scene: string) => {
   else if (scene.includes('HTTP 500')) mode = 'http-500';
   else throw new Error(`unknown mock scene: ${scene}`);
   ctx.fixtures['contextmock'] = { mode };
-  return ctx.fixtures['contextmock'] as Record<string, unknown>;
+  return ctx.fixtures['contextmock'];
 });
 
 bdd.when('运行 context --task', (ctx) => {
-  const mock = ctx.fixtures['contextmock'] as unknown as { mode: MockMode } | undefined;
+  const mock = ctx.fixtures['contextmock'] as { mode: MockMode } | undefined;
   if (mock) {
     return runMockRetrieval(ctx, mock.mode);
   }
@@ -126,12 +126,12 @@ bdd.when('运行 context --task', (ctx) => {
   ctx.fixtures['context结果'] = {
     quality: parsed?.status?.quality ?? 'no-output',
     errorKind: parsed?.status?.errorKind ?? 'none',
-  } as unknown as Record<string, unknown>;
+  };
   return undefined;
 });
 
 bdd.thenStep('quality 为 unavailable', (ctx) => {
-  const result = ctx.fixtures['context结果'] as unknown as { quality: string } | undefined;
+  const result = ctx.fixtures['context结果'] as { quality: string } | undefined;
   if (result?.quality !== 'unavailable') {
     throw new Error(`expected quality=unavailable, got ${result?.quality}`);
   }
@@ -139,14 +139,14 @@ bdd.thenStep('quality 为 unavailable', (ctx) => {
 
 bdd.thenStep('不发起任何网络请求', (ctx) => {
   // unavailable 分支在发请求前返回;errorKind 必为 api_error 而非网络错误
-  const result = ctx.fixtures['context结果'] as unknown as { errorKind: string } | undefined;
+  const result = ctx.fixtures['context结果'] as { errorKind: string } | undefined;
   if (result?.errorKind !== 'api_error') {
     throw new Error(`expected api_error (pre-request), got ${result?.errorKind}`);
   }
 });
 
 bdd.thenStep('direct 仅含 spec-A 与 spec-B 且 related 仅含 spec-C', (ctx) => {
-  const result = ctx.fixtures['context结果'] as unknown as { result?: ContextResult } | undefined;
+  const result = ctx.fixtures['context结果'] as { result?: ContextResult } | undefined;
   const direct = result?.result?.direct.map((e) => e.id) ?? [];
   const related = result?.result?.related.map((e) => e.id) ?? [];
   if (JSON.stringify(direct) !== JSON.stringify(['spec-A', 'spec-B'])) {
@@ -160,7 +160,7 @@ bdd.thenStep('direct 仅含 spec-A 与 spec-B 且 related 仅含 spec-C', (ctx) 
 bdd.thenStep(
   'summary 的 tierDirect 为 {a:d} 且 tierRelated 为 {b:d}',
   (ctx, a: number, b: number) => {
-    const result = ctx.fixtures['context结果'] as unknown as { result?: ContextResult } | undefined;
+    const result = ctx.fixtures['context结果'] as { result?: ContextResult } | undefined;
     const summary = result?.result?.summary;
     if (!summary || !('tierDirect' in summary))
       throw new Error(`no success summary: ${JSON.stringify(summary)}`);
@@ -173,13 +173,13 @@ bdd.thenStep(
 );
 
 bdd.when('运行 context --task 直至轮次耗尽', (ctx) => {
-  const mock = ctx.fixtures['contextmock'] as unknown as { mode: MockMode } | undefined;
+  const mock = ctx.fixtures['contextmock'] as { mode: MockMode } | undefined;
   if (!mock) throw new Error('loop-exhaustion scenario requires the mock-model Given');
   return runMockRetrieval(ctx, mock.mode);
 });
 
 bdd.thenStep('quality 为 agentic 且 qualityNote 含截断注记', (ctx) => {
-  const result = ctx.fixtures['context结果'] as unknown as { result?: ContextResult } | undefined;
+  const result = ctx.fixtures['context结果'] as { result?: ContextResult } | undefined;
   const status = result?.result?.status;
   if (status?.quality !== 'agentic' || !status.ok) {
     throw new Error(`expected ok agentic, got ${JSON.stringify(status)}`);
@@ -190,7 +190,7 @@ bdd.thenStep('quality 为 agentic 且 qualityNote 含截断注记', (ctx) => {
 });
 
 bdd.thenStep('direct 与 related 均为空', (ctx) => {
-  const result = ctx.fixtures['context结果'] as unknown as { result?: ContextResult } | undefined;
+  const result = ctx.fixtures['context结果'] as { result?: ContextResult } | undefined;
   if ((result?.result?.direct.length ?? -1) !== 0 || (result?.result?.related.length ?? -1) !== 0) {
     throw new Error(
       `expected empty tiers, got direct=${result?.result?.direct.length} related=${result?.result?.related.length}`,
@@ -199,7 +199,7 @@ bdd.thenStep('direct 与 related 均为空', (ctx) => {
 });
 
 bdd.thenStep('quality 为 unavailable 且 errorKind 为 api_error', (ctx) => {
-  const result = ctx.fixtures['context结果'] as unknown as { result?: ContextResult } | undefined;
+  const result = ctx.fixtures['context结果'] as { result?: ContextResult } | undefined;
   const status = result?.result?.status;
   if (status?.quality !== 'unavailable' || status.errorKind !== 'api_error') {
     throw new Error(`expected unavailable/api_error, got ${JSON.stringify(status)}`);
@@ -207,7 +207,7 @@ bdd.thenStep('quality 为 unavailable 且 errorKind 为 api_error', (ctx) => {
 });
 
 bdd.thenStep('summary 为 totalSpecs 0 且 error true', (ctx) => {
-  const result = ctx.fixtures['context结果'] as unknown as { result?: ContextResult } | undefined;
+  const result = ctx.fixtures['context结果'] as { result?: ContextResult } | undefined;
   const summary = result?.result?.summary;
   if (!summary || !('error' in summary) || summary.totalSpecs !== 0 || summary.error !== true) {
     throw new Error(`expected {totalSpecs:0,error:true}, got ${JSON.stringify(summary)}`);

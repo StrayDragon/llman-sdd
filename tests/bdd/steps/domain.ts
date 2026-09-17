@@ -55,13 +55,21 @@ const SAMPLE_FEATURE = `# language: zh-CN
     - 系统 MUST 提供样例能力
 `;
 
+/** Record-style fixture field read (fixtures stored as plain records). */
+function field(fixture: unknown, key: string): unknown {
+  if (fixture !== null && typeof fixture === 'object') {
+    return (fixture as Record<string, unknown>)[key];
+  }
+  return undefined;
+}
+
 bdd.given('一个 config 内容 extra_skills 含 "{value}"', (ctx, value) => {
   ctx.fixtures['config'] = { 源文本: `schema: spec-driven\nextra_skills:\n  - ${value}\n` };
-  return ctx.fixtures['config'] as Record<string, unknown>;
+  return ctx.fixtures['config'];
 });
 
 bdd.when('加载该 config', (ctx) => {
-  const source = String(ctx.fixtures['config']?.['源文本'] ?? '');
+  const source = String(field(ctx.fixtures['config'], '源文本') ?? '');
   try {
     loadConfig(source);
     ctx.fixtures['加载结果'] = { error: null };
@@ -71,14 +79,14 @@ bdd.when('加载该 config', (ctx) => {
 });
 
 bdd.thenStep('报错信息包含 "{text}"', (ctx, text) => {
-  const message = String(ctx.fixtures['加载结果']?.['error'] ?? '');
+  const message = String(field(ctx.fixtures['加载结果'], 'error') ?? '');
   if (!message) throw new Error('no error was captured by 当 加载该 config');
   if (!message.includes(text))
     throw new Error(`error message does not contain "${text}":\n${message}`);
 });
 
 bdd.thenStep('报错条数至多 {count:d}', (ctx, count) => {
-  const message = String(ctx.fixtures['加载结果']?.['error'] ?? '');
+  const message = String(field(ctx.fixtures['加载结果'], 'error') ?? '');
   const lines = message.split('\n').filter((l) => l.startsWith('- '));
   if (lines.length > count)
     throw new Error(`expected at most ${count} issue lines, got ${lines.length}`);
@@ -86,18 +94,18 @@ bdd.thenStep('报错条数至多 {count:d}', (ctx, count) => {
 
 bdd.given('一个使用中文关键字的 feature 内容', (ctx) => {
   ctx.fixtures['feature'] = { 源文本: SAMPLE_FEATURE };
-  return ctx.fixtures['feature'] as Record<string, unknown>;
+  return ctx.fixtures['feature'];
 });
 
 bdd.when('解析该 feature', (ctx) => {
-  const source = String(ctx.fixtures['feature']?.['源文本'] ?? '');
+  const source = String(field(ctx.fixtures['feature'], '源文本') ?? '');
   ctx.fixtures['解析结果'] = {
     doc: parseCapability(source, 'inline.feature'),
-  } satisfies ParseResult as unknown as Record<string, unknown>;
+  } satisfies ParseResult;
 });
 
 bdd.thenStep('IR 中规则场景分类为 {classification}', (ctx, classification) => {
-  const doc = (ctx.fixtures['解析结果'] as unknown as ParseResult | undefined)?.doc;
+  const doc = (ctx.fixtures['解析结果'] as ParseResult | undefined)?.doc;
   const rule = doc?.scenarios.find((s) => s.classification === 'human');
   if (!rule) throw new Error('no human-classified scenario in IR');
   if (classification !== 'human')
@@ -105,7 +113,7 @@ bdd.thenStep('IR 中规则场景分类为 {classification}', (ctx, classificatio
 });
 
 bdd.thenStep('req 链接为 {reqId}', (ctx, reqId) => {
-  const doc = (ctx.fixtures['解析结果'] as unknown as ParseResult | undefined)?.doc;
+  const doc = (ctx.fixtures['解析结果'] as ParseResult | undefined)?.doc;
   const ids = doc?.scenarios.flatMap((s) => s.reqIds) ?? [];
   if (!ids.includes(reqId)) throw new Error(`expected req link ${reqId}, got [${ids.join(', ')}]`);
 });
@@ -132,16 +140,15 @@ bdd.given('两个 spec 文件都含 @req:{reqId} 标签', (ctx, reqId) => {
 
 bdd.when('构建全局注册表', (ctx) => {
   const docs =
-    (ctx.fixtures['重复样本'] as unknown as { docs: { fileName: string; doc: CapabilityDoc }[] })
-      ?.docs ?? [];
+    (ctx.fixtures['重复样本'] as { docs: { fileName: string; doc: CapabilityDoc }[] })?.docs ?? [];
   const reg = buildReqRegistry(docs);
   ctx.fixtures['注册表'] = {
     duplicates: reg.duplicates,
-  } satisfies RegistryResult as unknown as Record<string, unknown>;
+  } satisfies RegistryResult;
 });
 
 bdd.thenStep('报告包含重复对 {reqId}', (ctx, reqId) => {
-  const reg = ctx.fixtures['注册表'] as unknown as RegistryResult | undefined;
+  const reg = ctx.fixtures['注册表'] as RegistryResult | undefined;
   if (!reg?.duplicates.some((d) => d.reqId === reqId)) {
     throw new Error(`expected duplicate pair for ${reqId}, got ${JSON.stringify(reg?.duplicates)}`);
   }
@@ -180,7 +187,7 @@ bdd.given('一个含互斥 tag 与重复 req_id 缺陷的 specs 目录', (ctx) =
 });
 
 bdd.when('运行 specs 校验', (ctx) => {
-  const fixture = ctx.fixtures['缺陷目录'] as unknown as SpecsDirFixture | undefined;
+  const fixture = ctx.fixtures['缺陷目录'] as SpecsDirFixture | undefined;
   if (!fixture) throw new Error('no specs-dir fixture — did the 假如 step run?');
   const entries = discoverSpecs(fixture.specsDir, fixture.io);
   const report = validateAllSpecs(entries, fixture.io);
@@ -188,7 +195,7 @@ bdd.when('运行 specs 校验', (ctx) => {
 });
 
 bdd.thenStep('FAIL 集合包含 spec 条目', (ctx) => {
-  const result = ctx.fixtures['校验结果'] as unknown as ValidateResult | undefined;
+  const result = ctx.fixtures['校验结果'] as ValidateResult | undefined;
   const failLines = result?.lines.filter((l) => l.startsWith('FAIL spec/')) ?? [];
   if (failLines.length === 0) {
     throw new Error(`no FAIL spec entries in:\n${result?.lines.join('\n')}`);
@@ -196,7 +203,7 @@ bdd.thenStep('FAIL 集合包含 spec 条目', (ctx) => {
 });
 
 bdd.thenStep('退出码非零', (ctx) => {
-  const result = ctx.fixtures['校验结果'] as unknown as ValidateResult | undefined;
+  const result = ctx.fixtures['校验结果'] as ValidateResult | undefined;
   if (!result?.failed) throw new Error('expected validation to fail');
 });
 
@@ -248,29 +255,29 @@ bdd.given('一个已提交的临时 git 仓库含 change "{id}" 的 proposal', (
   writeFileSync(join(proposalDir, 'proposal.md'), '---\ndepends_on: []\n---\n\n## Why\n\nTODO\n');
   repo.run('git', ['add', '-A']);
   repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'draft']);
-  ctx.fixtures['仓库'] = { root: repo.root, repo } as unknown as Record<string, unknown>;
+  ctx.fixtures['仓库'] = { root: repo.root, repo };
   ctx.fixtures['change'] = { id };
 });
 
 bdd.when('对其运行 change start', (ctx) => {
-  const repo = (ctx.fixtures['仓库'] as unknown as { repo: TempRepo }).repo;
-  const id = (ctx.fixtures['change'] as unknown as { id: string }).id;
+  const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
+  const id = (ctx.fixtures['change'] as { id: string }).id;
   const result = repo.run('bun', [CLI, 'change', 'start', id]);
   ctx.fixtures['start结果'] = {
     exitCode: result.code,
     stdout: result.stdout,
-  } satisfies CliResult as unknown as Record<string, unknown>;
+  } satisfies CliResult;
 });
 
 bdd.thenStep('分支 {branch} 被创建且被检出', (ctx, branch) => {
-  const repo = (ctx.fixtures['仓库'] as unknown as { repo: TempRepo }).repo;
+  const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
   const current = repo.run('git', ['branch', '--show-current']).stdout.trim();
   if (current !== branch) throw new Error(`expected branch ${branch}, got ${current}`);
 });
 
 bdd.thenStep('frontmatter 含 branch 与 base_branch', (ctx) => {
-  const repo = (ctx.fixtures['仓库'] as unknown as { repo: TempRepo }).repo;
-  const id = (ctx.fixtures['change'] as unknown as { id: string }).id;
+  const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
+  const id = (ctx.fixtures['change'] as { id: string }).id;
   const proposal = readFileSync(join(repo.root, 'llmanspec', 'changes', id, 'proposal.md'), 'utf8');
   if (!proposal.includes('branch: sdd/') || !proposal.includes('base_branch: main')) {
     throw new Error(`binding keys missing in proposal:\n${proposal}`);
@@ -289,22 +296,22 @@ bdd.given('一个已完成 start 并在特性分支有新提交的临时仓库',
   writeFileSync(join(repo.root, 'feature.txt'), 'hello\n');
   repo.run('git', ['add', '-A']);
   repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'feat: hello']);
-  ctx.fixtures['仓库'] = { root: repo.root, repo } as unknown as Record<string, unknown>;
+  ctx.fixtures['仓库'] = { root: repo.root, repo };
   ctx.fixtures['change'] = { id };
 });
 
 bdd.when('对其运行 change finalize', (ctx) => {
-  const repo = (ctx.fixtures['仓库'] as unknown as { repo: TempRepo }).repo;
-  const id = (ctx.fixtures['change'] as unknown as { id: string }).id;
+  const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
+  const id = (ctx.fixtures['change'] as { id: string }).id;
   const result = repo.run('bun', [CLI, 'change', 'finalize', id]);
   ctx.fixtures['finalize结果'] = {
     exitCode: result.code,
     stdout: result.stdout,
-  } satisfies CliResult as unknown as Record<string, unknown>;
+  } satisfies CliResult;
 });
 
 bdd.thenStep('目标分支获得单条 archive(sdd) 提交', (ctx) => {
-  const repo = (ctx.fixtures['仓库'] as unknown as { repo: TempRepo }).repo;
+  const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
   const subjects = repo.run('git', ['log', '--format=%s', 'main']).stdout.trim().split('\n');
   if (subjects[0] !== 'archive(sdd): demo-add-feature') {
     throw new Error(`expected archive close-out commit, got: ${subjects.join(' | ')}`);
@@ -312,7 +319,7 @@ bdd.thenStep('目标分支获得单条 archive(sdd) 提交', (ctx) => {
 });
 
 bdd.thenStep('changes 目录下只剩 archive 改名产物', (ctx) => {
-  const repo = (ctx.fixtures['仓库'] as unknown as { repo: TempRepo }).repo;
+  const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
   const entries = readdirSync(join(repo.root, 'llmanspec', 'changes')).toSorted();
   if (entries.length !== 1 || entries[0] !== 'archive') {
     throw new Error(`expected only archive/ under changes/, got ${entries.join(', ')}`);
@@ -323,7 +330,7 @@ bdd.thenStep('changes 目录下只剩 archive 改名产物', (ctx) => {
 });
 
 bdd.thenStep('特性分支上的变更内容出现在目标分支', (ctx) => {
-  const repo = (ctx.fixtures['仓库'] as unknown as { repo: TempRepo }).repo;
+  const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
   if (!existsSync(join(repo.root, 'feature.txt'))) {
     throw new Error('feature.txt did not land on target branch');
   }
@@ -352,7 +359,7 @@ bdd.given('本仓库的等价 config(zh-Hans 与 bdd 配置)', (ctx) => {
 });
 
 bdd.when('v2 渲染全部 skills', (ctx) => {
-  const root = (ctx.fixtures['init'] as unknown as { root: string }).root;
+  const root = (ctx.fixtures['init'] as { root: string }).root;
   runInit(
     makeNodeIo(root),
     { exists: (p) => existsSync(p), readText: (p) => readFileSync(p, 'utf8') },
@@ -361,7 +368,7 @@ bdd.when('v2 渲染全部 skills', (ctx) => {
 });
 
 bdd.thenStep('与 golden 基线归一化版本号后 diff 为空', (ctx) => {
-  const root = (ctx.fixtures['init'] as unknown as { root: string }).root;
+  const root = (ctx.fixtures['init'] as { root: string }).root;
   const baselineDir = join(
     import.meta.dirname,
     '..',
@@ -398,7 +405,7 @@ bdd.thenStep('与 golden 基线归一化版本号后 diff 为空', (ctx) => {
 });
 
 bdd.thenStep('每个 SKILL.md 通过 ethics 治理门', (ctx) => {
-  const root = (ctx.fixtures['init'] as unknown as { root: string }).root;
+  const root = (ctx.fixtures['init'] as { root: string }).root;
   const skillsDir = join(root, '.agents', 'skills');
   for (const dir of readdirSync(skillsDir)) {
     const content = readFileSync(join(skillsDir, dir, 'SKILL.md'), 'utf8');
@@ -448,16 +455,16 @@ bdd.when('运行 v2 的 list --json 与 graph', (ctx) => {
     listOk,
     graphOk,
     sample,
-  } satisfies OutputShapeResult as unknown as Record<string, unknown>;
+  } satisfies OutputShapeResult;
 });
 
 bdd.thenStep('list JSON 元素含 name 与 status 且 status 属于合法枚举', (ctx) => {
-  const result = ctx.fixtures['结构结果'] as unknown as OutputShapeResult | undefined;
+  const result = ctx.fixtures['结构结果'] as OutputShapeResult | undefined;
   if (!result?.listOk) throw new Error(`list --json shape invalid: ${result?.sample}`);
 });
 
 bdd.thenStep('graph 首行为 flowchart TD', (ctx) => {
-  const result = ctx.fixtures['结构结果'] as unknown as OutputShapeResult | undefined;
+  const result = ctx.fixtures['结构结果'] as OutputShapeResult | undefined;
   if (!result?.graphOk) throw new Error('graph output does not start with flowchart TD');
 });
 
@@ -478,7 +485,7 @@ bdd.when('v2 运行 review', (ctx) => {
       kinds,
       summary: parsed.summary,
       exitCode: proc.status ?? 1,
-    } as unknown as Record<string, unknown>;
+    };
   } catch (error) {
     throw new Error(`review --json invalid: ${(error as Error).message}\n${out.slice(0, 300)}`, {
       cause: error,
@@ -487,15 +494,14 @@ bdd.when('v2 运行 review', (ctx) => {
 });
 
 bdd.thenStep('signals 覆盖六种 kind', (ctx) => {
-  const kinds = (ctx.fixtures['review'] as unknown as { kinds: Set<string> }).kinds;
+  const kinds = (ctx.fixtures['review'] as { kinds: Set<string> }).kinds;
   for (const kind of ['pending', 'manual', 'unbound', 'stale', 'locked', 'validate']) {
     if (!kinds.has(kind)) throw new Error(`missing signal kind: ${kind}`);
   }
 });
 
 bdd.thenStep('summary 含 criticalCount 与 warningCount', (ctx) => {
-  const summary = (ctx.fixtures['review'] as unknown as { summary: Record<string, number> })
-    .summary;
+  const summary = (ctx.fixtures['review'] as { summary: Record<string, number> }).summary;
   if (typeof summary['criticalCount'] !== 'number' || typeof summary['warningCount'] !== 'number') {
     throw new TypeError(`summary missing counts: ${JSON.stringify(summary)}`);
   }
@@ -508,11 +514,11 @@ bdd.given('一个含已归档目录的临时仓库', (ctx) => {
   writeFileSync(join(archiveDir, '2026-01-01-old-demo', 'proposal.md'), '# frozen demo\n');
   repo.run('git', ['add', '-A']);
   repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'archive dir']);
-  ctx.fixtures['冻结仓库'] = { root: repo.root, repo } as unknown as Record<string, unknown>;
+  ctx.fixtures['冻结仓库'] = { root: repo.root, repo };
 });
 
 bdd.when('v2 运行 freeze 后再 thaw 回置该目录', (ctx) => {
-  const repo = (ctx.fixtures['冻结仓库'] as unknown as { repo: TempRepo }).repo;
+  const repo = (ctx.fixtures['冻结仓库'] as { repo: TempRepo }).repo;
   const freeze = repo.run('bun', [CLI, 'archive', 'freeze', '--before', '2026-02-01']);
   if (freeze.code !== 0) {
     throw new Error(`v2 freeze failed:\n${freeze.stdout}`);
@@ -521,18 +527,18 @@ bdd.when('v2 运行 freeze 后再 thaw 回置该目录', (ctx) => {
   ctx.fixtures['thaw结果'] = {
     exitCode: thaw.code,
     stdout: thaw.stdout,
-  } satisfies CliResult as unknown as Record<string, unknown>;
+  } satisfies CliResult;
 });
 
 bdd.thenStep('目录完整回到 changes/archive 下', (ctx) => {
-  const repo = (ctx.fixtures['冻结仓库'] as unknown as { repo: TempRepo }).repo;
+  const repo = (ctx.fixtures['冻结仓库'] as { repo: TempRepo }).repo;
   if (!existsSync(join(repo.root, 'llmanspec/changes/archive/2026-01-01-old-demo/proposal.md'))) {
     throw new Error('thawed dir missing proposal.md');
   }
 });
 
 bdd.thenStep('内容与冻结前一致', (ctx) => {
-  const repo = (ctx.fixtures['冻结仓库'] as unknown as { repo: TempRepo }).repo;
+  const repo = (ctx.fixtures['冻结仓库'] as { repo: TempRepo }).repo;
   const content = readFileSync(
     join(repo.root, 'llmanspec/changes/archive/2026-01-01-old-demo/proposal.md'),
     'utf8',
@@ -541,7 +547,7 @@ bdd.thenStep('内容与冻结前一致', (ctx) => {
 });
 
 bdd.thenStep('退出码与 criticalCount 一致', (ctx) => {
-  const review = ctx.fixtures['review'] as unknown as
+  const review = ctx.fixtures['review'] as
     | {
         exitCode: number;
         summary: { criticalCount: number };
@@ -566,39 +572,39 @@ interface CheckResult {
 }
 
 bdd.given('一个含 specs 的临时仓库', (ctx) => {
-  ctx.fixtures['idx仓库'] = { repo: makeTempRepo() } as unknown as Record<string, unknown>;
+  ctx.fixtures['idx仓库'] = { repo: makeTempRepo() };
 });
 
 bdd.when('rebuild 后立即 check', (ctx) => {
-  const repo = (ctx.fixtures['idx仓库'] as unknown as { repo: TempRepo }).repo;
+  const repo = (ctx.fixtures['idx仓库'] as { repo: TempRepo }).repo;
   repo.run('bun', [CLI, 'index', 'rebuild']);
   const check = repo.run('bun', [CLI, 'index', 'check']);
   ctx.fixtures['check结果'] = {
     exitCode: check.code,
     output: check.stdout,
-  } satisfies CheckResult as unknown as Record<string, unknown>;
+  } satisfies CheckResult;
 });
 
 bdd.thenStep('报告 fresh', (ctx) => {
-  const result = ctx.fixtures['check结果'] as unknown as CheckResult | undefined;
+  const result = ctx.fixtures['check结果'] as CheckResult | undefined;
   if (result?.exitCode !== 0 || !result.output.includes('fresh')) {
     throw new Error(`expected fresh, got exit=${result?.exitCode} output=${result?.output}`);
   }
 });
 
 bdd.when('修改任一 spec 后再 check', (ctx) => {
-  const repo = (ctx.fixtures['idx仓库'] as unknown as { repo: TempRepo }).repo;
+  const repo = (ctx.fixtures['idx仓库'] as { repo: TempRepo }).repo;
   const specPath = join(repo.root, 'llmanspec', 'specs', 'sample.feature');
   writeFileSync(specPath, `${readFileSync(specPath, 'utf8')}\n# touched\n`);
   const check = repo.run('bun', [CLI, 'index', 'check']);
   ctx.fixtures['check结果'] = {
     exitCode: check.code,
     output: check.stdout,
-  } satisfies CheckResult as unknown as Record<string, unknown>;
+  } satisfies CheckResult;
 });
 
 bdd.thenStep('报告 stale', (ctx) => {
-  const result = ctx.fixtures['check结果'] as unknown as CheckResult | undefined;
+  const result = ctx.fixtures['check结果'] as CheckResult | undefined;
   if (!result) throw new Error('no check result');
   if (result.exitCode === 0 || !result.output.includes('stale')) {
     throw new Error(`expected stale, got exit=${result.exitCode} output=${result.output}`);
