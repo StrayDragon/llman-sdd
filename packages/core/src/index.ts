@@ -65,9 +65,7 @@ export {
   defaultBranch,
   isCleanTree,
   makeSpawnGit,
-  mergeBase,
   currentBranch,
-  branchExists,
   revParseHead,
   type GitLike,
 } from './git/spawnGit.ts';

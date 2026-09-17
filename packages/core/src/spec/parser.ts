@@ -9,7 +9,13 @@
 import { AstBuilder, GherkinClassicTokenMatcher, Parser } from '@cucumber/gherkin';
 import type { GherkinDocument } from '@cucumber/messages';
 
-import type { CapabilityDoc, CapabilityHeader, ScenarioIR, SpecStructuralError } from './ir.ts';
+import {
+  MUST_WORD_RE,
+  type CapabilityDoc,
+  type CapabilityHeader,
+  type ScenarioIR,
+  type SpecStructuralError,
+} from './ir.ts';
 
 export class SpecParseError extends Error {}
 
@@ -73,7 +79,6 @@ function classify(tags: string[]): {
   classification: ScenarioIR['classification'];
   manual: boolean;
   errors: SpecStructuralError[];
-  name: string;
 } {
   const errors: SpecStructuralError[] = [];
   const has = (t: string): boolean => tags.includes(t);
@@ -99,7 +104,7 @@ function classify(tags: string[]): {
     : executable
       ? 'executable'
       : 'unclassified';
-  return { classification, manual, errors, name: label };
+  return { classification, manual, errors };
 }
 
 /** Parse one capability .feature source into the single-track IR. */
@@ -148,7 +153,7 @@ export function parseCapability(source: string, fileName = '<inline>'): Capabili
       text: s.text.trim(),
     }));
 
-    if (kind.classification === 'human' && !/\bMUST\b|\bSHALL\b/u.test(statement)) {
+    if (kind.classification === 'human' && !MUST_WORD_RE.test(statement)) {
       errors.push({
         code: 'rule:missing-must-word',
         message: `@human 规则场景描述必须含 MUST/SHALL(scenario: ${scenario.name})`,

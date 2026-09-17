@@ -393,15 +393,9 @@ indexCmd
   .command('rebuild')
   .description('Rebuild the pageindex tree from spec IR (no LLM)')
   .action(() => {
-    const result = rebuildIndex(
-      makeIo(process.cwd()),
-      process.cwd(),
-      'llmanspec/specs',
-      loadSpecEntries(),
-      {
-        chatModel: process.env.LLMAN_SDD_INDEX_CHAT_MODEL ?? '',
-      },
-    );
+    const result = rebuildIndex(makeIo(process.cwd()), 'llmanspec/specs', loadSpecEntries(), {
+      chatModel: process.env.LLMAN_SDD_INDEX_CHAT_MODEL ?? '',
+    });
     for (const line of result.lines) console.log(line);
   });
 
@@ -409,7 +403,7 @@ indexCmd
   .command('check')
   .description('Check index freshness without rebuilding')
   .action(() => {
-    const result = checkIndexFreshness(makeIo(process.cwd()), process.cwd(), 'llmanspec/specs');
+    const result = checkIndexFreshness(makeIo(process.cwd()), 'llmanspec/specs');
     for (const line of result.lines) console.log(line);
     if (!result.fresh) process.exitCode = 1;
   });
@@ -432,7 +426,7 @@ program
       console.log(JSON.stringify(unavailableResult(), null, 2));
       return;
     }
-    const tree = loadTree(makeIo(process.cwd()), process.cwd());
+    const tree = loadTree(makeIo(process.cwd()));
     if (tree === null) {
       const missing = unavailableResult();
       missing.status.qualityNote = 'index missing — run `llman-sdd index rebuild` first';

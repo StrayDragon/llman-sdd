@@ -22,10 +22,10 @@ llman-sdd:spec 驱动开发(SDD)工作流(TypeScript + Bun),将完全接替 Rust
 - 运行时 Bun(`.bun-version` 钉版)+ TypeScript(仅 typecheck,不参与构建);**双运行时兼容:Node >= 24**(`.node-version` 钉版 + engines 声明)——运行时代码(packages/*、apps/* 的 src)只准用 `node:` / Web 标准API,禁用 Bun 专属 API(Bun.$、Bun.file、Bun.Glob 等);Bun 专属 API 仅允许出现在构建/测试脚本(scripts、build-binary、tests/)
 - Monorepo:Bun workspaces;`packages/core` 纯域逻辑 / `apps/cli` 命令入口;`apps/web` 预留(打包器已定案 **rsbuild**,内置 rspack 引擎;启动 web 交互功能时以独立 change 引入,CLI 与二进制分发不经过打包器——Bun 直跑 TS + `bun build --compile`)
 - 工具链:oxlint + oxfmt(oxc 双件套)、tsc --noEmit、prek(git hooks)、justfile(任务编排);oxfmt 忽略 `llmanspec/` 与 `AGENTS.md`(SDD 托管文件,格式归 llman 管,避免 `init --update` 回打漂移)
-- 依赖映射:commander(CLI)/ nunjucks(模板)/ @inquirer/prompts(向导交互)/
+- 依赖映射:commander(CLI)/ nunjucks(模板)/ @inquirer/prompts(向导交互,经 PromptDriver
+  端口接 v1 适配器,现阶段未安装)/
   @cucumber/gherkin(spec 解析,官方 i18n 已含 zh-CN「规则」)/
-  zod + zod-to-json-schema + yaml(配置契约与注释保留)/ 7z-wasm(冻结冷备)/
-  jsonrepair / cli-table3 + picocolors
+  zod(zod v4 内建 toJSONSchema)+ yaml(配置契约与注释保留)/ 7z-wasm(冻结冷备)
 - 测试:bun:test(含 `bun build --compile` 产物冒烟)+ @cucumber/gherkin + 自研
   Gherkin→bun:test runner(`tests/bdd/`,见工程规则 BDD 条)——BDD 选型已终局
 

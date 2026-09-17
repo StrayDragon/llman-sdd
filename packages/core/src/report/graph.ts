@@ -18,6 +18,26 @@ interface GraphNode {
   dependsOn: string[];
 }
 
+/** Extract depends_on entries from a proposal's YAML frontmatter. */
+function parseDeps(proposal: string): string[] {
+  const fm = proposal.match(/^---\n([\s\S]*?)\n---/u);
+  const deps: string[] = [];
+  if (!fm?.[1]) return deps;
+  let inDeps = false;
+  for (const line of fm[1].split('\n')) {
+    if (/^depends_on:\s*$/u.test(line)) {
+      inDeps = true;
+      continue;
+    }
+    if (inDeps) {
+      const m = line.match(/^\s*-\s+(\S+)/u);
+      if (m?.[1]) deps.push(m[1]);
+      else if (line.trim() !== '') inDeps = false;
+    }
+  }
+  return deps;
+}
+
 function collectNodes(io: GraphFsIo, root: string): GraphNode[] {
   const nodes: GraphNode[] = [];
   const scan = (dir: string, archived: boolean, stripDatePrefix: boolean): void => {
@@ -29,24 +49,7 @@ function collectNodes(io: GraphFsIo, root: string): GraphNode[] {
       const proposal = `${full}/proposal.md`;
       if (!io.exists(proposal)) continue;
       const id = archived && stripDatePrefix ? name.replace(/^\d{4}-\d{2}-\d{2}-/u, '') : name;
-      const deps: string[] = [];
-      const fm = io.readText(proposal).match(/^---\n([\s\S]*?)\n---/u);
-      if (fm?.[1]) {
-        const lines = fm[1].split('\n');
-        let inDeps = false;
-        for (const line of lines) {
-          if (/^depends_on:\s*$/u.test(line)) {
-            inDeps = true;
-            continue;
-          }
-          if (inDeps) {
-            const m = line.match(/^\s*-\s+(\S+)/u);
-            if (m?.[1]) deps.push(m[1]);
-            else if (line.trim() !== '') inDeps = false;
-          }
-        }
-      }
-      nodes.push({ id, archived, dependsOn: deps });
+      nodes.push({ id, archived, dependsOn: parseDeps(io.readText(proposal)) });
     }
   };
   scan(`${root}/${CHANGES_DIR}`, false, false);
@@ -59,23 +62,8 @@ function collectNodes(io: GraphFsIo, root: string): GraphNode[] {
       const id = name.replace(/^\d{4}-\d{2}-\d{2}-/u, '');
       if (!referenced.has(id)) continue;
       // archived nodes keep their real depends_on — v1 emits their edges too
-      const deps: string[] = [];
       const proposal = `${archiveDir}/${name}/proposal.md`;
-      if (io.exists(proposal)) {
-        const fm = io.readText(proposal).match(/^---\n([\s\S]*?)\n---/u);
-        let inDeps = false;
-        for (const line of fm?.[1]?.split('\n') ?? []) {
-          if (/^depends_on:\s*$/u.test(line)) {
-            inDeps = true;
-            continue;
-          }
-          if (inDeps) {
-            const m = line.match(/^\s*-\s+(\S+)/u);
-            if (m?.[1]) deps.push(m[1]);
-            else if (line.trim() !== '') inDeps = false;
-          }
-        }
-      }
+      const deps = io.exists(proposal) ? parseDeps(io.readText(proposal)) : [];
       nodes.push({ id, archived: true, dependsOn: deps });
     }
   }
