@@ -22,8 +22,6 @@
     "golden:check": "bun tests/golden/check.ts",
     "gen:schema": "bun scripts/gen-schema.ts",
     "check:schema": "bun scripts/gen-schema.ts --check",
-    "golden:cli": "bun tests/golden/check-cli.ts",
-    "golden:validate": "bun tests/golden/check-validate.ts",
     "smoke:context": "bun scripts/smoke-context.ts"
   },
   "dependencies": {

@@ -22,7 +22,7 @@
   - 执行 `bun apps/cli/src/main.ts init --update`;验收:skills 与切换前零漂移(golden:check 仍绿)、两个 AGENTS.md 托管块完整且块外内容保留、v1 流水线命令(list/validate)仍可用
   - 证据链记入 `docs/acceptance-v2.md`
 
-- [ ] T5 拆除 v1 对拍门(SSOT 收口) [blocked-by: T2, T4]
+- [x] T5 拆除 v1 对拍门(SSOT 收口) [blocked-by: T2, T4]
   - 删除 tests/golden/check-cli.ts、check-validate.ts 及 package.json/justfile 入口;`temp-parity-v1.ts` 删除
   - golden:check 基线重采:generate.ts 改调 v2 runInit,`tests/golden/baseline/` 成为 v2 自有快照(VERSION 标记保留)
   - README 门禁表与 `docs/acceptance-v2.md` 改写为纯 v2 口径(临时章节转正式记录)
