@@ -1,6 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 
-import { ConfigValidationError, loadConfig } from '@llman-sdd/core';
+import {
+  ConfigValidationError,
+  loadConfig,
+  renderConfigOverview,
+  setExtraSkills,
+  skillsJson,
+} from '@llman-sdd/core';
 
 const MINIMAL = `schema: spec-driven\n`;
 
@@ -58,5 +64,55 @@ describe('loadConfig', () => {
       expect(err).toBeInstanceOf(ConfigValidationError);
       expect((err as ConfigValidationError).issues[0]).toStartWith('YAML parse error');
     }
+  });
+});
+
+describe('config command surface (r37/r38)', () => {
+  const BASE =
+    '# yaml-language-server: $schema=https://x/y.json\nschema: spec-driven\nlocale: en\n';
+
+  test('overview renders the five v1 elements', () => {
+    expect(renderConfigOverview(BASE)).toEqual([
+      'schema: spec-driven',
+      'locale: en',
+      'extra_skills (enabled/total): 0 / 6',
+      'bdd: off',
+      'archive: default',
+    ]);
+    const full = renderConfigOverview(`schema: spec-driven
+locale: zh-Hans
+extra_skills:
+  - llman-sdd-ff
+archive:
+  strict_defer: true
+bdd:
+  framework: pytest-bdd
+`);
+    expect(full).toEqual([
+      'schema: spec-driven',
+      'locale: zh-Hans',
+      'extra_skills (enabled/total): 1 / 6',
+      'bdd: on',
+      'archive: configured',
+    ]);
+  });
+
+  test('setExtraSkills preserves comments and header, round-trips', () => {
+    const withComment = `${BASE}# 用户注释别动\nextra_skills:\n  - llman-sdd-ff\n`;
+    const after = setExtraSkills(withComment, {
+      set: ['llman-sdd-validate'],
+      unset: ['llman-sdd-ff'],
+    });
+    expect(after).toInclude('# 用户注释别动');
+    expect(after).toInclude('# yaml-language-server');
+    expect(skillsJson(after).enabled).toEqual(['llman-sdd-validate']);
+    const back = setExtraSkills(after, { unset: ['llman-sdd-validate'] });
+    expect(skillsJson(back).enabled).toEqual([]);
+  });
+
+  test('rejects unknown skill names', () => {
+    expect(() => setExtraSkills(BASE, { set: ['llman-sdd-unknown'] })).toThrow(
+      /unknown extra skill/u,
+    );
   });
 });

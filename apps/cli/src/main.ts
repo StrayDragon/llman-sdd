@@ -42,6 +42,10 @@ import {
   unavailableResult,
   type TemplateIo,
   harvestUniqueNumbers,
+  renderConfigOverview,
+  setExtraSkills,
+  skillsJson,
+  ExtraSkillsError,
 } from '@llman-sdd/core';
 import { Command } from 'commander';
 
@@ -82,6 +86,10 @@ function runValidateSpecs(options: { specs?: boolean; check: boolean }): number 
     }
   }
   return failed ? 1 : 0;
+}
+
+function collectRepeatable(value: string, previous: string[] = []): string[] {
+  return [...previous, value];
 }
 
 const program = new Command();
@@ -430,6 +438,44 @@ review
       console.log(result.lines.join('\n'));
     }
     if (result.exitCode !== 0) process.exitCode = result.exitCode;
+  });
+
+const configCmd = program
+  .command('config')
+  .description('Project configuration commands (view/edit config.yaml)');
+
+configCmd.description('Print a read-only llmanspec/config.yaml overview').action(() => {
+  const source = readFileSync('llmanspec/config.yaml', 'utf8');
+  console.log(renderConfigOverview(source).join('\n'));
+});
+
+configCmd
+  .command('skills')
+  .description('Manage extra_skills (non-interactive)')
+  .option('--json', 'emit {enabled, available}')
+  .option('--set <name>', 'enable an extra skill (repeatable)', collectRepeatable)
+  .option('--unset <name>', 'disable an extra skill (repeatable)', collectRepeatable)
+  .action((options: { json?: boolean; set?: string[]; unset?: string[] }) => {
+    const path = 'llmanspec/config.yaml';
+    if (options.json) {
+      console.log(JSON.stringify(skillsJson(readFileSync(path, 'utf8')), null, 2));
+      return;
+    }
+    if ((options.set?.length ?? 0) > 0 || (options.unset?.length ?? 0) > 0) {
+      try {
+        writeFileSync(path, setExtraSkills(readFileSync(path, 'utf8'), options));
+      } catch (error) {
+        if (error instanceof ExtraSkillsError) {
+          console.error(error.message);
+          process.exitCode = 1;
+          return;
+        }
+        throw error;
+      }
+    }
+    const { enabled, available } = skillsJson(readFileSync(path, 'utf8'));
+    console.log(`enabled: ${enabled.length > 0 ? enabled.join(', ') : '(none)'}`);
+    console.log(`available: ${available.join(', ')}`);
   });
 
 const indexCmd = program
