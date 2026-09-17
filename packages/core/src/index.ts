@@ -106,7 +106,13 @@ export {
   type SkillTemplate,
   type TemplateIo,
 } from './templates/skills.ts';
-export { runInit, updateFileWithMarkers, type InitResult } from './init/init.ts';
+export {
+  TEMPLATES_ROOT,
+  runInit,
+  updateFileWithMarkers,
+  type InitIo,
+  type InitResult,
+} from './init/init.ts';
 export {
   collectChanges,
   renderChangesList,
@@ -149,6 +155,7 @@ export {
 } from './archive/freeze.ts';
 export {
   buildReview,
+  renderReviewHtml,
   type ReviewInput,
   type ReviewKind,
   type ReviewResult,

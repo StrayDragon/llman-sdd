@@ -25,6 +25,7 @@ import {
   type DiscoveryIo,
 } from '@llman-sdd/core';
 
+import { makeNodeIo } from '../../helpers/nodeIo.ts';
 import { bdd } from '../runner.ts';
 
 const REPO_ROOT = join(import.meta.dirname, '..', '..', '..');
@@ -352,7 +353,11 @@ bdd.given('本仓库的等价 config(zh-Hans 与 bdd 配置)', (ctx) => {
 
 bdd.when('v2 渲染全部 skills', (ctx) => {
   const root = (ctx.fixtures['init'] as unknown as { root: string }).root;
-  runInit(root, { update: true, version: '0.1.0' });
+  runInit(
+    makeNodeIo(root),
+    { exists: (p) => existsSync(p), readText: (p) => readFileSync(p, 'utf8') },
+    { update: true, version: '0.1.0' },
+  );
 });
 
 bdd.thenStep('与 golden 基线归一化版本号后 diff 为空', (ctx) => {

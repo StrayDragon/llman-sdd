@@ -43,7 +43,7 @@ export function stageFor(
   return 'draft';
 }
 
-function countTasks(tasksMd: string): { completed: number; total: number } {
+export function countTasks(tasksMd: string): { completed: number; total: number } {
   let completed = 0;
   let total = 0;
   for (const line of tasksMd.split('\n')) {
@@ -56,7 +56,7 @@ function countTasks(tasksMd: string): { completed: number; total: number } {
   return { completed, total };
 }
 
-function firstH1(md: string): string {
+export function firstH1(md: string): string {
   for (const line of md.split('\n')) {
     const m = line.match(/^#\s+(.*)$/u);
     if (m?.[1]) return m[1].trim();
@@ -123,7 +123,7 @@ export function relativeTime(from: Date, now: Date): string {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
-function pad(s: string, width: number): string {
+export function pad(s: string, width: number): string {
   return s.length >= width ? s : s + ' '.repeat(width - s.length);
 }
 

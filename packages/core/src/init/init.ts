@@ -2,9 +2,10 @@
  * init / --update orchestration (init-generators capability, r19).
  * Scaffold llmanspec/, write managed AGENTS.md blocks, render skills into
  * the .agents/skills namespace (SKILL.md per skill dir), and clean the
- * managed namespace.
+ * managed namespace. Pure: all paths are ROOT-RELATIVE strings resolved by
+ * the injected InitIo; template resources load through the injected
+ * TemplateIo (runtimes point it at TEMPLATES_ROOT).
  */
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { loadConfig } from '../config/load.ts';
@@ -16,6 +17,7 @@ import {
   loadLocaleResource,
   loadSkillTemplates,
   skillCandidates,
+  type TemplateIo,
 } from '../templates/skills.ts';
 import {
   DEFAULT_CONFIG_EN,
@@ -46,11 +48,20 @@ export function updateFileWithMarkers(content: string, body: string): string {
 
 export const TEMPLATES_ROOT = join(import.meta.dirname, '..', '..', 'templates');
 
-function writeDefaultConfig(root: string, locale: string): void {
+/** Repo-root-relative filesystem effects needed by the init flow. */
+export interface InitIo {
+  exists(path: string): boolean;
+  readText(path: string): string;
+  writeText(path: string, content: string): void;
+  mkdirp(path: string): void;
+  listDir(path: string): string[];
+  removeDir(path: string): void;
+}
+
+function writeDefaultConfig(io: InitIo, locale: string): void {
   const raw = locale === 'zh-Hans' ? DEFAULT_CONFIG_ZH_HANS : DEFAULT_CONFIG_EN;
-  const dir = join(root, 'llmanspec');
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, 'config.yaml'), prependSchemaHeader(raw, LLMANSPEC_SCHEMA_URL));
+  io.mkdirp('llmanspec');
+  io.writeText('llmanspec/config.yaml', prependSchemaHeader(raw, LLMANSPEC_SCHEMA_URL));
 }
 
 export interface InitResult {
@@ -61,84 +72,63 @@ export interface InitResult {
   configPath: string;
 }
 
+const SKILLS_BASE = '.agents/skills';
+
 export function runInit(
-  root: string,
+  io: InitIo,
+  templates: TemplateIo,
   opts: { update: boolean; locale?: string; version: string },
 ): InitResult {
-  const llmanspecDir = join(root, 'llmanspec');
-  mkdirSync(llmanspecDir, { recursive: true });
+  io.mkdirp('llmanspec');
 
   // 1) config: create with defaults if missing, then always load.
-  const configPath = join(llmanspecDir, 'config.yaml');
-  if (!existsSync(configPath)) writeDefaultConfig(root, opts.locale ?? 'en');
-  const config = loadConfig(readFileSync(configPath, 'utf8'));
+  const configPath = 'llmanspec/config.yaml';
+  if (!io.exists(configPath)) writeDefaultConfig(io, opts.locale ?? 'en');
+  const config = loadConfig(io.readText(configPath));
 
   // 2) scaffold directories.
-  mkdirSync(join(llmanspecDir, 'specs'), { recursive: true });
-  mkdirSync(join(llmanspecDir, 'changes', 'archive'), { recursive: true });
-  const gitkeepSpecs = join(llmanspecDir, 'specs', '.gitkeep');
-  if (!existsSync(gitkeepSpecs)) writeFileSync(gitkeepSpecs, '');
-  const gitkeepArchive = join(llmanspecDir, 'changes', 'archive', '.gitkeep');
-  if (!existsSync(gitkeepArchive)) writeFileSync(gitkeepArchive, '');
+  io.mkdirp('llmanspec/specs');
+  io.mkdirp('llmanspec/changes/archive');
+  if (!io.exists('llmanspec/specs/.gitkeep')) io.writeText('llmanspec/specs/.gitkeep', '');
+  if (!io.exists('llmanspec/changes/archive/.gitkeep')) {
+    io.writeText('llmanspec/changes/archive/.gitkeep', '');
+  }
 
   // 3) AGENTS.md managed blocks (root + llmanspec), preserving content.
   const vars = buildTemplateVars(config, opts.version);
   const locales = localeFallbacks(config.locale);
-  // skills render owns the unit registry; stubs reuse the same registry load.
-  const skillTemplates = loadSkillTemplates(
-    { exists: (p) => existsSync(p), readText: (p) => readFileSync(p, 'utf8') },
-    TEMPLATES_ROOT,
-    config,
-    vars,
-  );
+  const skillTemplates = loadSkillTemplates(templates, TEMPLATES_ROOT, config, vars);
   enforceEthicsGovernance(skillTemplates);
 
-  const rootStubRaw = loadLocaleResource(
-    { exists: (p) => existsSync(p), readText: (p) => readFileSync(p, 'utf8') },
-    TEMPLATES_ROOT,
-    locales,
-    'agents-root-stub.md',
-  );
-  if (rootStubRaw !== null) {
-    const agentsPath = join(root, 'AGENTS.md');
-    const existing = existsSync(agentsPath) ? readFileSync(agentsPath, 'utf8') : '';
-    const body = renderTemplate(rootStubRaw, new Map(), vars);
-    writeFileSync(agentsPath, updateFileWithMarkers(existing, body));
-  }
-  const llmanspecStubRaw = loadLocaleResource(
-    { exists: (p) => existsSync(p), readText: (p) => readFileSync(p, 'utf8') },
-    TEMPLATES_ROOT,
-    locales,
-    'llmanspec-agents-stub.md',
-  );
-  if (llmanspecStubRaw !== null) {
-    const agentsPath = join(llmanspecDir, 'AGENTS.md');
-    const existing = existsSync(agentsPath) ? readFileSync(agentsPath, 'utf8') : '';
-    const body = renderTemplate(llmanspecStubRaw, new Map(), vars);
-    writeFileSync(agentsPath, updateFileWithMarkers(existing, body));
+  for (const [stubPath, agentsPath] of [
+    ['agents-root-stub.md', 'AGENTS.md'],
+    ['llmanspec-agents-stub.md', 'llmanspec/AGENTS.md'],
+  ] as const) {
+    const stubRaw = loadLocaleResource(templates, TEMPLATES_ROOT, locales, stubPath);
+    if (stubRaw === null) continue;
+    const existing = io.exists(agentsPath) ? io.readText(agentsPath) : '';
+    const body = renderTemplate(stubRaw, new Map(), vars);
+    io.writeText(agentsPath, updateFileWithMarkers(existing, body));
   }
 
   // 4) skills namespace cleanup (--update only): remove llman-sdd-* dirs
   // outside the candidate set; un-prefixed custom skills stay untouched.
   const removed: string[] = [];
-  const skillsBase = join(root, '.agents', 'skills');
-  if (opts.update && existsSync(skillsBase)) {
+  if (opts.update && io.exists(SKILLS_BASE)) {
     const candidates = new Set(skillCandidates(config).map((f) => f.replace(/\.md$/u, '')));
-    for (const entry of readdirSync(skillsBase)) {
+    for (const entry of io.listDir(SKILLS_BASE)) {
       if (entry.startsWith('llman-sdd-') && !candidates.has(entry)) {
-        rmSync(join(skillsBase, entry), { recursive: true, force: true });
+        io.removeDir(`${SKILLS_BASE}/${entry}`);
         removed.push(entry);
       }
     }
   }
 
   // 5) write candidates: rendered product trimmed + single trailing newline.
-  const skillsBase2 = join(root, '.agents', 'skills');
   for (const t of skillTemplates) {
     const dirName = t.name.replace(/\.md$/u, '');
-    const skillDir = join(skillsBase2, dirName);
-    mkdirSync(skillDir, { recursive: true });
-    writeFileSync(join(skillDir, 'SKILL.md'), `${t.content.trimEnd()}\n`);
+    io.mkdirp(`${SKILLS_BASE}/${dirName}`);
+    io.writeText(`${SKILLS_BASE}/${dirName}/SKILL.md`, `${t.content.trimEnd()}\n`);
   }
 
   return { skills: skillTemplates.map((t) => t.name.replace(/\.md$/u, '')), removed, configPath };
