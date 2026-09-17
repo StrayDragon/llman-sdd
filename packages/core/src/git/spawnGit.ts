@@ -76,14 +76,6 @@ export function defaultBranch(git: GitLike): string {
   );
 }
 
-export function mergeBase(a: string, b: string, git: GitLike): string {
-  return git.run(['merge-base', a, b]);
-}
-
-export function branchExists(branch: string, git: GitLike): boolean {
-  return git.runOpt(['show-ref', '--verify', '--quiet', `refs/heads/${branch}`]) !== null;
-}
-
 export function revParseHead(git: GitLike): string {
   return git.run(['rev-parse', 'HEAD']);
 }

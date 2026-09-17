@@ -3,8 +3,9 @@
  * aligned with v1 — rules = @human scenarios; enforced = rules carrying an
  * @req link that has an executable acceptance scenario; pending = the rest.
  */
-import type { CapabilityDoc, ScenarioIR } from '../spec/ir.ts';
+import type { CapabilityDoc } from '../spec/ir.ts';
 import type { SpecEntry } from '../validation/validate.ts';
+import { pad } from './collect.ts';
 
 export interface SpecMorphology {
   ruleCount: number;
@@ -35,7 +36,7 @@ function morphologyOf(doc: CapabilityDoc): SpecMorphology {
   return {
     ruleCount: rules.length,
     ruleEnforcedCount: enforced.length,
-    ruleManualCount: rules.filter((r: ScenarioIR) => r.manual).length,
+    ruleManualCount: rules.filter((r) => r.manual).length,
     rulePendingCount: rules.length - enforced.length,
     acceptanceCount: acceptance.length,
     orphanAcceptanceCount: orphan.length,
@@ -43,23 +44,22 @@ function morphologyOf(doc: CapabilityDoc): SpecMorphology {
 }
 
 export function collectSpecs(entries: readonly SpecEntry[]): SpecSummary[] {
-  return entries.map((e) => ({
-    id: e.doc.header.capability ?? e.fileName,
-    title: e.doc.header.capability ?? e.fileName,
-    purpose: e.doc.header.purpose ?? '',
-    validScope: (e.doc.header.scope ?? '')
-      .split(',')
-      .map((s) => s.trim())
-      .filter((s) => s !== ''),
-    requirementCount: morphologyOf(e.doc).ruleCount,
-    health: null,
-    staleness: null,
-    morphology: morphologyOf(e.doc),
-  }));
-}
-
-function pad(s: string, width: number): string {
-  return s.length >= width ? s : s + ' '.repeat(width - s.length);
+  return entries.map((e) => {
+    const morphology = morphologyOf(e.doc);
+    return {
+      id: e.doc.header.capability ?? e.fileName,
+      title: e.doc.header.capability ?? e.fileName,
+      purpose: e.doc.header.purpose ?? '',
+      validScope: (e.doc.header.scope ?? '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter((s) => s !== ''),
+      requirementCount: morphology.ruleCount,
+      health: null,
+      staleness: null,
+      morphology,
+    };
+  });
 }
 
 export function renderSpecsList(summaries: readonly SpecSummary[]): string[] {

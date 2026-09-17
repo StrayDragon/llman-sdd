@@ -4,6 +4,7 @@
  * filesystem access is injected via SpecIo.
  */
 import type { CapabilityDoc } from '../spec/ir.ts';
+import { MUST_WORD_RE } from '../spec/ir.ts';
 import { buildReqRegistry } from '../spec/reqRegistry.ts';
 
 export type ValidationLevel = 'ERROR' | 'WARNING' | 'INFO';
@@ -19,9 +20,6 @@ export interface SpecEntry {
   fileName: string;
   doc: CapabilityDoc;
 }
-
-/** v1 wording: constraint statements must contain one of these tokens. */
-const MUST_WORD_RE = /\bMUST\b|\bSHALL\b|必须|不得|禁止/u;
 
 export interface SpecIo {
   exists(path: string): boolean;
@@ -83,9 +81,9 @@ export function validateCapability(
   // rule scenarios) — all ERROR level (v1 verdict parity). Header gates and
   // the MUST-word gate are owned by this layer (mapped below), so the
   // parser's duplicate findings are skipped here.
-  const OWNED_BY_THIS_LAYER = new Set(['missing-header:', 'rule:missing-must-word']);
+  const OWNED_BY_THIS_LAYER = ['missing-header:', 'rule:missing-must-word'];
   for (const err of doc.errors) {
-    if ([...OWNED_BY_THIS_LAYER].some((prefix) => err.code.startsWith(prefix))) continue;
+    if (OWNED_BY_THIS_LAYER.some((prefix) => err.code.startsWith(prefix))) continue;
     items.push({ level: 'ERROR', id: `${cap}/${err.code}`, message: err.message });
   }
 

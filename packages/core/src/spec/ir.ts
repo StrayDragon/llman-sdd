@@ -41,3 +41,10 @@ export interface CapabilityDoc {
   scenarios: ScenarioIR[];
   errors: SpecStructuralError[];
 }
+
+/**
+ * v1 wording: constraint statements must contain one of these tokens.
+ * Shared by the parser (structural error) and validation (verdict gate) so
+ * the two MUST-word checks cannot drift apart.
+ */
+export const MUST_WORD_RE = /\bMUST\b|\bSHALL\b|必须|不得|禁止/u;

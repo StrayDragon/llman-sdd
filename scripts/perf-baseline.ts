@@ -45,7 +45,7 @@ for (let i = 1; i <= caps; i += 1) {
   writeFileSync(join(fixture, 'llmanspec', 'specs', `cap-${i}.feature`), specSource(i));
 }
 
-const OPS: { name: string; args: string[]; env?: Record<string, string> }[] = [
+const OPS: { name: string; args: string[] }[] = [
   { name: 'validate --specs --no-check', args: ['validate', '--specs', '--no-check'] },
   { name: 'index rebuild', args: ['index', 'rebuild'] },
   { name: 'index check', args: ['index', 'check'] },
@@ -54,7 +54,6 @@ const OPS: { name: string; args: string[]; env?: Record<string, string> }[] = [
     // context 的免 LLM 路径:未设 model 时走 unavailable 守卫(r27)
     name: 'context (model-unset guard)',
     args: ['context', '--task', '性能基线探针'],
-    env: { LLMAN_SDD_INDEX_CHAT_MODEL: '' },
   },
 ];
 

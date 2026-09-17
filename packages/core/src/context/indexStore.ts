@@ -1,12 +1,10 @@
 /**
  * Index orchestration (context-index capability, r26): rebuild writes the
  * pageindex tree under a create-new lock; check compares the stored spec_hash
- * against a fresh one.
+ * against a fresh one. All paths are ROOT-RELATIVE through the injected IO.
  */
-import { join } from 'node:path';
-
 import type { SpecEntry } from '../validation/validate.ts';
-import { buildTreeIndex, computeSpecHash, type HashIo, type SerializedTreeIndex } from './tree.ts';
+import { buildTreeIndex, computeSpecHash, type SerializedTreeIndex } from './tree.ts';
 
 export const CONTEXT_DIR_REL = 'llmanspec/.context';
 export const PAGEINDEX_DIR_REL = `${CONTEXT_DIR_REL}/pageindex`;
@@ -61,7 +59,6 @@ function acquireLock(io: IndexIo, lockPath: string): void {
 
 export function rebuildIndex(
   io: IndexIo,
-  root: string,
   specsDir: string,
   entries: readonly SpecEntry[],
   opts: RebuildOpts,
@@ -95,7 +92,7 @@ export interface FreshnessResult {
   lines: string[];
 }
 
-export function checkIndexFreshness(io: IndexIo, root: string, specsDir: string): FreshnessResult {
+export function checkIndexFreshness(io: IndexIo, specsDir: string): FreshnessResult {
   if (!io.exists(TREE_JSON_REL)) {
     return { fresh: false, lines: ['[pageindex] missing — run `index rebuild` first'] };
   }
@@ -119,14 +116,11 @@ export function checkIndexFreshness(io: IndexIo, root: string, specsDir: string)
 }
 
 /** Load the tree for retrieval (absent/corrupt → null). */
-export function loadTree(io: IndexIo, root: string): SerializedTreeIndex | null {
-  const path = join(root, TREE_JSON_REL);
-  if (!io.exists(path)) return null;
+export function loadTree(io: IndexIo): SerializedTreeIndex | null {
+  if (!io.exists(TREE_JSON_REL)) return null;
   try {
-    return JSON.parse(io.readText(path)) as SerializedTreeIndex;
+    return JSON.parse(io.readText(TREE_JSON_REL)) as SerializedTreeIndex;
   } catch {
     return null;
   }
 }
-
-export type { HashIo };

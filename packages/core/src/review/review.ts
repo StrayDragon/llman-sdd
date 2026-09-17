@@ -50,15 +50,8 @@ export function buildReview(input: ReviewInput, io: SpecIo): ReviewResult {
     (c) => c.totalTasks > 0 && c.completedTasks < c.totalTasks,
   );
   const signals: ReviewSignal[] = [];
-  let critical = 0;
-  let warning = 0;
   const push = (kind: ReviewKind, capability: string, count: number, detail = ''): void => {
     signals.push({ kind, capability, count, detail });
-    if (kind === 'validate') {
-      critical += count;
-    } else if (count > 0) {
-      warning += count;
-    }
   };
 
   const sweep = validateAllSpecs(entries, io);

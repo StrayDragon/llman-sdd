@@ -61,7 +61,7 @@ function parseListNames(lines: string[]): string[] {
   for (const line of lines) {
     if (/^-+/u.test(line)) {
       rulesSeen += 1;
-      inTable = rulesSeen >= 2 && rulesSeen <= 2 ? true : inTable;
+      if (rulesSeen === 2) inTable = true;
       if (rulesSeen === 3) break;
       continue;
     }
