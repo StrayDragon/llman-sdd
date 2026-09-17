@@ -42,7 +42,7 @@ flowchart LR
 ## Commit Policy
 
 - **Commits on the change branch are free** (no mid-flight archive point; `change finalize` needs no clean tree): segment by task or milestone when it helps review, or keep the working tree dirty and let finalize make ONE close commit — both are first-class. `change checkpoint` no longer exists (calling it exits non-zero and points to finalize), so there is no mid-flight "archive point" to maintain; `change finalize` handles both shapes (it does NOT require a clean tree).
-- **Default close-out**: after all tasks pass gates and verify is green, `llman sdd change finalize <id>` auto-commits `archive(sdd): <change-id>` (uncommitted impl diff + frontmatter + archive rename in one commit). Do not run finalize inside the apply loop. `--no-commit` skips the auto commit (manual/CI histories; pre-commit-hook conflicts).
+- **Default close-out**: after all tasks pass gates and verify is green, `llman-sdd change finalize <id>` auto-commits `archive(sdd): <change-id>` (uncommitted impl diff + frontmatter + archive rename in one commit). Do not run finalize inside the apply loop. `--no-commit` skips the auto commit (manual/CI histories; pre-commit-hook conflicts).
 - **Blocker interrupt**: when you must STOP on a blocker, make ONE work-in-progress commit (e.g. `wip(sdd): <change-id> <summary>`) to preserve the state, then report.
 
 ## Steps
@@ -51,18 +51,18 @@ flowchart LR
 - Read and obey: `llmanspec/config.yaml`, `AGENTS.md` (if present).
 - `git status --porcelain`:
   - If working tree is dirty and changes don't belong to the current change: `git stash push -u -m "llman-sdd-apply autopilot backup"`.
-- Run `llman sdd validate --all --strict --no-interactive`:
+- Run `llman-sdd validate --all --strict --no-interactive`:
   - If it fails for reasons unrelated to the current change, stop and report (inconsistent artifacts prevent SSOT-driven implementation).
-- **Check spec valid_scope integrity**: use `llman sdd list --specs --json` to list all specs, then for each spec verify every path in its `valid_scope` exists on disk. If any scope file/directory is missing, stop and suggest updating the spec (remove the deleted path from `valid_scope`).
+- **Check spec valid_scope integrity**: use `llman-sdd list --specs --json` to list all specs, then for each spec verify every path in its `valid_scope` exists on disk. If any scope file/directory is missing, stop and suggest updating the spec (remove the deleted path from `valid_scope`).
 
 ### 1) Select change id and check prerequisites
 - If a change id is provided, use it directly.
-- Otherwise infer from context; if ambiguous, run `llman sdd list --json` and let user pick.
+- Otherwise infer from context; if ambiguous, run `llman-sdd list --json` and let user pick.
 - Always announce: "Using change: <id>" and how to override.
-- Confirm you are on the non-default feature branch bound via `llman sdd change start <id>` or `change attach <id>` (`--force` only to rebind). Specs/features on the branch are SSOT — do not author under `changes/<id>/specs/`.
+- Confirm you are on the non-default feature branch bound via `llman-sdd change start <id>` or `change attach <id>` (`--force` only to rebind). Specs/features on the branch are SSOT — do not author under `changes/<id>/specs/`.
 {{ unit("skills/stage-guard") }}
-- Use `llman sdd context --task "<goal from proposal>" --paths "<scope from specs>"` to get relevant specs.
-  - If context is unavailable, run `llman sdd index rebuild` and retry.
+- Use `llman-sdd context --task "<goal from proposal>" --paths "<scope from specs>"` to get relevant specs.
+  - If context is unavailable, run `llman-sdd index rebuild` and retry.
 
 ### 2) Read SSOT artifacts
 You must read through:
@@ -89,8 +89,8 @@ For each unchecked task:
 Run project gate commands (adapt to the actual project):
 - Relevant test suite: `just test` or `cargo test --all`
 - Format/lint: `just check` or `just lint` + `just fmt`
-- Git-native: stay on the bound feature branch; edit live `llmanspec/specs/<capability>.feature` (flat, or directory `llmanspec/specs/<capability>/` main file; rules `@human`, acceptance `@executable`) as needed; run `llman sdd validate --specs` after spec edits; commit on the branch freely (segmented or leave dirty for finalize). Do not use `change delta` / solidify / feature_delta; `change checkpoint` is removed.
-- SDD validation: `llman sdd validate <id> --strict --no-interactive`
+- Git-native: stay on the bound feature branch; edit live `llmanspec/specs/<capability>.feature` (flat, or directory `llmanspec/specs/<capability>/` main file; rules `@human`, acceptance `@executable`) as needed; run `llman-sdd validate --specs` after spec edits; commit on the branch freely (segmented or leave dirty for finalize). Do not use `change delta` / solidify / feature_delta; `change checkpoint` is removed.
+- SDD validation: `llman-sdd validate <id> --strict --no-interactive`
 
 **On failure → enter self-healing loop (don't ask "should I continue?"):**
 1. Parse failure cause (test failure / lint / format / validation error).
@@ -107,7 +107,7 @@ Run project gate commands (adapt to the actual project):
 
 **Self-healing cap: 8 rounds**; exceeding this is a blocker: stop and output a blocker report (last failing command + output summary + what you tried).
 
-**Human review checkpoint (after each task batch passes the gates)**: once a batch is green, before starting the next batch or producing the completion report, run `llman sdd review`:
+**Human review checkpoint (after each task batch passes the gates)**: once a batch is green, before starting the next batch or producing the completion report, run `llman-sdd review`:
 
 - Exit code zero → continue.
 - Non-zero exit = CRITICAL findings: STOP, fix, re-run review; MUST NOT enter the next batch or emit the completion report with CRITICAL findings open.
@@ -118,8 +118,8 @@ Then suggest running `llman-sdd-verify` for the verification phase.
 
 > 💡 Implementation done → next: `llman-sdd-verify` (verify)
 
-> For command details run `llman sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables.
-> "Spec" here = a `.feature` file under this project's `llmanspec/specs/`; run `llman sdd list --specs` or `llman sdd show <capability>`.
+> For command details run `llman-sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables.
+> "Spec" here = a `.feature` file under this project's `llmanspec/specs/`; run `llman-sdd list --specs` or `llman-sdd show <capability>`.
 
 {{ unit("skills/validation-hints") }}
 

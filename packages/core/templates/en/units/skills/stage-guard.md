@@ -3,7 +3,7 @@
 Decide from authoritative JSON (never from vague "complete artifacts" wording):
 
 ```bash
-llman sdd show <id> --json --type change
+llman-sdd show <id> --json --type change
 ```
 
 Read: `stage`, `specsLanded`, `needsSpecsChange`, `readyToImplement`, `gateChecks` (per-item `pass` + one-line `hint` when failing).

@@ -37,13 +37,13 @@ flowchart LR
 - **Editing live `llmanspec/specs/**` requires a change**: Branch binding first (`change start` / `attach`), then commit on the bound branch (Specs landing style); **never** compact-rewrite live specs on the default branch.
 
 ## Workflow
-1. Inventory current specs (`llman sdd list --specs`).
+1. Inventory current specs (`llman-sdd list --specs`).
 2. If archived history is large, run archive freeze first:
-   - Preview: `llman sdd archive freeze --dry-run`
-   - Execute: `llman sdd archive freeze --before <YYYY-MM-DD> --keep-recent <N>`
+   - Preview: `llman-sdd archive freeze --dry-run`
+   - Execute: `llman-sdd archive freeze --before <YYYY-MM-DD> --keep-recent <N>`
 3. Identify overlapping items across capabilities.
 4. Produce a compaction plan (canonical requirements + keep/merge/remove decisions + migration notes).
-5. Execute and validate (`llman sdd validate --specs --strict --no-interactive`).
+5. Execute and validate (`llman-sdd validate --specs --strict --no-interactive`).
 
 ## Decision Policy
 - Prefer merging when two requirements are semantically equivalent.
@@ -58,8 +58,8 @@ flowchart LR
 
 > 💡 After maintenance, new work goes through the normal pipeline: `llman-sdd-propose` (Branch binding + Specs landing) → `llman-sdd-apply` (requires `readyToImplement`) → `llman-sdd-verify` → `llman-sdd-archive`.
 
-> For command details run `llman sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables.
-> "Spec" here = a `.feature` file under this project's `llmanspec/specs/`; run `llman sdd list --specs` or `llman sdd show <capability>`.
+> For command details run `llman-sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables.
+> "Spec" here = a `.feature` file under this project's `llmanspec/specs/`; run `llman-sdd list --specs` or `llman-sdd show <capability>`.
 
 {{ unit("skills/validation-hints") }}
 

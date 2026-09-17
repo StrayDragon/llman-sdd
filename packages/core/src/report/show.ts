@@ -93,7 +93,7 @@ export function showChangeJson(deps: ShowDeps, id: string): Record<string, unkno
     {
       name: 'on-bound-branch',
       pass: onBoundBranch,
-      hint: onBoundBranch ? '' : 'change is not attached; run `llman sdd change start <id>`',
+      hint: onBoundBranch ? '' : 'change is not attached; run `llman-sdd change start <id>`',
     },
     {
       name: 'stage-complete',
@@ -115,7 +115,7 @@ export function showChangeJson(deps: ShowDeps, id: string): Record<string, unkno
     {
       name: 'validate',
       pass: validateOk,
-      hint: validateOk ? '' : 'fix issues reported by `llman sdd validate <id> --strict`',
+      hint: validateOk ? '' : 'fix issues reported by `llman-sdd validate <id> --strict`',
     },
   ];
   void now;

@@ -27,9 +27,9 @@ flowchart LR
 **Focus view (seed mode):** Show a specific change and its relationship neighborhood.
 
 ```bash
-llman sdd graph <change-id>              # the change + direct relationships (depth 1)
-llman sdd graph <change-id> --depth 3    # recurse 3 levels
-llman sdd graph <change-id> --depth 0    # just the change itself
+llman-sdd graph <change-id>              # the change + direct relationships (depth 1)
+llman-sdd graph <change-id> --depth 3    # recurse 3 levels
+llman-sdd graph <change-id> --depth 0    # just the change itself
 ```
 
 Seed mode traverses three directions: upstream (depends_on), downstream (depended by), and blocks, automatically discovering active and archived changes.
@@ -37,17 +37,17 @@ Seed mode traverses three directions: upstream (depends_on), downstream (depende
 **Global view (scope mode):** Show all changes by scope.
 
 ```bash
-llman sdd graph                          # all active changes (default)
-llman sdd graph --scope archived         # all archived (completed) changes
-llman sdd graph --scope all              # everything
+llman-sdd graph                          # all active changes (default)
+llman-sdd graph --scope archived         # all archived (completed) changes
+llman-sdd graph --scope all              # everything
 ```
 
 ## Output
 
 - Output is a mermaid flowchart to stdout, pipeable to a file or renderer:
   ```
-  llman sdd graph c50 > deps.mmd
-  llman sdd graph c50 --depth 2 | mmdc -i - -o deps.png
+  llman-sdd graph c50 > deps.mmd
+  llman-sdd graph c50 --depth 2 | mmdc -i - -o deps.png
   ```
 - Archived (completed) changes are shown with "✓ done" suffix and green highlight.
 - When the graph contains disconnected groups, each group renders as an independent subgraph labeled "Active", "Done", or "Mixed".
@@ -68,7 +68,7 @@ blocks:
 
 > 💡 This is just a utility — main flow: `llman-sdd-propose` (Branch binding + Specs landing) → `llman-sdd-apply` (requires `readyToImplement`) → `llman-sdd-verify` → `llman-sdd-archive`.
 
-> For command details run `llman sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables.
-> "Spec" here = a `.feature` file under this project's `llmanspec/specs/`; run `llman sdd list --specs` or `llman sdd show <capability>`.
+> For command details run `llman-sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables.
+> "Spec" here = a `.feature` file under this project's `llmanspec/specs/`; run `llman-sdd list --specs` or `llman-sdd show <capability>`.
 
 {{ unit("skills/ethics-governance") }}

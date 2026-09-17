@@ -19,20 +19,20 @@ Run the propose-equivalent path quickly: planning shell → Branch binding → S
 ## Steps
 
 1. Ask the user for a short description, change id (or derive), impacted capability, and confirm the final id.
-2. Ensure `llman sdd init` has been run (`llmanspec/` exists).
+2. Ensure `llman-sdd init` has been run (`llmanspec/` exists).
 3. If `llmanspec/changes/<id>/` exists: ask fill-missing vs new id; do not overwrite without confirmation.
 4. Create the **planning shell** (OK briefly on the default branch):
-   - `llman sdd change new <id>` (or hand-write) → flesh out `proposal.md`
+   - `llman-sdd change new <id>` (or hand-write) → flesh out `proposal.md`
    - `design.md` (if needed)
    - `tasks.md`
-5. **Branch binding**: `llman sdd change start <id>` (clean tree on default branch) or create a branch then `change attach <id>`.
+5. **Branch binding**: `llman-sdd change start <id>` (clean tree on default branch) or create a branch then `change attach <id>`.
 6. **Specs landing**: on the bound branch, edit live `llmanspec/specs/<capability>.feature` (flat, or directory main file) and commit; or set `needs_specs_change: false` when there is no contract edit.
-7. Validate: `llman sdd validate <id> --strict --no-interactive`.
-8. Confirm `readyToImplement=true` via `llman sdd show <id> --json`, then suggest `llman-sdd-apply` (do not suggest apply before ready).
+7. Validate: `llman-sdd validate <id> --strict --no-interactive`.
+8. Confirm `readyToImplement=true` via `llman-sdd show <id> --json`, then suggest `llman-sdd-apply` (do not suggest apply before ready).
 
 {{ unit("skills/git-native-flow-brief") }}
-> For command details run `llman sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables.
-> "Spec" here = a `.feature` file under this project's `llmanspec/specs/`; run `llman sdd list --specs` or `llman sdd show <capability>`.
+> For command details run `llman-sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables.
+> "Spec" here = a `.feature` file under this project's `llmanspec/specs/`; run `llman-sdd list --specs` or `llman-sdd show <capability>`.
 {{ unit("skills/validation-hints") }}
 
 {{ unit("skills/ethics-governance") }}

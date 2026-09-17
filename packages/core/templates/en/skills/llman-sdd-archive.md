@@ -26,7 +26,7 @@ flowchart LR
 
 - **Must pass verify phase all-green first**: don't archive changes that haven't passed verification.
 - **Must already have Branch binding**: `change start` / `attach` done; otherwise STOP.
-- **SSOT validation**: every change must pass `llman sdd validate <id> --strict --no-interactive` before archiving.
+- **SSOT validation**: every change must pass `llman-sdd validate <id> --strict --no-interactive` before archiving.
 - **Don't ask "should I continue?"**: execute the full batch to completion unless you hit an unresolvable error.
 - **Close-out MUST NOT default to PR/push**: finalize performs a local merge (squash by default) + rename + one close-out commit (`archive(sdd): <id>`). `git push` / hosting PR are optional — only when the user or project explicitly requires remote review. **Agent MUST NOT** push or open a PR by default on this skill's account.
 
@@ -37,34 +37,34 @@ flowchart LR
 - If unexpected changes exist, handle them (stash or report).
 
 ### 1) Confirm target changes
-- Determine target IDs: single or batch (from user input or `llman sdd list --json`).
+- Determine target IDs: single or batch (from user input or `llman-sdd list --json`).
 - Always announce: "Archiving IDs: <id1>, <id2>, ...".
 - Confirm each change has passed verify phase all-green.
 
 ### 2) Archive one by one
-- **Human review checkpoint (before each id is archived, including batches)**: run `llman sdd review --capability <id>`. Exit code zero → continue; non-zero = CRITICAL findings: STOP, fix, re-run; MUST NOT archive with CRITICAL findings open.
-- Validate each first: `llman sdd validate <id> --strict --no-interactive`.
+- **Human review checkpoint (before each id is archived, including batches)**: run `llman-sdd review --capability <id>`. Exit code zero → continue; non-zero = CRITICAL findings: STOP, fix, re-run; MUST NOT archive with CRITICAL findings open.
+- Validate each first: `llman-sdd validate <id> --strict --no-interactive`.
 - Validation failure → STOP and report; don't skip validation and force archive.
-- Optional preview: `llman sdd change archive <id> --dry-run`.
+- Optional preview: `llman-sdd change archive <id> --dry-run`.
 - Execute archive:
-  - default: `llman sdd change archive <id>`
-  - tooling-only: `llman sdd change archive <id> --skip-specs`
+  - default: `llman-sdd change archive <id>`
+  - tooling-only: `llman-sdd change archive <id> --skip-specs`
   - **stop immediately on first failure**, report remaining unprocessed IDs.
 - **Git-native close-out**:
   - Prerequisites: Branch binding done (`change start` / `attach`); still on the bound branch (or the target branch after the auto merge).
   - `change archive` / `change finalize` run the **auto merge** (target `--into` > binding `base_branch` > default branch; method squash by default or `ff`; if the target is held by another worktree the merge is skipped with an explicit manual command), **then** rename change docs into `changes/archive/` — rename is never rolled back on merge failure and degradation is reported explicitly.
-  - Legacy `*.feature.delta.toon` or `spec.toon` under specs is a migration blocker — run `llman sdd project migrate --kind toon2features`.
+  - Legacy `*.feature.delta.toon` or `spec.toon` under specs is a migration blocker — run `llman-sdd project migrate --kind toon2features`.
   - **Default: `change finalize` (one-command close)** — gates → auto merge → docs rename → **auto commit** `archive(sdd): <change-id>` (squash default: impl diff + rename collapse into ONE commit on the target; no manual `git commit` needed; locked-rule edits are a report-only WARNING — warn, never block):
     ```text
     1. Implement live specs + code (working tree may stay dirty; commits on the branch are free — segmented or none)
-    2. llman sdd change finalize <id>    # gates + merge (squash default) + rename + auto commit
+    2. llman-sdd change finalize <id>    # gates + merge (squash default) + rename + auto commit
     3. optional: git commit --amend    # adjust the message; git branch -D <feature>  # after squash the branch is no longer an ancestor; -d gets refused
     ```
     `--no-commit` skips the auto commit (CI / pre-commit-hook conflicts): finalize then leaves the tree dirty and prints the manual `git commit` command. Idempotent retry: a rerun after a failed auto commit detects the already-archived rename and finishes the commit.
   - **Fallback: plain `change archive <id>`** — same merge + rename, no auto commit; requires a clean tree. `checkpointed`/`checkpoint_sha` fields went away with checkpoint (no mid-flight archive point; `change finalize` needs no clean tree) — nothing to write beforehand, and nothing to review for the snapshot (use `change diff` instead).
 
 ### 3) Full validation
-- After all archives complete: `llman sdd validate --all --strict --no-interactive`.
+- After all archives complete: `llman-sdd validate --all --strict --no-interactive`.
 - Confirm post-archive spec artifacts are consistent.
 
 ### 4) Commit guidance
@@ -77,8 +77,8 @@ flowchart LR
 
 {{ unit("workflow/archive-freeze-guidance") }}
 
-> For command details run `llman sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables.
-> "Spec" here = a `.feature` file under this project's `llmanspec/specs/`; run `llman sdd list --specs` or `llman sdd show <capability>`.
+> For command details run `llman-sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables.
+> "Spec" here = a `.feature` file under this project's `llmanspec/specs/`; run `llman-sdd list --specs` or `llman-sdd show <capability>`.
 
 {{ unit("skills/validation-hints") }}
 

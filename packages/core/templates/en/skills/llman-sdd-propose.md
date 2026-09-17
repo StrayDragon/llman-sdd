@@ -40,7 +40,7 @@ flowchart LR
 {% else %}
 - **If change already exists**: STOP. If `readyToImplement=true`, suggest `llman-sdd-apply`; otherwise finish the planning shell / Branch binding / Specs landing (edit `llmanspec/changes/<id>/`, or enable `extra_skills: [llman-sdd-continue]`).
 {% endif %}
-- **Frontmatter has a fixed schema**: when fleshing out `proposal.md`, only the allowed fields in `llmanspec/AGENTS.md` "Change Proposal Frontmatter SSOT" are accepted (including `depends_on`, `blocks`, `branch`, `base_sha`, `needs_specs_change`). `status`/`title`/`priority`/`author` etc. are rejected by `llman sdd validate` as ERROR; lifecycle stage is inferred (query via `llman sdd show`/`list`), never stored in frontmatter. Do not re-declare frontmatter fields in the prose body; the body H1 is a human-readable title, not a repeat of the change id.
+- **Frontmatter has a fixed schema**: when fleshing out `proposal.md`, only the allowed fields in `llmanspec/AGENTS.md` "Change Proposal Frontmatter SSOT" are accepted (including `depends_on`, `blocks`, `branch`, `base_sha`, `needs_specs_change`). `status`/`title`/`priority`/`author` etc. are rejected by `llman-sdd validate` as ERROR; lifecycle stage is inferred (query via `llman-sdd show`/`list`), never stored in frontmatter. Do not re-declare frontmatter fields in the prose body; the body H1 is a human-readable title, not a repeat of the change id.
 
 ## Quick-capture routing
 
@@ -50,9 +50,9 @@ If the user just wants to **capture an idea** (e.g. "draft a proposal", "note do
 
 ### 0) Preflight
 - Read `llmanspec/config.yaml` for project context, rules, locale.
-- `llman sdd validate --all --strict --no-interactive`: ensure current artifacts are clean.
+- `llman-sdd validate --all --strict --no-interactive`: ensure current artifacts are clean.
   - If pre-existing errors, stop and report (stacking new changes on dirty artifacts causes cascading errors).
-- **Check spec valid_scope integrity**: use `llman sdd list --specs --json` to list all specs, then for each spec verify every path in its `valid_scope` exists on disk. If any scope file/directory is missing, stop and suggest updating the spec (remove the deleted path from `valid_scope`).
+- **Check spec valid_scope integrity**: use `llman-sdd list --specs --json` to list all specs, then for each spec verify every path in its `valid_scope` exists on disk. If any scope file/directory is missing, stop and suggest updating the spec (remove the deleted path from `valid_scope`).
 
 ### 1) Assess change scale (triage)
 1. Classify:
@@ -60,18 +60,18 @@ If the user just wants to **capture an idea** (e.g. "draft a proposal", "note do
    - **Implementation change** (refactor, typo, perf) → quick path via `llman-sdd-quick`
    - **Meta-spec change** (SDD templates/process) → full SDD workflow
    - When uncertain, choose full SDD (conservative).
-2. Use `llman sdd context --task "<goal>" --paths "<scope>"` to find relevant specs.
-   - If context unavailable, rebuild with `llman sdd index rebuild` (default `pageindex`, no model needed) and continue.
+2. Use `llman-sdd context --task "<goal>" --paths "<scope>"` to find relevant specs.
+   - If context unavailable, rebuild with `llman-sdd index rebuild` (default `pageindex`, no model needed) and continue.
 3. Gather input:
    - A short description of the change
    - A change id (user-supplied if given; otherwise derive it with the non-blocking rule above and announce it)
    - The impacted capability/capabilities (to name `specs/<capability>`)
 
 ### 2) Ensure project is initialized
-   - `llmanspec/` must exist; if missing, tell the user to run `llman sdd init`, then STOP.
+   - `llmanspec/` must exist; if missing, tell the user to run `llman-sdd init`, then STOP.
 
 ### 3) Create change directory and artifacts
-   - Prefer `llman sdd change new <change-id>` for the draft `proposal.md` shell (or create `llmanspec/changes/<change-id>/` manually).
+   - Prefer `llman-sdd change new <change-id>` for the draft `proposal.md` shell (or create `llmanspec/changes/<change-id>/` manually).
 {% if extra_skill_continue %}
    - If the change already exists, STOP and suggest `llman-sdd-continue`.
 {% else %}
@@ -81,14 +81,14 @@ If the user just wants to **capture an idea** (e.g. "draft a proposal", "note do
    - `design.md` only when tradeoffs/migrations matter
    - **Confirm seams before writing tasks.md**: list the seams to be tested and confirm with the user. A seam = the public boundary driven by `*.feature` GWT steps (CLI subprocess or public interface) — MUST reuse existing harness seams, MUST NOT invent seams detached from `.feature`. Without `.feature`, seam = the CLI subcommand or public function boundary under test.
    - `tasks.md`: split into **vertical slices** (each task cuts a narrow but complete path through schema→API→UI→tests, independently verifiable), with `[blocked-by: <task-id>]` dependency markers. **Wide-refactor exception** (one mechanical change sweeping the codebase, single edit breaks many call sites): sequence as expand-contract (add new beside old → migrate call sites in batches → delete old), don't force into a vertical slice.
-   - **First** `llman sdd change start <change-id>` (recommended; clean tree on the default branch) or manually create a branch then `change attach <change-id>` to reach Full (bound).
+   - **First** `llman-sdd change start <change-id>` (recommended; clean tree on the default branch) or manually create a branch then `change attach <change-id>` to reach Full (bound).
    - **Then** edit live `llmanspec/specs/<capability>.feature` (flat, or directory `llmanspec/specs/<capability>/` main file) on the bound non-default branch and commit (Specs landing). **Do not** edit live specs before start; **do not** commit live specs to the default branch just to satisfy the clean-tree gate. If already attached, do not re-run `start` (recover lost specs by checkout/recreate + `attach --force` if needed).
-   - For changes with no live contract edits, set frontmatter `needs_specs_change: false`. Enter apply only when `llman sdd show <id> --json` has `readyToImplement=true`.
+   - For changes with no live contract edits, set frontmatter `needs_specs_change: false`. Enter apply only when `llman-sdd show <id> --json` has `readyToImplement=true`.
    - **Breaking contract changes** (removed/renamed fields, commands, tags, or stage values) MUST plan the upgrade path: `migrations/v<from>-v<to>/` with README prompt + one-shot script (ship the upgrade dir + one-shot script in the same repo) — include it in the proposal's What Changes.
 
 ### 4) Validate
    ```bash
-   llman sdd validate <change-id> --strict --no-interactive
+   llman-sdd validate <change-id> --strict --no-interactive
    ```
    This MUST pass before proceeding. If TOON parse errors appear, fix quoting:
    values containing commas/colons/brackets must be double-quoted in tabular rows.
@@ -104,8 +104,8 @@ If the user just wants to **capture an idea** (e.g. "draft a proposal", "note do
 ### 4b) Single-track feature authoring
 - Planning shell (proposal/design/tasks) may briefly live on the default branch; **do not** edit live `llmanspec/specs/**` on the default branch. After Branch binding, Specs landing and implementation happen on the bound branch.
 - **Single-track**: each capability is ONE `<capability>.feature`. Constraint rules are `@req:<id> @human` scenarios (statement verbatim in the description); executable acceptance scenarios carry `@executable` and link back via `@req:<req_id>`. Never nest scenarios in `Rule:` blocks (the runner skips them).
-- Change shell: `llman sdd change new <change-id>` → fill proposal/design/tasks → `llman sdd change start <change-id>` (or `change attach`) → **then** edit live specs on the bound branch and commit (Specs landing).
-- Do **not** use `change delta` / solidify / `*.feature.delta.toon`; if an active `*.feature.delta.toon` or a legacy `spec.toon` exists, run `llman sdd project migrate --kind toon2features` first.
+- Change shell: `llman-sdd change new <change-id>` → fill proposal/design/tasks → `llman-sdd change start <change-id>` (or `change attach`) → **then** edit live specs on the bound branch and commit (Specs landing).
+- Do **not** use `change delta` / solidify / `*.feature.delta.toon`; if an active `*.feature.delta.toon` or a legacy `spec.toon` exists, run `llman-sdd project migrate --kind toon2features` first.
 
 ### 5) Summarize and suggest next step
    - Enter implementation phase: `llman-sdd-apply`.
@@ -113,8 +113,8 @@ If the user just wants to **capture an idea** (e.g. "draft a proposal", "note do
 
 > 💡 Proposal done → next: `llman-sdd-apply` (implement)
 
-> For command details run `llman sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables.
-> "Spec" here = a `.feature` file under this project's `llmanspec/specs/`; run `llman sdd list --specs` or `llman sdd show <capability>`.
+> For command details run `llman-sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables.
+> "Spec" here = a `.feature` file under this project's `llmanspec/specs/`; run `llman-sdd list --specs` or `llman-sdd show <capability>`.
 {{ unit("skills/validation-hints") }}
 
 {{ unit("skills/structured-protocol") }}

@@ -16,13 +16,13 @@ End-to-end closed loop for one change (manual). Requires Branch binding and `rea
 
 ### 0) Gate + status
 ```bash
-llman sdd show <change-id> --json --type change
+llman-sdd show <change-id> --json --type change
 ```
-> Stage gate: decide from `stage` / `readyToImplement` in `llman sdd show <id> --json --type change`; full decision table lives in llman-sdd-apply.
+> Stage gate: decide from `stage` / `readyToImplement` in `llman-sdd show <id> --json --type change`; full decision table lives in llman-sdd-apply.
 
 - Must be on the bound non-default branch.
 - If `readyToImplement` is not true → STOP (finish Specs landing or `needs_specs_change: false`); **do not** finalize yet.
-- Track progress via `tasks.md` checkboxes (or `llman sdd list` task counts); still read `tasks.md`, proposal/design, and live `llmanspec/specs/**` on the bound branch (SSOT).
+- Track progress via `tasks.md` checkboxes (or `llman-sdd list` task counts); still read `tasks.md`, proposal/design, and live `llmanspec/specs/**` on the bound branch (SSOT).
 
 ### 1) Loop: implement → test
 For each incomplete task:
@@ -33,7 +33,7 @@ For each incomplete task:
 
 ### 2) Validate
 ```bash
-llman sdd validate <change-id> --strict --no-interactive
+llman-sdd validate <change-id> --strict --no-interactive
 ```
 On failure, fix and retry (same self-repair budget as `llman-sdd-apply`: cap 8 rounds).
 
@@ -42,7 +42,7 @@ Prefer `llman-sdd-verify` (or equivalent dual-axis self-check). CRITICAL → STO
 
 ### 4) Archive
 ```bash
-llman sdd change finalize <change-id>
+llman-sdd change finalize <change-id>
 ```
 (dirty tree OK; auto merge (squash default) + docs rename + **auto commit** `archive(sdd): <change-id>` in one process. `--no-commit` skips the auto commit for manual/CI histories — then commit with `git add -A && git commit -m "archive(sdd): <change-id>"`.)
 
@@ -71,5 +71,5 @@ push / hosting PR only when the user explicitly asks.
 - `ethics.refusal_contract`: after 3 gate/validation failures, report blocker; do not force-archive
 - `ethics.escalation_policy`: if changing SDD workflow specs/templates, pause for user confirm before archive
 
-> For command details run `llman sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables.
-> "Spec" here = a `.feature` file under this project's `llmanspec/specs/`; run `llman sdd list --specs` or `llman sdd show <capability>`.
+> For command details run `llman-sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables.
+> "Spec" here = a `.feature` file under this project's `llmanspec/specs/`; run `llman-sdd list --specs` or `llman-sdd show <capability>`.

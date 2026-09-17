@@ -37,13 +37,13 @@ flowchart LR
 - **编辑 live `llmanspec/specs/**` 须走 change**：先 Branch binding（`change start` / `attach`），在绑定分支上做 Specs landing 式提交；**禁止**在默认分支直接压缩改写 live specs。
 
 ## Workflow
-1. 盘点当前 specs（`llman sdd list --specs`）。
+1. 盘点当前 specs（`llman-sdd list --specs`）。
 2. 如果已归档历史较大，先执行 archive freeze：
-   - 预览：`llman sdd archive freeze --dry-run`
-   - 执行：`llman sdd archive freeze --before <YYYY-MM-DD> --keep-recent <N>`
+   - 预览：`llman-sdd archive freeze --dry-run`
+   - 执行：`llman-sdd archive freeze --before <YYYY-MM-DD> --keep-recent <N>`
 3. 识别跨 capability 的重叠项。
 4. 产出压缩计划（canonical requirements + keep/merge/remove 决策 + 迁移说明）。
-5. 执行并验证（`llman sdd validate --specs --strict --no-interactive`）。
+5. 执行并验证（`llman-sdd validate --specs --strict --no-interactive`）。
 
 ## Decision Policy
 - 两条 requirement 语义等价时优先合并。
@@ -58,8 +58,8 @@ flowchart LR
 
 > 💡 维护完成后，新需求走正常 pipeline：`llman-sdd-propose`（含 Branch binding + Specs landing）→ `llman-sdd-apply`（须 `readyToImplement`）→ `llman-sdd-verify` → `llman-sdd-archive`。
 
-> 命令细节用 `llman sdd <cmd> --help` 查看；命令参考以 CLI 为准，skill 不内嵌命令表。
-> 文中「规约」= 本项目 `llmanspec/specs/` 下的 `.feature` 文件；用 `llman sdd list --specs` / `llman sdd show <capability>` 查全文。
+> 命令细节用 `llman-sdd <cmd> --help` 查看；命令参考以 CLI 为准，skill 不内嵌命令表。
+> 文中「规约」= 本项目 `llmanspec/specs/` 下的 `.feature` 文件；用 `llman-sdd list --specs` / `llman-sdd show <capability>` 查全文。
 
 {{ unit("skills/validation-hints") }}
 

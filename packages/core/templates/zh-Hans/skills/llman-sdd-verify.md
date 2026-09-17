@@ -34,9 +34,9 @@ flowchart LR
 {{ unit("skills/stage-guard") }}
 
 ## 步骤
-1. 确定 change id（不明确时让用户从 `llman sdd list --json` 选择）。
+1. 确定 change id（不明确时让用户从 `llman-sdd list --json` 选择）。
 2. 先跑一个快速校验门禁：
-   - `llman sdd validate <id> --strict --no-interactive`
+   - `llman-sdd validate <id> --strict --no-interactive`
    - **诊断结构问题（Gherkin 解析 / `@req` 链接 / 双写 / 全局 req_id 唯一性）时优先加 `--no-check`**（BDD-on 下跳过可能耗时的 `bdd.run_command`），结构门禁全绿后再跑完整 `--check`（full mode）。`FAIL <item_type>/<id>` 行会逐条列出失败项（在 Totals 行上方）。
 3. 阅读：
    - feature 分支上的 live specs：`llmanspec/specs/**`（`<capability>.feature`）——SSOT
@@ -69,8 +69,8 @@ flowchart LR
    - 两轴可并行（sub-agent）审查；报告 MUST 分离呈现，MUST NOT 合并或交叉重排（一轴通过不能掩盖另一轴失败）。
 5. **BDD-on 验证（Git-native Partitioned SSOT）**——仅当 `config.yaml` 含 `bdd:` 段时：
    - 确认 change 已 attach，且当前在对应 feature 分支上。
-   - `llman sdd validate --specs`：Gherkin + `@req`/双写门禁；默认跑 `bdd.run_command`（可用 `--no-check` 跳过）。
-   - 可选只读审查：`llman sdd change diff <id>`（或 `--export-patch <path>`）。diff 仅作审查/导出——绝不当作 apply 步骤。
+   - `llman-sdd validate --specs`：Gherkin + `@req`/双写门禁；默认跑 `bdd.run_command`（可用 `--no-check` 跳过）。
+   - 可选只读审查：`llman-sdd change diff <id>`（或 `--export-patch <path>`）。diff 仅作审查/导出——绝不当作 apply 步骤。
    - 检查：无遗留 `spec.toon` / `*.feature.delta.toon`；若存在，先跑 toon2features（不要自创 solidify/找补步骤）。
    - verify 通过后下一步：`llman-sdd-archive`（勿在此 inline finalize）。
 {% if bdd_verify_prompt %}
@@ -80,7 +80,7 @@ flowchart LR
    - **CRITICAL**（归档前必须修复）
    - **WARNING**（建议修复）
    - **SUGGESTION**（可选优化）
-7. **人审检查点**：报告无 CRITICAL 后、建议归档前，运行 `llman sdd review`：
+7. **人审检查点**：报告无 CRITICAL 后、建议归档前，运行 `llman-sdd review`：
    - 退出码为零 → 建议 `llman-sdd-archive` 进行 finalize/archive。
    - 非零退出 = CRITICAL 发现：用 `llman-sdd-apply` 修复后重跑 review；MUST NOT 带着 CRITICAL 进入 finalize/archive。
 
@@ -88,8 +88,8 @@ flowchart LR
 
 {{ unit("skills/git-native-flow-brief") }}
 {{ unit("skills/human-readable-summary") }}
-> 命令细节用 `llman sdd <cmd> --help` 查看；命令参考以 CLI 为准，skill 不内嵌命令表。
-> 文中「规约」= 本项目 `llmanspec/specs/` 下的 `.feature` 文件；用 `llman sdd list --specs` / `llman sdd show <capability>` 查全文。
+> 命令细节用 `llman-sdd <cmd> --help` 查看；命令参考以 CLI 为准，skill 不内嵌命令表。
+> 文中「规约」= 本项目 `llmanspec/specs/` 下的 `.feature` 文件；用 `llman-sdd list --specs` / `llman-sdd show <capability>` 查全文。
 
 {{ unit("skills/validation-hints") }}
 

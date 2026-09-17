@@ -43,9 +43,9 @@ flowchart LR
 - Willing to hold multiple options and tradeoffs
 
 ## Suggested moves
-1. Use `llman sdd context --task "<task>" --paths "<files>"` to quickly locate relevant specs.
+1. Use `llman-sdd context --task "<task>" --paths "<files>"` to quickly locate relevant specs.
    - Read the `direct` spec files (these are the contracts you must understand).
-   - If context is unavailable, rebuild with `llman sdd index rebuild` (default `pageindex`, no model needed) and retry.
+   - If context is unavailable, rebuild with `llman-sdd index rebuild` (default `pageindex`, no model needed) and retry.
 2. Clarify the goal and constraints (ask 1–3 questions).
 3. **Grilling branch (optional, only when the user explicitly triggers)**: triggers on "deep-dig" / "grill" / "one at a time" / "nail it down". Walks the decision tree one question at a time:
    - **Ask one question at a time**, with your recommended answer, waiting for feedback before the next.
@@ -54,7 +54,7 @@ flowchart LR
    - **Write decisions back**: resolved decisions go into the change's `proposal.md` "Open Questions" section (planning shell; OK briefly on the default branch).
    - **Completion criterion**: every pending decision is resolved or explicitly deferred. When not triggered, the default (ask 1–3 questions) behavior is unchanged.
 4. If a change id is relevant, read its artifacts under `llmanspec/changes/<id>/`.
-   - When diagnosing validation errors, prefer `llman sdd validate <spec> --strict --no-check` (fast mode, skips the potentially slow `bdd.run_command`); resolve structural gates first (Gherkin / `@req` linkage / dual-write / req_id uniqueness), then run full mode (`--check` or `cargo test --features bdd`). The `FAIL <item_type>/<id>` lines in the output pin down each failing item.
+   - When diagnosing validation errors, prefer `llman-sdd validate <spec> --strict --no-check` (fast mode, skips the potentially slow `bdd.run_command`); resolve structural gates first (Gherkin / `@req` linkage / dual-write / req_id uniqueness), then run full mode (`--check` or `cargo test --features bdd`). The `FAIL <item_type>/<id>` lines in the output pin down each failing item.
 5. Explore options and tradeoffs (2–3 options).
 6. Assess change scale (triage) to determine if full SDD is needed.
 7. When something crystallizes, offer to capture it (don't auto-write):
@@ -72,7 +72,7 @@ If the user asks you to implement while in explore mode, STOP and remind them to
 
 > 💡 Explore done → next: `llman-sdd-propose` (propose) or `llman-sdd-quick` (quick path)
 
-> For command details run `llman sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables.
-> "Spec" here = a `.feature` file under this project's `llmanspec/specs/`; run `llman sdd list --specs` or `llman sdd show <capability>`.
+> For command details run `llman-sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables.
+> "Spec" here = a `.feature` file under this project's `llmanspec/specs/`; run `llman-sdd list --specs` or `llman-sdd show <capability>`.
 
 {{ unit("skills/structured-protocol") }}

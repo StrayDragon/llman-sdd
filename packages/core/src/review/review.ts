@@ -103,13 +103,13 @@ export function buildReview(input: ReviewInput, io: SpecIo): ReviewResult {
     'locked',
     '-',
     0,
-    `${boundChangeCount} bound change(s); inspect with \`llman sdd change diff <id>\``,
+    `${boundChangeCount} bound change(s); inspect with \`llman-sdd change diff <id>\``,
   );
   push(
     'validate',
     '-',
     failed.length,
-    failed.length > 0 ? 'validate --all failed; run `llman sdd validate --all` for details' : 'ok',
+    failed.length > 0 ? 'validate --all failed; run `llman-sdd validate --all` for details' : 'ok',
   );
 
   const warningCount = signals

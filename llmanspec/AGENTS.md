@@ -15,7 +15,7 @@ llman-sdd:spec 驱动开发(SDD)工作流(TypeScript + Bun),将完全接替 Rust
 - v1 契约参考(只读,禁止修改):`../llman/crates/llman-sdd`
 - 本工具行为契约:`llmanspec/specs/*.feature`(随各 change 在特性分支上落地)
 - 进度:Phase 0–7(bootstrap + 全部 port-* + refine-slop-qa-release)已归档;
-  活跃 change 以 `llman sdd list` 为准,发布与切换见 `release-v2-and-cutover` proposal
+  活跃 change 以 `llman-sdd list` 为准,发布与切换见 `release-v2-and-cutover` proposal
 
 ## 技术栈(已定案)
 
