@@ -9,7 +9,7 @@ metadata:
 
 一个又大又乱的工作来了——大到单个 agent 会话装不下，还裹着一团迷雾：从现在到**目的地**的路还看不见。这个 skill 不急着动手，而是先把路找出来。
 
-它把路径画成 llman SDD 的 **change 依赖图**（`llman sdd graph`）：每个子工作（ticket）解决一个**决策**而非交付一块代码，逐个解决直到路径清晰。
+它把路径画成 llman SDD 的 **change 依赖图**（`llman-sdd graph`）：每个子工作（ticket）解决一个**决策**而非交付一块代码，逐个解决直到路径清晰。
 
 ## Pipeline 位置
 
@@ -25,7 +25,7 @@ metadata:
 
 ## 地图结构
 
-地图本身是一个 change（总纲 proposal），它的子决策是 `depends_on` 的子 change。用 `llman sdd graph <map-id> --scope active` 可视化当前**可着手项**。
+地图本身是一个 change（总纲 proposal），它的子决策是 `depends_on` 的子 change。用 `llman-sdd graph <map-id> --scope active` 可视化当前**可着手项**。
 
 地图的 `proposal.md` 结构：
 
@@ -66,8 +66,8 @@ metadata:
 ### 画地图
 1. **命名目的地**：用 `llman-sdd-explore` 的逐问深挖分支钉死这趟地图要通往哪里。
 2. **广度优先扫可着手项**：再次逐问深挖，扇开而非深挖一条，把开放决策和现在能迈的第一步浮出来。若**没有模糊点浮出**——路径已清晰、整个工作一个会话能装下——那就不需要地图，停下问用户想怎么做。
-3. **创建地图**（总纲 change）：`llman sdd change new <map-id>`，填 Destination/Notes，Decisions-so-far 留空，模糊点写进尚未清晰区。
-4. **创建现在能说清的 ticket**为子 change，然后用 `llman sdd graph` 接依赖边（第二步：先有 id 才能互引）。
+3. **创建地图**（总纲 change）：`llman-sdd change new <map-id>`，填 Destination/Notes，Decisions-so-far 留空，模糊点写进尚未清晰区。
+4. **创建现在能说清的 ticket**为子 change，然后用 `llman-sdd graph` 接依赖边（第二步：先有 id 才能互引）。
 5. 为每个查资料 ticket 启动 `llman-sdd-research` 后台 subagent。
 6. 停——画图是单个会话的活，不要顺手解决任何决策。
 
@@ -79,9 +79,9 @@ metadata:
 5. 新增 ticket（先建再接线）；把答案让模糊点变清晰、升级成 ticket 的，从尚未清晰区移除。若答案揭示某 ticket 越过目的地，归入范围外而非在路径上解决。
 
 ## 输出
-地图 change + 子决策 change 的依赖图（`llman sdd graph`）。路径清晰后建议进入 `llman-sdd-propose`（含 Branch binding → Specs landing，至 `readyToImplement=true`）把决策收拢为可实施计划。
+地图 change + 子决策 change 的依赖图（`llman-sdd graph`）。路径清晰后建议进入 `llman-sdd-propose`（含 Branch binding → Specs landing，至 `readyToImplement=true`）把决策收拢为可实施计划。
 
-> 命令细节用 `llman sdd <cmd> --help` 查看；命令参考以 CLI 为准，skill 不内嵌命令表。
-> 文中「规约」= 本项目 `llmanspec/specs/` 下的 `.feature` 文件；用 `llman sdd list --specs` / `llman sdd show <capability>` 查全文。
+> 命令细节用 `llman-sdd <cmd> --help` 查看；命令参考以 CLI 为准，skill 不内嵌命令表。
+> 文中「规约」= 本项目 `llmanspec/specs/` 下的 `.feature` 文件；用 `llman-sdd list --specs` / `llman-sdd show <capability>` 查全文。
 
 {{ unit("skills/structured-protocol") }}

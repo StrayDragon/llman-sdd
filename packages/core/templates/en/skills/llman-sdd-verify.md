@@ -34,9 +34,9 @@ flowchart LR
 {{ unit("skills/stage-guard") }}
 
 ## Steps
-1. Select the change id (or ask the user to pick from `llman sdd list --json`).
+1. Select the change id (or ask the user to pick from `llman-sdd list --json`).
 2. Run a fast validation gate:
-   - `llman sdd validate <id> --strict --no-interactive`
+   - `llman-sdd validate <id> --strict --no-interactive`
    - **When diagnosing structural issues (Gherkin parse / `@req` linkage / dual-write / global req_id uniqueness), prefer adding `--no-check`** (skips the potentially slow `bdd.run_command` under BDD-on); run the full `--check` (full mode) only after structural gates are green. Each `FAIL <item_type>/<id>` line lists a failing item (above the Totals line).
 3. Read:
    - Live specs on the feature branch: `llmanspec/specs/**` (`<capability>.feature`) — SSOT
@@ -69,8 +69,8 @@ flowchart LR
    - The two axes may be reviewed in parallel (sub-agents); the report MUST present them separately, MUST NOT merge or cross-rerank (one axis passing must not mask the other failing).
 5. **BDD-on verification (Git-native Partitioned SSOT)** — only when `config.yaml` has a `bdd:` block:
    - Confirm the change is attached and you are on that feature branch.
-   - `llman sdd validate --specs`: Gherkin + `@req`/dual-write gates; runs `bdd.run_command` by default (`--no-check` to skip).
-   - Optional read-only review: `llman sdd change diff <id>` (or `--export-patch <path>`). Diff is review/export only — never treat it as an apply step.
+   - `llman-sdd validate --specs`: Gherkin + `@req`/dual-write gates; runs `bdd.run_command` by default (`--no-check` to skip).
+   - Optional read-only review: `llman-sdd change diff <id>` (or `--export-patch <path>`). Diff is review/export only — never treat it as an apply step.
    - Check: legacy `spec.toon` / `*.feature.delta.toon` absent; if present, run toon2features first (do not invent a solidify / repair hunt).
    - Next step after verify passes: `llman-sdd-archive` (not inline finalize here).
 {% if bdd_verify_prompt %}
@@ -80,7 +80,7 @@ flowchart LR
    - **CRITICAL** (must fix before archive)
    - **WARNING** (should fix)
    - **SUGGESTION** (nice to have)
-7. **Human review checkpoint**: once the report has no CRITICAL findings and before suggesting archive, run `llman sdd review`:
+7. **Human review checkpoint**: once the report has no CRITICAL findings and before suggesting archive, run `llman-sdd review`:
    - Exit code zero → suggest `llman-sdd-archive` for finalize/archive.
    - Non-zero exit = CRITICAL findings: fix via `llman-sdd-apply`, then re-run review; MUST NOT enter finalize/archive with CRITICAL findings open.
 
@@ -88,8 +88,8 @@ flowchart LR
 
 {{ unit("skills/git-native-flow-brief") }}
 {{ unit("skills/human-readable-summary") }}
-> For command details run `llman sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables.
-> "Spec" here = a `.feature` file under this project's `llmanspec/specs/`; run `llman sdd list --specs` or `llman sdd show <capability>`.
+> For command details run `llman-sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables.
+> "Spec" here = a `.feature` file under this project's `llmanspec/specs/`; run `llman-sdd list --specs` or `llman-sdd show <capability>`.
 
 {{ unit("skills/validation-hints") }}
 

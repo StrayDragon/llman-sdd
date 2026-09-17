@@ -36,9 +36,9 @@ flowchart LR
 - Is not a meta-spec change (SDD templates/process)
 
 ## Steps
-1. Use `llman sdd context --task "..." --paths "..."` to confirm no spec changes needed.
-   - If context returns `quality: "unavailable"`, rebuild with `llman sdd index rebuild` (default `pageindex`, no model needed).
-   - Use `llman sdd list --specs --json` for keyword-level spec metadata.
+1. Use `llman-sdd context --task "..." --paths "..."` to confirm no spec changes needed.
+   - If context returns `quality: "unavailable"`, rebuild with `llman-sdd index rebuild` (default `pageindex`, no model needed).
+   - Use `llman-sdd list --specs --json` for keyword-level spec metadata.
 2. Modify the code directly.
 3. If you need to touch `llmanspec/specs/**`, STOP unless you are on a bound non-default change branch (mini change: `change start`/`attach` → edit → commit). Never commit live specs on the default branch — not even for typo or scope-only fixes. Prefer routing live-spec maintenance to `llman-sdd-propose`, or require an existing bound branch.
 4. git commit (message must explain why).
@@ -46,11 +46,11 @@ flowchart LR
 
 ## Boundary handling
 - If during modification you find a behavioral contract change → STOP, switch to `llman-sdd-propose` (full path).
-- If multiple files are involved and scope is unclear → verify with `llman sdd context` first.
+- If multiple files are involved and scope is unclear → verify with `llman-sdd context` first.
 
 > 💡 Quick path done → git commit. If you need the full path → `llman-sdd-propose` → `llman-sdd-apply` → `llman-sdd-verify` → `llman-sdd-archive`
 
-> For command details run `llman sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables.
-> "Spec" here = a `.feature` file under this project's `llmanspec/specs/`; run `llman sdd list --specs` or `llman sdd show <capability>`.
+> For command details run `llman-sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables.
+> "Spec" here = a `.feature` file under this project's `llmanspec/specs/`; run `llman-sdd list --specs` or `llman-sdd show <capability>`.
 
 {{ unit("skills/ethics-governance") }}

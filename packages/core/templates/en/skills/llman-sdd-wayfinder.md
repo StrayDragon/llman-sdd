@@ -9,7 +9,7 @@ metadata:
 
 A loose, large idea has arrived — too big for a single agent session, wrapped in fog: the way from here to the **destination** isn't visible yet. This skill finds that way rather than charging at the destination.
 
-It charts the path as an llman SDD **change dependency graph** (`llman sdd graph`): each sub-work (ticket) resolves a **decision** rather than delivering a slice, worked one at a time until the way is clear.
+It charts the path as an llman SDD **change dependency graph** (`llman-sdd graph`): each sub-work (ticket) resolves a **decision** rather than delivering a slice, worked one at a time until the way is clear.
 
 ## Pipeline position
 
@@ -25,7 +25,7 @@ Auxiliary tool, for **pre-planning large work** before the main pipeline. When t
 
 ## Map structure
 
-The map is a change (overview proposal); its sub-decisions are `depends_on` child changes. Use `llman sdd graph <map-id> --scope active` to visualize the **frontier** (takeable items).
+The map is a change (overview proposal); its sub-decisions are `depends_on` child changes. Use `llman-sdd graph <map-id> --scope active` to visualize the **frontier** (takeable items).
 
 The map's `proposal.md` structure:
 
@@ -66,8 +66,8 @@ The map is **deliberately** incomplete. The test for ticket-vs-fog: **can you st
 ### Chart the map
 1. **Name the destination**: use `llman-sdd-explore`'s grilling branch to pin down what this map is finding its way to.
 2. **Breadth-first scan**: grill again, fanning out rather than deep-diving, surfacing open decisions and the first takeable steps. If **no fog surfaces** — the way is already clear, the whole effort fits one session — you don't need a map; stop and ask the user how to proceed.
-3. **Create the map** (overview change): `llman sdd change new <map-id>`, fill Destination/Notes, leave Decisions-so-far empty, write fog into Not yet specified.
-4. **Create the tickets you can specify now** as child changes, then wire blocking edges with `llman sdd graph` (second pass: ids needed before cross-referencing).
+3. **Create the map** (overview change): `llman-sdd change new <map-id>`, fill Destination/Notes, leave Decisions-so-far empty, write fog into Not yet specified.
+4. **Create the tickets you can specify now** as child changes, then wire blocking edges with `llman-sdd graph` (second pass: ids needed before cross-referencing).
 5. Spin up `llman-sdd-research` background subagents for each research ticket.
 6. Stop — charting is one session's work; resolve nothing by hand.
 
@@ -79,9 +79,9 @@ The map is **deliberately** incomplete. The test for ticket-vs-fog: **can you st
 5. Add newly-surfaced tickets (create-then-wire); graduate fog that the answer has made specifiable, clearing it from Not yet specified. If the answer reveals a ticket sits beyond the destination, rule it out of scope rather than resolving it on the route.
 
 ## Output
-Map change + child decision changes' dependency graph (`llman sdd graph`). When the way is clear, proceed to `llman-sdd-propose` (Branch binding → Specs landing through `readyToImplement=true`) to collapse decisions into an implementable plan.
+Map change + child decision changes' dependency graph (`llman-sdd graph`). When the way is clear, proceed to `llman-sdd-propose` (Branch binding → Specs landing through `readyToImplement=true`) to collapse decisions into an implementable plan.
 
-> For command details run `llman sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables.
-> "Spec" here = a `.feature` file under this project's `llmanspec/specs/`; run `llman sdd list --specs` or `llman sdd show <capability>`.
+> For command details run `llman-sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables.
+> "Spec" here = a `.feature` file under this project's `llmanspec/specs/`; run `llman-sdd list --specs` or `llman-sdd show <capability>`.
 
 {{ unit("skills/structured-protocol") }}

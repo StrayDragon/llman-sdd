@@ -31,13 +31,13 @@ flowchart LR
 - **MUST NOT create tasks/design/specs/attach**: this skill creates only the `proposal.md` draft shell. Full planning artifacts belong to `llman-sdd-propose`.
 - **MUST NOT run triage or assess change scale**: that is propose's job. If the user wants to start implementing, suggest `llman-sdd-propose`.
 - **Scope boundary**: if the description clearly involves MUST/SHALL behavioral contract changes or multi-file impact, suggest `llman-sdd-propose` instead of stopping at a draft — but still create the draft shell first so the idea isn't lost.
-- **Frontmatter has a fixed schema**: when fleshing out `proposal.md`, only the allowed fields in `llmanspec/AGENTS.md` "Change Proposal Frontmatter SSOT" are accepted (including `depends_on`, `blocks`, `branch`, `base_sha`, `needs_specs_change`). `status`/`title`/`priority`/`author` etc. are rejected by `llman sdd validate` as ERROR. Lifecycle stage is inferred — query it via `llman sdd show`/`list`, never store it in frontmatter. Do not re-declare frontmatter fields in the prose body (no `## Status` block); the body H1 is a human-readable title, not a repeat of the change id.
+- **Frontmatter has a fixed schema**: when fleshing out `proposal.md`, only the allowed fields in `llmanspec/AGENTS.md` "Change Proposal Frontmatter SSOT" are accepted (including `depends_on`, `blocks`, `branch`, `base_sha`, `needs_specs_change`). `status`/`title`/`priority`/`author` etc. are rejected by `llman-sdd validate` as ERROR. Lifecycle stage is inferred — query it via `llman-sdd show`/`list`, never store it in frontmatter. Do not re-declare frontmatter fields in the prose body (no `## Status` block); the body H1 is a human-readable title, not a repeat of the change id.
 
 ## Steps
 
 ### 0) Preflight
 - Read `llmanspec/config.yaml` for project context, rules, locale.
-- `llmanspec/` must exist; if missing, tell the user to run `llman sdd init`, then STOP.
+- `llmanspec/` must exist; if missing, tell the user to run `llman-sdd init`, then STOP.
 
 ### 1) Capture the description
 - Take the user's description as-is (e.g. "draft: add a export-to-json command", "note down: we should support worktrees for sdd changes").
@@ -45,7 +45,7 @@ flowchart LR
 
 ### 2) Create the draft shell
 ```bash
-llman sdd change new --from "<user description>"
+llman-sdd change new --from "<user description>"
 ```
 - The CLI generates a legal kebab-case id (sanitized + validated), creates `llmanspec/changes/<derived id>/proposal.md` (a skeleton with `## Why` / `## What Changes` TODO sections), and prints the final id + path.
 - If the derived id collides with an existing change, the CLI fails non-zero; suggest rephrasing the description or using `--force` to overwrite (rare for drafts).
@@ -58,7 +58,7 @@ llman sdd change new --from "<user description>"
 
 > 💡 Draft captured → next: edit `proposal.md`, then `llman-sdd-propose` to formalize.
 
-> For command details run `llman sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables.
-> "Spec" here = a `.feature` file under this project's `llmanspec/specs/`; run `llman sdd list --specs` or `llman sdd show <capability>`.
+> For command details run `llman-sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables.
+> "Spec" here = a `.feature` file under this project's `llmanspec/specs/`; run `llman-sdd list --specs` or `llman-sdd show <capability>`.
 
 {{ unit("skills/ethics-governance") }}

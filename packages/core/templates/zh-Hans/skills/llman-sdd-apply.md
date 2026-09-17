@@ -42,7 +42,7 @@ flowchart LR
 ## Commit 策略
 
 - **change 分支上提交自由**（无存档点概念：`change finalize` 不要求干净树）：可按 task/里程碑分段提交（利于 review），也可保持工作区不提交、交给 finalize 一次收尾——两条路都是一等公民。`change checkpoint` 已不存在（调用它以非零退出报错并指向 finalize），因此没有「中途存档点」要维护；`change finalize` 对两种形态都原生支持（不要求干净树）。
-- **默认收尾**：全部 task 过门禁且 verify 全绿后，`llman sdd change finalize <id>` 自动提交 `archive(sdd): <change-id>`（未提交的实现 diff + frontmatter + archive 改名一次提交）。不要在 apply 循环内 finalize。`--no-commit` 可跳过自动提交（手动/CI 历史、pre-commit hook 冲突场景）。
+- **默认收尾**：全部 task 过门禁且 verify 全绿后，`llman-sdd change finalize <id>` 自动提交 `archive(sdd): <change-id>`（未提交的实现 diff + frontmatter + archive 改名一次提交）。不要在 apply 循环内 finalize。`--no-commit` 可跳过自动提交（手动/CI 历史、pre-commit hook 冲突场景）。
 - **blocker 中断**：必须因 blocker STOP 时，先做**一次** WIP commit（如 `wip(sdd): <change-id> <摘要>`）保全现场，再报告。
 
 ## 步骤
@@ -51,18 +51,18 @@ flowchart LR
 - 读取并遵守：`llmanspec/config.yaml`、`AGENTS.md`（若存在）。
 - `git status --porcelain`：
   - 若工作区不干净且改动不属于当前 change：先 `git stash push -u -m "llman-sdd-apply autopilot backup"` 做备份。
-- 运行 `llman sdd validate --all --strict --no-interactive`：
+- 运行 `llman-sdd validate --all --strict --no-interactive`：
   - 若失败且与当前 change 无关，先停下报告（工件不一致会导致实现无法以 SSOT 驱动）。
-- **检查 spec valid_scope 完整性**：使用 `llman sdd list --specs --json` 列出所有 spec，然后对每个 spec 验证其 `valid_scope` 中的每个路径是否存在于磁盘上。若存在缺失的文件/目录，停下并建议更新 spec（从 `valid_scope` 中移除已删除的路径）。
+- **检查 spec valid_scope 完整性**：使用 `llman-sdd list --specs --json` 列出所有 spec，然后对每个 spec 验证其 `valid_scope` 中的每个路径是否存在于磁盘上。若存在缺失的文件/目录，停下并建议更新 spec（从 `valid_scope` 中移除已删除的路径）。
 
 ### 1) 选择变更 id 并检查前置条件
 - 若已提供 change id，直接使用。
-- 否则从上下文推断；若不明确，运行 `llman sdd list --json` 并让用户选择。
+- 否则从上下文推断；若不明确，运行 `llman-sdd list --json` 并让用户选择。
 - 始终说明："使用变更：<id>"，并告知如何覆盖。
-- 确认已在经 `llman sdd change start <id>` 或 `change attach <id>` 绑定的非默认 feature 分支上（仅在需要重绑时用 `--force`）。分支上的 specs/features 即 SSOT——不要在 `changes/<id>/specs/` 下编写。
+- 确认已在经 `llman-sdd change start <id>` 或 `change attach <id>` 绑定的非默认 feature 分支上（仅在需要重绑时用 `--force`）。分支上的 specs/features 即 SSOT——不要在 `changes/<id>/specs/` 下编写。
 {{ unit("skills/stage-guard") }}
-- 使用 `llman sdd context --task "<proposal 中的目标>" --paths "<specs 中的 scope>"` 获取相关 specs。
-  - 若 context 不可用，运行 `llman sdd index rebuild` 后重试。
+- 使用 `llman-sdd context --task "<proposal 中的目标>" --paths "<specs 中的 scope>"` 获取相关 specs。
+  - 若 context 不可用，运行 `llman-sdd index rebuild` 后重试。
 
 ### 2) 阅读 SSOT 工件
 必须通读以下文件：
@@ -89,8 +89,8 @@ flowchart LR
 运行项目门禁命令（根据项目实际选择）：
 - 相关测试集：`just test` 或 `cargo test --all`
 - 格式/lint：`just check` 或 `just lint` + `just fmt`
-- Git-native：留在绑定 feature 分支；按需编辑 live `llmanspec/specs/<capability>.feature`（扁平，或目录 `llmanspec/specs/<capability>/` 内主文件；规则 `@human`，验收 `@executable`）；spec 改动后跑 `llman sdd validate --specs`；分支上可自由提交（分段，或留脏交给 finalize）。勿使用 `change delta` / solidify / feature_delta；`change checkpoint` 已移除。
-- SDD 校验：`llman sdd validate <id> --strict --no-interactive`
+- Git-native：留在绑定 feature 分支；按需编辑 live `llmanspec/specs/<capability>.feature`（扁平，或目录 `llmanspec/specs/<capability>/` 内主文件；规则 `@human`，验收 `@executable`）；spec 改动后跑 `llman-sdd validate --specs`；分支上可自由提交（分段，或留脏交给 finalize）。勿使用 `change delta` / solidify / feature_delta；`change checkpoint` 已移除。
+- SDD 校验：`llman-sdd validate <id> --strict --no-interactive`
 
 **若失败 → 进入自修复循环（不要问要不要继续）：**
 1. 解析失败原因（测试失败 / lint / 格式 / 校验错误）。
@@ -107,7 +107,7 @@ flowchart LR
 
 **自修复上限 8 轮**；超过仍不通过视为 blocker：停止并输出 blocker 报告（含最后一次失败命令与输出摘要、你已尝试的修复）。
 
-**人审检查点（每个 task 批次门禁通过后）**：批次全绿后、进入下一批次或输出完成报告前，运行 `llman sdd review`：
+**人审检查点（每个 task 批次门禁通过后）**：批次全绿后、进入下一批次或输出完成报告前，运行 `llman-sdd review`：
 
 - 退出码为零 → 继续。
 - 非零退出 = 存在 CRITICAL 发现：STOP，修复后重跑 review；MUST NOT 带着 CRITICAL 进入下一批次或输出完成报告。
@@ -118,8 +118,8 @@ flowchart LR
 
 > 💡 实施完成 → 下一步 `llman-sdd-verify`（验证）
 
-> 命令细节用 `llman sdd <cmd> --help` 查看；命令参考以 CLI 为准，skill 不内嵌命令表。
-> 文中「规约」= 本项目 `llmanspec/specs/` 下的 `.feature` 文件；用 `llman sdd list --specs` / `llman sdd show <capability>` 查全文。
+> 命令细节用 `llman-sdd <cmd> --help` 查看；命令参考以 CLI 为准，skill 不内嵌命令表。
+> 文中「规约」= 本项目 `llmanspec/specs/` 下的 `.feature` 文件；用 `llman-sdd list --specs` / `llman-sdd show <capability>` 查全文。
 
 {{ unit("skills/validation-hints") }}
 

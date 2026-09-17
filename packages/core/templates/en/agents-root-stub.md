@@ -6,4 +6,4 @@ This project uses llman SDD. Read `llmanspec/config.yaml` for SDD command behavi
 
 Use `/llman-sdd-explore` to get started, then follow the pipeline: `/llman-sdd-propose` → `/llman-sdd-apply` → `/llman-sdd-verify` → `/llman-sdd-archive`.
 
-Keep this managed block so `llman sdd init --update` can refresh it.
+Keep this managed block so `llman-sdd init --update` can refresh it.
