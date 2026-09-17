@@ -1,6 +1,6 @@
 {
   "name": "@llman-sdd/core",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Pure domain logic for llman-sdd (config, gherkin specs, validation, templates)",
   "license": "MIT",
   "repository": {
