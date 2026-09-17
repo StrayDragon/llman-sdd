@@ -71,17 +71,22 @@ export function startChange(
   return { branch, baseBranch, baseSha };
 }
 
-/** `change attach`: bind the current branch without gates. */
+/** `change attach`: bind the current branch — same branch gate family as start (r31). */
 export function attachChange(git: GitLike, io: FsIo, id: string): { branch: string } {
   const path = proposalPath(id);
   if (!io.exists(path)) throw new LifecycleError(`proposal not found: ${path}`);
   const branch = currentBranch(git);
-  if (branch === null) throw new LifecycleError('detached HEAD — cannot attach');
+  // `branch --show-current` prints an empty line on detached HEAD, not nothing.
+  if (branch === null || branch === '') throw new LifecycleError('detached HEAD — cannot attach');
+  const baseBranch = defaultBranch(git);
+  if (branch === baseBranch) {
+    throw new LifecycleError(
+      `changes must not attach on the default branch (\`${branch}\`); ` +
+        'create/switch to a feature branch first (or use `change start`)',
+    );
+  }
   const baseSha = revParseHead(git);
-  io.writeText(
-    path,
-    writeBinding(io.readText(path), { branch, baseBranch: defaultBranch(git), baseSha }),
-  );
+  io.writeText(path, writeBinding(io.readText(path), { branch, baseBranch, baseSha }));
   return { branch };
 }
 

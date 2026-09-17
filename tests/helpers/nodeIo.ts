@@ -3,7 +3,15 @@
  * directory. Mirrors apps/cli/src/io.ts's CliIo resolution (root-relative
  * paths; absolute pass through) without importing the CLI entrypoint.
  */
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname, isAbsolute, join } from 'node:path';
 
 export function makeNodeIo(root: string) {
@@ -21,5 +29,6 @@ export function makeNodeIo(root: string) {
     },
     listDir: (p: string): string[] => readdirSync(full(p)),
     removeDir: (p: string): void => rmSync(full(p), { recursive: true, force: true }),
+    rename: (from: string, to: string): void => renameSync(full(from), full(to)),
   };
 }

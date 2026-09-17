@@ -1,5 +1,8 @@
 ---
 depends_on: []
+branch: sdd/fix-attach-default-branch
+base_branch: main
+base_sha: b881a4acf6afc309aed4d608089073a77299505f
 ---
 
 # change attach 补默认分支门禁

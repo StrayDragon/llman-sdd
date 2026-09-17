@@ -31,3 +31,15 @@
   @req:r16 @human
   场景: 默认分支 local-first 解析
     - 默认分支 MUST 按 main → master → origin/HEAD → origin/* 顺序取第一个本地存在者;四者皆缺 MUST 报错。
+
+  @req:r31 @human
+  场景: attach 默认分支门
+    - `change attach` MUST 拒绝在默认分支上执行(报错且不写任何绑定),错误信息 MUST 含默认分支名与建议动作(创建/切换 feature 分支或改用 `change start`);detached HEAD MUST 同样报错;绑定门与 `change start` 的分支门语义保持一致。
+
+  @req:r31 @executable
+  场景: attach 默认分支被拒
+    假如 一个已提交的临时 git 仓库含 change "demo-attach" 的 proposal
+    当 在默认分支上对其运行 change attach
+    那么 attach 报错且不写绑定
+    当 切到特性分支再运行 change attach
+    那么 attach 绑定写入当前分支

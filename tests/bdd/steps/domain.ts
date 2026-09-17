@@ -657,3 +657,49 @@ bdd.thenStep('archived 节点被标注 done 且依赖边保留', (ctx) => {
     throw new Error(`depends-on edge missing from graph output:\n${out}`);
   }
 });
+
+// ---------------------------------------------------------------------------
+// r31 — change attach default-branch gate (acceptance)
+// ---------------------------------------------------------------------------
+
+interface AttachResult {
+  code: number;
+  stdout: string;
+}
+
+bdd.when('在默认分支上对其运行 change attach', (ctx) => {
+  const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
+  const id = (ctx.fixtures['change'] as { id: string }).id;
+  const result = repo.run('bun', [CLI, 'change', 'attach', id]);
+  ctx.fixtures['attach结果'] = { code: result.code, stdout: result.stdout } satisfies AttachResult;
+});
+
+bdd.thenStep('attach 报错且不写绑定', (ctx) => {
+  const result = ctx.fixtures['attach结果'] as AttachResult;
+  const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
+  const id = (ctx.fixtures['change'] as { id: string }).id;
+  if (result.code === 0)
+    throw new Error(`attach should have failed on default branch: ${result.stdout}`);
+  const proposal = readFileSync(join(repo.root, 'llmanspec', 'changes', id, 'proposal.md'), 'utf8');
+  if (proposal.includes('branch:'))
+    throw new Error(`binding written despite gate failure:\n${proposal}`);
+});
+
+bdd.when('切到特性分支再运行 change attach', (ctx) => {
+  const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
+  const id = (ctx.fixtures['change'] as { id: string }).id;
+  repo.run('git', ['switch', '-qc', 'feat/attach']);
+  const result = repo.run('bun', [CLI, 'change', 'attach', id]);
+  ctx.fixtures['attach结果'] = { code: result.code, stdout: result.stdout } satisfies AttachResult;
+});
+
+bdd.thenStep('attach 绑定写入当前分支', (ctx) => {
+  const result = ctx.fixtures['attach结果'] as AttachResult;
+  const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
+  const id = (ctx.fixtures['change'] as { id: string }).id;
+  if (result.code !== 0) throw new Error(`attach failed on feature branch: ${result.stdout}`);
+  const proposal = readFileSync(join(repo.root, 'llmanspec', 'changes', id, 'proposal.md'), 'utf8');
+  if (!proposal.includes('branch: feat/attach')) {
+    throw new Error(`binding for feat/attach missing:\n${proposal}`);
+  }
+});
