@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 import { spawnSync } from 'node:child_process';
-import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import {
@@ -9,6 +9,7 @@ import {
   buildReview,
   collectChanges,
   collectSpecs,
+  discoverSpecs,
   graphMermaid,
   nextReqId,
   changeDiff,
@@ -17,10 +18,10 @@ import {
   loadConfig,
   loadTree,
   newChange,
-  parseCapability,
   renderChangesJson,
   runContextRetrieval,
   renderChangesList,
+  renderReviewHtml,
   renderSpecsJson,
   renderSpecsList,
   runInit,
@@ -34,10 +35,10 @@ import {
   runList,
   runThaw,
   validateAllSpecs,
-  type TagBinding,
-  type GitLike,
+  TEMPLATES_ROOT,
   resolveChatConfig,
   unavailableResult,
+  type TemplateIo,
 } from '@llman-sdd/core';
 import { Command } from 'commander';
 
@@ -47,23 +48,19 @@ import { makeCliGit, makeIo } from './io.ts';
 // package version when running from source.
 const version = process.env.LLMAN_SDD_VERSION ?? VERSION;
 
-function collectFeatureFiles(dir: string): string[] {
-  if (!existsSync(dir) || !statSync(dir).isDirectory()) return [];
-  const out: string[] = [];
-  for (const name of readdirSync(dir).toSorted()) {
-    const full = join(dir, name);
-    if (statSync(full).isDirectory()) out.push(...collectFeatureFiles(full));
-    else if (name.endsWith('.feature')) out.push(full);
-  }
-  return out;
+/** Real-filesystem adapter for template resources under TEMPLATES_ROOT. */
+const templateIo: TemplateIo = {
+  exists: (p) => existsSync(p),
+  readText: (p) => readFileSync(p, 'utf8'),
+};
+
+/** Parse all capability specs under llmanspec/specs via core discovery. */
+function loadSpecEntries(): ReturnType<typeof discoverSpecs> {
+  return discoverSpecs('llmanspec/specs', makeIo(process.cwd()));
 }
 
 function runValidateSpecs(options: { specs?: boolean; check: boolean }): number {
-  const entries = collectFeatureFiles('llmanspec/specs').map((path) => ({
-    fileName: path,
-    doc: parseCapability(readFileSync(path, 'utf8'), path),
-  }));
-  const report = validateAllSpecs(entries, makeIo(process.cwd()));
+  const report = validateAllSpecs(loadSpecEntries(), makeIo(process.cwd()));
   for (const line of report.lines) console.log(line);
 
   let failed = report.failed;
@@ -88,7 +85,7 @@ program
   .option('--update', 'refresh an existing installation')
   .option('--locale <locale>', 'locale for generated templates (defaults to config or en)')
   .action((options: { update?: boolean; locale?: string }) => {
-    const result = runInit(process.cwd(), {
+    const result = runInit(makeIo(process.cwd()), templateIo, {
       update: options.update ?? false,
       locale: options.locale,
       version,
@@ -134,7 +131,7 @@ change
   .argument('<id>')
   .option('--branch-prefix <prefix>', 'feature branch prefix', 'sdd/')
   .action((id: string, options: { branchPrefix: string }) => {
-    const git: GitLike = makeCliGit(process.cwd());
+    const git = makeCliGit(process.cwd());
     const result = startChange(git, makeIo(process.cwd()), id, {
       branchPrefix: options.branchPrefix,
     });
@@ -197,11 +194,7 @@ program
   .option('--json', 'machine-readable output')
   .action((options: { specs?: boolean; json?: boolean }) => {
     if (options.specs) {
-      const entries = collectFeatureFiles('llmanspec/specs').map((path) => ({
-        fileName: path,
-        doc: parseCapability(readFileSync(path, 'utf8'), path),
-      }));
-      const summaries = collectSpecs(entries);
+      const summaries = collectSpecs(loadSpecEntries());
       console.log(
         options.json ? renderSpecsJson(summaries) : renderSpecsList(summaries).join('\n'),
       );
@@ -229,11 +222,7 @@ program
         process.exitCode = 1;
         return;
       }
-      const entries = collectFeatureFiles('llmanspec/specs').map((specPath) => ({
-        fileName: specPath,
-        doc: parseCapability(readFileSync(specPath, 'utf8'), specPath),
-      }));
-      const summary = collectSpecs(entries).find((x) => x.id === item);
+      const summary = collectSpecs(loadSpecEntries()).find((x) => x.id === item);
       const morphology = summary
         ? `\n\n## Morphology\nruleCount=${summary.morphology.ruleCount} enforced=${summary.morphology.ruleEnforcedCount} manual=${summary.morphology.ruleManualCount} pending=${summary.morphology.rulePendingCount} acceptanceCount=${summary.morphology.acceptanceCount}`
         : '';
@@ -245,14 +234,12 @@ program
       process.exitCode = 1;
       return;
     }
-    const io = makeIo(process.cwd());
     const result = showChangeJson(
       {
-        io,
-        discovery: makeIo(process.cwd()),
+        io: makeIo(process.cwd()),
+        git: makeCliGit(process.cwd()),
         root: process.cwd(),
         specsDir: 'llmanspec/specs',
-        now: new Date(),
       },
       item,
     );
@@ -370,30 +357,24 @@ review
   .option('--json', 'emit structured JSON (signals + summary)')
   .option('--export-html <path>', 'write a self-contained HTML report')
   .action((options: { capability?: string; json?: boolean; exportHtml?: string }) => {
-    const entries = collectFeatureFiles('llmanspec/specs').map((path) => ({
-      fileName: path,
-      doc: parseCapability(readFileSync(path, 'utf8'), path),
-    }));
     const config = existsSync('llmanspec/config.yaml')
       ? loadConfig(readFileSync('llmanspec/config.yaml', 'utf8'))
       : null;
     const bindings = config?.bdd?.bindings?.filter((b) => b.kind === 'tags') ?? [];
-    const changeIo = makeIo(process.cwd());
-    const boundCount = collectChanges(changeIo, process.cwd(), new Date()).filter(
-      (c) => c.hasBinding,
-    ).length;
-    const activeChanges = collectChanges(changeIo, process.cwd(), new Date());
+    const io = makeIo(process.cwd());
+    const activeChanges = collectChanges(io, process.cwd(), new Date());
     const result = buildReview(
       {
-        entries,
-        bindings: bindings as TagBinding[],
-        boundChangeCount: boundCount,
+        entries: loadSpecEntries(),
+        bindings: bindings.map((b) => ({ kind: 'tags', tags: b.tags })),
+        boundChangeCount: activeChanges.filter((c) => c.hasBinding).length,
         activeChanges,
       },
-      makeIo(process.cwd()),
+      io,
     );
     if (options.exportHtml !== undefined) {
-      writeFileSync(options.exportHtml, renderReviewHtml(result));
+      const template = readFileSync(join(TEMPLATES_ROOT, 'shared', 'review.html'), 'utf8');
+      writeFileSync(options.exportHtml, renderReviewHtml(template, result));
       console.log(`wrote ${options.exportHtml}`);
     }
     if (options.json) {
@@ -404,43 +385,6 @@ review
     if (result.exitCode !== 0) process.exitCode = result.exitCode;
   });
 
-/** Self-contained HTML report via the v1 shared/review.html template. */
-function renderReviewHtml(result: {
-  signals: { kind: string; capability: string; count: number; detail: string }[];
-  summary: { criticalCount: number; warningCount: number };
-}): string {
-  // main.ts sits at <root>/apps/cli/src — three levels up is the repo root.
-  const templatePath = join(
-    import.meta.dirname ?? '.',
-    '..',
-    '..',
-    '..',
-    'packages',
-    'core',
-    'templates',
-    'shared',
-    'review.html',
-  );
-  const template = readFileSync(templatePath, 'utf8');
-  const esc = (input: string): string =>
-    input.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
-  let mermaid = 'graph TD\n';
-  const sigJson: unknown[] = [];
-  result.signals.forEach((s, idx) => {
-    const label = esc(
-      `${s.capability} [${s.kind}] = ${s.count} — ${s.detail === '' ? 'ok' : s.detail}`,
-    );
-    mermaid += `    s${idx}["${label}"]\n`;
-    sigJson.push({ kind: s.kind, capability: s.capability, count: s.count, detail: s.detail });
-  });
-  return template
-    .replaceAll('__CRITICAL__', String(result.summary.criticalCount))
-    .replaceAll('__WARNING__', String(result.summary.warningCount))
-    .replaceAll('__SIGNALS__', JSON.stringify(sigJson))
-    .replaceAll('__MERMAID__', mermaid)
-    .replaceAll('__GENERATED__', new Date().toISOString());
-}
-
 const indexCmd = program
   .command('index')
   .description('Index management commands (rebuild, check freshness)');
@@ -449,14 +393,15 @@ indexCmd
   .command('rebuild')
   .description('Rebuild the pageindex tree from spec IR (no LLM)')
   .action(() => {
-    const indexIo = makeIo(process.cwd());
-    const entries = collectFeatureFiles('llmanspec/specs').map((path) => ({
-      fileName: path,
-      doc: parseCapability(readFileSync(path, 'utf8'), path),
-    }));
-    const result = rebuildIndex(indexIo, process.cwd(), 'llmanspec/specs', entries, {
-      chatModel: process.env.LLMAN_SDD_INDEX_CHAT_MODEL ?? '',
-    });
+    const result = rebuildIndex(
+      makeIo(process.cwd()),
+      process.cwd(),
+      'llmanspec/specs',
+      loadSpecEntries(),
+      {
+        chatModel: process.env.LLMAN_SDD_INDEX_CHAT_MODEL ?? '',
+      },
+    );
     for (const line of result.lines) console.log(line);
   });
 

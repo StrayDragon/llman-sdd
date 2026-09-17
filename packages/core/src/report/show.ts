@@ -1,53 +1,34 @@
 import { readBinding } from '../change/frontmatter.ts';
 import { CHANGES_DIR } from '../change/lifecycle.ts';
-import { isCleanTree, currentBranch, makeSpawnGit } from '../git/spawnGit.ts';
-import { discoverSpecs, type DiscoveryIo } from '../validation/discover.ts';
+import { currentBranch, isCleanTree, type GitLike } from '../git/spawnGit.ts';
+import { discoverSpecs } from '../validation/discover.ts';
 /**
  * show change JSON (peripheral-commands capability, r21): v1 field set and
  * gate structure (clean-tree / on-bound-branch / stage-complete /
  * specs-landed / tasks-done / validate). Object keys are inserted in v1's
- * order; consumers compare structurally.
+ * order; consumers compare structurally. Effects flow through the injected
+ * FsIo and GitLike ports — this module stays pure.
  */
 import { validateAllSpecs } from '../validation/validate.ts';
-import { stageFor, type ChangeFsIo } from './collect.ts';
+import { countTasks, firstH1, stageFor, type ChangeFsIo } from './collect.ts';
 
-export interface ShowFsIo extends ChangeFsIo {
-  readText(path: string): string;
-}
+export type ShowFsIo = ChangeFsIo;
 
 export interface ShowDeps {
+  /** Single IO for change docs, tasks, and spec scope checks. */
   io: ShowFsIo;
-  discovery: DiscoveryIo;
+  git: GitLike;
   root: string;
   specsDir: string;
-  now: Date;
-}
-
-function parseTasks(md: string): { completed: number; total: number } {
-  let completed = 0;
-  let total = 0;
-  for (const line of md.split('\n')) {
-    const m = line.match(/^\s*-\s+\[( |x|X)\]/u);
-    if (m) {
-      total += 1;
-      if (m[1] !== ' ') completed += 1;
-    }
-  }
-  return { completed, total };
-}
-
-function existsSyncLike(deps: ShowDeps, p: string): boolean {
-  return deps.io.exists(p) || deps.discovery.exists(p);
 }
 
 export function showChangeJson(deps: ShowDeps, id: string): Record<string, unknown> {
-  const { io, discovery, root, now } = deps;
+  const { io, git, root } = deps;
   const dir = `${root}/${CHANGES_DIR}/${id}`;
   const proposalPath = `${dir}/proposal.md`;
   if (!io.exists(proposalPath)) throw new Error(`change not found: ${id}`);
 
   const proposal = io.readText(proposalPath);
-  const titleMatch = proposal.match(/^#\s+(.*)$/mu);
   const hasDesign = io.exists(`${dir}/design.md`);
   const hasTasks = io.exists(`${dir}/tasks.md`);
   const binding = readBinding(proposal);
@@ -57,10 +38,9 @@ export function showChangeJson(deps: ShowDeps, id: string): Record<string, unkno
     io.exists(`${dir}/${f}`),
   );
   const { completed, total } = hasTasks
-    ? parseTasks(io.readText(`${dir}/tasks.md`))
+    ? countTasks(io.readText(`${dir}/tasks.md`))
     : { completed: 0, total: 0 };
 
-  const git = makeSpawnGit(root);
   const cleanTree = isCleanTree(git);
   const onBoundBranch = binding !== null && currentBranch(git) === binding.branch;
 
@@ -77,9 +57,7 @@ export function showChangeJson(deps: ShowDeps, id: string): Record<string, unkno
   const needsSpecsChange = declaredNeeds !== undefined ? declaredNeeds === 'true' : true;
 
   const tasksDone = total > 0 && completed >= total;
-  const specReport = validateAllSpecs(discoverSpecs(deps.specsDir, discovery), {
-    exists: (p: string) => existsSyncLike(deps, p),
-  });
+  const specReport = validateAllSpecs(discoverSpecs(deps.specsDir, io), io);
   const validateOk = !specReport.failed && (total === 0 || tasksDone);
 
   const stageComplete = stage === 'full';
@@ -118,12 +96,11 @@ export function showChangeJson(deps: ShowDeps, id: string): Record<string, unkno
       hint: validateOk ? '' : 'fix issues reported by `llman-sdd validate <id> --strict`',
     },
   ];
-  void now;
 
   return {
     id,
     path: id,
-    title: titleMatch?.[1]?.trim() ?? '',
+    title: firstH1(proposal),
     stage,
     artifacts,
     readyToImplement: gateChecks.every((g) => g.pass),

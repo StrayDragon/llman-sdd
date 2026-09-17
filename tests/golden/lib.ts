@@ -7,6 +7,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   readdirSync,
   rmSync,
   writeFileSync,
@@ -14,10 +15,18 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { runInit } from '@llman-sdd/core';
+import { runInit, type TemplateIo } from '@llman-sdd/core';
+
+import { makeNodeIo } from '../helpers/nodeIo.ts';
 
 export const GOLDEN_DIR = import.meta.dirname;
 export const BASELINE_DIR = join(GOLDEN_DIR, 'baseline');
+
+/** Real-filesystem adapter for template resources. */
+const templateIo: TemplateIo = {
+  exists: (p) => existsSync(p),
+  readText: (p) => readFileSync(p, 'utf8'),
+};
 
 /** Equivalent to the repo's llmanspec/config.yaml (locale zh-Hans + bdd-on). */
 export const CONFIG_YAML = `# yaml-language-server: $schema=https://raw.githubusercontent.com/StrayDragon/llman/main/artifacts/schema/configs/en/llmanspec-config.schema.json
@@ -43,7 +52,7 @@ export function renderV2Skills(): RenderResult {
   mkdirSync(join(tmpRoot, 'llmanspec'), { recursive: true });
   writeFileSync(join(tmpRoot, 'llmanspec', 'config.yaml'), CONFIG_YAML);
   const version = '0.1.0';
-  runInit(tmpRoot, { update: true, version });
+  runInit(makeNodeIo(tmpRoot), templateIo, { update: true, version });
   const skillsDir = join(tmpRoot, '.agents', 'skills');
   if (!existsSync(skillsDir)) {
     throw new Error(`v2 did not render skills into ${skillsDir}`);

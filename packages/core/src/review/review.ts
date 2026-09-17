@@ -140,3 +140,35 @@ export function buildReview(input: ReviewInput, io: SpecIo): ReviewResult {
     exitCode: criticalCount > 0 ? 1 : 0,
   };
 }
+
+/** `review --export-html`: fill the v1 shared/review.html template (pure —
+ * callers read the template; CLI passes it via core's TEMPLATES_ROOT). */
+export function renderReviewHtml(
+  template: string,
+  result: {
+    signals: readonly { kind: string; capability: string; count: number; detail: string }[];
+    summary: { criticalCount: number; warningCount: number };
+  },
+): string {
+  const esc = (input: string): string =>
+    input
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;');
+  let mermaid = 'graph TD\n';
+  const sigJson: unknown[] = [];
+  result.signals.forEach((s, idx) => {
+    const label = esc(
+      `${s.capability} [${s.kind}] = ${s.count} — ${s.detail === '' ? 'ok' : s.detail}`,
+    );
+    mermaid += `    s${idx}["${label}"]\n`;
+    sigJson.push({ kind: s.kind, capability: s.capability, count: s.count, detail: s.detail });
+  });
+  return template
+    .replaceAll('__CRITICAL__', String(result.summary.criticalCount))
+    .replaceAll('__WARNING__', String(result.summary.warningCount))
+    .replaceAll('__SIGNALS__', JSON.stringify(sigJson))
+    .replaceAll('__MERMAID__', mermaid)
+    .replaceAll('__GENERATED__', new Date().toISOString());
+}
