@@ -291,16 +291,11 @@ const project = program.command('project').description('Project management comma
 
 project
   .command('migrate')
-  .description('Legacy migration entry (no-op in v2)')
+  .description('Legacy migration entry (informational only)')
   .action(() => {
+    console.log('legacy 迁移实现(spec.toon / specs-flatten 等)不随本工具提供;');
     console.log(
-      'v2 不携带 legacy 迁移实现:spec.toon / specs-flatten 等迁移请使用 v1(Rust llman <= 0.0.x),',
-    );
-    console.log(
-      '例如 `cargo install llman@0.0.77 --features` 后运行 `llman sdd project migrate --kind toon2features --yes`。',
-    );
-    console.log(
-      'v2 直接读取 v1 的 llmanspec 布局(config.yaml / specs/*.feature / changes/),零迁移可读。',
+      '本工具直接读取既有 llmanspec 布局(config.yaml / specs/*.feature / changes/),零迁移可读。',
     );
   });
 

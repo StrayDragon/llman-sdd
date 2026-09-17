@@ -28,7 +28,7 @@
   - README 门禁表与 `docs/acceptance-v2.md` 改写为纯 v2 口径(临时章节转正式记录)
   - 门:just qa + golden:check(v2 基线)全绿;仓库内 `grep -r "golden:cli\|check-validate"` 零残留
 
-- [ ] T6 去 v1 化清理清单 [blocked-by: T5]
+- [x] T6 去 v1 化清理清单 [blocked-by: T5]
   - `packages/core/templates/` 模板 v1 措辞审计(改动同步刷新基线)
   - `project migrate` stub 文案改写(去 v1 指引,与 r22 修订后合约一致)
   - 代码注释出处标注审计(可选保留工程史实);README/AGENTS 验收条款措辞对齐
