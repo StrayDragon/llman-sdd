@@ -220,6 +220,9 @@ function makeTempRepo(): TempRepo {
     return { code: proc.status ?? 1, stdout: proc.stdout ?? '' };
   };
   gitRun(['init', '-q', '-b', 'main']);
+  // 仓库级身份:CLI 的 finalize 内部也会 commit,CI runner 无全局身份
+  gitRun(['config', 'user.email', 't@t']);
+  gitRun(['config', 'user.name', 't']);
   mkdirSync(join(root, 'llmanspec', 'specs'), { recursive: true });
   writeFileSync(join(root, 'llmanspec', 'config.yaml'), 'schema: spec-driven\n');
   writeFileSync(
