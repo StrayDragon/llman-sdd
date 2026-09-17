@@ -27,8 +27,9 @@ export function renderWithUnits(
     throw new Error(`unit nesting exceeded ${MAX_UNIT_NESTING_DEPTH}`);
   }
   // minijinja keep_trailing_newline=false: a single trailing newline of the
-  // template SOURCE is stripped before rendering (v1 parity).
-  const source = raw.replace(/\n$/u, '').replace(/\r\n$/u, '');
+  // template SOURCE is stripped before rendering (v1 parity). \r? first —
+  // stripping \n alone would strand a trailing \r for CRLF sources.
+  const source = raw.replace(/\r?\n$/u, '');
   const env = new nunjucks.Environment(null, { autoescape: false });
   for (const [key, value] of Object.entries(vars)) {
     env.addGlobal(key, value);
