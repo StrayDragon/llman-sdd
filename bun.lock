@@ -35,18 +35,12 @@
       "name": "@llman-sdd/core",
       "version": "0.1.0",
       "dependencies": {
+        "7z-wasm": "^1.2.0",
+        "@cucumber/gherkin": "^42.0.1",
+        "@cucumber/messages": "^34.2.1",
+        "nunjucks": "^3.2.4",
         "yaml": "^2.9.1",
         "zod": "^4.6.5",
-      },
-    },
-    "packages/llmanspec": {
-      "name": "llmanspec",
-      "version": "0.1.0",
-      "bin": {
-        "llmanspec": "./bin/llmanspec.mjs",
-      },
-      "dependencies": {
-        "@llman-sdd/cli": "workspace:*",
       },
     },
   },
@@ -190,8 +184,6 @@
     "bun-types": ["bun-types@1.4.2", "", { "dependencies": { "@types/node": "*" } }, "sha512-bxV1FgK7yBIzjRe5zBozIM4Bem11ZJcCXSrjWRG3YWLt8yFDePu4cLjpebO8OvPeIE9trbyPF4fuj3Cia4Fj3w=="],
 
     "commander": ["commander@15.0.0", "", {}, "sha512-z67u4ZhzCL/Tydu1lJARtEZYWbWaN7oYLHbsuzocr6y4N6WZAagG3RQ4FW61V1/0+jImpj293XfrcYnd1qxtPg=="],
-
-    "llmanspec": ["llmanspec@workspace:packages/llmanspec"],
 
     "nunjucks": ["nunjucks@3.2.4", "", { "dependencies": { "a-sync-waterfall": "^1.0.0", "asap": "^2.0.3", "commander": "^5.1.0" }, "peerDependencies": { "chokidar": "^3.3.0" }, "optionalPeers": ["chokidar"], "bin": { "nunjucks-precompile": "bin/precompile" } }, "sha512-26XRV6BhkgK0VOxfbU5cQI+ICFUtMLixv1noZn1tGU38kQH5A5nmmbk/O45xdyBhD1esk47nKrY0mvQpZIhRjQ=="],
 

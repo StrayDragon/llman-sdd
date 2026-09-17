@@ -9,7 +9,8 @@
     "directory": "packages/core"
   },
   "files": [
-    "src"
+    "src",
+    "templates"
   ],
   "type": "module",
   "exports": {
@@ -23,6 +24,10 @@
     "typecheck": "bun run --cwd ../.. typecheck"
   },
   "dependencies": {
+    "7z-wasm": "^1.2.0",
+    "@cucumber/gherkin": "^42.0.1",
+    "@cucumber/messages": "^34.2.1",
+    "nunjucks": "^3.2.4",
     "yaml": "^2.9.1",
     "zod": "^4.6.5"
   },
