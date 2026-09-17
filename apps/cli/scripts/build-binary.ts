@@ -1,7 +1,8 @@
 // Build the CLI into a single self-contained binary via Bun.compile.
 // Version SSOT is the git tag (vX.Y.Z); falls back to the package version for
-// local/dev builds. The value is injected as process.env.LLMAN_SDD_VERSION at
-// build time (see apps/cli/src/main.ts).
+// local/dev builds. The value (leading `v` stripped) is injected as
+// process.env.LLMAN_SDD_VERSION at build time (see apps/cli/src/main.ts), so
+// `--version` and init-rendered llman_version match the npm package version.
 //
 // Templates are embedded the same way: Bun <= 1.4.x has no working embedding
 // mechanism (assets/?raw/?asset), so packages/core/templates is collected into
@@ -27,7 +28,8 @@ const exactTag = Bun.spawnSync(['git', 'describe', '--tags', '--exact-match', '-
   stdout: 'pipe',
   stderr: 'pipe',
 });
-const version = exactTag.exitCode === 0 ? exactTag.stdout.toString().trim() : pkg.version;
+const version =
+  exactTag.exitCode === 0 ? exactTag.stdout.toString().trim().replace(/^v/u, '') : pkg.version;
 
 const binName = process.env.BIN_NAME ?? 'llman-sdd';
 const compileTarget = process.env.BUN_COMPILE_TARGET as
