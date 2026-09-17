@@ -18,7 +18,7 @@
   - `.github/workflows/release.yml`:tag 触发,fetch-depth: 0,构建 matrix + sha256 + smoke,产物挂 release(仅落盘配置,不触发)
   - 门:`npm pack` 内容清单正确;二进制 `--version` 注入正确
 
-- [ ] T4 狗粮切换(本仓库 init --update) [blocked-by: T1]
+- [x] T4 狗粮切换(本仓库 init --update) [blocked-by: T1]
   - 执行 `bun apps/cli/src/main.ts init --update`;验收:skills 与切换前零漂移(golden:check 仍绿)、两个 AGENTS.md 托管块完整且块外内容保留、v1 流水线命令(list/validate)仍可用
   - 证据链记入 `docs/acceptance-v2.md`
 

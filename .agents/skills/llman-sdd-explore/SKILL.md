@@ -27,7 +27,6 @@ metadata:
 3. 收口用 `change finalize`（自动提交 `archive(sdd): <id>`；`--no-commit` 可跳过）。`change checkpoint` 已移除（调用即以非零退出报错，指向 finalize）。
 4. **禁止**在默认分支 commit live specs；已 attach 勿重复 `start`。
 
-
 ### Skill 导航（非生命周期；仅指示当前 skill）
 
 ```mermaid
