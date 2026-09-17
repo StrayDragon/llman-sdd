@@ -55,8 +55,9 @@ export function makeIo(root: string): CliIo {
       try {
         process.kill(pid, 0);
         return true;
-      } catch {
-        return false;
+      } catch (error) {
+        // EPERM = 进程存在但无权发信号;只有 ESRCH 才能判定死亡。
+        return (error as NodeJS.ErrnoException).code !== 'ESRCH';
       }
     },
     mtimeMs: (p) => statSync(full(p)).mtimeMs,
