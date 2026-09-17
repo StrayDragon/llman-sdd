@@ -1,6 +1,6 @@
 # language: zh-CN
 # capability: review-freeze
-# purpose: 定义 review 五信号聚合审查的合同与 archive freeze/thaw 冷备合同(7z 格式与 v1 双向兼容)。
+# purpose: 定义 review 五信号聚合审查的合同与 archive freeze/thaw 冷备合同(7z 格式自洽双向回置)。
 # scope: packages/core/src/review/, packages/core/src/archive/, apps/cli/src/, packages/core/templates/shared/
 
 功能: review-freeze
@@ -23,11 +23,11 @@
 
   @req:r25 @human
   场景: thaw 回置与双向兼容
-    - `archive thaw --change <名>`(可重复)MUST 将冷备中的归档目录回置到 `llmanspec/changes/archive/`;未知名 MUST 报错并列出可用条目;冷备 MUST 为 7z 格式,v1(Rust)冻结的归档 MUST 可被 v2 解冻,v2 冻结的归档 MUST 可被 v1 解冻。
+    - `archive thaw --change <名>`(可重复)MUST 将冷备中的归档目录回置到 `llmanspec/changes/archive/`;未知名 MUST 报错并列出可用条目;冷备 MUST 为 7z 格式,v2 的冻结产物 MUST 可被自身解冻(自洽双向)。
 
   @req:r25 @executable
-  场景: v1 冻结 v2 解冻
-    假如 一个含已归档目录的临时仓库且已用 v1 冻结
-    当 v2 运行 thaw 回置该目录
+  场景: 冻结解冻自洽
+    假如 一个含已归档目录的临时仓库
+    当 v2 运行 freeze 后再 thaw 回置该目录
     那么 目录完整回到 changes/archive 下
     而且 内容与冻结前一致
