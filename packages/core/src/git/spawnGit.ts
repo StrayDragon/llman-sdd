@@ -79,3 +79,15 @@ export function defaultBranch(git: GitLike): string {
 export function revParseHead(git: GitLike): string {
   return git.run(['rev-parse', 'HEAD']);
 }
+
+/** Count uncommitted files (v1 "dirty tree: N uncommitted files"). */
+export function dirtyCount(git: GitLike): number {
+  const s = git.run(['status', '--porcelain']);
+  if (s === '') return 0;
+  return s.split('\n').filter((l) => l.trim() !== '').length;
+}
+
+/** Fork-point sha of `current` relative to `other` (v1 merge-base semantics). */
+export function mergeBase(git: GitLike, current: string, other: string): string {
+  return git.runOpt(['merge-base', current, other]) ?? git.run(['rev-parse', current]);
+}

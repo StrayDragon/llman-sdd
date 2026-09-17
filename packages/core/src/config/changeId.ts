@@ -60,3 +60,28 @@ export function renderChangeIdTemplate(template: string, vars: ChangeIdVars): st
 export function nextUniqueNumber(io: NextIdIo, llmanspecRoot: string): number {
   return harvestUniqueNumbers(io, llmanspecRoot).nextNumber;
 }
+
+const VERB_TABLE = ['add', 'update', 'remove', 'refactor', 'fix'] as const;
+
+/**
+ * v1 `new.rs::split_verb` parity: the subject is the derived id minus a
+ * detected table-verb prefix; the verb is the explicit override when given,
+ * otherwise the auto-detected one (v1 renders `{{ verb }}` without --verb for
+ * descriptions that carry a verb token).
+ */
+export function splitVerb(
+  derived: string,
+  verbOverride: string | undefined,
+): { verb?: string; subject: string } {
+  let subject = derived;
+  let detected: string | undefined;
+  for (const verb of VERB_TABLE) {
+    if (derived.startsWith(`${verb}-`)) {
+      detected = verb;
+      subject = derived.slice(verb.length + 1);
+      break;
+    }
+  }
+  const verb = verbOverride !== undefined ? verbOverride : detected;
+  return { verb, subject };
+}

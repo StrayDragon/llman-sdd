@@ -41,8 +41,16 @@ export function showChangeJson(deps: ShowDeps, id: string): Record<string, unkno
     ? countTasks(io.readText(`${dir}/tasks.md`))
     : { completed: 0, total: 0 };
 
-  const cleanTree = isCleanTree(git);
-  const onBoundBranch = binding !== null && currentBranch(git) === binding.branch;
+  // v1 parity: show works (gracefully degraded gates) outside a git repo.
+  let cleanTree = false;
+  let current = null;
+  try {
+    cleanTree = isCleanTree(git);
+    current = currentBranch(git);
+  } catch {
+    current = null;
+  }
+  const onBoundBranch = binding !== null && current === binding.branch;
 
   // specs landing: bound changes must have touched llmanspec/specs/ since base
   let specsLanded = false;
@@ -60,7 +68,17 @@ export function showChangeJson(deps: ShowDeps, id: string): Record<string, unkno
   const specReport = validateAllSpecs(discoverSpecs(deps.specsDir, io), io);
   const validateOk = !specReport.failed && (total === 0 || tasksDone);
 
-  const stageComplete = stage === 'full';
+  const stageHint = !hasDesign
+    ? 'add design.md (current: draft → designed)'
+    : !hasTasks
+      ? 'add tasks.md (current: designed → planned)'
+      : stage === 'planned'
+        ? 'bind via `llman sdd change start <id>` (planned → full)'
+        : '';
+  const tasksHint =
+    total > 0 && completed < total
+      ? `${total - completed} unchecked tasks`
+      : 'complete or check off remaining tasks';
 
   const gateChecks = [
     {
@@ -71,29 +89,30 @@ export function showChangeJson(deps: ShowDeps, id: string): Record<string, unkno
     {
       name: 'on-bound-branch',
       pass: onBoundBranch,
-      hint: onBoundBranch ? '' : 'change is not attached; run `llman-sdd change start <id>`',
+      hint: onBoundBranch ? '' : 'change is not attached; run `llman sdd change start <id>`',
     },
     {
       name: 'stage-complete',
-      pass: stageComplete,
-      hint: stageComplete ? '' : `add ${!hasDesign ? 'design.md' : 'tasks.md'} (current: ${stage})`,
+      pass: hasDesign && hasTasks,
+      hint: hasDesign && hasTasks ? '' : (stageHint as string),
     },
     {
       name: 'specs-landed',
-      pass: specsLanded,
-      hint: specsLanded
-        ? ''
-        : 'edit live specs on the bound branch and commit (or needs_specs_change: false)',
+      pass: specsLanded || !needsSpecsChange,
+      hint:
+        specsLanded || !needsSpecsChange
+          ? ''
+          : 'edit live specs on the bound branch and commit (or needs_specs_change: false)',
     },
     {
       name: 'tasks-done',
-      pass: tasksDone,
-      hint: tasksDone ? '' : `${total - completed} unchecked tasks`,
+      pass: tasksDone && total > 0,
+      hint: tasksDone && total > 0 ? '' : tasksHint,
     },
     {
       name: 'validate',
       pass: validateOk,
-      hint: validateOk ? '' : 'fix issues reported by `llman-sdd validate <id> --strict`',
+      hint: validateOk ? '' : 'fix issues reported by `llman sdd validate <id> --strict`',
     },
   ];
 

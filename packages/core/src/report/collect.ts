@@ -148,12 +148,10 @@ export function pad(s: string, width: number): string {
 export function renderChangesList(changes: readonly ChangeSummary[], now: Date): string[] {
   const lines = ['Active changes:'];
   if (changes.length === 0) return lines;
-  const nameWidth = Math.max(...changes.map((c) => c.name.length)) + 2;
-  const stageWidth = Math.max(...changes.map((c) => c.stage.length)) + 7;
-  const statusWidth = Math.max(...changes.map((c) => statusHuman(c).length)) + 5;
+  const nameWidth = Math.max(...changes.map((c) => c.name.length));
   for (const c of changes) {
     lines.push(
-      `  ${pad(c.name, nameWidth)}${pad(c.stage, stageWidth)}${pad(statusHuman(c), statusWidth)}${relativeTime(
+      `  ${pad(c.name, nameWidth)}  ${pad(c.stage, 10)}  ${pad(statusHuman(c), 12)}  ${relativeTime(
         c.lastModified,
         now,
       )}${statusFor(c.totalTasks, c.completedTasks) === 'no-tasks' ? ` (idle ${c.idleDays}d)` : ''}`,

@@ -88,7 +88,7 @@ export async function runFreeze(
 export async function runList(io: FreezeIo, sz: SevenZipPort, rootAbs: string): Promise<string[]> {
   const archiveAbs = join(rootAbs, ARCHIVE_DIR_REL, FREEZE_ARCHIVE_NAME);
   if (!io.exists(archiveAbs)) {
-    return [`No freeze archive found at ./${ARCHIVE_DIR_REL}/${FREEZE_ARCHIVE_NAME}`];
+    return [`freeze archive not found: ./${ARCHIVE_DIR_REL}/${FREEZE_ARCHIVE_NAME}`];
   }
   // Real 7z lists file paths under their directory (`<dir>/proposal.md`);
   // directory entries themselves are skipped by parseListNames. Derive the
@@ -123,7 +123,7 @@ export async function runThaw(
   const destRel = opts.dest ?? ARCHIVE_DIR_REL;
   const archiveAbs = join(rootAbs, ARCHIVE_DIR_REL, FREEZE_ARCHIVE_NAME);
   if (!io.exists(`${ARCHIVE_DIR_REL}/${FREEZE_ARCHIVE_NAME}`)) {
-    throw new Error(`No freeze archive found at ./${ARCHIVE_DIR_REL}/${FREEZE_ARCHIVE_NAME}`);
+    throw new Error(`freeze archive not found: ./${ARCHIVE_DIR_REL}/${FREEZE_ARCHIVE_NAME}`);
   }
   const tmpRel = 'llmanspec/.thaw-tmp';
   const tmpAbs = join(rootAbs, tmpRel);

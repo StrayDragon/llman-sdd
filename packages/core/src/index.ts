@@ -78,9 +78,16 @@ export type {
   ValidationLevel,
   ValidationReport,
 } from './validation/validate.ts';
-export { validateAllSpecs, validateCapability } from './validation/validate.ts';
+export { validateAllSpecs, validateCapability, applyStrict } from './validation/validate.ts';
+export { splitVerb } from './config/changeId.ts';
+export {
+  evaluateStaleness,
+  notApplicableStaleness,
+  type StalenessInfo,
+} from './validation/staleness.ts';
 export {
   checkChangeDoc,
+  validateChange,
   expandRunCommand,
   hasPlaceholders,
   STAGE_ORDER,
@@ -88,6 +95,7 @@ export {
   type ChangeCheckInput,
   type ChangeCheckResult,
   type ChangeIssue,
+  type ChangeFsIoLite,
   type StageGate,
 } from './validation/changeCheck.ts';
 export { discoverSpecs, type DiscoveryIo } from './validation/discover.ts';

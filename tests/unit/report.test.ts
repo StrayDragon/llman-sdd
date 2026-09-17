@@ -159,7 +159,8 @@ describe('nextReqId', () => {
       isDirectory: () => false,
       listDir: () => ['t.feature'],
     };
-    expect(nextReqId(io, 'llmanspec/specs')).toBe('r6');
+    // v1 parity: smallest free rN over @human rule ids (r5 only -> r1).
+    expect(nextReqId(io, 'llmanspec/specs')).toBe('r1');
   });
 });
 
@@ -194,10 +195,10 @@ describe('list sort (r51)', () => {
       { ...base, name: 'a-change', lastModified: new Date('2026-01-02') },
       { ...base, name: 'c-change', lastModified: new Date('2026-01-01') },
     ];
-    const byName = [...changes].sort((a, b) => a.name.localeCompare(b.name)).map((c) => c.name);
+    const byName = [...changes].toSorted((a, b) => a.name.localeCompare(b.name)).map((c) => c.name);
     expect(byName).toEqual(['a-change', 'b-change', 'c-change']);
     const byRecent = [...changes]
-      .sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime())
+      .toSorted((a, b) => b.lastModified.getTime() - a.lastModified.getTime())
       .map((c) => c.name);
     expect(byRecent).toEqual(['b-change', 'a-change', 'c-change']);
   });

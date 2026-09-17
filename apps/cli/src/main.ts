@@ -1,5 +1,4 @@
 #!/usr/bin/env bun
-import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
@@ -37,6 +36,7 @@ import {
   runList,
   runThaw,
   validateAllSpecs,
+  validateCapability,
   TEMPLATES_ROOT,
   resolveChatConfig,
   unavailableResult,
@@ -44,22 +44,24 @@ import {
   addReq,
   addScenario,
   archiveChange,
-  checkChangeDoc,
+  validateChange,
+  applyStrict,
+  evaluateStaleness,
+  buildReqRegistry,
+  splitVerb,
+  notApplicableStaleness,
   compileChangeIdPattern,
   renderChangeIdTemplate,
   nextUniqueNumber,
   changeDiffInfo,
-  buildReqRegistry,
-  expandRunCommand,
   STAGE_ORDER,
-  hasPlaceholders,
   harvestUniqueNumbers,
   planDedupe,
   resolveReq,
   renderConfigOverview,
-  setExtraSkills,
   skillsJson,
-  ExtraSkillsError,
+  type StalenessInfo,
+  type ChangeIssue,
 } from '@llman-sdd/core';
 import { Command, Option } from 'commander';
 
@@ -86,47 +88,6 @@ function loadSpecEntries(): ReturnType<typeof discoverSpecs> {
   return discoverSpecs('llmanspec/specs', makeIo(process.cwd()));
 }
 
-function runValidateSpecs(options: { check: boolean; quiet?: boolean }): {
-  failed: boolean;
-  verdicts: ReturnType<typeof validateAllSpecs>['verdicts'];
-} {
-  const entries = loadSpecEntries();
-  const report = validateAllSpecs(entries, makeIo(process.cwd()));
-  if (!options.quiet) for (const line of report.lines) console.log(line);
-
-  let failed = report.failed;
-  if (options.check && existsSync('llmanspec/config.yaml')) {
-    const config = loadConfig(readFileSync('llmanspec/config.yaml', 'utf8'));
-    const runCommand = config.bdd?.run_command;
-    if (runCommand) {
-      if (hasPlaceholders(runCommand)) {
-        // r48: per-target replacement — run once per capability spec.
-        for (const entry of entries) {
-          const name = entry.doc.header.capability ?? entry.fileName.replace(/\.feature$/u, '');
-          const target = {
-            featureDir: 'llmanspec/specs',
-            featureName: name,
-            featurePath: `llmanspec/specs/${entry.fileName}`,
-          };
-          const proc = spawnSync(expandRunCommand(runCommand, target), {
-            shell: true,
-            stdio: 'inherit',
-          });
-          if ((proc.status ?? 1) !== 0) failed = true;
-        }
-      } else {
-        const proc = spawnSync(runCommand, { shell: true, stdio: 'inherit' });
-        if ((proc.status ?? 1) !== 0) failed = true;
-      }
-    }
-  }
-  return { failed, verdicts: report.verdicts };
-}
-
-function collectRepeatable(value: string, previous: string[] = []): string[] {
-  return [...previous, value];
-}
-
 function loadCliConfig(): ReturnType<typeof loadConfig> | null {
   if (!existsSync('llmanspec/config.yaml')) return null;
   const config = loadConfig(readFileSync('llmanspec/config.yaml', 'utf8'));
@@ -134,22 +95,11 @@ function loadCliConfig(): ReturnType<typeof loadConfig> | null {
   return config;
 }
 
-function specVerdictsToItems(
-  verdicts: ReturnType<typeof validateAllSpecs>['verdicts'],
-): { id: string; type: string; valid: boolean; issues: unknown[] }[] {
-  return verdicts.map((v) => ({
-    id: v.capability,
-    type: 'spec',
-    valid: v.ok,
-    issues: v.items,
-  }));
-}
-
 function cliMaxScanDepth(): number {
   const raw = program.opts().maxScanDepth as string | undefined;
   const n = raw !== undefined ? Number(raw) : 8;
   if (!Number.isInteger(n) || n < 1) {
-    console.error(`invalid --max-scan-depth: ${raw}`);
+    console.error(`Error: --max-scan-depth must be >= 1 (got ${raw})`);
     process.exit(1);
   }
   return n;
@@ -160,7 +110,23 @@ function runValidateSweep(): boolean {
   return report.verdicts.some((v) => !v.ok);
 }
 
+const SKILL_DESCRIPTIONS: Record<string, string> = {
+  'llman-sdd-continue': 'Fill in missing change artifacts',
+  'llman-sdd-ff': 'Fast-forward propose: planning shell → Branch binding → Specs landing',
+  'llman-sdd-validate': 'Standalone validation skill',
+  'llman-sdd-arch-review': 'Scan shallow modules for deepening candidates',
+  'llman-sdd-wayfinder': 'Plan large foggy work as a decision map',
+  'llman-sdd-research': 'Delegate external research to a background agent',
+};
+const skillDesc = (name: string): string => SKILL_DESCRIPTIONS[name] ?? '';
+
 const program = new Command();
+
+// v1/clap parity for arg-parsing errors: `error: unexpected argument ...` rc=2.
+// Must run before subcommand registration (children copy _exitCallback at
+// creation time); exitOverride turns commander's process.exit into a throw.
+program.exitOverride();
+program.configureOutput({ outputError: () => {} });
 
 program.name('llman-sdd').description('Spec-driven development workflow').version(version);
 program.option(
@@ -168,6 +134,9 @@ program.option(
   'max depth when scanning llmanspec/changes/ for proposal.md (min 1, default 8)',
   '8',
 );
+// v1 global flag surface parity: accepted everywhere; v2 has no interactive
+// prompts to disable, so it is a no-op.
+program.option('--no-interactive', 'disable interactive prompts (accepted for v1 parity)');
 
 program
   .command('init')
@@ -198,6 +167,155 @@ program
     },
   );
 
+interface VItem {
+  id: string;
+  type: string;
+  valid: boolean;
+  issues: ChangeIssue[];
+  durationMs: number;
+  staleness: StalenessInfo;
+  matchedViaPrefix: boolean;
+}
+
+function specV1Items(opts: { strict?: boolean }): VItem[] {
+  const io = makeIo(process.cwd());
+  const git = makeCliGit(process.cwd());
+  const entries = discoverSpecs('llmanspec/specs', io);
+  const registry = buildReqRegistry(entries);
+  const duplicateIds = new Set(registry.duplicates.flatMap((d) => d.reqId));
+  const structurallyClean = entries.every((e) => e.doc.errors.length === 0);
+  const duplicatesFor = (reqId: string): boolean => structurallyClean && duplicateIds.has(reqId);
+
+  const items: VItem[] = [];
+  for (const entry of entries) {
+    const cap = entry.doc.header.capability ?? entry.fileName.replace(/\.feature$/u, '');
+    const verdict = validateCapability(entry as never, duplicatesFor, io, {
+      strict: opts.strict === true,
+    });
+    const specRel = entry.fileName.startsWith('llmanspec/')
+      ? entry.fileName
+      : `llmanspec/specs/${entry.fileName}`;
+    const staleness = evaluateStaleness({
+      git,
+      root: process.cwd(),
+      specRel,
+      scope: entry.doc.header.scope?.split(',').map((s) => s.trim()) ?? [],
+      baseRefEnv: process.env.LLMANSPEC_BASE_REF,
+    });
+    let issues: ChangeIssue[] = verdict.items.map((i) => ({
+      level: i.level,
+      path: i.id,
+      message: i.message,
+    }));
+    if (opts.strict === true) issues = [...issues, ...applyStrict(staleness.issues)];
+    else issues = [...issues, ...staleness.issues];
+    items.push({
+      id: cap,
+      type: 'spec',
+      valid: issues.every((i) => i.level !== 'ERROR'),
+      issues,
+      durationMs: 0,
+      staleness: staleness.info,
+      matchedViaPrefix: false,
+    });
+  }
+  items.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : a.type.localeCompare(b.type)));
+  return items;
+}
+
+function changeV1Items(names: string[], opts: { stage?: string; strict?: boolean }): VItem[] {
+  const io = makeIo(process.cwd());
+  const config = loadCliConfig();
+  const items: VItem[] = [];
+  for (const name of names) {
+    const res = validateChange(
+      io,
+      process.cwd(),
+      name,
+      {
+        strict_defer: config?.archive?.strict_defer ?? null,
+        min_completion_ratio: config?.archive?.min_completion_ratio ?? null,
+        change_id_pattern: config?.change_id?.pattern ?? null,
+      },
+      { stage: opts.stage as never, strict: opts.strict === true },
+    );
+    items.push({
+      id: name,
+      type: 'change',
+      valid: res.valid,
+      issues: res.issues,
+      durationMs: 0,
+      staleness: notApplicableStaleness(),
+      matchedViaPrefix: false,
+    });
+  }
+  items.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : a.type.localeCompare(b.type)));
+  return items;
+}
+
+function printStalenessLines(info: StalenessInfo): void {
+  if (info.status === 'NOTAPPLICABLE') return;
+  console.log(`Staleness: ${info.status}`);
+  if (info.touchedPaths.length > 0)
+    console.log(`Touched scope paths: ${info.touchedPaths.join(', ')}`);
+  if (info.specUpdated) console.log('Spec file updated since base.');
+  if (info.dirty) console.log('Working tree is dirty; results may be unreliable.');
+  for (const note of info.notes) console.log(`Note: ${note}`);
+}
+
+function renderValidateText(items: VItem[]): void {
+  const passed = items.filter((i) => i.valid).length;
+  const failed = items.length - passed;
+  for (const item of items) {
+    if (item.valid) {
+      console.log(`OK ${item.type}/${item.id}`);
+    } else {
+      console.error(`FAIL ${item.type}/${item.id}`);
+      for (const issue of item.issues) {
+        console.error(`  [${issue.level}] ${issue.path}: ${issue.message}`);
+      }
+    }
+    if (item.type === 'spec') printStalenessLines(item.staleness);
+  }
+  console.log(`Totals: ${passed} passed, ${failed} failed (${items.length} items)`);
+}
+
+function renderValidateJson(items: VItem[], compact: boolean): void {
+  const types = [...new Set(items.map((i) => i.type))] as string[];
+  const summary = {
+    totals: {
+      items: items.length,
+      passed: items.filter((i) => i.valid).length,
+      failed: items.filter((i) => !i.valid).length,
+    },
+    byType: types.reduce<Record<string, { items: number; passed: number; failed: number }>>(
+      (acc, t) => {
+        const of = items.filter((i) => i.type === t);
+        acc[t] = {
+          items: of.length,
+          passed: of.filter((i) => i.valid).length,
+          failed: of.filter((i) => !i.valid).length,
+        };
+        return acc;
+      },
+      {},
+    ),
+  };
+  const out = JSON.stringify({ items, summary, version: '1.0' }, null, compact ? 0 : 2);
+  console.log(compact ? JSON.stringify(JSON.parse(out)) : out);
+}
+
+const SPEC_NEXT_STEPS = [
+  '- Ensure spec ISON includes `purpose` and `requirements`',
+  '- Each requirement MUST include at least one scenario object',
+  '- Re-run with --json to see structured report',
+];
+const CHANGE_NEXT_STEPS = [
+  '- Edit live single-track specs (`llmanspec/specs/<capability>.feature`) on the feature branch (@human constraints and @executable acceptance share one track, linked via @req); run `llman sdd change start <id>` or `change attach <id>`',
+  '- Ensure proposal.md, design.md (if needed), and tasks.md are complete before apply',
+  '- Debug change state: llman sdd show <id> --json --type change',
+];
+
 program
   .command('validate')
   .description('Validate specs and changes (structural gates + stage/completion rules)')
@@ -211,6 +329,7 @@ program
   .option('--json', 'emit {items:[{id,type,valid,issues}]}')
   .option('--compact-json', 'single-line --json (requires --json)')
   .option('--no-check', 'skip the bdd.run_command check (structural validation only)')
+  .option('--check', 'run the bdd.run_command check (default when configured; accepted alias)')
   .action(
     (
       item: string | undefined,
@@ -223,10 +342,10 @@ program
         strict?: boolean;
         json?: boolean;
         compactJson?: boolean;
-        check: boolean;
+        noCheck?: boolean;
+        check?: boolean;
       },
     ) => {
-      // Node 下管道 stdout 写入异步,process.exit 会截断输出;exitCode 等价且安全。
       if (options.compactJson && !options.json) {
         console.error('--compact-json requires --json');
         process.exitCode = 1;
@@ -246,20 +365,9 @@ program
         return;
       }
 
-      const specScope = options.all || !options.changes || options.specs === true;
-      const changeScope = options.all || options.changes === true;
-      // no item + no explicit scope flags → specs only (historical default)
-      const defaultSpecsOnly = item === undefined && !options.all && !options.changes;
-      const effectiveSpecs = defaultSpecsOnly ? true : specScope;
-      const effectiveChanges =
-        item === undefined && !options.all ? options.changes === true : changeScope;
-
-      const jsonItems: { id: string; type: string; valid: boolean; issues: unknown[] }[] = [];
-      let failed = false;
-
+      // ---- single item (auto-disambiguate: spec first, then change) ----
       if (item !== undefined) {
-        // auto-disambiguation: spec id first (exact file stem), then change name
-        const entries = loadSpecEntries();
+        const entries = discoverSpecs('llmanspec/specs', makeIo(process.cwd()));
         const specEntry =
           options.type === 'change'
             ? undefined
@@ -267,90 +375,110 @@ program
                 (e) => (e.doc.header.capability ?? e.fileName.replace(/\.feature$/u, '')) === item,
               );
         if (specEntry !== undefined) {
-          const run = runValidateSpecs({ check: options.check, quiet: options.json === true });
-          if (options.json) {
-            console.log(JSON.stringify({ items: specVerdictsToItems(run.verdicts) }, null, 2));
+          const items = specV1Items({ strict: options.strict });
+          const mine = items.find((i) => i.id === item);
+          if (mine === undefined) {
+            console.error(`no spec or change matches: ${item}`);
+            process.exitCode = 1;
+            return;
           }
-          process.exitCode = run.failed ? 1 : 0;
+          if (options.json) {
+            renderValidateJson([mine], options.compactJson === true);
+            process.exitCode = mine.valid ? 0 : 1;
+            return;
+          }
+          if (mine.valid) {
+            console.log(`Specification '${item}' is valid`);
+          } else {
+            console.error(`Specification '${item}' has issues`);
+            for (const issue of mine.issues)
+              console.error(`  [${issue.level}] ${issue.path}: ${issue.message}`);
+            console.error('Next steps:');
+            for (const s of SPEC_NEXT_STEPS) console.error(s);
+          }
+          if (mine.type === 'spec') printStalenessLines(mine.staleness);
+          if (!mine.valid) console.error('Error: validation failed');
+          process.exitCode = mine.valid ? 0 : 1;
           return;
         }
-        const changes = collectChanges(makeIo(process.cwd()), process.cwd(), new Date(), {
-          maxScanDepth: cliMaxScanDepth(),
-        });
-        const change = options.type === 'spec' ? undefined : changes.find((c) => c.name === item);
-        if (change === undefined) {
-          console.error(`no spec or change matches: ${item}`);
-          process.exitCode = 1;
-          return;
-        }
-        const config = loadCliConfig();
-        const result = checkChangeDoc(
-          change,
-          { ...config?.archive, change_id_pattern: config?.change_id?.pattern },
-          { stage: options.stage as never },
+        // change single
+        const io = makeIo(process.cwd());
+        const root = process.cwd();
+        const res = validateChange(
+          io,
+          root,
+          item,
+          {
+            strict_defer: loadCliConfig()?.archive?.strict_defer ?? null,
+            min_completion_ratio: loadCliConfig()?.archive?.min_completion_ratio ?? null,
+            change_id_pattern: loadCliConfig()?.change_id?.pattern ?? null,
+          },
+          { stage: options.stage as never, strict: options.strict === true },
         );
-        const hasError = result.issues.some((i) => i.level === 'ERROR');
-        const hasWarning = result.issues.some((i) => i.level === 'WARNING');
-        failed = hasError || (options.strict === true && hasWarning);
-        for (const issue of result.issues)
-          console.log(`  [${issue.level}] ${change.name}: ${issue.message}`);
-        console.log(`${result.valid ? 'OK' : 'FAIL'} change/${change.name}`);
-        jsonItems.push({
-          id: change.name,
-          type: 'change',
-          valid: result.valid,
-          issues: result.issues,
-        });
-        if (!options.json) {
-          // human lines already printed
-        } else {
-          console.log(JSON.stringify({ items: jsonItems }, null, 2));
+        const infos = res.issues.filter((i) => i.level === 'INFO');
+        if (options.json) {
+          renderValidateJson(
+            [
+              {
+                id: item,
+                type: 'change',
+                valid: res.valid,
+                issues: res.issues,
+                durationMs: 0,
+                staleness: notApplicableStaleness(),
+                matchedViaPrefix: false,
+              },
+            ],
+            options.compactJson === true,
+          );
+          process.exitCode = res.valid ? 0 : 1;
+          return;
         }
-        process.exitCode = failed ? 1 : 0;
+        if (res.valid) {
+          console.log(`Change '${item}' is valid`);
+        } else {
+          console.error(`Change '${item}' has issues`);
+          for (const issue of res.issues.filter((i) => i.level !== 'INFO'))
+            console.error(`  [${issue.level}] ${issue.path}: ${issue.message}`);
+          console.error('Next steps:');
+          for (const s of CHANGE_NEXT_STEPS) console.error(s);
+        }
+        for (const info of infos) console.error(`[${info.level}] ${info.path}: ${info.message}`);
+        if (!res.valid) console.error('Error: validation failed');
+        process.exitCode = res.valid ? 0 : 1;
         return;
       }
 
-      let specVerdicts: ReturnType<typeof validateAllSpecs>['verdicts'] = [];
-      if (effectiveSpecs) {
-        const run = runValidateSpecs({ check: options.check, quiet: options.json === true });
-        failed = run.failed;
-        specVerdicts = run.verdicts;
-      }
+      // ---- bulk ----
+      const specScope = options.all || !options.changes || options.specs === true;
+      const changeScope = options.all || options.changes === true;
+      const defaultSpecsOnly = !options.all && !options.changes;
+      const effectiveSpecs = defaultSpecsOnly ? true : specScope;
+      const effectiveChanges = defaultSpecsOnly ? false : changeScope;
+
+      let items: VItem[] = [];
+      if (effectiveSpecs) items = items.concat(specV1Items({ strict: options.strict }));
       if (effectiveChanges) {
-        const config = loadCliConfig();
-        const changes = collectChanges(makeIo(process.cwd()), process.cwd(), new Date(), {
+        const names = collectChanges(makeIo(process.cwd()), process.cwd(), new Date(), {
           maxScanDepth: cliMaxScanDepth(),
-        });
-        const skipArchive = changes.filter((c) => c.name !== 'archive');
-        for (const change of skipArchive) {
-          const result = checkChangeDoc(
-            change,
-            { ...config?.archive, change_id_pattern: config?.change_id?.pattern },
-            { stage: options.stage as never },
-          );
-          const hasError = result.issues.some((i) => i.level === 'ERROR');
-          const hasWarning = result.issues.some((i) => i.level === 'WARNING');
-          if (hasError || (options.strict === true && hasWarning)) failed = true;
-          console.log(`${result.valid ? 'OK' : 'FAIL'} change/${change.name}`);
-          for (const issue of result.issues)
-            console.log(`  [${issue.level}] ${change.name}: ${issue.message}`);
-          jsonItems.push({
-            id: change.name,
-            type: 'change',
-            valid: result.valid,
-            issues: result.issues,
-          });
-        }
+        }).map((c) => c.name);
+        items = items.concat(
+          changeV1Items(names, { stage: options.stage, strict: options.strict }),
+        );
       }
+      items.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : a.type.localeCompare(b.type)));
+
       if (options.json) {
-        const all = [...specVerdictsToItems(specVerdicts), ...jsonItems];
-        const text = JSON.stringify({ items: all });
-        console.log(options.compactJson ? text : JSON.stringify({ items: all }, null, 2));
+        renderValidateJson(items, options.compactJson === true);
+        if (items.some((i) => !i.valid)) console.error('Error: validation failed');
+        process.exitCode = items.some((i) => !i.valid) ? 1 : 0;
+        return;
       }
-      process.exitCode = failed ? 1 : 0;
+      renderValidateText(items);
+      if (items.some((i) => !i.valid)) console.error('Error: validation failed');
+      process.exitCode = items.some((i) => !i.valid) ? 1 : 0;
     },
   );
-
 const change = program
   .command('change')
   .description('Change lifecycle: new / start / attach / next-id / diff / finalize');
@@ -361,44 +489,51 @@ change
   .argument('[id]')
   .option('--from <description>', 'description the id is derived from')
   .option('--verb <verb>', 'explicit verb for change_id.template rendering')
+  .option('--force', 'overwrite an existing proposal.md')
   .option('--dry-run', 'print the resulting id without creating anything')
-  .action((id: string | undefined, options: { from?: string; verb?: string; dryRun?: boolean }) => {
-    if ((id === undefined) === (options.from === undefined)) {
-      console.error('<CHANGE> and --from are mutually exclusive; pass one or the other');
-      process.exitCode = 1;
-      return;
-    }
-    if (options.dryRun) {
-      console.log(id ?? deriveChangeId(options.from as string));
-      return;
-    }
-    const cliConfig = loadCliConfig();
-    const template = cliConfig?.change_id?.template;
-    if (options.from !== undefined && template) {
-      const slug = deriveChangeId(options.from);
-      const derived = renderChangeIdTemplate(template, {
-        llman_sdd_unique_id: nextUniqueNumber(
-          {
-            listDir: (p) => readdirSync(resolve(p)),
-            isDirectory: (p) => statSync(resolve(p)).isDirectory(),
-          },
-          'llmanspec',
-        ),
-        verb: (options as { verb?: string }).verb,
-        subject: slug,
-        date: new Date().toISOString().slice(0, 10),
-      });
-      console.log(`derived change id: ${derived}`);
+  .action(
+    (
+      id: string | undefined,
+      options: { from?: string; verb?: string; force?: boolean; dryRun?: boolean },
+    ) => {
+      if ((id === undefined) === (options.from === undefined)) {
+        console.error('<CHANGE> and --from are mutually exclusive; pass one or the other');
+        process.exitCode = 1;
+        return;
+      }
+      if (options.dryRun) {
+        console.log(id ?? deriveChangeId(options.from as string));
+        return;
+      }
+      const cliConfig = loadCliConfig();
+      const template = cliConfig?.change_id?.template;
+      if (options.from !== undefined && template) {
+        const slug = deriveChangeId(options.from);
+        const { verb, subject } = splitVerb(slug, (options as { verb?: string }).verb);
+        const derived = renderChangeIdTemplate(template, {
+          llman_sdd_unique_id: nextUniqueNumber(
+            {
+              listDir: (p) => readdirSync(resolve(p)),
+              isDirectory: (p) => statSync(resolve(p)).isDirectory(),
+            },
+            'llmanspec',
+          ),
+          verb,
+          subject,
+          date: new Date().toISOString().slice(0, 10),
+        });
+        console.log(`derived change id: ${derived}`);
+        const io = makeIo(process.cwd());
+        const result = newChange(io, { id: derived, force: options.force });
+        console.log(`./${result.path}`);
+        return;
+      }
       const io = makeIo(process.cwd());
-      const result = newChange(io, { id: derived });
-      console.log(result.path);
-      return;
-    }
-    const io = makeIo(process.cwd());
-    const result = newChange(io, { id, from: options.from });
-    if (options.from !== undefined) console.log(`derived change id: ${result.id}`);
-    console.log(result.path);
-  });
+      const result = newChange(io, { id, from: options.from, force: options.force });
+      if (options.from !== undefined) console.log(`derived change id: ${result.id}`);
+      console.log(`./${result.path}`);
+    },
+  );
 
 change
   .command('start')
@@ -415,7 +550,7 @@ change
       branchPrefix: options.branchPrefix ?? config?.sdd?.branch_prefix ?? 'sdd/',
     });
     console.log(
-      `started change \`${id}\` → branch \`${result.branch}\` (base ${result.baseBranch}@${result.baseSha.slice(0, 7)})`,
+      `started change \`${id}\` → branch \`${result.branch}\` base \`${result.baseSha}\` base-branch \`${result.baseBranch}\``,
     );
   });
 
@@ -431,7 +566,7 @@ change
       base: options.base,
     });
     console.log(
-      `attached change \`${id}\` → branch \`${result.branch}\` base-branch \`${result.baseBranch}\``,
+      `attached change \`${id}\` → branch \`${result.branch}\` base \`${result.baseSha}\` base-branch \`${result.baseBranch}\``,
     );
   });
 
@@ -464,6 +599,7 @@ change
   .option('--into <branch>', 'target branch to merge into')
   .option('--method <method>', 'merge method: squash | ff')
   .option('--dry-run', 'print the rename plan only')
+  .option('--skip-specs', 'legacy flag accepted for v1 parity (no longer merges deltas)')
   .addOption(new Option('--force', 'skip task and git gates').hideHelp())
   .action(
     (
@@ -486,15 +622,35 @@ change
       const config = existsSync('llmanspec/config.yaml')
         ? loadConfig(readFileSync('llmanspec/config.yaml', 'utf8'))
         : null;
+      // v1 task gate: blocked output + options list before the error.
+      if (!options.force) {
+        const tasksPath = `llmanspec/changes/${id}/tasks.md`;
+        if (existsSync(tasksPath)) {
+          const pending: string[] = [];
+          for (const line of readFileSync(tasksPath, 'utf8').split('\n')) {
+            const m = line.match(/^\s*-\s+\[ \]\s*(.*)$/u);
+            if (m && m[1] !== undefined) pending.push(m[1].trim());
+          }
+          if (pending.length > 0) {
+            console.error(`Archive blocked: ${pending.length} unchecked task(s).`);
+            for (const item of pending) console.error(`  - [ ] ${item}`);
+            console.error(
+              'Options:\n  1. Complete the remaining tasks\n  2. Use --force to archive anyway (not recommended)',
+            );
+            throw new Error('archive blocked by unchecked tasks');
+          }
+        }
+      }
       const result = archiveChange(makeCliGit(process.cwd()), io, id, {
         into: options.into,
         method: options.method as 'squash' | 'ff' | undefined,
         force: options.force,
         minCompletionRatio: config?.archive?.min_completion_ratio ?? undefined,
       });
-      console.log(
-        `archived \`${id}\` → ${result.archiveDir} (commit "${result.commitSubject}" on ${result.target})`,
+      const archiveName = (result.archiveDir ?? '').slice(
+        (result.archiveDir ?? '').lastIndexOf('/') + 1,
       );
+      console.log(`Change '${id}' archived as '${archiveName}'.`);
     },
   );
 
@@ -572,6 +728,7 @@ change
 program
   .command('list')
   .description('List changes or specs')
+  .option('--changes', 'list changes (v1 explicit scope flag; default)')
   .option('--specs', 'list specs instead of changes')
   .option('--json', 'machine-readable output')
   .option('--compact-json', 'single-line --json (requires --json)')
@@ -599,7 +756,7 @@ program
       maxScanDepth: cliMaxScanDepth(),
     });
     if (options.sort === 'name') {
-      changes = [...changes].sort((a, b) => a.name.localeCompare(b.name));
+      changes = [...changes].toSorted((a, b) => a.name.localeCompare(b.name));
     }
     emit(
       options.json ? renderChangesJson(changes) : renderChangesList(changes, new Date()).join('\n'),
@@ -608,116 +765,99 @@ program
 
 program
   .command('show')
-  .description('Show a change (JSON or text) or a spec (text)')
+  .description('Show a change or spec')
   .argument('<item>')
-  .option('--output <format>', 'json | compact | meta-only | no-scenarios')
+  .option('--output <format>', 'json | compact | meta-only | no-scenarios | deltas | reqs-only')
   .option('--type <itemType>', 'item type hint: change|spec')
-  .option('-r, --requirement <n>', 'spec only: show a single requirement by 1-based index')
+  .option('-r, --requirement <n>', 'spec only: show a specific requirement by 1-based index')
   .action((item: string, options: { output?: string; type?: string; requirement?: string }) => {
-    if (options.output === 'deltas' || options.output === 'reqs-only') {
-      console.error(
-        `--output ${options.output} was removed along with the checkpoint/delta mechanism (v2 edits live specs on the bound branch)`,
-      );
-      process.exitCode = 1;
-      return;
-    }
+    const outTokens = new Set(
+      (options.output ?? '')
+        .split(',')
+        .map((t) => t.trim())
+        .filter((t) => t !== ''),
+    );
+    const asJson = outTokens.has('json');
+    const asCompact = outTokens.has('compact');
+    const metaOnly = outTokens.has('meta-only');
+    const noScenarios = outTokens.has('no-scenarios');
+    const reqsOnly = outTokens.has('reqs-only');
+    // v1: unknown output tokens are rejected by clap; script consumers rely on
+    // the deprecation being a no-op render rather than an error.
     const isSpec =
       options.type === 'spec' || existsSync(join('llmanspec', 'specs', `${item}.feature`));
+
     if (isSpec) {
-      const path = join('llmanspec', 'specs', `${item}.feature`);
-      if (!existsSync(path)) {
+      const specPath = join('llmanspec', 'specs', `${item}.feature`);
+      if (!existsSync(specPath)) {
         console.error(`spec not found: ${item}`);
         process.exitCode = 1;
         return;
       }
-      const raw = readFileSync(path, 'utf8');
-      let text = raw.trimEnd();
-      if (options.requirement !== undefined) {
-        const idx = Number(options.requirement);
-        if (!Number.isInteger(idx) || idx < 1) {
-          console.error(`invalid --requirement: ${options.requirement}`);
-          process.exitCode = 1;
-          return;
-        }
-        const entry = loadSpecEntries().find(
-          (e) => (e.doc.header.capability ?? e.fileName.replace(/\.feature$/u, '')) === item,
+      if (asJson) {
+        console.log(
+          JSON.stringify(
+            renderSpecJson(item, {
+              metaOnly,
+              noScenarios: noScenarios || reqsOnly,
+            }),
+            null,
+            asCompact ? 0 : 2,
+          ),
         );
-        const rule = entry?.doc.scenarios.filter((sc) => sc.classification === 'human')[idx - 1];
-        if (rule === undefined) {
-          console.error(`requirement index out of range: ${idx}`);
-          process.exitCode = 1;
-          return;
-        }
-        console.log(`@req:${rule.reqIds[0] ?? ''} ${rule.name}\n${rule.statement}`);
         return;
       }
-      const entry = loadSpecEntries().find(
-        (e) => (e.doc.header.capability ?? e.fileName.replace(/\.feature$/u, '')) === item,
-      );
-      const compact = options.output === 'compact' || options.output === 'meta-only';
-      if (compact) {
-        const header = entry?.doc.header;
-        const lines = [
-          `# capability: ${header?.capability ?? item}`,
-          `# purpose: ${header?.purpose ?? ''}`,
-          `# scope: ${header?.scope ?? ''}`,
-        ];
-        console.log(lines.join('\n'));
-        if (options.output !== 'meta-only') {
-          const sc = entry?.doc.scenarios.map((x) => `  ${x.classification}: ${x.name}`);
-          if (sc && sc.length > 0) console.log(sc.join('\n'));
-        }
-        return;
-      }
-      if (options.output === 'no-scenarios') {
-        const stripped = text
-          .split('\n')
-          .filter((l) => !/^\s*(场景|Scenario):/u.test(l))
-          .join('\n');
-        console.log(`## Spec\n${stripped}`);
-        return;
-      }
+      // text mode: v1 ignores all output modifiers (meta-only/no-scenarios/-r)
+      // and renders the full source + morphology.
+      const raw = readFileSync(specPath, 'utf8').trimEnd();
       const summary = collectSpecs(loadSpecEntries()).find((x) => x.id === item);
       const morphology = summary
         ? `\n\n## Morphology\nruleCount=${summary.morphology.ruleCount} enforced=${summary.morphology.ruleEnforcedCount} manual=${summary.morphology.ruleManualCount} pending=${summary.morphology.rulePendingCount} acceptanceCount=${summary.morphology.acceptanceCount}`
         : '';
-      console.log(`## Spec\n${text}${morphology}`);
+      console.log(`## Spec\n${raw}${morphology}`);
       return;
     }
+
+    // ---- change ----
     const proposalPath = join('llmanspec', 'changes', item, 'proposal.md');
     if (!existsSync(proposalPath)) {
       console.error(`change not found: ${item}`);
       process.exitCode = 1;
       return;
     }
-    // r52 What-Changes gate (v1 parity): applies to json and text alike.
     const proposal = readFileSync(proposalPath, 'utf8');
-    if (!proposal.includes('## What Changes')) {
-      console.error('Change must have a What Changes section');
-      process.exitCode = 1;
+    if (asJson) {
+      // v1 parse_change gates: Why first, then What Changes (json only).
+      if (!hasSection(proposal, 'Why')) {
+        process.exitCode = 1;
+        throw new Error('Change must have a Why section');
+      }
+      if (!hasSection(proposal, 'What Changes')) {
+        process.exitCode = 1;
+        throw new Error('Change must have a What Changes section');
+      }
+      const result = showChangeJson(
+        {
+          io: makeIo(process.cwd()),
+          git: makeCliGit(process.cwd()),
+          root: process.cwd(),
+          specsDir: 'llmanspec/specs',
+        },
+        item,
+      );
+      console.log(JSON.stringify(result, null, asCompact ? 0 : 2));
       return;
     }
-    if (options.output === 'meta-only') {
-      console.log(`path: ${join('llmanspec', 'changes', item)}`);
-      return;
-    }
-    if (options.output !== undefined && options.output !== 'json' && options.output !== 'compact') {
-      console.error(`unsupported --output for changes: ${options.output}`);
-      process.exitCode = 1;
-      return;
-    }
-    if (options.output !== 'json' && options.output !== 'compact') {
-      const changes = collectChanges(makeIo(process.cwd()), process.cwd(), new Date(), {
-        maxScanDepth: cliMaxScanDepth(),
-      });
-      const change = changes.find((c) => c.name === item);
-      console.log(`Stage: ${change?.stage ?? 'draft'}`);
-      console.log(`path: ${join('llmanspec', 'changes', item)}`);
-      console.log('---');
-      console.log(proposal.trimEnd());
-      return;
-    }
-    const result = showChangeJson(
+    // text: Stage / path / content / Gates trailer (no section gates).
+    const changes = collectChanges(makeIo(process.cwd()), process.cwd(), new Date(), {
+      maxScanDepth: cliMaxScanDepth(),
+    });
+    const change = changes.find((c) => c.name === item);
+    console.log(`Stage: ${change?.stage ?? 'draft'}`);
+    console.log(`path: ${item}`);
+    process.stdout.write(proposal);
+    if (!proposal.endsWith('\n')) console.log();
+    const gates = showChangeJson(
       {
         io: makeIo(process.cwd()),
         git: makeCliGit(process.cwd()),
@@ -725,13 +865,101 @@ program
         specsDir: 'llmanspec/specs',
       },
       item,
-    );
-    if (options.output === 'compact') {
-      console.log(JSON.stringify(result));
-      return;
-    }
-    console.log(JSON.stringify(result, null, 2));
+    ).gateChecks as { name: string; pass: boolean; hint: string }[];
+    const passCount = gates.filter((g) => g.pass).length;
+    console.log(`Gates: ${passCount}/${gates.length} pass`);
+    for (const g of gates.filter((g) => !g.pass)) console.log(`✗ ${g.name}: ${g.hint}`);
   });
+
+function hasSection(proposal: string, heading: string): boolean {
+  return (
+    new RegExp(`^## ${heading.replace(/[/\\]/u, '')}\\s*$`, 'mu').test(proposal) ||
+    proposal.includes(`## ${heading}`)
+  );
+}
+
+function renderSpecJson(
+  item: string,
+  opts: { metaOnly: boolean; noScenarios: boolean },
+): Record<string, unknown> {
+  const entry = loadSpecEntries().find(
+    (e) => (e.doc.header.capability ?? e.fileName.replace(/\.feature$/u, '')) === item,
+  );
+  const doc = entry?.doc as
+    | {
+        header: { capability: string | null; purpose: string | null };
+        scenarios: {
+          name: string;
+          classification: string;
+          reqIds: string[];
+          statement: string;
+          steps: { kind: string; text: string }[];
+        }[];
+      }
+    | undefined;
+  const cap = entry ? (doc?.header.capability ?? item) : item;
+  const purpose = doc?.header.purpose ?? '';
+  const humans = doc?.scenarios.filter((s) => s.classification === 'human') ?? [];
+  const acceptances = doc?.scenarios.filter((s) => s.classification === 'executable') ?? [];
+  const morphology = {
+    ruleCount: humans.length,
+    ruleEnforcedCount: humans.filter((r) =>
+      acceptances.some((a) => a.reqIds.some((rid) => r.reqIds.includes(rid))),
+    ).length,
+    ruleManualCount: humans.filter(
+      (r) => r.reqIds.includes('manual') || r.statement.includes('@manual'),
+    ).length,
+    rulePendingCount: humans.filter(
+      (r) => !acceptances.some((a) => a.reqIds.some((rid) => r.reqIds.includes(rid))),
+    ).length,
+    acceptanceCount: acceptances.length,
+    orphanAcceptanceCount: acceptances.filter((a) => a.reqIds.length === 0).length,
+  };
+  if (opts.metaOnly) {
+    return {
+      id: item,
+      featureId: cap,
+      title: cap,
+      purpose,
+      overview: purpose,
+      requirementCount: humans.length,
+      morphology,
+    };
+  }
+  const requirements = humans.map((rule) => ({
+    reqId: rule.reqIds[0] ?? '',
+    title: rule.name,
+    text: rule.statement,
+    scenarios: opts.noScenarios
+      ? []
+      : acceptances
+          .filter((a) => a.reqIds.some((rid) => rule.reqIds.includes(rid)))
+          .map((a) => ({
+            id: a.name,
+            rawText: `GIVEN: ${a.steps
+              .filter((s) => s.kind === 'given')
+              .map((s) => s.text)
+              .join('\n')}\nWHEN: ${a.steps
+              .filter((s) => s.kind === 'when')
+              .map((s) => s.text)
+              .join('\n')}\nTHEN: ${a.steps
+              .filter((s) => s.kind === 'then')
+              .map((s) => s.text)
+              .join('\n')}`,
+            source: 'acceptance',
+            reqIds: a.reqIds,
+          })),
+  }));
+  return {
+    id: item,
+    title: cap,
+    purpose,
+    overview: purpose,
+    requirementCount: humans.length,
+    requirements,
+    morphology,
+  };
+}
 
 program
   .command('graph')
@@ -743,9 +971,8 @@ program
   .action(
     (change: string | undefined, options: { format: string; scope?: string; depth?: string }) => {
       if (options.format !== 'mermaid') {
-        console.error(`unsupported format: ${options.format}`);
         process.exitCode = 1;
-        return;
+        throw new Error(`Unsupported format: ${options.format}. Supported: mermaid`);
       }
       const depth = options.depth !== undefined ? Number(options.depth) : undefined;
       if (depth !== undefined && (!Number.isInteger(depth) || depth < 0)) {
@@ -756,7 +983,7 @@ program
       console.log(
         graphMermaid(makeIo(process.cwd()), process.cwd(), {
           scope: options.scope,
-          depth,
+          depth: depth ?? 1,
           seed: change,
         }).join('\n'),
       );
@@ -803,25 +1030,35 @@ project
   .description('Remap globally duplicated req ids (report with --dry-run)')
   .option('--dry-run', 'report the remap plan without writing')
   .action((options: { dryRun?: boolean }) => {
-    const registry = buildReqRegistry(loadSpecEntries());
-    if (registry.duplicates.length === 0) {
+    // v1 parity: dedupe registry covers @human (rule) req ids only.
+    const entries = loadSpecEntries();
+    const owners = new Map<string, string[]>();
+    for (const e of entries) {
+      for (const sc of e.doc.scenarios) {
+        if (sc.classification !== 'human') continue;
+        for (const rid of sc.reqIds) {
+          const list = owners.get(rid) ?? [];
+          if (!list.includes(e.fileName)) list.push(e.fileName);
+          owners.set(rid, list);
+        }
+      }
+    }
+    const duplicates = [...owners.entries()]
+      .filter(([, files]) => files.length > 1)
+      .map(([reqId, files]) => ({ reqId, files }));
+    if (duplicates.length === 0) {
       console.log('No colliding req_id values in llmanspec/specs.');
       return;
     }
     const io = makeIo(process.cwd());
-    const plan = planDedupe(loadSpecEntries(), io, 'llmanspec/specs', registry.duplicates);
-    if (options.dryRun) {
-      console.log('Remap plan (nothing written):');
-      for (const item of plan) {
-        console.log(
-          `  ${item.reqId}: keep ${item.keepFile}, remap ${item.remapFile} -> ${item.newReqId}`,
-        );
-      }
-      return;
-    }
+    const plan = planDedupe(entries, io, 'llmanspec/specs', duplicates);
+    // v1 output: `{cap}: {from} → {to}` per remap (prefix in dry-run) + count line.
     for (const item of plan) {
-      console.log(`remapped ${item.reqId} in ${item.remapFile} -> ${item.newReqId}`);
+      const cap = item.remapFile.replace(/^.*specs\//u, '').replace(/\.feature$/u, '');
+      const prefix = options.dryRun ? '[dry-run] ' : '';
+      console.log(`${prefix}${cap}: ${item.reqId} → ${item.newReqId}`);
     }
+    console.log(`${plan.length} remapping(s)${options.dryRun ? ' (dry-run)' : ''}`);
   });
 
 project
@@ -896,7 +1133,7 @@ archive
       const result = await runThaw(io, sz, root, options.change, { dest: options.dest });
       for (const line of result.lines) console.log(line);
     } catch (error) {
-      console.error((error as Error).message);
+      console.error(`Error: ${(error as Error).message}`);
       process.exitCode = 1;
     }
   });
@@ -934,6 +1171,9 @@ review
         boundChangeCount: activeChanges.filter((c) => c.hasBinding).length,
         activeChanges,
         capability: options.capability,
+        git: makeCliGit(process.cwd()),
+        root: process.cwd(),
+        specsDir: 'llmanspec/specs',
       },
       io,
     );
@@ -1030,40 +1270,37 @@ configCmd
   .command('skills')
   .description('Manage extra_skills (non-interactive)')
   .option('--json', 'emit {enabled, available}')
-  .option('--set <name>', 'enable an extra skill (repeatable)', collectRepeatable)
-  .option('--unset <name>', 'disable an extra skill (repeatable)', collectRepeatable)
-  .action((options: { json?: boolean; set?: string[]; unset?: string[] }) => {
+  .option('--no-interactive', 'print state instead of launching the interactive picker')
+  .action((options: { json?: boolean }) => {
     const path = 'llmanspec/config.yaml';
+    const info = skillsJson(readFileSync(path, 'utf8'));
     if (options.json) {
-      console.log(JSON.stringify(skillsJson(readFileSync(path, 'utf8')), null, 2));
+      console.log(JSON.stringify(info, null, 2));
       return;
     }
-    if ((options.set?.length ?? 0) > 0 || (options.unset?.length ?? 0) > 0) {
-      try {
-        writeFileSync(path, setExtraSkills(readFileSync(path, 'utf8'), options));
-      } catch (error) {
-        if (error instanceof ExtraSkillsError) {
-          console.error(error.message);
-          process.exitCode = 1;
-          return;
-        }
-        throw error;
-      }
+    const enabled = info.enabled;
+    const available = info.available;
+    console.log('Enabled optional skills:');
+    if (enabled.length === 0) console.log('  (none)');
+    else for (const s of enabled) console.log(`  [x] ${s}`);
+    console.log();
+    console.log('Available but not enabled:');
+    for (const s of available) {
+      if (!enabled.includes(s)) console.log(`  [ ] ${s} — ${skillDesc(s)}`);
     }
-    const { enabled, available } = skillsJson(readFileSync(path, 'utf8'));
-    console.log(`enabled: ${enabled.length > 0 ? enabled.join(', ') : '(none)'}`);
-    console.log(`available: ${available.join(', ')}`);
+    console.log();
+    console.log('(Run without --no-interactive to edit interactively.)');
   });
 
 function resolveBackend(flag: string | undefined): 'pageindex' {
   const chosen = flag ?? process.env.LLMAN_SDD_INDEX_BACKEND ?? 'pageindex';
   if (chosen === 'rag') {
-    console.error('backend `rag` has been removed — migrate to pageindex (the default)');
-    process.exit(1);
+    throw new Error(
+      'Backend `rag` is no longer supported. Use the default pageindex backend instead:\nSet `LLMAN_SDD_INDEX_CHAT_MODEL` to a tool-calling chat model, then\nrun `llman sdd index rebuild`.',
+    );
   }
   if (chosen !== 'pageindex') {
-    console.error(`unsupported backend: ${chosen}`);
-    process.exit(1);
+    throw new Error(`Unsupported backend: ${chosen}`);
   }
   return 'pageindex';
 }
@@ -1081,7 +1318,8 @@ indexCmd
     const result = rebuildIndex(makeIo(process.cwd()), 'llmanspec/specs', loadSpecEntries(), {
       chatModel: process.env.LLMAN_SDD_INDEX_CHAT_MODEL ?? '',
     });
-    for (const line of result.lines) console.log(line);
+    for (const line of result.lines.slice(0, -1)) console.error(line);
+    if (result.lines.length > 0) console.log(result.lines.at(-1));
   });
 
 indexCmd
@@ -1132,8 +1370,54 @@ program
     console.log(JSON.stringify(result, null, 2));
   });
 
+function commandChain(argv: string[]): string {
+  let node: Command = program;
+  let chain = '';
+  let rest = argv.slice(2);
+  while (rest.length > 0) {
+    const child = node.commands.find((c) => c.name() === rest[0]);
+    if (child === undefined) break;
+    chain += ` ${child.name()}`;
+    node = child;
+    rest = rest.slice(1);
+    // eslint-disable-next-line no-loop-func
+  }
+  return chain;
+}
+
 async function main(): Promise<void> {
-  await program.parseAsync(process.argv);
+  try {
+    await program.parseAsync(process.argv);
+  } catch (error) {
+    const comErr = error as { code?: string; exitCode?: number; message?: string };
+    if (
+      comErr?.code === 'commander.version' ||
+      comErr?.code === 'commander.help' ||
+      comErr?.code === 'commander.helpDisplayed' ||
+      comErr?.exitCode === 0
+    ) {
+      // version/help already rendered to stdout; exit code stays 0.
+      return;
+    }
+    if (comErr?.code === 'commander.unknownOption') {
+      const raw = String(comErr.message ?? '');
+      const arg = raw.replace(/^error: unknown option ['"]/u, '').replace(/['"]?\s*$/u, '') ?? '';
+      const chain = commandChain(process.argv);
+      console.error(`error: unexpected argument '${arg}' found`);
+      console.error('');
+      console.error(`Usage: llman-sdd${chain} [OPTIONS]`);
+      console.error('');
+      console.error("For more information, try '--help'.");
+      process.exitCode = 2;
+      return;
+    }
+
+    // v1 parity: expected domain errors surface as a single `Error: <message>`
+    // line on stderr with exit code 1 (no Bun stack trace).
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(message.startsWith('Error: ') ? message : `Error: ${message}`);
+    process.exitCode = 1;
+  }
 }
 
 await main();

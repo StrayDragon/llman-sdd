@@ -62,6 +62,7 @@ test.skipIf(!existsSync(BIN))(
           '# language: zh-CN',
           '# capability: seed',
           '# purpose: binary smoke fixture',
+          '# scope: llmanspec/specs',
           '',
           '功能: seed',
           '  @req:r1 @human',
