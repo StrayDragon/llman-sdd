@@ -22,6 +22,7 @@
 - `bun apps/cli/src/main.ts init --update` 对本仓库执行:10 skills 重渲染,**零内容漂移**(仅 v2 渲染器按 r17 契约去除多余空行 + 版本号 0.1.0)
 - 根 `AGENTS.md` 托管块字节级稳定;`llmanspec/AGENTS.md` 托管块恢复工具占位行(工具所有,块外用户内容保留)
 - 切换后 v1 流水线(llman sdd list/validate)仍可用至本 change finalize
+- 2026-09-17(发布后定案):模板改经 `LLMAN_SDD_EMBEDDED_TEMPLATES` define 内嵌(build-binary 收集 `packages/core/templates` 为 path→content 表;Bun ≤ 1.4 无原生嵌入机制),单文件二进制 `init` / `review --export-html` 与源码/npm 版产物面一致;测试兜底 `tests/integration/binary.test.ts`
 
 ## 3. 临时 v1 行为对拍(历史记录;门已随切换拆除)
 

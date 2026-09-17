@@ -10,7 +10,9 @@ import {
   collectChanges,
   collectSpecs,
   discoverSpecs,
+  embeddedTemplates,
   graphMermaid,
+  makeEmbeddedTemplateIo,
   nextReqId,
   changeDiff,
   deriveChangeId,
@@ -48,11 +50,17 @@ import { makeCliGit, makeIo } from './io.ts';
 // package version when running from source.
 const version = process.env.LLMAN_SDD_VERSION ?? VERSION;
 
-/** Real-filesystem adapter for template resources under TEMPLATES_ROOT. */
-const templateIo: TemplateIo = {
-  exists: (p) => existsSync(p),
-  readText: (p) => readFileSync(p, 'utf8'),
-};
+// Compiled single-file binaries have no on-disk templates and Bun <= 1.4.x has
+// no embedding mechanism, so build-binary.ts injects the template table via
+// define; every non-compiled run keeps reading the real filesystem (npm/source/
+// Node). Both init and `review --export-html` resolve through this one seam.
+const embedded = embeddedTemplates();
+const templateIo: TemplateIo = embedded
+  ? makeEmbeddedTemplateIo(embedded)
+  : {
+      exists: (p) => existsSync(p),
+      readText: (p) => readFileSync(p, 'utf8'),
+    };
 
 /** Parse all capability specs under llmanspec/specs via core discovery. */
 function loadSpecEntries(): ReturnType<typeof discoverSpecs> {
@@ -373,7 +381,7 @@ review
       io,
     );
     if (options.exportHtml !== undefined) {
-      const template = readFileSync(join(TEMPLATES_ROOT, 'shared', 'review.html'), 'utf8');
+      const template = templateIo.readText(join(TEMPLATES_ROOT, 'shared', 'review.html'));
       writeFileSync(options.exportHtml, renderReviewHtml(template, result));
       console.log(`wrote ${options.exportHtml}`);
     }

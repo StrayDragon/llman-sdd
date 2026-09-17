@@ -105,6 +105,12 @@ export {
   type TemplateIo,
 } from './templates/skills.ts';
 export {
+  embeddedTemplates,
+  makeEmbeddedTemplateIo,
+  resolveEmbeddedTable,
+  templateKeyFor,
+} from './templates/embedded.ts';
+export {
   TEMPLATES_ROOT,
   runInit,
   updateFileWithMarkers,
