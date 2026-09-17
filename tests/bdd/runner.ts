@@ -24,7 +24,7 @@ export type StepKind = 'given' | 'when' | 'then';
 
 /** Per-scenario mutable state shared across steps (the v1 conftest model). */
 export interface TestContext {
-  fixtures: Record<string, Record<string, unknown>>;
+  fixtures: Record<string, unknown>;
 }
 
 /**
@@ -105,7 +105,10 @@ const PATH_TEMPLATE_RE = /\{([\w\u4E00-\u9FFF]+)\[([\w\u4E00-\u9FFF]+)\]\}/g;
 export function resolvePath(path: string, ctx: TestContext): string {
   return path.replace(PATH_TEMPLATE_RE, (match, fixtureName: string, key: string) => {
     const fixture = ctx.fixtures[fixtureName];
-    if (fixture && fixture[key] !== null && fixture[key] !== undefined) return String(fixture[key]);
+    if (fixture !== null && typeof fixture === 'object') {
+      const value = (fixture as Record<string, unknown>)[key];
+      if (value !== null && value !== undefined) return String(value);
+    }
     return match;
   });
 }
@@ -170,8 +173,8 @@ async function runStep(def: StepDef, text: string, docString: string | null, ctx
   if (docString !== null) args.push(docString);
   const callable = def.fn as (ctx: TestContext, ...args: (string | number)[]) => unknown;
   const result = await callable(ctx, ...args);
-  if (def.target && result && typeof result === 'object') {
-    ctx.fixtures[def.target] = result as Record<string, unknown>;
+  if (def.target && result !== null && typeof result === 'object') {
+    ctx.fixtures[def.target] = result;
   }
 }
 

@@ -18,11 +18,13 @@ bdd.given('工作目录是仓库根', (ctx: TestContext) => {
     throw new Error(`repo root not found at ${REPO_ROOT}`);
   }
   ctx.fixtures['仓库根'] = { 路径: REPO_ROOT };
-  return ctx.fixtures['仓库根'] as Record<string, unknown>;
+  return ctx.fixtures['仓库根'];
 });
 
 bdd.when('执行命令 "{command}"', (ctx: TestContext, command: string) => {
-  const cwd = String(ctx.fixtures['仓库根']?.['路径'] ?? REPO_ROOT);
+  const cwd = String(
+    (ctx.fixtures['仓库根'] as { 路径?: string } | undefined)?.['路径'] ?? REPO_ROOT,
+  );
   const [bin, ...args] = command.split(' ');
   if (!bin) throw new Error(`empty command: ${command}`);
   let code = 0;
@@ -35,40 +37,40 @@ bdd.when('执行命令 "{command}"', (ctx: TestContext, command: string) => {
     stdout = e.stdout ?? '';
   }
   ctx.fixtures['命令结果'] = { code, stdout };
-  return ctx.fixtures['命令结果'] as Record<string, unknown>;
+  return ctx.fixtures['命令结果'];
 });
 
 bdd.thenStep('退出码为 {code:d}', (ctx: TestContext, code: number) => {
-  const result = ctx.fixtures['命令结果'];
+  const result = ctx.fixtures['命令结果'] as RunResult | undefined;
   if (!result) throw new Error('no command result in fixtures — did the 当 step run?');
-  if (result['code'] !== code) {
-    throw new Error(`expected exit code ${code}, got ${result['code']}`);
+  if (result.code !== code) {
+    throw new Error(`expected exit code ${code}, got ${result.code}`);
   }
 });
 
 bdd.thenStep('stdout 符合正则 "{pattern}"', (ctx: TestContext, pattern: string) => {
-  const result = ctx.fixtures['命令结果'];
+  const result = ctx.fixtures['命令结果'] as RunResult | undefined;
   if (!result) throw new Error('no command result in fixtures — did the 当 step run?');
-  if (!new RegExp(pattern).test(String(result['stdout']))) {
-    throw new Error(`stdout ${JSON.stringify(result['stdout'])} does not match /${pattern}/`);
+  if (!new RegExp(pattern).test(result.stdout)) {
+    throw new Error(`stdout ${JSON.stringify(result.stdout)} does not match /${pattern}/`);
   }
 });
 
 bdd.given('一个计数器初始为 {count:d}', (ctx: TestContext, count: number) => {
   ctx.fixtures['计数器'] = { 值: count };
-  return ctx.fixtures['计数器'] as Record<string, unknown>;
+  return ctx.fixtures['计数器'];
 });
 
 bdd.when('计数器递增 {times:d} 次', (ctx: TestContext, times: number) => {
-  const counter = ctx.fixtures['计数器'] ?? { 值: 0 };
-  counter['值'] = Number(counter['值']) + times;
+  const counter = (ctx.fixtures['计数器'] as { 值: number } | undefined) ?? { 值: 0 };
+  counter['值'] = counter['值'] + times;
   ctx.fixtures['计数器'] = counter;
 });
 
 bdd.thenStep('计数器的值为 {expected:d}', (ctx: TestContext, expected: number) => {
-  const counter = ctx.fixtures['计数器'];
+  const counter = ctx.fixtures['计数器'] as { 值: number } | undefined;
   if (!counter) throw new Error('no counter in fixtures');
-  if (Number(counter['值']) !== expected) {
+  if (counter['值'] !== expected) {
     throw new Error(`expected counter ${expected}, got ${counter['值']}`);
   }
 });
