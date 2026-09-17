@@ -1096,3 +1096,82 @@ bdd.thenStep('后一个文件的 rN 被重映射为空闲 id', (ctx) => {
   if (billing.includes('@req:r1')) throw new Error('billing still carries the colliding r1');
   if (!/ @req:r\d+ @human/u.test(billing)) throw new Error(`no remapped id found: ${billing}`);
 });
+
+// ---------------------------------------------------------------------------
+// r44/r45/r46 — attach rebind / finalize no-commit / diff json (acceptance)
+// ---------------------------------------------------------------------------
+
+bdd.given('一个已 attach 的 feature 分支仓库', (ctx) => {
+  const repo = makeTempRepo();
+  const id = 'demo-bind';
+  const dir = join(repo.root, 'llmanspec', 'changes', id);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'proposal.md'), '---\ndepends_on: []\n---\n\n## Why\nx\n');
+  repo.run('git', ['add', '-A']);
+  repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'draft']);
+  repo.run('git', ['switch', '-qc', 'feat/bind']);
+  repo.run('bun', [CLI, 'change', 'attach', id]);
+  ctx.fixtures['仓库'] = { root: repo.root, repo };
+  ctx.fixtures['change'] = { id };
+});
+
+bdd.when('无 force 再次运行 change attach', (ctx) => {
+  const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
+  const id = (ctx.fixtures['change'] as { id: string }).id;
+  const result = repo.run('bun', [CLI, 'change', 'attach', id]);
+  ctx.fixtures['attach重绑'] = { code: result.code, stdout: result.stdout, stderr: result.stderr };
+});
+
+bdd.thenStep('报错提示已绑定', (ctx) => {
+  const r = ctx.fixtures['attach重绑'] as { code: number; stdout: string; stderr: string };
+  if (r.code === 0) throw new Error(`rebind should fail without --force: ${r.stdout}`);
+  if (!`${r.stdout}${r.stderr}`.includes('already attached')) {
+    throw new Error(`unexpected error: ${r.stdout}${r.stderr}`);
+  }
+});
+
+bdd.when('带 --force --base main 运行 change attach', (ctx) => {
+  const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
+  const id = (ctx.fixtures['change'] as { id: string }).id;
+  const result = repo.run('bun', [CLI, 'change', 'attach', id, '--force', '--base', 'main']);
+  ctx.fixtures['attach重绑'] = { code: result.code, stdout: result.stdout, stderr: result.stderr };
+});
+
+bdd.thenStep('重绑成功且 base_branch 记录为 main', (ctx) => {
+  const r = ctx.fixtures['attach重绑'] as { code: number; stdout: string };
+  const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
+  const id = (ctx.fixtures['change'] as { id: string }).id;
+  if (r.code !== 0) throw new Error(`forced rebind failed: ${r.stdout}`);
+  const proposal = readFileSync(join(repo.root, 'llmanspec', 'changes', id, 'proposal.md'), 'utf8');
+  if (!proposal.includes('base_branch: main')) throw new Error(`base_branch missing:\n${proposal}`);
+});
+
+bdd.when('运行 change finalize --no-commit', (ctx) => {
+  const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
+  const id = (ctx.fixtures['change'] as { id: string }).id;
+  const result = repo.run('bun', [CLI, 'change', 'finalize', id, '--no-commit']);
+  ctx.fixtures['finalize结果'] = { code: result.code, stdout: result.stdout };
+});
+
+bdd.thenStep('目录改名完成且工作区留有未提交改动', (ctx) => {
+  const r = ctx.fixtures['finalize结果'] as { code: number; stdout: string };
+  const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
+  if (r.code !== 0) throw new Error(`no-commit finalize failed: ${r.stdout}`);
+  const status = repo.run('git', ['status', '--porcelain']).stdout;
+  if (status === '') throw new Error('expected uncommitted close-out changes after --no-commit');
+});
+
+bdd.when('运行 change diff --json', (ctx) => {
+  const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
+  const id = (ctx.fixtures['change'] as { id: string }).id;
+  const result = repo.run('bun', [CLI, 'change', 'diff', id, '--json']);
+  ctx.fixtures['diffjson结果'] = { code: result.code, stdout: result.stdout };
+});
+
+bdd.thenStep('commitCount 为 {n:d} 且 change 与 branch 字段正确', (ctx, count: string) => {
+  const r = ctx.fixtures['diffjson结果'] as { code: number; stdout: string };
+  if (r.code !== 0) throw new Error(`diff --json failed: ${r.stdout}`);
+  const parsed = JSON.parse(r.stdout) as { change: string; branch: string; commitCount: number };
+  if (parsed.commitCount !== Number(count)) throw new Error(`commitCount ${parsed.commitCount}`);
+  if (!parsed.branch.startsWith('sdd/')) throw new Error(`branch field wrong: ${parsed.branch}`);
+});

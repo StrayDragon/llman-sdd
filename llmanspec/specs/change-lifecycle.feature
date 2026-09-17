@@ -94,3 +94,35 @@
     假如 一个带未勾任务的已绑定 change 仓库
     当 运行 change archive
     那么 报错列出未勾任务且不产生归档
+
+  @req:r44 @human
+  场景: change new/attach 兼容 flag
+    - `change new` MUST 支持 `--force`(覆盖已存在 proposal)与 `--verb <V>`(--from 派生时 verb 取显式值);`change attach` MUST 支持 `--force`(已绑定 change 重绑到当前分支)与 `--base <branch>`(显式记录 fork 源分支,该分支 MUST 存在且 MUST NOT 等于当前分支)。
+
+  @req:r45 @human
+  场景: start 前缀与 finalize 校验/收口的取值序
+    - `change start` 分支前缀 MUST 依次取 CLI `--branch-prefix`、config `sdd.branch_prefix`、缺省 `sdd/`;`change finalize` MUST 在合并前执行一次 specs 与 change 文档校验 sweep,失败 MUST 中止且不产生合并与改名,`--no-check` MUST 跳过该 sweep;合并方式 MUST 依次取 `--method`、config `sdd.merge_method`、缺省 squash;`--no-commit` MUST 完成改名但跳过自动提交并输出手工收尾指引。
+
+  @req:r46 @human
+  场景: change diff 结构化输出
+    - `change diff <id>` MUST 支持 `--json`(输出 {change, branch, base, commitCount})与 `--export-patch <path>`(diff 内容写文件而非 stdout,路径不作为 SSOT)。
+
+  @req:r44 @executable
+  场景: attach 重绑与显式 base
+    假如 一个已 attach 的 feature 分支仓库
+    当 无 force 再次运行 change attach
+    那么 报错提示已绑定
+    当 带 --force --base main 运行 change attach
+    那么 重绑成功且 base_branch 记录为 main
+
+  @req:r45 @executable
+  场景: finalize no-commit 收口
+    假如 一个已完成 start 并在特性分支有新提交的临时仓库
+    当 运行 change finalize --no-commit
+    那么 目录改名完成且工作区留有未提交改动
+
+  @req:r46 @executable
+  场景: diff 结构化输出
+    假如 一个已完成 start 并在特性分支有新提交的临时仓库
+    当 运行 change diff --json
+    那么 commitCount 为 1 且 change 与 branch 字段正确

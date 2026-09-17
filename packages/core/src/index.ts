@@ -99,6 +99,7 @@ export {
   type FsIo,
   archiveChange,
   archiveTaskGate,
+  changeDiffInfo,
 } from './change/lifecycle.ts';
 export { normalizeLocale, localeFallbacks } from './templates/locale.ts';
 export {

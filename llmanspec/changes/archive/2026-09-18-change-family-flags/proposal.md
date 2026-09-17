@@ -1,6 +1,9 @@
 ---
 depends_on:
   - align-next-id-numeric
+branch: sdd/change-family-flags
+base_branch: main
+base_sha: 00a60ec93f800dc454ec849c24330f3172887058
 ---
 
 # change 族 flag 对齐:new/attach/start/finalize/diff

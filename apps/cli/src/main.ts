@@ -44,6 +44,7 @@ import {
   addReq,
   addScenario,
   archiveChange,
+  changeDiffInfo,
   buildReqRegistry,
   harvestUniqueNumbers,
   planDedupe,
@@ -96,6 +97,17 @@ function runValidateSpecs(options: { specs?: boolean; check: boolean }): number 
 
 function collectRepeatable(value: string, previous: string[] = []): string[] {
   return [...previous, value];
+}
+
+function loadCliConfig(): ReturnType<typeof loadConfig> | null {
+  return existsSync('llmanspec/config.yaml')
+    ? loadConfig(readFileSync('llmanspec/config.yaml', 'utf8'))
+    : null;
+}
+
+function runValidateSweep(): boolean {
+  const report = validateAllSpecs(loadSpecEntries(), makeIo(process.cwd()));
+  return report.verdicts.some((v) => !v.ok);
 }
 
 const program = new Command();
@@ -157,11 +169,15 @@ change
   .command('start')
   .description('Bind the change to a new feature branch (clean tree + default branch gates)')
   .argument('<id>')
-  .option('--branch-prefix <prefix>', 'feature branch prefix', 'sdd/')
-  .action((id: string, options: { branchPrefix: string }) => {
+  .option(
+    '--branch-prefix <prefix>',
+    'feature branch prefix (default: sdd.branch_prefix config, then sdd/)',
+  )
+  .action((id: string, options: { branchPrefix?: string }) => {
     const git = makeCliGit(process.cwd());
+    const config = loadCliConfig();
     const result = startChange(git, makeIo(process.cwd()), id, {
-      branchPrefix: options.branchPrefix,
+      branchPrefix: options.branchPrefix ?? config?.sdd?.branch_prefix ?? 'sdd/',
     });
     console.log(
       `started change \`${id}\` → branch \`${result.branch}\` (base ${result.baseBranch}@${result.baseSha.slice(0, 7)})`,
@@ -170,11 +186,18 @@ change
 
 change
   .command('attach')
-  .description('Bind the change to the current branch (no gates)')
+  .description('Bind the change to the current feature branch')
   .argument('<id>')
-  .action((id: string) => {
-    const result = attachChange(makeCliGit(process.cwd()), makeIo(process.cwd()), id);
-    console.log(`attached change \`${id}\` → branch \`${result.branch}\``);
+  .option('--force', 'rebind an already attached change to the current branch')
+  .option('--base <branch>', 'explicit fork-point branch to record')
+  .action((id: string, options: { force?: boolean; base?: string }) => {
+    const result = attachChange(makeCliGit(process.cwd()), makeIo(process.cwd()), id, {
+      force: options.force,
+      base: options.base,
+    });
+    console.log(
+      `attached change \`${id}\` → branch \`${result.branch}\` base-branch \`${result.baseBranch}\``,
+    );
   });
 
 change
@@ -244,31 +267,72 @@ change
   .command('diff')
   .description('Print the bound branch diff vs base')
   .argument('<id>')
-  .action((id: string) => {
-    console.log(changeDiff(makeCliGit(process.cwd()), makeIo(process.cwd()), id));
+  .option('--json', 'emit {change, branch, base, commitCount}')
+  .option('--export-patch <path>', 'write the diff to a file instead of stdout')
+  .action((id: string, options: { json?: boolean; exportPatch?: string }) => {
+    const git = makeCliGit(process.cwd());
+    if (options.json) {
+      const info = changeDiffInfo(git, makeIo(process.cwd()), id);
+      console.log(JSON.stringify(info, null, 2));
+      return;
+    }
+    const diff = changeDiff(git, makeIo(process.cwd()), id);
+    if (options.exportPatch !== undefined) {
+      writeFileSync(options.exportPatch, diff);
+      console.log(`wrote ${options.exportPatch}`);
+      return;
+    }
+    console.log(diff);
   });
 
 change
   .command('finalize')
-  .description('Merge the feature branch, archive docs, and close out with one commit')
+  .description('Validate, merge the feature branch, archive docs, close out with one commit')
   .argument('<id>')
   .option('--into <branch>', 'merge target override (defaults to base_branch)')
-  .option('--method <method>', 'merge method: squash (default) or ff', 'squash')
-  .action((id: string, options: { into?: string; method: string }) => {
-    if (options.method !== 'squash' && options.method !== 'ff') {
-      console.error(`invalid --method: ${options.method}`);
-      process.exitCode = 1;
-      return;
-    }
-    const result = finalizeChange(makeCliGit(process.cwd()), makeIo(process.cwd()), id, {
-      into: options.into,
-      method: options.method,
-    });
-    for (const w of result.warnings) console.error(`[WARNING] ${w}`);
-    console.log(
-      `finalized \`${id}\` → ${result.archiveDir} (commit "${result.commitSubject}" on ${result.target})`,
-    );
-  });
+  .option(
+    '--method <method>',
+    'merge method: squash | ff (default: sdd.merge_method config, then squash)',
+  )
+  .option('--no-check', 'skip the pre-merge validation sweep')
+  .option('--no-commit', 'skip the close-out commit (manual/CI history)')
+  .action(
+    (
+      id: string,
+      options: { into?: string; method?: string; check?: boolean; commit?: boolean },
+    ) => {
+      if (options.method !== undefined && options.method !== 'squash' && options.method !== 'ff') {
+        console.error(`invalid --method: ${options.method}`);
+        process.exitCode = 1;
+        return;
+      }
+      if (options.check !== false) {
+        const failed = runValidateSweep();
+        if (failed) {
+          console.error('finalize aborted: validation sweep failed (use --no-check to skip)');
+          process.exitCode = 1;
+          return;
+        }
+      }
+      const config = loadCliConfig();
+      const method = options.method ?? config?.sdd?.merge_method ?? 'squash';
+      const result = finalizeChange(makeCliGit(process.cwd()), makeIo(process.cwd()), id, {
+        into: options.into,
+        method: method as 'squash' | 'ff',
+        noCommit: options.commit === false,
+      });
+      for (const w of result.warnings) console.error(`[WARNING] ${w}`);
+      if (options.commit === false) {
+        console.log(
+          `finalized \`${id}\` → ${result.archiveDir} on ${result.target} (close-out commit skipped — run: git add -A && git commit -m "archive(sdd): ${id}")`,
+        );
+        return;
+      }
+      console.log(
+        `finalized \`${id}\` → ${result.archiveDir} (commit "${result.commitSubject}" on ${result.target})`,
+      );
+    },
+  );
 
 program
   .command('list')
