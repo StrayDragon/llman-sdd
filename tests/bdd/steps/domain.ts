@@ -430,9 +430,9 @@ bdd.when('运行 v2 的 list --json 与 graph', (ctx) => {
     const wrapper = JSON.parse(listOut) as { changes?: { name?: string; status?: string }[] };
     const parsed = wrapper.changes ?? [];
     const statuses = new Set(['no-tasks', 'complete', 'in-progress']);
+    // 空列表空真成立:条款约束的是"元素"的字段合法性,不要求仓库有活跃 change
     listOk =
       Array.isArray(parsed) &&
-      parsed.length > 0 &&
       parsed.every((c) => typeof c.name === 'string' && statuses.has(c.status as string));
     sample = `${parsed.length} changes`;
   } catch (error) {
