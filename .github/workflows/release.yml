@@ -81,22 +81,10 @@ jobs:
           npm unpublish @llman-sdd/cli@0.1.0 --force || true
       - name: publish @llman-sdd/core
         working-directory: packages/core
-        run: |
-          VERSION=$(node -p "require('./package.json').version")
-          if npm view "@llman-sdd/core@$VERSION" >/dev/null 2>&1; then
-            echo "skip: @llman-sdd/core@$VERSION already published"
-          else
-            bun publish --access public
-          fi
+        run: bun publish --access public
       - name: publish @llman-sdd/cli
         working-directory: apps/cli
-        run: |
-          VERSION=$(node -p "require('./package.json').version")
-          if npm view "@llman-sdd/cli@$VERSION" >/dev/null 2>&1; then
-            echo "skip: @llman-sdd/cli@$VERSION already published"
-          else
-            bun publish --access public
-          fi
+        run: bun publish
 
   github-release:
     needs: [binaries, npm]
