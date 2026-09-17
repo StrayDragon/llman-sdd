@@ -20,7 +20,7 @@ v2 功能对齐后,建立发布管线并完成本仓库的狗粮切换:从 v1(Ru
 
 ## What Changes
 
-- npm 包发布(包名/bin 名待定:`llman-sdd` + `llmanspec` 兼容入口候选)+ `bun build --compile` 多平台二进制 matrix 发布(冒烟 + sha256)
+- npm 包发布(`llman-sdd` + `@llman-sdd/core` + `llmanspec` 兼容入口包,bin 均为 `llman-sdd`/`llmanspec`)+ `bun build --compile` 多平台二进制 matrix 发布(冒烟 + sha256)
 - release workflow(tag 触发,fetch-depth: 0 供版本注入)
 - 本仓库执行 `init --update`(v2 版):skills 托管权从 v1 切到 v2,验收生成物零漂移
 - **切换前:临时扩充 v1(Rust)行为对拍**(临时门,切换完成即拆,2026-09-16 定案):在现有 golden:cli 12 命令 + golden:validate + BDD 活体场景之外,对剩余用户可见行为补活体对照——change 生命周期全子命令、fresh init 产物(llmanspec/AGENTS.md 含 v2 托管块分歧点的显式裁决记录)、archive freeze/thaw 全参数组合、review --export-html、context 守卫与错误路径(退出码 + 输出形状);覆盖口径记录进 `docs/acceptance-v2.md`

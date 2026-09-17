@@ -20,7 +20,7 @@
       },
     },
     "apps/cli": {
-      "name": "@llman-sdd/cli",
+      "name": "llman-sdd",
       "version": "0.1.0",
       "bin": {
         "llman-sdd": "./src/main.ts",
@@ -38,6 +38,16 @@
         "zod": "^4.6.5",
       },
     },
+    "packages/llmanspec": {
+      "name": "llmanspec",
+      "version": "0.1.0",
+      "bin": {
+        "llmanspec": "./bin/llmanspec.mjs",
+      },
+      "dependencies": {
+        "llman-sdd": "workspace:*",
+      },
+    },
   },
   "packages": {
     "7z-wasm": ["7z-wasm@1.2.0", "", { "dependencies": { "readline-sync": "^1.4.10" }, "bin": { "7z-wasm": "bin/cli" } }, "sha512-AZjtWXFleAe5nQ27JYISs70cICjO0zZr4LU45I9pXKcrhG0qiEWgq3Vjwr9JHHihFLuqgc7uSHYVn/z3vXCjdw=="],
@@ -45,8 +55,6 @@
     "@cucumber/gherkin": ["@cucumber/gherkin@42.0.1", "", { "dependencies": { "@cucumber/messages": ">=34.0.0 <35" } }, "sha512-Kqg0ULhWqbXp/a1c04ND4sS4KTlIL831tQ0NhZLXWdEhT6LiNsZ5LFRzy/lBy7QQpcKhroKp/i3C2WdEnRBKNg=="],
 
     "@cucumber/messages": ["@cucumber/messages@34.2.1", "", {}, "sha512-aj2iCAG9ZOpMVcMxcgShifv5fbR96b7SMgdWcPXXh2QbFp7OEcAnQ5MC5YfWUDSDasmw7FU5NJEsOrXdTQOU1A=="],
-
-    "@llman-sdd/cli": ["@llman-sdd/cli@workspace:apps/cli"],
 
     "@llman-sdd/core": ["@llman-sdd/core@workspace:packages/core"],
 
@@ -179,6 +187,10 @@
     "bun-types": ["bun-types@1.4.2", "", { "dependencies": { "@types/node": "*" } }, "sha512-bxV1FgK7yBIzjRe5zBozIM4Bem11ZJcCXSrjWRG3YWLt8yFDePu4cLjpebO8OvPeIE9trbyPF4fuj3Cia4Fj3w=="],
 
     "commander": ["commander@15.0.0", "", {}, "sha512-z67u4ZhzCL/Tydu1lJARtEZYWbWaN7oYLHbsuzocr6y4N6WZAagG3RQ4FW61V1/0+jImpj293XfrcYnd1qxtPg=="],
+
+    "llman-sdd": ["llman-sdd@workspace:apps/cli"],
+
+    "llmanspec": ["llmanspec@workspace:packages/llmanspec"],
 
     "nunjucks": ["nunjucks@3.2.4", "", { "dependencies": { "a-sync-waterfall": "^1.0.0", "asap": "^2.0.3", "commander": "^5.1.0" }, "peerDependencies": { "chokidar": "^3.3.0" }, "optionalPeers": ["chokidar"], "bin": { "nunjucks-precompile": "bin/precompile" } }, "sha512-26XRV6BhkgK0VOxfbU5cQI+ICFUtMLixv1noZn1tGU38kQH5A5nmmbk/O45xdyBhD1esk47nKrY0mvQpZIhRjQ=="],
 

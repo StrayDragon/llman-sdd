@@ -74,6 +74,9 @@ jobs:
       - run: cd apps/cli && bun publish
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - run: cd packages/llmanspec && bun publish
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   github-release:
     needs: [binaries, npm]
