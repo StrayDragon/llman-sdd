@@ -6,7 +6,7 @@ import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
 
 const req = createRequire(import.meta.url);
-const entry = req.resolve('llman-sdd');
+const entry = req.resolve('@llman-sdd/cli');
 const result = spawnSync(process.execPath, [entry, ...process.argv.slice(2)], {
   stdio: 'inherit',
 });

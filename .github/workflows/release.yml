@@ -72,10 +72,35 @@ jobs:
         run: echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-      # bun publish 会把 workspace:* 替换为解析后的版本;--access 对 scoped 包必须显式
-      - run: cd packages/core && bun publish --access public
-      - run: cd apps/cli && bun publish
-      - run: cd packages/llmanspec && bun publish
+      # bun publish 会把 workspace:* 替换为解析后的版本;scoped 包必须 --access public
+      # 幂等守卫:已发布的版本(重打 tag 重跑)自动跳过
+      - name: publish @llman-sdd/core
+        working-directory: packages/core
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if npm view "@llman-sdd/core@$VERSION" >/dev/null 2>&1; then
+            echo "skip: @llman-sdd/core@$VERSION already published"
+          else
+            bun publish --access public
+          fi
+      - name: publish @llman-sdd/cli
+        working-directory: apps/cli
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if npm view "@llman-sdd/cli@$VERSION" >/dev/null 2>&1; then
+            echo "skip: @llman-sdd/cli@$VERSION already published"
+          else
+            bun publish --access public
+          fi
+      - name: publish llmanspec (alias)
+        working-directory: packages/llmanspec
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if npm view "llmanspec@$VERSION" >/dev/null 2>&1; then
+            echo "skip: llmanspec@$VERSION already published"
+          else
+            bun publish --access public
+          fi
 
   github-release:
     needs: [binaries, npm]

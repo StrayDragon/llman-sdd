@@ -37,4 +37,4 @@ bun run build      # CLI 单二进制(apps/cli/dist/)
 
 ## 发布
 
-tag(`vX.Y.Z`)触发 `.github/workflows/release.yml`:`--compile` 五平台二进制(含 sha256)+ npm 双包(`@llman-sdd/core` + `llman-sdd`)。版本 SSOT 是 git tag。
+tag(`vX.Y.Z`)触发 `.github/workflows/release.yml`:`--compile` 五平台二进制(含 sha256)+ npm 三包(`@llman-sdd/core` + `@llman-sdd/cli` + `llmanspec` alias)。版本 SSOT 是 git tag。

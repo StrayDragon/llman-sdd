@@ -19,7 +19,7 @@ tag push / npm publish / GitHub release 属外发动作,MUST 由用户显式触�
 
 ## D4 npm 发布布局(建议,publish 前用户确认)
 
-npm 双包 + 兼容 alias(2026-09-17 用户定案):`@llman-sdd/core`(域逻辑)+ `llman-sdd`(CLI,bin `llman-sdd`)+ **`llmanspec`(兼容入口包,bin `llmanspec` 经依赖图转发 llman-sdd CLI)**。**发布 TS 源码不打包**(项目哲学"TypeScript 仅 typecheck 不参与构建"),engines 声明 `bun >= 1.4 || node >= 24`(Node 24 type-stripping 直跑)。原"单包内联"方案作废——源码是包名导入(`@llman-sdd/core`),内联需打包,违背哲学;标准 workspace 双包 + `bun publish` 的 workspace:* 版本替换。二进制(`--compile` matrix)是独立分发渠道。
+npm 三包全 scoped 归 org(2026-09-17 用户定案,替代原"单包 llman-sdd"):`@llman-sdd/core`(域逻辑)+ **`@llman-sdd/cli`(CLI,bin `llman-sdd`)** + **`llmanspec`(兼容入口包,bin `llmanspec` 经依赖图转发 @llman-sdd/cli)**。统一 scope 的原因:现有 NPM_TOKEN 的写权限仅覆盖 org scope,unscoped 包 403。**发布 TS 源码不打包**(项目哲学"TypeScript 仅 typecheck 不参与构建"),engines 声明 `bun >= 1.4 || node >= 24`(Node 24 type-stripping 直跑)。原"单包内联"方案作废——源码是包名导入(`@llman-sdd/core`),内联需打包,违背哲学;标准 workspace 双包 + `bun publish` 的 workspace:* 版本替换。二进制(`--compile` matrix)是独立分发渠道。
 
 ## D5 临时对拍扩充(临时,拆门时一并删除)
 

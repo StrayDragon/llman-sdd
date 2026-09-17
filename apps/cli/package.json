@@ -1,5 +1,5 @@
 {
-  "name": "llman-sdd",
+  "name": "@llman-sdd/cli",
   "version": "0.1.0",
   "description": "Spec-driven development workflow CLI",
   "license": "MIT",

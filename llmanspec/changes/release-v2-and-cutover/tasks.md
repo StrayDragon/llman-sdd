@@ -16,7 +16,7 @@
   - npm 包布局:单包 `llman-sdd`,bin 指向 apps/cli/src/main.ts,engines(bun>=1.4 || node>=24),files 白名单;`npm pack` 干跑验证内容集
   - `--compile` 二进制矩阵本地构建冒烟(linux x64 至少一平台)+ sha256
   - `.github/workflows/release.yml`:tag 触发,fetch-depth: 0,构建 matrix + sha256 + smoke,产物挂 release(仅落盘配置,不触发)
-  - 补遗(2026-09-17 用户定案):新增 `llmanspec` 兼容入口包(packages/llmanspec,bin 转发 llman-sdd CLI),随 release 一并发布;`npm pack` 干跑通过,bin 转发实测 ✓
+  - 补遗(2026-09-17 用户定案):新增 `llmanspec` 兼容入口包(packages/llmanspec,bin 转发 @llman-sdd/cli);CLI 包名定为 `@llman-sdd/cli`(token 权限只覆盖 org scope),随 release 一并发布;`npm pack` 干跑通过,bin 转发实测 ✓
   - 门:`npm pack` 内容清单正确;二进制 `--version` 注入正确
 
 - [x] T4 狗粮切换(本仓库 init --update) [blocked-by: T1]
@@ -36,5 +36,5 @@
   - 门:just qa + golden:check 全绿;`grep -rn "Rust llman\|v1 冻结\|v1 生成物" packages/ apps/ llmanspec/specs/` 仅剩设计裁决记录
 
 - [ ] T7 发布执行(外发,需用户显式指令) [blocked-by: T3, T5, T6]
-  - 发布物:`@llman-sdd/core` + `llman-sdd` + `llmanspec`(alias);打 tag push → release workflow 跑通 → npm publish → 发布物下载冒烟 + sha256 核对
+  - 发布物:`@llman-sdd/core` + `@llman-sdd/cli` + `llmanspec`(alias,幂等守卫跳过已发布版本);打 tag push → release workflow 跑通 → npm publish → 发布物下载冒烟 + sha256 核对
   - 门:release 页产物齐全;`npm install llman-sdd && llman-sdd --version` 通过
