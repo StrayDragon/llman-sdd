@@ -44,8 +44,12 @@ import {
   addReq,
   addScenario,
   archiveChange,
+  checkChangeDoc,
   changeDiffInfo,
   buildReqRegistry,
+  expandRunCommand,
+  STAGE_ORDER,
+  hasPlaceholders,
   harvestUniqueNumbers,
   planDedupe,
   resolveReq,
@@ -79,20 +83,41 @@ function loadSpecEntries(): ReturnType<typeof discoverSpecs> {
   return discoverSpecs('llmanspec/specs', makeIo(process.cwd()));
 }
 
-function runValidateSpecs(options: { specs?: boolean; check: boolean }): number {
-  const report = validateAllSpecs(loadSpecEntries(), makeIo(process.cwd()));
-  for (const line of report.lines) console.log(line);
+function runValidateSpecs(options: { check: boolean; quiet?: boolean }): {
+  failed: boolean;
+  verdicts: ReturnType<typeof validateAllSpecs>['verdicts'];
+} {
+  const entries = loadSpecEntries();
+  const report = validateAllSpecs(entries, makeIo(process.cwd()));
+  if (!options.quiet) for (const line of report.lines) console.log(line);
 
   let failed = report.failed;
   if (options.check && existsSync('llmanspec/config.yaml')) {
     const config = loadConfig(readFileSync('llmanspec/config.yaml', 'utf8'));
     const runCommand = config.bdd?.run_command;
     if (runCommand) {
-      const proc = spawnSync(runCommand, { shell: true, stdio: 'inherit' });
-      if ((proc.status ?? 1) !== 0) failed = true;
+      if (hasPlaceholders(runCommand)) {
+        // r48: per-target replacement — run once per capability spec.
+        for (const entry of entries) {
+          const name = entry.doc.header.capability ?? entry.fileName.replace(/\.feature$/u, '');
+          const target = {
+            featureDir: 'llmanspec/specs',
+            featureName: name,
+            featurePath: `llmanspec/specs/${entry.fileName}`,
+          };
+          const proc = spawnSync(expandRunCommand(runCommand, target), {
+            shell: true,
+            stdio: 'inherit',
+          });
+          if ((proc.status ?? 1) !== 0) failed = true;
+        }
+      } else {
+        const proc = spawnSync(runCommand, { shell: true, stdio: 'inherit' });
+        if ((proc.status ?? 1) !== 0) failed = true;
+      }
     }
   }
-  return failed ? 1 : 0;
+  return { failed, verdicts: report.verdicts };
 }
 
 function collectRepeatable(value: string, previous: string[] = []): string[] {
@@ -103,6 +128,17 @@ function loadCliConfig(): ReturnType<typeof loadConfig> | null {
   return existsSync('llmanspec/config.yaml')
     ? loadConfig(readFileSync('llmanspec/config.yaml', 'utf8'))
     : null;
+}
+
+function specVerdictsToItems(
+  verdicts: ReturnType<typeof validateAllSpecs>['verdicts'],
+): { id: string; type: string; valid: boolean; issues: unknown[] }[] {
+  return verdicts.map((v) => ({
+    id: v.capability,
+    type: 'spec',
+    valid: v.ok,
+    issues: v.items,
+  }));
 }
 
 function runValidateSweep(): boolean {
@@ -131,13 +167,148 @@ program
 
 program
   .command('validate')
-  .description('Validate specs under llmanspec/specs (structural gates)')
-  .option('--specs', 'validate specs (default and only scope for now)')
+  .description('Validate specs and changes (structural gates + stage/completion rules)')
+  .argument('[item]', 'spec id or change id (auto-disambiguated)')
+  .option('--all', 'validate all specs and all changes')
+  .option('--changes', 'restrict scope to changes')
+  .option('--specs', 'restrict scope to specs')
+  .option('--type <type>', 'force disambiguation: change | spec')
+  .option('--stage <stage>', 'change stage gate: draft | designed | planned | full')
+  .option('--strict', 'warnings also make the exit code non-zero')
+  .option('--json', 'emit {items:[{id,type,valid,issues}]}')
+  .option('--compact-json', 'single-line --json (requires --json)')
   .option('--no-check', 'skip the bdd.run_command check (structural validation only)')
-  .action((options: { specs?: boolean; check: boolean }) => {
-    // Node 下管道 stdout 写入异步,process.exit 会截断输出;exitCode 等价且安全。
-    process.exitCode = runValidateSpecs(options);
-  });
+  .action(
+    (
+      item: string | undefined,
+      options: {
+        all?: boolean;
+        changes?: boolean;
+        specs?: boolean;
+        type?: string;
+        stage?: string;
+        strict?: boolean;
+        json?: boolean;
+        compactJson?: boolean;
+        check: boolean;
+      },
+    ) => {
+      // Node 下管道 stdout 写入异步,process.exit 会截断输出;exitCode 等价且安全。
+      if (options.compactJson && !options.json) {
+        console.error('--compact-json requires --json');
+        process.exitCode = 1;
+        return;
+      }
+      if (options.type !== undefined && options.type !== 'change' && options.type !== 'spec') {
+        console.error(`invalid --type: ${options.type}`);
+        process.exitCode = 1;
+        return;
+      }
+      if (
+        options.stage !== undefined &&
+        !(STAGE_ORDER as readonly string[]).includes(options.stage)
+      ) {
+        console.error(`invalid --stage: ${options.stage}`);
+        process.exitCode = 1;
+        return;
+      }
+
+      const specScope = options.all || !options.changes || options.specs === true;
+      const changeScope = options.all || options.changes === true;
+      // no item + no explicit scope flags → specs only (historical default)
+      const defaultSpecsOnly = item === undefined && !options.all && !options.changes;
+      const effectiveSpecs = defaultSpecsOnly ? true : specScope;
+      const effectiveChanges =
+        item === undefined && !options.all ? options.changes === true : changeScope;
+
+      const jsonItems: { id: string; type: string; valid: boolean; issues: unknown[] }[] = [];
+      let failed = false;
+
+      if (item !== undefined) {
+        // auto-disambiguation: spec id first (exact file stem), then change name
+        const entries = loadSpecEntries();
+        const specEntry =
+          options.type === 'change'
+            ? undefined
+            : entries.find(
+                (e) => (e.doc.header.capability ?? e.fileName.replace(/\.feature$/u, '')) === item,
+              );
+        if (specEntry !== undefined) {
+          const run = runValidateSpecs({ check: options.check, quiet: options.json === true });
+          if (options.json) {
+            console.log(JSON.stringify({ items: specVerdictsToItems(run.verdicts) }, null, 2));
+          }
+          process.exitCode = run.failed ? 1 : 0;
+          return;
+        }
+        const changes = collectChanges(makeIo(process.cwd()), process.cwd(), new Date());
+        const change = options.type === 'spec' ? undefined : changes.find((c) => c.name === item);
+        if (change === undefined) {
+          console.error(`no spec or change matches: ${item}`);
+          process.exitCode = 1;
+          return;
+        }
+        const config = loadCliConfig();
+        const result = checkChangeDoc(change, config?.archive ?? {}, {
+          stage: options.stage as never,
+        });
+        const hasError = result.issues.some((i) => i.level === 'ERROR');
+        const hasWarning = result.issues.some((i) => i.level === 'WARNING');
+        failed = hasError || (options.strict === true && hasWarning);
+        for (const issue of result.issues)
+          console.log(`  [${issue.level}] ${change.name}: ${issue.message}`);
+        console.log(`${result.valid ? 'OK' : 'FAIL'} change/${change.name}`);
+        jsonItems.push({
+          id: change.name,
+          type: 'change',
+          valid: result.valid,
+          issues: result.issues,
+        });
+        if (!options.json) {
+          // human lines already printed
+        } else {
+          console.log(JSON.stringify({ items: jsonItems }, null, 2));
+        }
+        process.exitCode = failed ? 1 : 0;
+        return;
+      }
+
+      let specVerdicts: ReturnType<typeof validateAllSpecs>['verdicts'] = [];
+      if (effectiveSpecs) {
+        const run = runValidateSpecs({ check: options.check, quiet: options.json === true });
+        failed = run.failed;
+        specVerdicts = run.verdicts;
+      }
+      if (effectiveChanges) {
+        const config = loadCliConfig();
+        const changes = collectChanges(makeIo(process.cwd()), process.cwd(), new Date());
+        const skipArchive = changes.filter((c) => c.name !== 'archive');
+        for (const change of skipArchive) {
+          const result = checkChangeDoc(change, config?.archive ?? {}, {
+            stage: options.stage as never,
+          });
+          const hasError = result.issues.some((i) => i.level === 'ERROR');
+          const hasWarning = result.issues.some((i) => i.level === 'WARNING');
+          if (hasError || (options.strict === true && hasWarning)) failed = true;
+          console.log(`${result.valid ? 'OK' : 'FAIL'} change/${change.name}`);
+          for (const issue of result.issues)
+            console.log(`  [${issue.level}] ${change.name}: ${issue.message}`);
+          jsonItems.push({
+            id: change.name,
+            type: 'change',
+            valid: result.valid,
+            issues: result.issues,
+          });
+        }
+      }
+      if (options.json) {
+        const all = [...specVerdictsToItems(specVerdicts), ...jsonItems];
+        const text = JSON.stringify({ items: all });
+        console.log(options.compactJson ? text : JSON.stringify({ items: all }, null, 2));
+      }
+      process.exitCode = failed ? 1 : 0;
+    },
+  );
 
 const change = program
   .command('change')

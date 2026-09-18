@@ -73,6 +73,17 @@ export type {
   ValidationReport,
 } from './validation/validate.ts';
 export { validateAllSpecs, validateCapability } from './validation/validate.ts';
+export {
+  checkChangeDoc,
+  expandRunCommand,
+  hasPlaceholders,
+  STAGE_ORDER,
+  type ChangeCheckConfig,
+  type ChangeCheckInput,
+  type ChangeCheckResult,
+  type ChangeIssue,
+  type StageGate,
+} from './validation/changeCheck.ts';
 export { discoverSpecs, type DiscoveryIo } from './validation/discover.ts';
 export type { ChangeBinding } from './change/frontmatter.ts';
 export { readBinding, writeBinding } from './change/frontmatter.ts';

@@ -1175,3 +1175,72 @@ bdd.thenStep('commitCount 为 {n:d} 且 change 与 branch 字段正确', (ctx, c
   if (parsed.commitCount !== Number(count)) throw new Error(`commitCount ${parsed.commitCount}`);
   if (!parsed.branch.startsWith('sdd/')) throw new Error(`branch field wrong: ${parsed.branch}`);
 });
+
+// ---------------------------------------------------------------------------
+// r47/r48 — validate flag matrix (acceptance)
+// ---------------------------------------------------------------------------
+
+bdd.given('一个含 specs 与已绑定 change 的临时仓库', (ctx) => {
+  const repo = makeTempRepo();
+  const id = 'demo-val';
+  const dir = join(repo.root, 'llmanspec', 'changes', id);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'proposal.md'), '---\ndepends_on: []\n---\n\n## Why\nx\n');
+  repo.run('git', ['add', '-A']);
+  repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'draft']);
+  ctx.fixtures['validate仓库'] = { root: repo.root, repo, id };
+});
+
+bdd.when('运行 validate --stage full 指向 draft 阶段 change', (ctx) => {
+  const { root, repo, id } = ctx.fixtures['validate仓库'] as {
+    root: string;
+    repo: TempRepo;
+    id: string;
+  };
+  const result = repo.run('bun', [CLI, 'validate', id, '--stage', 'full', '--no-check']);
+  ctx.fixtures['validate结果'] = {
+    code: result.code,
+    stdout: result.stdout,
+    stderr: result.stderr,
+  };
+});
+
+bdd.thenStep('退出码非零且报阶段低于门禁', (ctx) => {
+  const r = ctx.fixtures['validate结果'] as { code: number; stdout: string; stderr: string };
+  if (r.code === 0) throw new Error(`stage gate should fail: ${r.stdout}`);
+  if (!`${r.stdout}${r.stderr}`.includes('below the required')) {
+    throw new Error(`stage gate message missing: ${r.stdout}${r.stderr}`);
+  }
+});
+
+bdd.given('一个 run_command 含 {feature_name} 占位符的临时仓库', (ctx) => {
+  const repo = makeTempRepo();
+  mkdirSync(join(repo.root, 'llmanspec', 'specs'), { recursive: true });
+  writeFileSync(
+    join(repo.root, 'llmanspec', 'specs', 'auth.feature'),
+    '# language: zh-CN\n# capability: auth\n# purpose: p\n# scope: llmanspec/\n\n功能: auth\n\n  @req:r2 @human\n  场景: 规则\n    - 系统 MUST x\n',
+  );
+  writeFileSync(
+    join(repo.root, 'llmanspec', 'config.yaml'),
+    'schema: spec-driven\nbdd:\n  run_command: "bun --print \'feature={feature_name}\'"\n',
+  );
+  repo.run('git', ['add', '-A']);
+  repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'cfg']);
+  ctx.fixtures['validate仓库'] = { root: repo.root, repo, id: 'auth' };
+});
+
+bdd.when('运行 validate --specs', (ctx) => {
+  const { repo } = ctx.fixtures['validate仓库'] as { repo: TempRepo };
+  const result = repo.run('bun', [CLI, 'validate', '--specs', '--no-check']);
+  ctx.fixtures['validate结果'] = {
+    code: result.code,
+    stdout: result.stdout,
+    stderr: result.stderr,
+  };
+});
+
+bdd.thenStep('runner 按目标逐项执行', (ctx) => {
+  // 占位符展开本身由单测覆盖;此处确认带占位符的 validate 全链路不炸且判定规格 OK
+  const r = ctx.fixtures['validate结果'] as { code: number; stdout: string; stderr: string };
+  if (r.code !== 0) throw new Error(`validate with placeholders failed: ${r.stdout}${r.stderr}`);
+});

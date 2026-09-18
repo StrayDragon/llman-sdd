@@ -1,6 +1,14 @@
 import { describe, expect, test } from 'bun:test';
 
-import { discoverSpecs, validateAllSpecs, type DiscoveryIo, type SpecEntry } from '@llman-sdd/core';
+import {
+  checkChangeDoc,
+  discoverSpecs,
+  expandRunCommand,
+  hasPlaceholders,
+  validateAllSpecs,
+  type DiscoveryIo,
+  type SpecEntry,
+} from '@llman-sdd/core';
 import { parseCapability } from '@llman-sdd/core';
 
 const io: DiscoveryIo = {
@@ -94,5 +102,47 @@ describe('validateAllSpecs', () => {
     const joined = report.lines.join('\n');
     expect(joined).toInclude('missing `# capability:` header comment');
     expect(joined).toInclude('[WARNING] file: missing `# purpose:` header comment');
+  });
+});
+
+describe('checkChangeDoc + placeholders (r47/r48)', () => {
+  const BASE = {
+    name: 'c1',
+    stage: 'planned' as const,
+    hasBinding: true,
+    totalTasks: 2,
+    completedTasks: 2,
+  };
+
+  test('pending tasks: warning by default, error with strict_defer', () => {
+    const pending = { ...BASE, completedTasks: 1 };
+    expect(checkChangeDoc(pending, {}).issues[0]?.level).toBe('WARNING');
+    expect(checkChangeDoc(pending, { strict_defer: true }).issues[0]?.level).toBe('ERROR');
+  });
+
+  test('ratio gate and stage gate produce ERROR', () => {
+    const r = checkChangeDoc({ ...BASE, completedTasks: 1 }, { min_completion_ratio: 1 });
+    expect(r.valid).toBe(false);
+    const g = checkChangeDoc({ ...BASE, stage: 'draft' }, {}, { stage: 'full' });
+    expect(g.issues.some((i) => i.message.includes('below the required'))).toBe(true);
+    expect(g.valid).toBe(false);
+  });
+
+  test('unbound is warning only', () => {
+    const r = checkChangeDoc({ ...BASE, hasBinding: false }, {});
+    expect(r.valid).toBe(true);
+    expect(r.issues[0]?.level).toBe('WARNING');
+  });
+
+  test('placeholder detection and expansion (r48)', () => {
+    expect(hasPlaceholders('pytest {feature_dir}')).toBe(true);
+    expect(hasPlaceholders('bun test tests/bdd')).toBe(false);
+    expect(
+      expandRunCommand('pytest {feature_dir} -k {feature_name}', {
+        featureDir: 'llmanspec/specs',
+        featureName: 'auth',
+        featurePath: 'llmanspec/specs/auth.feature',
+      }),
+    ).toBe('pytest llmanspec/specs -k auth');
   });
 });

@@ -23,3 +23,23 @@
   @req:r13 @human
   场景: BDD 检查退出码
     - `--check` MUST 按 config `bdd.run_command` batch-once 执行,命令失败 MUST 使退出码非零;`--no-check` MUST 跳过该执行。
+
+  @req:r47 @human
+  场景: validate 目标与模式 flag
+    - `validate` MUST 支持位置参数 `[item]`(spec id 或 change id 自动消歧)、`--all`(全部 changes 与 specs)、`--changes`/`--specs`(限定域)、`--type change|spec`(强制消歧)、`--stage draft|designed|planned|full`(change 域阶段门)、`--strict`(存在 WARNING 即非零退出)与 `--json`/`--compact-json`(输出 items[].{id,type,valid,issues[].{level,message}} 结构);`--specs` 旧 no-op 标记 MUST 废除,域限定语义由 `--changes`/`--specs` 承担。
+
+  @req:r48 @human
+  场景: bdd run_command 占位符替换
+    - config `bdd.run_command` MUST 支持 `{feature_dir}`、`{feature_name}`、`{feature_path}` 占位符,含任一占位符时 MUST 按校验目标逐项替换后执行;不含占位符时 MUST 保持 batch-once(整批至多执行一次)。
+
+  @req:r47 @executable
+  场景: validate 目标消歧与阶段门
+    假如 一个含 specs 与已绑定 change 的临时仓库
+    当 运行 validate --stage full 指向 draft 阶段 change
+    那么 退出码非零且报阶段低于门禁
+
+  @req:r48 @executable
+  场景: run_command 占位符按目标展开
+    假如 一个 run_command 含 {feature_name} 占位符的临时仓库
+    当 运行 validate --specs
+    那么 runner 按目标逐项执行
