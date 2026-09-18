@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import {
@@ -153,17 +153,31 @@ program.name('llman-sdd').description('Spec-driven development workflow').versio
 program
   .command('init')
   .description('Initialize llmanspec in your project (--update to refresh existing)')
+  .argument('[path]', 'target directory (created when missing; defaults to cwd)')
   .option('--update', 'refresh an existing installation')
   .option('--locale <locale>', 'locale for generated templates (defaults to config or en)')
-  .action((options: { update?: boolean; locale?: string }) => {
-    const result = runInit(makeIo(process.cwd()), templateIo, {
-      update: options.update ?? false,
-      locale: options.locale,
-      version,
-    });
-    const removed = result.removed.length > 0 ? `, removed: ${result.removed.join(', ')}` : '';
-    console.log(`initialized llmanspec (${result.skills.length} skills${removed})`);
-  });
+  .option('--lang <locale>', 'alias of --locale')
+  .action(
+    (path: string | undefined, options: { update?: boolean; locale?: string; lang?: string }) => {
+      if (options.locale !== undefined && options.lang !== undefined) {
+        console.error('--locale and --lang are mutually exclusive (they are aliases)');
+        process.exitCode = 1;
+        return;
+      }
+      let root = process.cwd();
+      if (path !== undefined) {
+        root = resolve(path);
+        mkdirSync(root, { recursive: true });
+      }
+      const result = runInit(makeIo(root), templateIo, {
+        update: options.update ?? false,
+        locale: options.locale ?? options.lang,
+        version,
+      });
+      const removed = result.removed.length > 0 ? `, removed: ${result.removed.join(', ')}` : '';
+      console.log(`initialized llmanspec (${result.skills.length} skills${removed})`);
+    },
+  );
 
 program
   .command('validate')

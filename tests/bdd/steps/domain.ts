@@ -1244,3 +1244,59 @@ bdd.thenStep('runner 按目标逐项执行', (ctx) => {
   const r = ctx.fixtures['validate结果'] as { code: number; stdout: string; stderr: string };
   if (r.code !== 0) throw new Error(`validate with placeholders failed: ${r.stdout}${r.stderr}`);
 });
+
+// ---------------------------------------------------------------------------
+// r49/r50 — init path & --lang alias (acceptance)
+// ---------------------------------------------------------------------------
+
+bdd.given('一个空的临时工作区', (ctx) => {
+  const root = mkdtempSync(join(tmpdir(), 'llman-initcli-'));
+  ctx.fixtures['init工作区'] = { root };
+});
+
+bdd.when('运行 init 指向不存在的子目录', (ctx) => {
+  const { root } = ctx.fixtures['init工作区'] as { root: string };
+  const proc = spawnSync('bun', [CLI, 'init', 'deep/nested/proj'], { cwd: root, encoding: 'utf8' });
+  ctx.fixtures['init结果'] = { code: proc.status ?? 1, root };
+});
+
+bdd.thenStep('产物面完整落在该子目录下', (ctx) => {
+  const { code, root } = ctx.fixtures['init结果'] as { code: number; root: string };
+  if (code !== 0) throw new Error('init to subdirectory failed');
+  for (const rel of [
+    'deep/nested/proj/llmanspec/config.yaml',
+    'deep/nested/proj/AGENTS.md',
+    'deep/nested/proj/.agents/skills',
+  ]) {
+    if (!existsSync(join(root, rel))) throw new Error(`missing: ${rel}`);
+  }
+});
+
+bdd.when('运行 init --lang zh-Hans', (ctx) => {
+  const { root } = ctx.fixtures['init工作区'] as { root: string };
+  const alias = spawnSync('bun', [CLI, 'init', '--lang', 'zh-Hans'], {
+    cwd: root,
+    encoding: 'utf8',
+  });
+  const both = spawnSync('bun', [CLI, 'init', '--lang', 'en', '--locale', 'zh-Hans'], {
+    cwd: root,
+    encoding: 'utf8',
+  });
+  ctx.fixtures['lang结果'] = {
+    aliasCode: alias.status ?? 1,
+    bothCode: both.status ?? 0,
+    root,
+  };
+});
+
+bdd.thenStep('config locale 为 zh-Hans 且同给两个别名报错', (ctx) => {
+  const { aliasCode, bothCode, root } = ctx.fixtures['lang结果'] as {
+    aliasCode: number;
+    bothCode: number;
+    root: string;
+  };
+  if (aliasCode !== 0) throw new Error('--lang alias failed');
+  if (bothCode === 0) throw new Error('giving both aliases should fail');
+  const config = readFileSync(join(root, 'llmanspec', 'config.yaml'), 'utf8');
+  if (!config.includes('zh-Hans')) throw new Error(`locale not zh-Hans:\n${config}`);
+});
