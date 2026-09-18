@@ -54,6 +54,16 @@ export {
   parseFeatureSource,
 } from './spec/parser.ts';
 export { buildReqRegistry, type ReqRegistry, type RegistryDuplicate } from './spec/reqRegistry.ts';
+export {
+  addReq,
+  addScenario,
+  allReqIds,
+  AuthoringError,
+  planDedupe,
+  resolveReq,
+  type DedupePlanItem,
+  type ResolvedReq,
+} from './spec/authoring.ts';
 export type {
   SpecEntry,
   SpecIo,
