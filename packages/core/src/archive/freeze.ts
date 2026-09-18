@@ -117,7 +117,10 @@ export async function runThaw(
   sz: SevenZipPort,
   rootAbs: string,
   names: string[],
+  opts: { dest?: string } = {},
 ): Promise<ThawResult> {
+  // r56: restore target override (created on demand); default = changes/archive
+  const destRel = opts.dest ?? ARCHIVE_DIR_REL;
   const archiveAbs = join(rootAbs, ARCHIVE_DIR_REL, FREEZE_ARCHIVE_NAME);
   if (!io.exists(`${ARCHIVE_DIR_REL}/${FREEZE_ARCHIVE_NAME}`)) {
     throw new Error(`No freeze archive found at ./${ARCHIVE_DIR_REL}/${FREEZE_ARCHIVE_NAME}`);
@@ -136,15 +139,15 @@ export async function runThaw(
     }
     const restored: string[] = [];
     for (const name of names.toSorted()) {
-      if (io.exists(`${ARCHIVE_DIR_REL}/${name}`)) {
+      if (io.exists(`${destRel}/${name}`)) {
         throw new Error(`target already exists: ${name}`);
       }
-      io.moveDir(`${tmpRel}/${name}`, `${ARCHIVE_DIR_REL}/${name}`);
+      io.moveDir(`${tmpRel}/${name}`, `${destRel}/${name}`);
       restored.push(name);
     }
     return {
       restored,
-      lines: [`Thawed ${restored.length} selected archived changes to ${ARCHIVE_DIR_REL}`],
+      lines: [`Thawed ${restored.length} selected archived changes to ${destRel}`],
     };
   } finally {
     io.removeDir(tmpRel);

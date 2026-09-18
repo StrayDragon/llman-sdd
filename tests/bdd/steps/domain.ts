@@ -1500,3 +1500,80 @@ bdd.thenStep('覆盖成功且 JSON 形状正确', (ctx) => {
   const parsed = JSON.parse(r.jsonOut) as { reqId: string };
   if (!/^r\d+$/u.test(parsed.reqId)) throw new Error(`bad json shape: ${r.jsonOut}`);
 });
+
+// ---------------------------------------------------------------------------
+// r56/r57/r58 — thaw dest / backend flags / scan depth (acceptance)
+// ---------------------------------------------------------------------------
+
+bdd.given('一个含冻结归档的临时仓库', (ctx) => {
+  const repo = makeTempRepo();
+  const dir = join(repo.root, 'llmanspec', 'changes', 'archive', '2026-01-01-frozen');
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'proposal.md'), '---\ndepends_on: []\n---\nx\n');
+  repo.run('bun', [CLI, 'archive', 'freeze']);
+  repo.run('git', ['add', '-A']);
+  repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'frozen']);
+  ctx.fixtures['freeze仓库'] = { root: repo.root, repo };
+});
+
+bdd.when('运行 archive thaw --dest', (ctx) => {
+  const { repo } = ctx.fixtures['freeze仓库'] as { repo: TempRepo };
+  const result = repo.run('bun', [
+    CLI,
+    'archive',
+    'thaw',
+    '--change',
+    '2026-01-01-frozen',
+    '--dest',
+    'restored',
+  ]);
+  ctx.fixtures['thawdest结果'] = {
+    code: result.code,
+    stdout: result.stdout,
+    stderr: result.stderr,
+  };
+});
+
+bdd.thenStep('条目完整落到指定目录', (ctx) => {
+  const r = ctx.fixtures['thawdest结果'] as { code: number; stdout: string; stderr: string };
+  const { repo } = ctx.fixtures['freeze仓库'] as { repo: TempRepo };
+  if (r.code !== 0) throw new Error(`thaw --dest failed: ${r.stdout}${r.stderr}`);
+  if (!existsSync(join(repo.root, 'restored', '2026-01-01-frozen', 'proposal.md'))) {
+    throw new Error('restored entry missing in --dest directory');
+  }
+});
+
+bdd.when('运行 index rebuild --backend rag', (ctx) => {
+  const repo = makeTempRepo();
+  const result = repo.run('bun', [CLI, 'index', 'rebuild', '--backend', 'rag']);
+  ctx.fixtures['backend结果'] = { code: result.code, stdout: result.stdout, stderr: result.stderr };
+});
+
+bdd.thenStep('报错并提示迁移到 pageindex', (ctx) => {
+  const r = ctx.fixtures['backend结果'] as { code: number; stdout: string; stderr: string };
+  if (r.code === 0) throw new Error('rag backend should be rejected');
+  if (!`${r.stdout}${r.stderr}`.includes('removed'))
+    throw new Error(`removal hint missing: ${r.stderr}`);
+});
+
+bdd.given('一个嵌套 change 的临时仓库', (ctx) => {
+  const repo = makeTempRepo();
+  const nested = join(repo.root, 'llmanspec', 'changes', 'group', 'inner-change');
+  mkdirSync(nested, { recursive: true });
+  writeFileSync(join(nested, 'proposal.md'), '---\ndepends_on: []\n---\n\n## Why\nx\n');
+  repo.run('git', ['add', '-A']);
+  repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'nested']);
+  ctx.fixtures['仓库'] = { root: repo.root, repo };
+});
+
+bdd.when('运行 list --max-scan-depth 1', (ctx) => {
+  const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
+  const result = repo.run('bun', [CLI, 'list', '--max-scan-depth', '1']);
+  ctx.fixtures['depth结果'] = { code: result.code, stdout: result.stdout };
+});
+
+bdd.thenStep('嵌套 change 不出现', (ctx) => {
+  const r = ctx.fixtures['depth结果'] as { code: number; stdout: string };
+  if (r.code !== 0) throw new Error(`list failed: ${r.stdout}`);
+  if (r.stdout.includes('inner-change')) throw new Error(`nested leaked at depth 1: ${r.stdout}`);
+});

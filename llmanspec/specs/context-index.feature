@@ -56,3 +56,12 @@
     当 运行 context --task
     那么 quality 为 unavailable 且 errorKind 为 api_error
     而且 summary 为 totalSpecs 0 且 error true
+
+  @req:r57 @human
+  场景: context/index backend 旗标
+    - `context` 与 `index rebuild` MUST 接受 `--backend pageindex`;`--backend rag` MUST 报错并提示该后端已移除;取值优先级 MUST 为 CLI 旗标 > env `LLMAN_SDD_INDEX_BACKEND` > 缺省 pageindex。
+
+  @req:r57 @executable
+  场景: backend 旗标口径
+    当 运行 index rebuild --backend rag
+    那么 报错并提示迁移到 pageindex
