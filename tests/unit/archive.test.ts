@@ -1,8 +1,16 @@
 import { describe, expect, test } from 'bun:test';
-import { mkdirSync, writeFileSync, existsSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { makeWasmSevenZip, freezeCandidates, type FreezeIo } from '@llman-sdd/core';
+import {
+  makeWasmSevenZip,
+  freezeCandidates,
+  runFreeze,
+  runList,
+  type FreezeIo,
+} from '@llman-sdd/core';
+
+import { makeNodeIo } from '../helpers/nodeIo.ts';
 
 const DIR = '/tmp/llman-sdd-7z-test';
 
@@ -25,6 +33,24 @@ describe('7z adapter roundtrip', () => {
     await sz.extractAll(archive, dest);
     expect(readFileSync(join(dest, '2026-01-01-demo', 'inner', 'b.md'), 'utf8')).toBe('# b\n');
     expect(existsSync(join(dest, '2026-01-01-demo', 'a.txt'))).toBe(true);
+  });
+});
+
+describe('runList against the real adapter', () => {
+  // Regression: real 7z lists file paths under their directory
+  // (`<dir>/proposal.md`), never bare directory entries — the previous
+  // `split('/').length === 1` filter made --list always report empty.
+  test('derives dated change names from dir-prefixed entries', async () => {
+    rmSync(DIR, { recursive: true, force: true });
+    const src = join(DIR, 'llmanspec', 'changes', 'archive', '2026-01-01-demo');
+    mkdirSync(src, { recursive: true });
+    writeFileSync(join(src, 'proposal.md'), '# demo\n');
+    const io = { ...makeNodeIo(DIR), moveDir: renameSync };
+    const sz = await makeWasmSevenZip();
+    const freeze = await runFreeze(io, sz, DIR, {});
+    expect(freeze.candidates).toEqual(['2026-01-01-demo']);
+    const lines = await runList(io, sz, DIR);
+    expect(lines.join('\n')).toContain('2026-01-01-demo');
   });
 });
 
