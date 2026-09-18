@@ -377,13 +377,25 @@ review
       : null;
     const bindings = config?.bdd?.bindings?.filter((b) => b.kind === 'tags') ?? [];
     const io = makeIo(process.cwd());
+    const entries = loadSpecEntries();
+    if (options.capability !== undefined) {
+      const known = new Set(
+        entries.map((e) => e.doc.header.capability ?? e.fileName.replace(/\.feature$/u, '')),
+      );
+      if (!known.has(options.capability)) {
+        console.error(`capability \`${options.capability}\` not found`);
+        process.exitCode = 1;
+        return;
+      }
+    }
     const activeChanges = collectChanges(io, process.cwd(), new Date());
     const result = buildReview(
       {
-        entries: loadSpecEntries(),
+        entries,
         bindings: bindings.map((b) => ({ kind: 'tags', tags: b.tags })),
         boundChangeCount: activeChanges.filter((c) => c.hasBinding).length,
         activeChanges,
+        capability: options.capability,
       },
       io,
     );
