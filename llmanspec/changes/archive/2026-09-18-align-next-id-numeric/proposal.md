@@ -1,5 +1,8 @@
 ---
 depends_on: []
+branch: sdd/align-next-id-numeric
+base_branch: main
+base_sha: 1f7a1edd74efb6de4ff7a08a5222c79618df965a
 ---
 
 # change next-id 回归 v1 数字编号计数语义

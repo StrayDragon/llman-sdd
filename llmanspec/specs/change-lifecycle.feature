@@ -54,3 +54,23 @@
     假如 一个只有 proposal 与 tasks 的 change 工作区
     当 运行 list --json
     那么 该 change 的 stage 为 draft
+
+  @req:r35 @human
+  场景: next-id 数字编号计数
+    - `change next-id` MUST 无参数执行,递归扫描 `llmanspec/` 全树目录名(任意深度,跳过符号链接与点目录)提取编号:内置启发式 MUST 取 token 边界上的 `c<数字>` 串(大小写不敏感,匹配 c2790、c10-active 与 2026-01-01-c20-slug 等形态),纯前导数字名(如 3-third)MUST NOT 计入;人读输出 MUST 为 `max number in tree: N`(无编号时 `no numbered change dirs found in tree`)加 `next free number: M` 两行;`--json` MUST 输出 {maxNumber, nextNumber, warnings},无编号时 maxNumber MUST 为 null 且 nextNumber MUST 为 1;本命令 MUST 为只读,不创建任何目录;归档内条目扫描 SHALL 为 best-effort 扩展,v2 最小实现不进入冻结包。
+
+  @req:r35 @executable
+  场景: 编号扫描与 next free
+    假如 一个含 c10-active 与嵌套 c2620 目录的 llmanspec 树
+    当 运行 change next-id --json
+    那么 maxNumber 为 2620 且 nextNumber 为 2621
+
+  @req:r36 @executable
+  场景: dry-run 零副作用
+    假如 一个已初始化的临时 llmanspec 工作区
+    当 运行 change new --from "port the importer" --dry-run
+    那么 输出派生 id 且不创建 changes 目录
+
+  @req:r36 @human
+  场景: change new --dry-run 派生预览
+    - `change new --from <描述> --dry-run` MUST 仅输出将派生的 change id 并成功退出,MUST NOT 创建任何文件;`<id>` 与 `--from` 的互斥规则 MUST NOT 因 `--dry-run` 改变。
