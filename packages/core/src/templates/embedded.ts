@@ -1,18 +1,19 @@
 /**
  * Embedded template table for single-file binaries.
  *
- * Bun <= 1.4.x has no working embedding mechanism (`assets` is a silent
- * no-op, `?raw`/`?asset` fail to resolve, `import.meta.glob` is unavailable
- * in compiled output), so templates are injected through the same build-time
- * `define` mechanism as LLMAN_SDD_VERSION: build-binary.ts collects
- * packages/core/templates into a root-relative path→content map and sets
- * process.env.LLMAN_SDD_EMBEDDED_TEMPLATES to that JSON. Bun inlines define
- * values as raw expressions — the JSON is a valid object literal, so in the
- * compiled binary the expression IS the table object itself, while a JSON
- * string reaches these callers through the same expression in other engines
- * or when force-set via env. Both forms are accepted below; every non-compiled
- * run (source, npm package, Node) leaves the define unset and falls back to
- * the real filesystem via TEMPLATES_ROOT.
+ * Bun 1.4.x offers no embedding that survives our Node >= 24 dual-runtime
+ * constraint: `with { type: "text" }` works in compiled output (probed on
+ * 1.4.2) but Node cannot load that attribute, and `assets`/`?raw`/`?asset`
+ * never land in the bundle — so templates are injected through the same
+ * build-time `define` mechanism as LLMAN_SDD_VERSION: build-binary.ts
+ * collects packages/core/templates into a root-relative path→content map and
+ * sets process.env.LLMAN_SDD_EMBEDDED_TEMPLATES to that JSON. Bun inlines
+ * define values as raw expressions — the JSON is a valid object literal, so
+ * in the compiled binary the expression IS the table object itself, while a
+ * JSON string reaches these callers through the same expression in other
+ * engines or when force-set via env. Both forms are accepted below; every
+ * non-compiled run (source, npm package, Node) leaves the define unset and
+ * falls back to the real filesystem via TEMPLATES_ROOT.
  */
 import type { TemplateIo } from './skills.ts';
 

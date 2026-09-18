@@ -4,11 +4,15 @@
 // process.env.LLMAN_SDD_VERSION at build time (see apps/cli/src/main.ts), so
 // `--version` and init-rendered llman_version match the npm package version.
 //
-// Templates are embedded the same way: Bun <= 1.4.x has no working embedding
-// mechanism (assets/?raw/?asset), so packages/core/templates is collected into
-// a root-relative path→content table injected as LLMAN_SDD_EMBEDDED_TEMPLATES.
-// Compiled runs resolve through it; source/npm/Node runs keep using the real
-// filesystem (see packages/core/src/templates/embedded.ts).
+// Templates are embedded the same way: Bun <= 1.4.x offers no embedding that
+// survives our Node >= 24 dual-runtime constraint (`with { type: "text" }`
+// works on 1.4.2 but Node cannot load it; assets/?raw/?asset never land in
+// the bundle), so packages/core/templates is collected into a root-relative
+// path→content table injected as LLMAN_SDD_EMBEDDED_TEMPLATES. 7zz.wasm is
+// injected as base64 (LLMAN_SDD_EMBEDDED_7ZZ_WASM_B64) — Emscripten otherwise
+// probes $bunfs for the file and aborts. Compiled runs resolve through these
+// tables; source/npm/Node runs keep using the real filesystem
+// (see packages/core/src/templates/embedded.ts and archive/sevenzip.ts).
 //
 // Release-matrix hooks (used by .github/workflows/release.yml):
 //   BIN_NAME           — output filename (default llman-sdd)
@@ -58,12 +62,29 @@ if (Object.keys(templates).length === 0) {
   console.error(`warning: no templates found to embed under ${templatesRoot}`);
 }
 
+/** Locate 7zz.wasm through the package resolution the runtime import uses. */
+function resolveSevenZipWasm(): string {
+  const coreDir = fileURLToPath(new URL('../../../packages/core', import.meta.url));
+  return Bun.resolveSync('7z-wasm/7zz.wasm', coreDir);
+}
+let wasmB64 = '';
+try {
+  wasmB64 = readFileSync(resolveSevenZipWasm()).toString('base64');
+} catch (error) {
+  console.error(
+    `warning: could not embed 7zz.wasm (${(error as Error).message}) — archive freeze/thaw will abort at runtime`,
+  );
+}
+
 const result = await Bun.build({
   entrypoints: [fileURLToPath(new URL('../src/main.ts', import.meta.url))],
   target: 'bun',
   define: {
     'process.env.LLMAN_SDD_VERSION': JSON.stringify(version),
     'process.env.LLMAN_SDD_EMBEDDED_TEMPLATES': JSON.stringify(templates),
+    ...(wasmB64 !== ''
+      ? { 'process.env.LLMAN_SDD_EMBEDDED_7ZZ_WASM_B64': JSON.stringify(wasmB64) }
+      : {}),
   },
   compile: {
     outfile,
@@ -76,5 +97,6 @@ if (!result.success) {
   process.exit(1);
 }
 console.log(
-  `built ${outfile} (version ${version}, ${Object.keys(templates).length} templates embedded)`,
+  `built ${outfile} (version ${version}, ${Object.keys(templates).length} templates embedded` +
+    `${wasmB64 !== '' ? ', 7zz.wasm embedded' : ''})`,
 );
