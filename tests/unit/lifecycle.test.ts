@@ -7,6 +7,8 @@ import { join } from 'node:path';
 import {
   attachChange,
   deriveChangeId,
+  extractUniqueNumber,
+  harvestUniqueNumbers,
   makeSpawnGit,
   readBinding,
   writeBinding,
@@ -130,5 +132,45 @@ describe('attachChange default-branch gate (r31)', () => {
     const io = makeNodeIo(root);
     spawnSync('git', ['switch', '-q', '--detach'], { cwd: root });
     expect(() => attachChange(git, io, 'demo-a')).toThrow(/detached/u);
+  });
+});
+
+describe('harvestUniqueNumbers (r35, v1 c-token parity)', () => {
+  const io = (
+    dirs: string[],
+  ): { listDir: (p: string) => string[]; isDirectory: (p: string) => boolean } => ({
+    listDir: (p) => (p === '.' ? dirs : []),
+    isDirectory: () => true,
+  });
+
+  test('extracts c-tokens at boundaries, ignores leading digits', () => {
+    expect(extractUniqueNumber('c10-active')).toBe(10);
+    expect(extractUniqueNumber('2026-01-01-c20-slug')).toBe(20);
+    expect(extractUniqueNumber('C30-UPPER')).toBe(30);
+    expect(extractUniqueNumber('cab12')).toBeNull();
+    expect(extractUniqueNumber('3-third')).toBeNull();
+    expect(extractUniqueNumber('no-number')).toBeNull();
+  });
+
+  test('harvests whole tree at any depth, max+1, empty → null/1', () => {
+    const tree = {
+      listDir: (p: string): string[] => {
+        if (p === '.') return ['changes'];
+        if (p === './changes') return ['c10-active', 'archive', 'no-number'];
+        if (p === './changes/archive') return ['2026-01-01-c20-slug'];
+        return [];
+      },
+      isDirectory: () => true,
+    };
+    expect(harvestUniqueNumbers(tree, '.')).toEqual({
+      maxNumber: 20,
+      nextNumber: 21,
+      warnings: [],
+    });
+    expect(harvestUniqueNumbers(io(['plain-only']), '.')).toEqual({
+      maxNumber: null,
+      nextNumber: 1,
+      warnings: [],
+    });
   });
 });

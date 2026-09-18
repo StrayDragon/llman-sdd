@@ -776,3 +776,67 @@ bdd.thenStep('该 change 的 stage 为 draft', (ctx) => {
     throw new Error(`expected tasks-only stage draft, got: ${JSON.stringify(stages)}`);
   }
 });
+
+// ---------------------------------------------------------------------------
+// r35/r36 — next-id number harvest + change new --dry-run (acceptance)
+// ---------------------------------------------------------------------------
+
+interface NextIdResult {
+  maxNumber: number | null;
+  nextNumber: number;
+}
+
+bdd.given('一个含 c10-active 与嵌套 c2620 目录的 llmanspec 树', (ctx) => {
+  const root = mkdtempSync(join(tmpdir(), 'llman-nextid-'));
+  const mk = (rel: string): void => {
+    mkdirSync(join(root, 'llmanspec', rel), { recursive: true });
+    writeFileSync(join(root, 'llmanspec', rel, 'proposal.md'), '---\ndepends_on: []\n---\nx\n');
+  };
+  mk('changes/c10-active');
+  mkdirSync(join(root, 'llmanspec', 'delayed-changes', 'c2620-tool-x'), { recursive: true });
+  ctx.fixtures['nextid工作区'] = { root };
+});
+
+bdd.when('运行 change next-id --json', (ctx) => {
+  const { root } = ctx.fixtures['nextid工作区'] as { root: string };
+  const proc = spawnSync('bun', [CLI, 'change', 'next-id', '--json'], {
+    cwd: root,
+    encoding: 'utf8',
+  });
+  const parsed = JSON.parse(proc.stdout ?? '{}') as NextIdResult;
+  ctx.fixtures['nextid结果'] = parsed;
+});
+
+bdd.thenStep('maxNumber 为 {n:d} 且 nextNumber 为 {m:d}', (ctx, maxN: string, nextN: string) => {
+  const r = ctx.fixtures['nextid结果'] as NextIdResult;
+  if (r.maxNumber !== Number(maxN) || r.nextNumber !== Number(nextN)) {
+    throw new Error(`expected max=${maxN} next=${nextN}, got ${JSON.stringify(r)}`);
+  }
+});
+
+bdd.given('一个已初始化的临时 llmanspec 工作区', (ctx) => {
+  const root = mkdtempSync(join(tmpdir(), 'llman-dryrun-'));
+  mkdirSync(join(root, 'llmanspec'), { recursive: true });
+  ctx.fixtures['dryrun工作区'] = { root };
+});
+
+bdd.when('运行 change new --from "{text}" --dry-run', (ctx, text: string) => {
+  const { root } = ctx.fixtures['dryrun工作区'] as { root: string };
+  const proc = spawnSync('bun', [CLI, 'change', 'new', '--from', text, '--dry-run'], {
+    cwd: root,
+    encoding: 'utf8',
+  });
+  ctx.fixtures['dryrun结果'] = { out: proc.stdout ?? '', code: proc.status ?? 1 };
+});
+
+bdd.thenStep('输出派生 id 且不创建 changes 目录', (ctx) => {
+  const { root } = ctx.fixtures['dryrun工作区'] as { root: string };
+  const { out, code } = ctx.fixtures['dryrun结果'] as { out: string; code: number };
+  if (code !== 0) throw new Error(`dry-run exited non-zero: ${out}`);
+  if (out.trim() !== 'port-the-importer') {
+    throw new Error(`expected bare derived id, got: ${out}`);
+  }
+  if (existsSync(join(root, 'llmanspec', 'changes'))) {
+    throw new Error('dry-run created the changes directory');
+  }
+});

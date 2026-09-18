@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 
 import {
   VERSION,
@@ -41,6 +41,7 @@ import {
   resolveChatConfig,
   unavailableResult,
   type TemplateIo,
+  harvestUniqueNumbers,
 } from '@llman-sdd/core';
 import { Command } from 'commander';
 
@@ -121,10 +122,15 @@ change
   .description('Create a change draft (exactly one of <id> or --from)')
   .argument('[id]')
   .option('--from <description>', 'description the id is derived from')
-  .action((id: string | undefined, options: { from?: string }) => {
+  .option('--dry-run', 'print the resulting id without creating anything')
+  .action((id: string | undefined, options: { from?: string; dryRun?: boolean }) => {
     if ((id === undefined) === (options.from === undefined)) {
       console.error('<CHANGE> and --from are mutually exclusive; pass one or the other');
       process.exitCode = 1;
+      return;
+    }
+    if (options.dryRun) {
+      console.log(id ?? deriveChangeId(options.from as string));
       return;
     }
     const io = makeIo(process.cwd());
@@ -159,10 +165,24 @@ change
 
 change
   .command('next-id')
-  .description('Preview the derived change id for a description')
-  .requiredOption('--from <description>', 'description the id is derived from')
-  .action((options: { from: string }) => {
-    console.log(deriveChangeId(options.from));
+  .description('Preview the next free change id number (read-only)')
+  .option('--json', 'emit {maxNumber, nextNumber, warnings}')
+  .action((options: { json?: boolean }) => {
+    const harvest = harvestUniqueNumbers(
+      {
+        listDir: (p) => readdirSync(resolve(p)),
+        isDirectory: (p) => statSync(resolve(p)).isDirectory(),
+      },
+      'llmanspec',
+    );
+    if (options.json) {
+      console.log(JSON.stringify(harvest, null, 2));
+      return;
+    }
+    if (harvest.maxNumber === null) console.log('no numbered change dirs found in tree');
+    else console.log(`max number in tree: ${harvest.maxNumber}`);
+    console.log(`next free number: ${harvest.nextNumber}`);
+    for (const w of harvest.warnings) console.error(`warning: ${w}`);
   });
 
 change

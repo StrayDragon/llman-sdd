@@ -70,6 +70,7 @@ export {
   type GitLike,
 } from './git/spawnGit.ts';
 export { DRAFT_PROPOSAL_TEMPLATE, deriveChangeId, isLegalChangeId } from './change/id.ts';
+export { extractUniqueNumber, harvestUniqueNumbers } from './change/nextId.ts';
 export {
   CHANGES_DIR,
   LifecycleError,
