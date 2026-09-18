@@ -524,27 +524,51 @@ program
   .description('List changes or specs')
   .option('--specs', 'list specs instead of changes')
   .option('--json', 'machine-readable output')
-  .action((options: { specs?: boolean; json?: boolean }) => {
-    if (options.specs) {
-      const summaries = collectSpecs(loadSpecEntries());
-      console.log(
-        options.json ? renderSpecsJson(summaries) : renderSpecsList(summaries).join('\n'),
-      );
+  .option('--compact-json', 'single-line --json (requires --json)')
+  .option('--sort <order>', 'recent (mtime desc, default) | name')
+  .action((options: { specs?: boolean; json?: boolean; compactJson?: boolean; sort?: string }) => {
+    if (options.compactJson && !options.json) {
+      console.error('--compact-json requires --json');
+      process.exitCode = 1;
       return;
     }
-    const changes = collectChanges(makeIo(process.cwd()), process.cwd(), new Date());
-    console.log(
+    if (options.sort !== undefined && options.sort !== 'recent' && options.sort !== 'name') {
+      console.error(`invalid --sort: ${options.sort}`);
+      process.exitCode = 1;
+      return;
+    }
+    const emit = (text: string): void => {
+      console.log(options.compactJson ? text.replaceAll('\n', '') : text);
+    };
+    if (options.specs) {
+      const summaries = collectSpecs(loadSpecEntries());
+      emit(options.json ? renderSpecsJson(summaries) : renderSpecsList(summaries).join('\n'));
+      return;
+    }
+    let changes = collectChanges(makeIo(process.cwd()), process.cwd(), new Date());
+    if (options.sort === 'name') {
+      changes = [...changes].sort((a, b) => a.name.localeCompare(b.name));
+    }
+    emit(
       options.json ? renderChangesJson(changes) : renderChangesList(changes, new Date()).join('\n'),
     );
   });
 
 program
   .command('show')
-  .description('Show a change (JSON) or a spec (text)')
+  .description('Show a change (JSON or text) or a spec (text)')
   .argument('<item>')
-  .option('--output <format>', 'output format: json, meta-only, reqs-only, no-scenarios')
+  .option('--output <format>', 'json | compact | meta-only | no-scenarios')
   .option('--type <itemType>', 'item type hint: change|spec')
-  .action((item: string, options: { output?: string; type?: string }) => {
+  .option('-r, --requirement <n>', 'spec only: show a single requirement by 1-based index')
+  .action((item: string, options: { output?: string; type?: string; requirement?: string }) => {
+    if (options.output === 'deltas' || options.output === 'reqs-only') {
+      console.error(
+        `--output ${options.output} was removed along with the checkpoint/delta mechanism (v2 edits live specs on the bound branch)`,
+      );
+      process.exitCode = 1;
+      return;
+    }
     const isSpec =
       options.type === 'spec' || existsSync(join('llmanspec', 'specs', `${item}.feature`));
     if (isSpec) {
@@ -554,16 +578,89 @@ program
         process.exitCode = 1;
         return;
       }
+      const raw = readFileSync(path, 'utf8');
+      let text = raw.trimEnd();
+      if (options.requirement !== undefined) {
+        const idx = Number(options.requirement);
+        if (!Number.isInteger(idx) || idx < 1) {
+          console.error(`invalid --requirement: ${options.requirement}`);
+          process.exitCode = 1;
+          return;
+        }
+        const entry = loadSpecEntries().find(
+          (e) => (e.doc.header.capability ?? e.fileName.replace(/\.feature$/u, '')) === item,
+        );
+        const rule = entry?.doc.scenarios.filter((sc) => sc.classification === 'human')[idx - 1];
+        if (rule === undefined) {
+          console.error(`requirement index out of range: ${idx}`);
+          process.exitCode = 1;
+          return;
+        }
+        console.log(`@req:${rule.reqIds[0] ?? ''} ${rule.name}\n${rule.statement}`);
+        return;
+      }
+      const entry = loadSpecEntries().find(
+        (e) => (e.doc.header.capability ?? e.fileName.replace(/\.feature$/u, '')) === item,
+      );
+      const compact = options.output === 'compact' || options.output === 'meta-only';
+      if (compact) {
+        const header = entry?.doc.header;
+        const lines = [
+          `# capability: ${header?.capability ?? item}`,
+          `# purpose: ${header?.purpose ?? ''}`,
+          `# scope: ${header?.scope ?? ''}`,
+        ];
+        console.log(lines.join('\n'));
+        if (options.output !== 'meta-only') {
+          const sc = entry?.doc.scenarios.map((x) => `  ${x.classification}: ${x.name}`);
+          if (sc && sc.length > 0) console.log(sc.join('\n'));
+        }
+        return;
+      }
+      if (options.output === 'no-scenarios') {
+        const stripped = text
+          .split('\n')
+          .filter((l) => !/^\s*(场景|Scenario):/u.test(l))
+          .join('\n');
+        console.log(`## Spec\n${stripped}`);
+        return;
+      }
       const summary = collectSpecs(loadSpecEntries()).find((x) => x.id === item);
       const morphology = summary
         ? `\n\n## Morphology\nruleCount=${summary.morphology.ruleCount} enforced=${summary.morphology.ruleEnforcedCount} manual=${summary.morphology.ruleManualCount} pending=${summary.morphology.rulePendingCount} acceptanceCount=${summary.morphology.acceptanceCount}`
         : '';
-      console.log(`## Spec\n${readFileSync(path, 'utf8').trimEnd()}${morphology}`);
+      console.log(`## Spec\n${text}${morphology}`);
       return;
     }
-    if (options.output !== 'json') {
-      console.error('only --output json is supported for changes (text format pending)');
+    const proposalPath = join('llmanspec', 'changes', item, 'proposal.md');
+    if (!existsSync(proposalPath)) {
+      console.error(`change not found: ${item}`);
       process.exitCode = 1;
+      return;
+    }
+    // r52 What-Changes gate (v1 parity): applies to json and text alike.
+    const proposal = readFileSync(proposalPath, 'utf8');
+    if (!proposal.includes('## What Changes')) {
+      console.error('Change must have a What Changes section');
+      process.exitCode = 1;
+      return;
+    }
+    if (options.output === 'meta-only') {
+      console.log(`path: ${join('llmanspec', 'changes', item)}`);
+      return;
+    }
+    if (options.output !== undefined && options.output !== 'json' && options.output !== 'compact') {
+      console.error(`unsupported --output for changes: ${options.output}`);
+      process.exitCode = 1;
+      return;
+    }
+    if (options.output !== 'json' && options.output !== 'compact') {
+      const changes = collectChanges(makeIo(process.cwd()), process.cwd(), new Date());
+      const change = changes.find((c) => c.name === item);
+      console.log(`Stage: ${change?.stage ?? 'draft'}`);
+      console.log(`path: ${join('llmanspec', 'changes', item)}`);
+      console.log('---');
+      console.log(proposal.trimEnd());
       return;
     }
     const result = showChangeJson(
@@ -575,6 +672,10 @@ program
       },
       item,
     );
+    if (options.output === 'compact') {
+      console.log(JSON.stringify(result));
+      return;
+    }
     console.log(JSON.stringify(result, null, 2));
   });
 

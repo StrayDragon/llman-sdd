@@ -176,3 +176,29 @@ describe('stageFor monotonic rule (r34)', () => {
     expect(stageFor(true, false, true)).toBe('designed');
   });
 });
+
+describe('list sort (r51)', () => {
+  test('name sort is alphabetical, recent stays mtime desc', () => {
+    const base = {
+      path: '',
+      title: '',
+      stage: 'draft' as const,
+      hasBinding: false,
+      completedTasks: 0,
+      totalTasks: 0,
+      idleDays: 0,
+      status: 'no-tasks' as const,
+    };
+    const changes = [
+      { ...base, name: 'b-change', lastModified: new Date('2026-01-03') },
+      { ...base, name: 'a-change', lastModified: new Date('2026-01-02') },
+      { ...base, name: 'c-change', lastModified: new Date('2026-01-01') },
+    ];
+    const byName = [...changes].sort((a, b) => a.name.localeCompare(b.name)).map((c) => c.name);
+    expect(byName).toEqual(['a-change', 'b-change', 'c-change']);
+    const byRecent = [...changes]
+      .sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime())
+      .map((c) => c.name);
+    expect(byRecent).toEqual(['b-change', 'a-change', 'c-change']);
+  });
+});
