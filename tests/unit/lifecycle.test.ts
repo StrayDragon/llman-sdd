@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -8,6 +8,9 @@ import {
   archiveChange,
   archiveTaskGate,
   attachChange,
+  changeDiffInfo,
+  finalizeChange,
+  startChange,
   deriveChangeId,
   extractUniqueNumber,
   harvestUniqueNumbers,
@@ -204,5 +207,71 @@ describe('archiveChange gates (r39/r40)', () => {
     const ratio = archiveTaskGate('# Tasks\n- [x] a\n- [ ] b\n', 1);
     expect(ratio.blocked).toBe(true);
     expect(ratio.reasons.some((r) => r.includes('min_completion_ratio'))).toBe(true);
+  });
+});
+
+describe('r44/r45/r46 — change family flags', () => {
+  const makeRepoOnBranch = (): string => {
+    const root = mkdtempSync(join(tmpdir(), 'llman-family-'));
+    const run = (args: string[]): void => {
+      spawnSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...args], {
+        cwd: root,
+        encoding: 'utf8',
+      });
+    };
+    run(['init', '-q', '-b', 'main']);
+    const dir = join(root, 'llmanspec', 'changes', 'fam');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'proposal.md'), '---\ndepends_on: []\n---\n\n## Why\nx\n');
+    run(['add', '-A']);
+    run(['commit', '-qm', 'init']);
+    return root;
+  };
+
+  test('attach refuses rebind without --force and allows with it; --base must exist', () => {
+    const root = makeRepoOnBranch();
+    const git = makeSpawnGit(root);
+    const io = makeNodeIo(root);
+    spawnSync('git', ['switch', '-qc', 'feat/a'], { cwd: root });
+    attachChange(git, io, 'fam');
+    expect(() => attachChange(git, io, 'fam')).toThrow(/already attached/u);
+    attachChange(git, io, 'fam', { force: true });
+    expect(() => attachChange(git, io, 'fam', { force: true, base: 'nope' })).toThrow(
+      /does not exist/u,
+    );
+    attachChange(git, io, 'fam', { force: true, base: 'main' });
+    const proposal = readFileSync(join(root, 'llmanspec', 'changes', 'fam', 'proposal.md'), 'utf8');
+    expect(proposal).toContain('base_branch: main');
+  });
+
+  test('finalize noCommit renames without close-out commit', () => {
+    const root = makeRepoOnBranch();
+    const git = makeSpawnGit(root);
+    const io = makeNodeIo(root);
+    startChange(git, io, 'fam');
+    writeFileSync(join(root, 'feat.txt'), 'x\n');
+    spawnSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'add', '-A'], { cwd: root });
+    spawnSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'work'], {
+      cwd: root,
+    });
+    const result = finalizeChange(git, io, 'fam', { noCommit: true });
+    expect(result.commitSubject).toBe('');
+    const status = spawnSync('git', ['status', '--porcelain'], { cwd: root, encoding: 'utf8' });
+    expect(status.stdout).not.toBe('');
+    expect(existsSync(join(root, 'llmanspec', 'changes', 'archive'))).toBe(true);
+  });
+
+  test('changeDiffInfo reports commitCount', () => {
+    const root = makeRepoOnBranch();
+    const git = makeSpawnGit(root);
+    const io = makeNodeIo(root);
+    startChange(git, io, 'fam');
+    writeFileSync(join(root, 'feat.txt'), 'x\n');
+    spawnSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'add', '-A'], { cwd: root });
+    spawnSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'work'], {
+      cwd: root,
+    });
+    const info = changeDiffInfo(git, io, 'fam');
+    expect(info).toMatchObject({ change: 'fam', branch: 'sdd/fam', base: 'main', commitCount: 1 });
   });
 });

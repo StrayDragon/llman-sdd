@@ -29,6 +29,9 @@ export function makeNodeIo(root: string) {
     },
     listDir: (p: string): string[] => readdirSync(full(p)),
     removeDir: (p: string): void => rmSync(full(p), { recursive: true, force: true }),
-    rename: (from: string, to: string): void => renameSync(full(from), full(to)),
+    rename: (from: string, to: string): void => {
+      mkdirSync(dirname(full(to)), { recursive: true });
+      renameSync(full(from), full(to));
+    },
   };
 }

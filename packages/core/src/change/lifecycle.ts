@@ -72,22 +72,44 @@ export function startChange(
 }
 
 /** `change attach`: bind the current branch — same branch gate family as start (r31). */
-export function attachChange(git: GitLike, io: FsIo, id: string): { branch: string } {
+export function attachChange(
+  git: GitLike,
+  io: FsIo,
+  id: string,
+  opts: { force?: boolean; base?: string } = {},
+): { branch: string; baseBranch: string } {
   const path = proposalPath(id);
   if (!io.exists(path)) throw new LifecycleError(`proposal not found: ${path}`);
+  if (!opts.force && readBinding(io.readText(path)) !== null) {
+    throw new LifecycleError(`change \`${id}\` is already attached — pass --force to rebind`);
+  }
+  const configuredBase = opts.base ?? defaultBranch(git);
+  if (opts.base !== undefined) {
+    if (
+      git.runOpt(['show-ref', '--verify', '--quiet', `refs/heads/${opts.base}`]) === null &&
+      git.runOpt(['show-ref', '--verify', '--quiet', `refs/remotes/${opts.base}`]) === null
+    ) {
+      throw new LifecycleError(`--base branch does not exist: ${opts.base}`);
+    }
+  }
   const branch = currentBranch(git);
   // `branch --show-current` prints an empty line on detached HEAD, not nothing.
   if (branch === null || branch === '') throw new LifecycleError('detached HEAD — cannot attach');
-  const baseBranch = defaultBranch(git);
-  if (branch === baseBranch) {
+  if (branch === configuredBase) {
     throw new LifecycleError(
       `changes must not attach on the default branch (\`${branch}\`); ` +
         'create/switch to a feature branch first (or use `change start`)',
     );
   }
+  if (opts.base !== undefined && opts.base === branch) {
+    throw new LifecycleError('--base must differ from the current branch');
+  }
   const baseSha = revParseHead(git);
-  io.writeText(path, writeBinding(io.readText(path), { branch, baseBranch, baseSha }));
-  return { branch };
+  io.writeText(
+    path,
+    writeBinding(io.readText(path), { branch, baseBranch: configuredBase, baseSha }),
+  );
+  return { branch, baseBranch: configuredBase };
 }
 
 export interface FinalizeResult {
@@ -138,7 +160,7 @@ export function finalizeChange(
   git: GitLike,
   io: FsIo,
   id: string,
-  opts: { into?: string; method?: 'squash' | 'ff'; today?: string } = {},
+  opts: { into?: string; method?: 'squash' | 'ff'; today?: string; noCommit?: boolean } = {},
 ): FinalizeResult {
   const path = proposalPath(id);
   const binding = readBinding(io.readText(path));
@@ -147,7 +169,7 @@ export function finalizeChange(
   }
   const method = opts.method ?? 'squash';
   const target = opts.into ?? binding.baseBranch ?? defaultBranch(git);
-  return mergeRenameCommit(git, io, id, binding.branch, target, method, opts.today);
+  return mergeRenameCommit(git, io, id, binding.branch, target, method, opts.today, opts.noCommit);
 }
 
 /** Shared close-out: merge → archive rename → single archive(sdd) commit. */
@@ -159,6 +181,7 @@ function mergeRenameCommit(
   target: string,
   method: 'squash' | 'ff',
   today?: string,
+  noCommit?: boolean,
 ): FinalizeResult {
   const warnings: string[] = [];
   git.run(['switch', target]);
@@ -175,6 +198,7 @@ function mergeRenameCommit(
   const archiveDir = `${CHANGES_DIR}/archive/${date}-${id}`;
   io.rename(`${CHANGES_DIR}/${id}`, archiveDir);
 
+  if (noCommit) return { target, archiveDir, warnings, commitSubject: '' };
   git.run(['add', '-A']);
   const commitSubject = `archive(sdd): ${id}`;
   git.run(['commit', '-m', commitSubject]);
@@ -236,4 +260,20 @@ export function changeDiff(git: GitLike, io: FsIo, id: string): string {
   if (binding === null) throw new LifecycleError(`change \`${id}\` has no branch binding`);
   const base = binding.baseBranch ?? defaultBranch(git);
   return git.run(['diff', `${base}...${binding.branch}`]);
+}
+
+export interface ChangeDiffInfo {
+  change: string;
+  branch: string;
+  base: string;
+  commitCount: number;
+}
+
+/** `change diff --json` (r46): structured bound-branch summary. */
+export function changeDiffInfo(git: GitLike, io: FsIo, id: string): ChangeDiffInfo {
+  const binding = readBinding(io.readText(proposalPath(id)));
+  if (binding === null) throw new LifecycleError(`change \`${id}\` has no branch binding`);
+  const base = binding.baseBranch ?? defaultBranch(git);
+  const count = git.runOpt(['rev-list', '--count', `${base}...${binding.branch}`]) ?? '0';
+  return { change: id, branch: binding.branch, base, commitCount: Number(count) };
 }
