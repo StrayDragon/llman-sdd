@@ -97,6 +97,42 @@ export interface FinalizeResult {
   commitSubject: string;
 }
 
+export interface ArchiveTaskGate {
+  blocked: boolean;
+  reasons: string[];
+}
+
+/** r40 task gate: unchecked tasks always block; ratio gate when configured. */
+export function archiveTaskGate(
+  tasksMd: string | null,
+  minCompletionRatio: number | undefined,
+): ArchiveTaskGate {
+  const reasons: string[] = [];
+  if (tasksMd !== null) {
+    let completed = 0;
+    let total = 0;
+    for (const line of tasksMd.split('\n')) {
+      const m = line.match(/^\s*-\s+\[( |x|X)\]/u);
+      if (m) {
+        total += 1;
+        if (m[1] !== ' ') completed += 1;
+      }
+    }
+    if (total > 0 && completed < total) {
+      reasons.push(`archive blocked by unchecked tasks (${total - completed}/${total} pending)`);
+      for (const line of tasksMd.split('\n')) {
+        if (/^\s*-\s+\[ \]/u.test(line)) reasons.push(line.trim());
+      }
+    }
+    if (minCompletionRatio !== undefined && total > 0 && completed / total < minCompletionRatio) {
+      reasons.push(
+        `completion ${((completed / total) * 100).toFixed(0)}% below archive.min_completion_ratio ${(minCompletionRatio * 100).toFixed(0)}%`,
+      );
+    }
+  }
+  return { blocked: reasons.length > 0, reasons };
+}
+
 /** `change finalize`: merge (squash default) + archive rename + close-out commit. */
 export function finalizeChange(
   git: GitLike,
@@ -111,23 +147,31 @@ export function finalizeChange(
   }
   const method = opts.method ?? 'squash';
   const target = opts.into ?? binding.baseBranch ?? defaultBranch(git);
-  const warnings: string[] = [];
+  return mergeRenameCommit(git, io, id, binding.branch, target, method, opts.today);
+}
 
-  // Read the binding while still on the feature branch (its proposal.md may
-  // carry uncommitted binding edits), then switch and merge.
+/** Shared close-out: merge → archive rename → single archive(sdd) commit. */
+function mergeRenameCommit(
+  git: GitLike,
+  io: FsIo,
+  id: string,
+  featureBranch: string,
+  target: string,
+  method: 'squash' | 'ff',
+  today?: string,
+): FinalizeResult {
+  const warnings: string[] = [];
   git.run(['switch', target]);
   const mergeArgs =
-    method === 'ff'
-      ? ['merge', '--ff-only', binding.branch]
-      : ['merge', '--squash', binding.branch];
+    method === 'ff' ? ['merge', '--ff-only', featureBranch] : ['merge', '--squash', featureBranch];
   if (git.runOpt(mergeArgs) === null) {
     git.runOpt(['merge', '--abort']);
     warnings.push(
-      `merge ${method} failed — resolve manually, e.g. \`git merge ${method === 'ff' ? '--ff-only' : '--squash'} ${binding.branch}\``,
+      `merge ${method} failed — resolve manually, e.g. \`git merge ${method === 'ff' ? '--ff-only' : '--squash'} ${featureBranch}\``,
     );
   }
 
-  const date = opts.today ?? new Date().toISOString().slice(0, 10);
+  const date = today ?? new Date().toISOString().slice(0, 10);
   const archiveDir = `${CHANGES_DIR}/archive/${date}-${id}`;
   io.rename(`${CHANGES_DIR}/${id}`, archiveDir);
 
@@ -135,6 +179,55 @@ export function finalizeChange(
   const commitSubject = `archive(sdd): ${id}`;
   git.run(['commit', '-m', commitSubject]);
   return { target, archiveDir, warnings, commitSubject };
+}
+
+export interface ArchiveChangeResult {
+  result: FinalizeResult;
+}
+
+/** `change archive`: independent seal-off with task + strict git gates (r39/r40). */
+export function archiveChange(
+  git: GitLike,
+  io: FsIo,
+  id: string,
+  opts: {
+    into?: string;
+    method?: 'squash' | 'ff';
+    force?: boolean;
+    minCompletionRatio?: number;
+    today?: string;
+  } = {},
+): FinalizeResult {
+  const path = proposalPath(id);
+  const binding = readBinding(io.readText(path));
+  if (!opts.force && binding === null) {
+    throw new LifecycleError(`change \`${id}\` has no branch binding — run start/attach first`);
+  }
+  if (!opts.force) {
+    const tasksPath = `${CHANGES_DIR}/${id}/tasks.md`;
+    const gate = archiveTaskGate(
+      io.exists(tasksPath) ? io.readText(tasksPath) : null,
+      opts.minCompletionRatio,
+    );
+    if (gate.blocked) throw new LifecycleError(gate.reasons.join('\n'));
+    const current = currentBranch(git);
+    if (current === null || current === '')
+      throw new LifecycleError('detached HEAD — cannot archive');
+    if (current !== binding?.branch) {
+      throw new LifecycleError(
+        `archive must run on attached branch \`${binding?.branch}\` (current: \`${current}\`)`,
+      );
+    }
+    if (current === defaultBranch(git)) {
+      throw new LifecycleError('archive must not run on the default branch');
+    }
+    if (!isCleanTree(git)) throw new LifecycleError('working tree must be clean to archive');
+  } else if (binding === null) {
+    throw new LifecycleError(`change \`${id}\` has no branch binding — cannot merge`);
+  }
+  const method = opts.method ?? 'squash';
+  const target = opts.into ?? binding?.baseBranch ?? defaultBranch(git);
+  return mergeRenameCommit(git, io, id, binding?.branch as string, target, method, opts.today);
 }
 
 /** `change diff <id>`: full diff of the bound branch vs base. */

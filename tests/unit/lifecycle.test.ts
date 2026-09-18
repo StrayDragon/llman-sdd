@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
+  archiveChange,
+  archiveTaskGate,
   attachChange,
   deriveChangeId,
   extractUniqueNumber,
@@ -172,5 +174,35 @@ describe('harvestUniqueNumbers (r35, v1 c-token parity)', () => {
       nextNumber: 1,
       warnings: [],
     });
+  });
+});
+
+describe('archiveChange gates (r39/r40)', () => {
+  const makeBoundRepo = (tasks: string): { root: string } => {
+    const root = mkdtempSync(join(tmpdir(), 'llman-archive-'));
+    const run = (args: string[]): void => {
+      spawnSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...args], {
+        cwd: root,
+        encoding: 'utf8',
+      });
+    };
+    run(['init', '-q', '-b', 'main']);
+    const dir = join(root, 'llmanspec', 'changes', 'demo-arch');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'proposal.md'), '---\ndepends_on: []\n---\n\n## Why\nx\n');
+    if (tasks !== '') writeFileSync(join(dir, 'tasks.md'), tasks);
+    run(['add', '-A']);
+    run(['commit', '-qm', 'init']);
+    return { root };
+  };
+
+  test('archiveTaskGate: pending blocks with item list; ratio gate fires', () => {
+    const gate = archiveTaskGate('# Tasks\n- [ ] a\n- [x] b\n', undefined);
+    expect(gate.blocked).toBe(true);
+    expect(gate.reasons.some((r) => r.includes('- [ ] a'))).toBe(true);
+    expect(archiveTaskGate('# Tasks\n- [x] a\n', undefined).blocked).toBe(false);
+    const ratio = archiveTaskGate('# Tasks\n- [x] a\n- [ ] b\n', 1);
+    expect(ratio.blocked).toBe(true);
+    expect(ratio.reasons.some((r) => r.includes('min_completion_ratio'))).toBe(true);
   });
 });

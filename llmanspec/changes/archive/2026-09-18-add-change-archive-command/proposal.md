@@ -1,5 +1,8 @@
 ---
 depends_on: []
+branch: sdd/add-change-archive-command
+base_branch: main
+base_sha: 732d761fd86e197613ec1d0642119b3b4a2c5fdc
 ---
 
 # 恢复独立 change archive 命令(含任务完成率门禁与 config 消费)
