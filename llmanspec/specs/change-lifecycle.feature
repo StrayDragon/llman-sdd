@@ -126,3 +126,13 @@
     假如 一个已完成 start 并在特性分支有新提交的临时仓库
     当 运行 change diff --json
     那么 commitCount 为 1 且 change 与 branch 字段正确
+
+  @req:r60 @human
+  场景: change_id template 渲染
+    - config `change_id.template` 存在时,`change new --from` 的 id MUST 由模板渲染生成(nunjucks Strict:未定义变量引用 MUST 报错);内置变量 MUST 为 llman_sdd_unique_id(全树含归档的下一个空闲编号)、verb(--verb 或自动识别)、subject(描述主体)与 date(YYYY-MM-DD);渲染结果 MUST 满足 change_id.pattern;未配置 template 时 MUST 保持启发式派生不变。
+
+  @req:r60 @executable
+  场景: template 渲染派生 id
+    假如 一个配置了 change_id.template 的临时仓库
+    当 运行 change new --from 并带 --verb
+    那么 派生 id 由模板渲染生成

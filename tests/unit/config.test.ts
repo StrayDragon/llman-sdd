@@ -1,8 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 
 import {
+  checkChangeDoc,
+  compileChangeIdPattern,
   ConfigValidationError,
   loadConfig,
+  renderChangeIdTemplate,
   renderConfigOverview,
   setExtraSkills,
   skillsJson,
@@ -114,5 +117,46 @@ bdd:
     expect(() => setExtraSkills(BASE, { set: ['llman-sdd-unknown'] })).toThrow(
       /unknown extra skill/u,
     );
+  });
+});
+
+describe('change_id contract (r59/r60)', () => {
+  test('compileChangeIdPattern: null passes, invalid regex errors', () => {
+    expect(compileChangeIdPattern(null)).toBeNull();
+    expect(compileChangeIdPattern('^[a-z]+$')?.source).toContain('[a-z]');
+    expect(() => compileChangeIdPattern('^[unclosed')).toThrow(/valid regex/u);
+  });
+
+  test('renderChangeIdTemplate: v1 preset vars and strict undefined', () => {
+    const out = renderChangeIdTemplate('c{{ llman_sdd_unique_id }}-{{ verb }}-{{ subject }}', {
+      llman_sdd_unique_id: 7,
+      verb: 'port',
+      subject: 'port-the-importer-module',
+      date: '2026-09-18',
+    });
+    expect(out).toBe('c7-port-port-the-importer-module');
+    expect(() =>
+      renderChangeIdTemplate('{{ verb }}-{{ subject }}', {
+        llman_sdd_unique_id: 1,
+        subject: 'x',
+        date: '2026-09-18',
+      }),
+    ).toThrow(/verb/u);
+  });
+
+  test('checkChangeDoc enforces pattern as ERROR (validate domain, r59)', () => {
+    const r = checkChangeDoc(
+      { name: 'BAD-ID', stage: 'draft', hasBinding: false, totalTasks: 0, completedTasks: 0 },
+      { change_id_pattern: '^[0-9]+-[a-z0-9-]+$' },
+    );
+    expect(r.valid).toBe(false);
+    expect(
+      r.issues.some((i) => i.level === 'ERROR' && i.message.includes('change_id.pattern')),
+    ).toBe(true);
+    const ok = checkChangeDoc(
+      { name: '123-ok', stage: 'draft', hasBinding: false, totalTasks: 0, completedTasks: 0 },
+      { change_id_pattern: '^[0-9]+-[a-z0-9-]+$' },
+    );
+    expect(ok.issues.some((i) => i.level === 'ERROR')).toBe(false);
   });
 });

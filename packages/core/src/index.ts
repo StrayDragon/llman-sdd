@@ -34,6 +34,12 @@ export {
 } from './config/schema.ts';
 export { ConfigValidationError, MAX_REPORTED_ISSUES, loadConfig } from './config/load.ts';
 export {
+  ChangeIdError,
+  compileChangeIdPattern,
+  nextUniqueNumber,
+  renderChangeIdTemplate,
+} from './config/changeId.ts';
+export {
   ExtraSkillsError,
   renderConfigOverview,
   setExtraSkills,
