@@ -26,7 +26,7 @@
 
   @req:r47 @human
   场景: validate 目标与模式 flag
-    - `validate` MUST 支持位置参数 `[item]`(spec id 或 change id 自动消歧)、`--all`(全部 changes 与 specs)、`--changes`/`--specs`(限定域)、`--type change|spec`(强制消歧)、`--stage draft|designed|planned|full`(change 域阶段门)、`--strict`(存在 WARNING 即非零退出)与 `--json`/`--compact-json`(输出 items[].{id,type,valid,issues[].{level,message}} 结构);`--specs` 旧 no-op 标记 MUST 废除,域限定语义由 `--changes`/`--specs` 承担。
+    - `validate` MUST 支持位置参数 `[item]`(spec id 或 change id 自动消歧)、`--all`(全部 changes 与 specs)、`--changes`/`--specs`(限定域)、`--type change|spec`(强制消歧)、`--stage draft|designed|planned|full`(change 域按 v1 产物语义判门:designed 需 design.md、planned 需 design.md+tasks.md、full 另需 tasks.md)、`--strict`(WARNING 按 v1 范围升级为 ERROR 并影响退出)与 `--json`/`--compact-json`(输出 items[].{id,type,valid,issues[].{level,path,message}},staleness,summary{items,passed,failed},version 的 v1 结构);`--specs` 旧 no-op 标记 MUST 废除,域限定语义由 `--changes`/`--specs` 承担。
 
   @req:r48 @human
   场景: bdd run_command 占位符替换
@@ -36,7 +36,7 @@
   场景: validate 目标消歧与阶段门
     假如 一个含 specs 与已绑定 change 的临时仓库
     当 运行 validate --stage full 指向 draft 阶段 change
-    那么 退出码非零且报阶段低于门禁
+    那么 退出码非零且按产物报阶段强制缺失(v1 语义)
 
   @req:r48 @executable
   场景: run_command 占位符按目标展开

@@ -55,6 +55,19 @@ function findReq(
   return null;
 }
 
+/** v1 parity: only @human (rule) req ids participate in the dedupe registry. */
+export function ruleReqIds(entries: readonly SpecEntryLike[]): Set<string> {
+  const ids = new Set<string>();
+  for (const entry of entries) {
+    for (const scenario of entry.doc.scenarios) {
+      if (scenario.classification === 'human') {
+        for (const id of scenario.reqIds) ids.add(id);
+      }
+    }
+  }
+  return ids;
+}
+
 export function allReqIds(entries: readonly SpecEntryLike[]): Set<string> {
   const ids = new Set<string>();
   for (const entry of entries) {
@@ -164,7 +177,7 @@ export function planDedupe(
   specsRoot: string,
   duplicates: readonly { reqId: string; files: string[] }[],
 ): DedupePlanItem[] {
-  const used = allReqIds(entries);
+  const used = ruleReqIds(entries);
   let next = 1;
   const fresh = (): string => {
     while (used.has(`r${String(next)}`)) next += 1;

@@ -889,28 +889,35 @@ bdd.thenStep('概览五要素输出且文件未被修改', (ctx) => {
   if (!unchanged) throw new Error('config overview modified config.yaml');
 });
 
-bdd.when('运行 v2 的 config skills --set 与 --unset', (ctx) => {
+bdd.when('运行 v2 的 config skills --json', (ctx) => {
   const { root } = ctx.fixtures['config工作区'] as ConfigFixture;
-  spawnSync(
-    'bun',
-    [CLI, 'config', 'skills', '--set', 'llman-sdd-validate', '--unset', 'llman-sdd-ff'],
-    {
-      cwd: root,
-      encoding: 'utf8',
-    },
-  );
+  const proc = spawnSync('bun', [CLI, 'config', 'skills', '--json'], {
+    cwd: root,
+    encoding: 'utf8',
+  });
+  ctx.fixtures['skillsjson'] = {
+    code: proc.status ?? 0,
+    out: proc.stdout ?? '',
+    err: proc.stderr ?? '',
+  };
 });
 
-bdd.thenStep('启用集更新且注释与 schema 头保留', (ctx) => {
+bdd.thenStep('JSON 输出 {enabled, available} 且 --set 为未知选项', (ctx) => {
   const { root, original } = ctx.fixtures['config工作区'] as ConfigFixture;
+  const r = ctx.fixtures['skillsjson'] as { code: number; out: string; err: string };
+  if (r.code !== 0) throw new Error(`config skills --json failed: ${r.err}`);
+  const parsed = JSON.parse(r.out) as { enabled: string[]; available: string[] };
+  if (!Array.isArray(parsed.enabled) || parsed.available.length !== 6)
+    throw new Error(`shape wrong: ${r.out}`);
+  // v1 parity: --set/--unset are NOT part of the flag surface (clap rc=2).
+  const set = spawnSync('bun', [CLI, 'config', 'skills', '--set', 'llman-sdd-validate'], {
+    cwd: root,
+    encoding: 'utf8',
+  });
+  if (set.status !== 2)
+    throw new Error(`--set must be an unknown option (rc=2), got ${set.status}`);
   const after = readFileSync(join(root, 'llmanspec', 'config.yaml'), 'utf8');
-  if (!after.includes('llman-sdd-validate') || after.includes('llman-sdd-ff')) {
-    throw new Error(`extra_skills not updated:\n${after}`);
-  }
-  if (!after.includes('# 用户注释保留') || !after.includes('# yaml-language-server')) {
-    throw new Error(`comments lost:\n${after}`);
-  }
-  if (after === original) throw new Error('config was not written');
+  if (after !== original) throw new Error('--set must not write config');
 });
 
 // ---------------------------------------------------------------------------
@@ -1205,10 +1212,10 @@ bdd.when('运行 validate --stage full 指向 draft 阶段 change', (ctx) => {
   };
 });
 
-bdd.thenStep('退出码非零且报阶段低于门禁', (ctx) => {
+bdd.thenStep('退出码非零且按产物报阶段强制缺失(v1 语义)', (ctx) => {
   const r = ctx.fixtures['validate结果'] as { code: number; stdout: string; stderr: string };
   if (r.code === 0) throw new Error(`stage gate should fail: ${r.stdout}`);
-  if (!`${r.stdout}${r.stderr}`.includes('below the required')) {
+  if (!`${r.stdout}${r.stderr}`.includes('Stage forced to')) {
     throw new Error(`stage gate message missing: ${r.stdout}${r.stderr}`);
   }
 });
@@ -1361,6 +1368,18 @@ bdd.when('运行 show', (ctx) => {
   };
 });
 
+bdd.when('运行 show --output json', (ctx) => {
+  const { root } = ctx.fixtures['show工作区'] as { root: string };
+  const proc = spawnSync('bun', [CLI, 'show', 'gated', '--output', 'json'], {
+    cwd: root,
+    encoding: 'utf8',
+  });
+  ctx.fixtures['showjson结果'] = {
+    code: proc.status ?? 0,
+    out: `${proc.stdout ?? ''}${proc.stderr ?? ''}`,
+  };
+});
+
 bdd.when('补齐 What Changes 后再运行 show', (ctx) => {
   const { root } = ctx.fixtures['show工作区'] as { root: string };
   writeFileSync(
@@ -1371,11 +1390,19 @@ bdd.when('补齐 What Changes 后再运行 show', (ctx) => {
   ctx.fixtures['show后结果'] = { afterCode: proc.status ?? 1, afterOut: proc.stdout ?? '' };
 });
 
-bdd.thenStep('报错且不输出正文', (ctx) => {
+bdd.thenStep('文本模式不设门且输出 Stage', (ctx) => {
   const r = ctx.fixtures['show结果'] as { beforeCode: number; beforeOut: string };
-  if (r.beforeCode === 0) throw new Error(`missing What Changes should fail: ${r.beforeOut}`);
-  if (!r.beforeOut.includes('What Changes'))
-    throw new Error(`gate message missing: ${r.beforeOut}`);
+  // v1 parity: text/compact mode renders changes without Why/What Changes gates.
+  if (r.beforeCode !== 0) throw new Error(`text show should render: ${r.beforeOut}`);
+  if (!r.beforeOut.includes('Stage:')) throw new Error(`Stage line missing: ${r.beforeOut}`);
+  if (!r.beforeOut.includes('Gates:')) throw new Error(`Gates trailer missing: ${r.beforeOut}`);
+});
+
+bdd.thenStep('--output json 受 What Changes 门拦截', (ctx) => {
+  const r = ctx.fixtures['showjson结果'] as { code: number; out: string };
+  if (r.code === 0) throw new Error(`json show should gate: ${r.out}`);
+  if (!r.out.includes('What Changes'))
+    throw new Error(`What Changes gate message missing: ${r.out}`);
 });
 
 bdd.thenStep('输出含 Stage 的文本', (ctx) => {
@@ -1410,18 +1437,17 @@ bdd.when('运行 show -r 1 与 show --output meta-only', (ctx) => {
   };
 });
 
-bdd.thenStep('单条规则反查成功且 meta-only 只含头注释', (ctx) => {
+bdd.thenStep('文本模式 -r 与 meta-only 均为全量渲染', (ctx) => {
   const r = ctx.fixtures['showspec结果'] as {
     reqOut: string;
     reqCode: number;
     metaOut: string;
     metaCode: number;
   };
-  if (r.reqCode !== 0 || !r.reqOut.includes('规则一')) throw new Error(`-r 1 failed: ${r.reqOut}`);
-  if (r.metaCode !== 0 || !r.metaOut.includes('# capability: multi')) {
-    throw new Error(`meta-only failed: ${r.metaOut}`);
-  }
-  if (r.metaOut.includes('场景')) throw new Error('meta-only must not include scenarios');
+  if (r.reqCode !== 0 || !r.reqOut.includes('规则一') || !r.reqOut.includes('规则二'))
+    throw new Error(`-r must render the full spec in text (v1 parity): ${r.reqOut}`);
+  if (r.metaCode !== 0 || !r.metaOut.includes('规则一') || !r.metaOut.includes('## Morphology'))
+    throw new Error(`meta-only must render the full spec in text (v1 parity): ${r.metaOut}`);
 });
 
 // ---------------------------------------------------------------------------
@@ -1552,7 +1578,7 @@ bdd.when('运行 index rebuild --backend rag', (ctx) => {
 bdd.thenStep('报错并提示迁移到 pageindex', (ctx) => {
   const r = ctx.fixtures['backend结果'] as { code: number; stdout: string; stderr: string };
   if (r.code === 0) throw new Error('rag backend should be rejected');
-  if (!`${r.stdout}${r.stderr}`.includes('removed'))
+  if (!`${r.stdout}${r.stderr}`.includes('no longer supported'))
     throw new Error(`removal hint missing: ${r.stderr}`);
 });
 

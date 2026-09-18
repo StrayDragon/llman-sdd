@@ -39,12 +39,12 @@
     - `list` MUST 支持 `--sort recent|name`(缺省 recent,按 mtime 降序)与 `--compact-json`(单行紧凑 JSON,须与 `--json` 同用)。
 
   @req:r52 @human
-  场景: show 文本输出与 What Changes 门
-    - `show <change>`(非 --output json)MUST 输出人类可读文本(含 Stage、path 与 frontmatter 摘要);proposal 缺 `## What Changes` 段 MUST 报错且 `--output json` 同样受该门限制。
+  场景: show 文本输出与 Why/What Changes 门
+    - `show <change>`(非 --output json)MUST 输出人类可读文本(含 `Stage:`、`path:`、proposal 全文与 `Gates: n/m pass` 尾节),文本模式 MUST NOT 对 `## Why`/`## What Changes` 设门(v1 语义);`--output json` MUST 按序校验:缺 `## Why` 报 `Change must have a Why section`、缺 `## What Changes` 报 `Change must have a What Changes section`,任一不满足 MUST 退出码非零。
 
   @req:r53 @human
   场景: show spec 检视与 output 修饰
-    - `show <spec>` MUST 支持 `-r/--requirement <N>`(按 1-based 序号输出单个 requirement,越界 MUST 报错)与 `--output compact|meta-only|no-scenarios` 三种文本修饰;`--output deltas` 与 `reqs-only` MUST 报错并提示已随 checkpoint/delta 机制移除。
+    - `show <spec>` 文本模式 MUST 忽略 `-r/--requirement`、`--output compact|meta-only|no-scenarios|reqs-only|deltas` 而渲染全量源码+Morphology(v1 语义,修饰仅作用于 JSON);`--output json[,meta-only|no-scenarios|reqs-only]` MUST 按 v1 结构输出(items/requirements/scenarios/morphology)。
 
   @req:r51 @executable
   场景: list 排序与紧凑输出
@@ -56,15 +56,15 @@
   场景: show 文本与 What Changes 门
     假如 一个缺 What Changes 段的 change 工作区
     当 运行 show
-    那么 报错且不输出正文
-    当 补齐 What Changes 后再运行 show
-    那么 输出含 Stage 的文本
+    那么 文本模式不设门且输出 Stage
+    当 运行 show --output json
+    那么 --output json 受 What Changes 门拦截
 
   @req:r53 @executable
   场景: spec 检视与 output 修饰
     假如 一个含多条规则的 spec 工作区
     当 运行 show -r 1 与 show --output meta-only
-    那么 单条规则反查成功且 meta-only 只含头注释
+    那么 文本模式 -r 与 meta-only 均为全量渲染
 
   @req:r54 @human
   场景: graph 范围与深度

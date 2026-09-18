@@ -97,7 +97,7 @@
 
   @req:r44 @human
   场景: change new/attach 兼容 flag
-    - `change new` MUST 支持 `--force`(覆盖已存在 proposal)与 `--verb <V>`(--from 派生时 verb 取显式值);`change attach` MUST 支持 `--force`(已绑定 change 重绑到当前分支)与 `--base <branch>`(显式记录 fork 源分支,该分支 MUST 存在且 MUST NOT 等于当前分支)。
+    - `change new` MUST 支持 `--force`(覆盖已存在 proposal,v1 文案 `change proposal already exists: ... (pass --force to overwrite)`)与 `--verb <V>`(v1 语义:显式覆盖 verb,无显式时按描述自动识别 add/update/remove/refactor/fix 动词前缀,subject 为剥离该动词前缀后的描述主体);`change attach` MUST 支持 `--force`(已绑定 change 重绑到当前分支)与 `--base <branch>`(显式记录 fork 源分支,该分支 MUST 存在且 MUST NOT 等于当前分支)。
 
   @req:r45 @human
   场景: start 前缀与 finalize 校验/收口的取值序
@@ -129,7 +129,7 @@
 
   @req:r60 @human
   场景: change_id template 渲染
-    - config `change_id.template` 存在时,`change new --from` 的 id MUST 由模板渲染生成(nunjucks Strict:未定义变量引用 MUST 报错);内置变量 MUST 为 llman_sdd_unique_id(全树含归档的下一个空闲编号)、verb(--verb 或自动识别)、subject(描述主体)与 date(YYYY-MM-DD);渲染结果 MUST 满足 change_id.pattern;未配置 template 时 MUST 保持启发式派生不变。
+    - config `change_id.template` 存在时,`change new --from` 的 id MUST 由模板渲染生成(nunjucks Strict:未定义变量引用 MUST 报错);内置变量 MUST 为 llman_sdd_unique_id(全树含归档的最小空闲编号)、verb(--verb 显式覆盖或按五动词表自动识别,描述无动词且模板引用 {{ verb }} 时 MUST 报 unprovided variable)、subject(描述派生 id 剥离检测到的动词前缀)与 date(YYYY-MM-DD);渲染 id 派生遵循 v1 纯 slug 语义(无动词强制);未配置 template 时 MUST 保持启发式派生不变。
 
   @req:r60 @executable
   场景: template 渲染派生 id

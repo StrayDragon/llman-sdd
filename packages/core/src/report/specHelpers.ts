@@ -14,9 +14,12 @@ export interface SpecHelperIo {
   listDir(path: string): string[];
 }
 
-/** Scan all specs under `specsDir` for @req:rN TAGS (not step text) and return the next free id. */
+/**
+ * v1 parity (`req_registry.rs::next_req_id_from_index`): smallest free rN over
+ * the RULE (@human) req ids only; acceptance-only req tags do not occupy ids.
+ */
 export function nextReqId(io: SpecHelperIo, specsDir: string): string {
-  let max = 0;
+  const used = new Set<number>();
   const walk = (dir: string): void => {
     if (!io.exists(dir)) return;
     for (const name of io.listDir(dir)) {
@@ -24,8 +27,10 @@ export function nextReqId(io: SpecHelperIo, specsDir: string): string {
       if (name.endsWith('.feature')) {
         const doc = parseCapability(io.readText(full), full);
         for (const scenario of doc.scenarios) {
+          if (scenario.classification !== 'human') continue;
           for (const reqId of scenario.reqIds) {
-            max = Math.max(max, Math.trunc(Number(reqId.replace(/^r/u, ''))));
+            const n = Math.trunc(Number(reqId.replace(/^r/u, '')));
+            if (Number.isFinite(n)) used.add(n);
           }
         }
       } else if (io.isDirectory(full)) {
@@ -34,7 +39,9 @@ export function nextReqId(io: SpecHelperIo, specsDir: string): string {
     }
   };
   walk(specsDir);
-  return `r${max + 1}`;
+  let n = 1;
+  while (used.has(n)) n += 1;
+  return `r${n}`;
 }
 
 export function skeletonContent(capability: string, reqId: string, locale: string): string {

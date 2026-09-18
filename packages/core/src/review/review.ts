@@ -1,3 +1,5 @@
+import type { GitLike } from '../git/spawnGit.ts';
+import { evaluateStaleness, notApplicableStaleness } from '../validation/staleness.ts';
 /**
  * Review aggregation (review-freeze capability, r23): five-signal review over
  * spec IR + validate sweep. Port of v1 sdd/review.rs observable contract.
@@ -28,6 +30,10 @@ export interface ReviewInput {
   activeChanges?: readonly { name: string; completedTasks: number; totalTasks: number }[];
   /** Restrict per-capability signals (pending/manual/unbound/stale) to this capability. */
   capability?: string;
+  /** git + root for real staleness evaluation (v1 parity). */
+  git?: GitLike;
+  root?: string;
+  specsDir?: string;
 }
 
 export interface ReviewResult {
@@ -37,17 +43,8 @@ export interface ReviewResult {
   exitCode: number;
 }
 
-function executableBound(
-  scenarioTags: readonly string[],
-  bindings: readonly TagBinding[] | null,
-): boolean {
-  if (!bindings || bindings.length === 0) return false;
-  const has = (t: string): boolean => scenarioTags.includes(t);
-  return bindings.some((b) => (b.kind === 'tags' ? b.tags.every((t) => has(t)) : false));
-}
-
 export function buildReview(input: ReviewInput, io: SpecIo): ReviewResult {
-  const { entries, bindings, boundChangeCount } = input;
+  const { entries, boundChangeCount } = input;
   const strictChangeFails = (input.activeChanges ?? []).filter(
     (c) => c.totalTasks > 0 && c.completedTasks < c.totalTasks,
   );
@@ -69,13 +66,30 @@ export function buildReview(input: ReviewInput, io: SpecIo): ReviewResult {
     const acceptanceReqIds = new Set(acceptance.flatMap((s) => s.reqIds));
     const pending = rules.filter((r) => !r.reqIds.some((id) => acceptanceReqIds.has(id)));
     const manual = rules.filter((r) => r.manual);
-    const unbound = acceptance.filter((s) => !executableBound(s.tags, bindings));
+    // v1 r5: unbound = orphan acceptance scenarios (no @req link).
+    const unbound = acceptance.filter((s) => s.reqIds.length === 0);
 
     push('pending', cap, pending.length);
     push('manual', cap, manual.length);
     push('unbound', cap, unbound.length);
-    // staleness is deferred in v2 — placeholder signal (golden normalizes it)
-    push('stale', cap, 0, 'DEFERRED');
+
+    // staleness (v1 evaluate): real base-ref/scope evaluation.
+    let staleInfo = notApplicableStaleness();
+    let staleCount = 0;
+    if (input.git !== undefined && input.root !== undefined) {
+      const specRel =
+        (entry.fileName.startsWith('llmanspec/') ? '' : 'llmanspec/specs/') + entry.fileName;
+      const evalResult = evaluateStaleness({
+        git: input.git,
+        root: input.root,
+        specRel,
+        scope: entry.doc.header.scope?.split(',').map((x) => x.trim()) ?? [],
+        baseRefEnv: process.env.LLMANSPEC_BASE_REF,
+      });
+      staleInfo = evalResult.info;
+      staleCount = staleInfo.status === 'OK' || staleInfo.status === 'NOTAPPLICABLE' ? 0 : 1;
+    }
+    push('stale', cap, staleCount, staleInfo.status === 'NOTAPPLICABLE' ? '' : staleInfo.status);
   }
 
   const failed = sweep.verdicts.filter((v) => !v.ok);
@@ -101,13 +115,13 @@ export function buildReview(input: ReviewInput, io: SpecIo): ReviewResult {
     'locked',
     '-',
     0,
-    `${boundChangeCount} bound change(s); inspect with \`llman-sdd change diff <id>\``,
+    `${boundChangeCount} bound change(s); inspect with \`llman sdd change diff <id>\``,
   );
   push(
     'validate',
     '-',
     failed.length,
-    failed.length > 0 ? 'validate --all failed; run `llman-sdd validate --all` for details' : 'ok',
+    failed.length > 0 ? 'validate --all failed; run `llman sdd validate --all` for details' : 'ok',
   );
 
   const warningCount = signals

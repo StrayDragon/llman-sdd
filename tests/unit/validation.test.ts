@@ -93,15 +93,25 @@ describe('validateAllSpecs', () => {
     expect(report.lines.at(-1)).toBe('Totals: 0 passed, 2 failed (2 items)');
   });
 
-  test('missing capability header fails; missing purpose only warns', () => {
+  test('missing capability header fails (v1 short-circuit); missing purpose is ERROR', () => {
     const doc = parseCapability(
       `# scope: llmanspec/\n\n功能: t\n\n  @req:r1 @human\n  场景: ok\n    - 系统 MUST x\n`,
     );
     const report = validateAllSpecs([{ fileName: 't.feature', doc }], io);
     expect(report.failed).toBe(true);
     const joined = report.lines.join('\n');
-    expect(joined).toInclude('missing `# capability:` header comment');
-    expect(joined).toInclude('[WARNING] file: missing `# purpose:` header comment');
+    // v1 parity: missing capability short-circuits to file + registry issues.
+    expect(joined).toInclude('missing `# capability:` header comment (spec-format r133)');
+
+    const withCap = parseCapability(
+      `# capability: t\n# scope: llmanspec/\n\n功能: t\n\n  @req:r1 @human\n  场景: ok\n    - 系统 MUST x\n`,
+    );
+    const report2 = validateAllSpecs([{ fileName: 't.feature', doc: withCap }], io);
+    const joined2 = report2.lines.join('\n');
+    // v1 parity: missing/empty purpose is an ERROR at `{cap}/purpose`.
+    expect(joined2).toInclude(
+      '[ERROR] t/purpose: `# purpose:` header comment must not be empty (spec-format r133)',
+    );
   });
 });
 

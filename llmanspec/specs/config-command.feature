@@ -11,7 +11,7 @@
 
   @req:r38 @human
   场景: config skills 非交互管理
-    - `config skills` MUST 默认列出当前启用集与可用全集;`--json` MUST 输出 {enabled, available},available MUST 为六枚举(llman-sdd-continue/llman-sdd-ff/llman-sdd-validate/llman-sdd-arch-review/llman-sdd-wayfinder/llman-sdd-research);`--set <name>` 与 `--unset <name>`(均可重复)MUST 以注释保留方式增删 extra_skills 后写回,MUST 保留 $schema 头行与全部用户注释;白名单外名字 MUST 报错且不产生写回。
+    - `config skills`(默认/`--no-interactive`)MUST 打印当前启用集与可用全集(v1 文本形态);`--json` MUST 输出 {enabled, available},available MUST 为六枚举(llman-sdd-continue/llman-sdd-ff/llman-sdd-validate/llman-sdd-arch-review/llman-sdd-wayfinder/llman-sdd-research);`--set`/`--unset` MUST NOT 存在于 flag 面(未知选项按 v1 语义 rc=2 报错,不产生任何写回)。
 
   @req:r37 @executable
   场景: config 概览只读
@@ -22,5 +22,5 @@
   @req:r38 @executable
   场景: skills 非交互管理
     假如 一个带注释与 extra_skills 的 llmanspec config
-    当 运行 v2 的 config skills --set 与 --unset
-    那么 启用集更新且注释与 schema 头保留
+    当 运行 v2 的 config skills --json
+    那么 JSON 输出 {enabled, available} 且 --set 为未知选项

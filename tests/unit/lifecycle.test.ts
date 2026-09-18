@@ -71,16 +71,16 @@ describe('deriveChangeId', () => {
   test('keeps existing verb prefix', () => {
     expect(deriveChangeId('port config and parsing')).toBe('port-config-and-parsing');
   });
-  test('adds verb when missing', () => {
-    expect(deriveChangeId('demo feature')).toBe('add-demo-feature');
+  test('does not force a verb prefix (v1 pure slug)', () => {
+    expect(deriveChangeId('demo feature')).toBe('demo-feature');
   });
   test('ascii-sanitizes and caps length', () => {
-    const id = deriveChangeId('修复 某个非常长的中文描述'.repeat(5));
+    const id = deriveChangeId('a very long ascii description '.repeat(6) + 'x');
     expect(id.length).toBeLessThanOrEqual(60);
     expect(/^[a-z0-9-]+$/u.test(id)).toBe(true);
   });
-  test('pure non-ascii falls back to add-change', () => {
-    expect(deriveChangeId('中文描述')).toBe('add-change');
+  test('pure non-ascii yields an error (v1)', () => {
+    expect(() => deriveChangeId('中文描述')).toThrow('empty id after sanitizing');
   });
 });
 
@@ -272,6 +272,8 @@ describe('r44/r45/r46 — change family flags', () => {
       cwd: root,
     });
     const info = changeDiffInfo(git, io, 'fam');
-    expect(info).toMatchObject({ change: 'fam', branch: 'sdd/fam', base: 'main', commitCount: 1 });
+    // v1 parity: `base` is the recorded base_sha (merge-base), not the branch name.
+    expect(info).toMatchObject({ change: 'fam', branch: 'sdd/fam', commitCount: 1 });
+    expect(info.base).toMatch(/^[0-9a-f]{40}$/u);
   });
 });

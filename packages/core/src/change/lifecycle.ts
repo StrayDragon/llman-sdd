@@ -1,7 +1,9 @@
 import {
   currentBranch,
   defaultBranch,
+  dirtyCount,
   isCleanTree,
+  mergeBase,
   revParseHead,
   type GitLike,
 } from '../git/spawnGit.ts';
@@ -33,14 +35,18 @@ export function changeExists(io: FsIo, id: string): boolean {
   return io.exists(proposalPath(id));
 }
 
-/** `change new [id] --from DESC`: derive a legal id and write the draft shell. */
+/** `change new [id] --from DESC --force`: derive a legal id and write the draft shell. */
 export function newChange(
   io: FsIo,
-  opts: { id?: string; from?: string },
+  opts: { id?: string; from?: string; force?: boolean },
 ): { id: string; path: string } {
   const id = opts.id ?? deriveChangeId(opts.from ?? '');
   const path = proposalPath(id);
-  if (io.exists(path)) throw new LifecycleError(`change \`${id}\` already exists: ${path}`);
+  if (io.exists(path) && !opts.force) {
+    throw new LifecycleError(
+      `change proposal already exists: ./${path} (pass --force to overwrite)`,
+    );
+  }
   io.writeText(path, `---\ndepends_on: []\n---\n\n${DRAFT_PROPOSAL_TEMPLATE}`);
   return { id, path };
 }
@@ -54,19 +60,24 @@ export function startChange(
 ): { branch: string; baseBranch: string; baseSha: string } {
   const path = proposalPath(id);
   if (!io.exists(path)) throw new LifecycleError(`proposal not found: ${path}`);
-  if (!isCleanTree(git))
-    throw new LifecycleError('working tree is not clean — commit or stash first');
+  const dirty = dirtyCount(git);
+  if (dirty > 0)
+    throw new LifecycleError(
+      `dirty tree: ${dirty} uncommitted files; commit/stash before \`change start\``,
+    );
   const baseBranch = defaultBranch(git);
   const here = currentBranch(git);
-  if (here !== baseBranch) {
+  if (here !== null && here !== baseBranch) {
     throw new LifecycleError(
-      `must run from the default branch (${baseBranch}), currently on: ${here ?? 'detached'}`,
+      `already on non-default branch \`${here}\`; use \`change attach\` to bind it, or switch to the default branch before \`change start\``,
     );
   }
+  if (here === null) throw new LifecycleError('detached HEAD is not allowed for change binding');
   const branchPrefix = opts.branchPrefix ?? 'sdd/';
   const branch = `${branchPrefix}${id}`;
   git.run(['switch', '-c', branch]);
-  const baseSha = revParseHead(git);
+  const baseSha =
+    currentBranch(git) !== null ? mergeBase(git, 'HEAD', baseBranch) : revParseHead(git);
   io.writeText(path, writeBinding(io.readText(path), { branch, baseBranch, baseSha }));
   return { branch, baseBranch, baseSha };
 }
@@ -77,39 +88,45 @@ export function attachChange(
   io: FsIo,
   id: string,
   opts: { force?: boolean; base?: string } = {},
-): { branch: string; baseBranch: string } {
+): { branch: string; baseBranch: string; baseSha: string } {
   const path = proposalPath(id);
   if (!io.exists(path)) throw new LifecycleError(`proposal not found: ${path}`);
-  if (!opts.force && readBinding(io.readText(path)) !== null) {
-    throw new LifecycleError(`change \`${id}\` is already attached — pass --force to rebind`);
+  const existing = readBinding(io.readText(path));
+  if (!opts.force && existing !== null) {
+    throw new LifecycleError(
+      `change \`${id}\` already attached to branch \`${existing.branch}\` (base ${existing.baseSha}); pass --force to rebind`,
+    );
   }
   const configuredBase = opts.base ?? defaultBranch(git);
+  const branch = currentBranch(git);
+  if (branch === null || branch === '') {
+    throw new LifecycleError('detached HEAD is not allowed for change binding');
+  }
   if (opts.base !== undefined) {
     if (
       git.runOpt(['show-ref', '--verify', '--quiet', `refs/heads/${opts.base}`]) === null &&
       git.runOpt(['show-ref', '--verify', '--quiet', `refs/remotes/${opts.base}`]) === null
     ) {
-      throw new LifecycleError(`--base branch does not exist: ${opts.base}`);
+      throw new LifecycleError(
+        `base branch \`${opts.base}\` does not exist; --base records the fork source branch for merge-target resolution (r111)`,
+      );
+    }
+    if (opts.base === branch) {
+      throw new LifecycleError(`--base must differ from the bound branch \`${branch}\``);
     }
   }
-  const branch = currentBranch(git);
-  // `branch --show-current` prints an empty line on detached HEAD, not nothing.
-  if (branch === null || branch === '') throw new LifecycleError('detached HEAD — cannot attach');
   if (branch === configuredBase) {
     throw new LifecycleError(
       `changes must not attach on the default branch (\`${branch}\`); ` +
         'create/switch to a feature branch first (or use `change start`)',
     );
   }
-  if (opts.base !== undefined && opts.base === branch) {
-    throw new LifecycleError('--base must differ from the current branch');
-  }
-  const baseSha = revParseHead(git);
+  const baseSha = mergeBase(git, branch, configuredBase);
   io.writeText(
     path,
     writeBinding(io.readText(path), { branch, baseBranch: configuredBase, baseSha }),
   );
-  return { branch, baseBranch: configuredBase };
+  return { branch, baseBranch: configuredBase, baseSha };
 }
 
 export interface FinalizeResult {
@@ -273,7 +290,7 @@ export interface ChangeDiffInfo {
 export function changeDiffInfo(git: GitLike, io: FsIo, id: string): ChangeDiffInfo {
   const binding = readBinding(io.readText(proposalPath(id)));
   if (binding === null) throw new LifecycleError(`change \`${id}\` has no branch binding`);
-  const base = binding.baseBranch ?? defaultBranch(git);
-  const count = git.runOpt(['rev-list', '--count', `${base}...${binding.branch}`]) ?? '0';
-  return { change: id, branch: binding.branch, base, commitCount: Number(count) };
+  const count =
+    git.runOpt(['rev-list', '--count', `${binding.baseSha}...${binding.branch}`]) ?? '0';
+  return { change: id, branch: binding.branch, base: binding.baseSha, commitCount: Number(count) };
 }
