@@ -30,7 +30,7 @@ function parseDeps(proposal: string): string[] {
     const flow = line.match(/^depends_on:\s*\[([^\]]*)\]\s*$/u);
     if (flow) {
       for (const item of flow[1]?.split(',') ?? []) {
-        const dep = item.trim().replace(/^['"]|['"]$/gu, '');
+        const dep = item.trim().replaceAll(/^['"]|['"]$/gu, '');
         if (dep !== '') deps.push(dep);
       }
       inDeps = false;

@@ -74,3 +74,23 @@
   @req:r36 @human
   场景: change new --dry-run 派生预览
     - `change new --from <描述> --dry-run` MUST 仅输出将派生的 change id 并成功退出,MUST NOT 创建任何文件;`<id>` 与 `--from` 的互斥规则 MUST NOT 因 `--dry-run` 改变。
+
+  @req:r39 @human
+  场景: change archive 独立收口
+    - `change archive <id>` MUST 独立于 finalize 完成合并与改名收口,合并语义与 finalize 一致(into > base_branch > 默认分支;method > config sdd.merge_method > squash;合并失败 best-effort 不回滚);MUST 要求绑定存在、当前在绑定分支、非默认分支且工作树干净,任一不满足 MUST 报错且零副作用;`--into`/`--method` MUST 与 finalize 同义;`--dry-run` MUST 仅输出改名计划。
+
+  @req:r40 @human
+  场景: change archive 任务门禁
+    - `change archive` MUST 在 tasks.md 存在未勾选任务时报错并列出全部未勾项(无条件阻断,strict_defer 不参与本门,其升级语义属 validate 域);config `archive.min_completion_ratio` MUST 作为最低完成率门,低于门禁 MUST 报错;hidden `--force` MUST 跳过全部任务门禁与 git 门禁。
+
+  @req:r39 @executable
+  场景: archive 独立收口
+    假如 一个已 start 且任务全勾的临时仓库
+    当 运行 change archive
+    那么 目标分支获得 archive(sdd) 提交且目录改名
+
+  @req:r40 @executable
+  场景: archive 任务门禁
+    假如 一个带未勾任务的已绑定 change 仓库
+    当 运行 change archive
+    那么 报错列出未勾任务且不产生归档

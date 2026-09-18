@@ -218,14 +218,14 @@ interface CliResult {
 
 interface TempRepo {
   root: string;
-  run: (cmd: string, args: string[]) => { code: number; stdout: string };
+  run: (cmd: string, args: string[]) => { code: number; stdout: string; stderr: string };
 }
 
 function makeTempRepo(): TempRepo {
   const root = mkdtempSync(join(tmpdir(), 'llman-sdd-bdd-'));
-  const gitRun = (args: string[]): { code: number; stdout: string } => {
+  const gitRun = (args: string[]): { code: number; stdout: string; stderr: string } => {
     const proc = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
-    return { code: proc.status ?? 1, stdout: proc.stdout ?? '' };
+    return { code: proc.status ?? 1, stdout: proc.stdout ?? '', stderr: proc.stderr ?? '' };
   };
   gitRun(['init', '-q', '-b', 'main']);
   // 仓库级身份:CLI 的 finalize 内部也会 commit,CI runner 无全局身份
@@ -243,7 +243,7 @@ function makeTempRepo(): TempRepo {
     root,
     run: (cmd, args) => {
       const proc = spawnSync(cmd, args, { cwd: root, encoding: 'utf8' });
-      return { code: proc.status ?? 1, stdout: proc.stdout ?? '' };
+      return { code: proc.status ?? 1, stdout: proc.stdout ?? '', stderr: proc.stderr ?? '' };
     },
   };
 }
@@ -911,4 +911,80 @@ bdd.thenStep('启用集更新且注释与 schema 头保留', (ctx) => {
     throw new Error(`comments lost:\n${after}`);
   }
   if (after === original) throw new Error('config was not written');
+});
+
+// ---------------------------------------------------------------------------
+// r39/r40 — change archive gates & seal-off (acceptance)
+// ---------------------------------------------------------------------------
+
+interface ArchiveResult {
+  code: number;
+  stdout: string;
+  stderr?: string;
+}
+
+bdd.given('一个已 start 且任务全勾的临时仓库', (ctx) => {
+  const repo = makeTempRepo();
+  const id = 'demo-arch';
+  const dir = join(repo.root, 'llmanspec', 'changes', id);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'proposal.md'), '---\ndepends_on: []\n---\n\n## Why\nx\n');
+  writeFileSync(join(dir, 'tasks.md'), '# Tasks\n- [x] done\n');
+  repo.run('git', ['add', '-A']);
+  repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'draft']);
+  repo.run('bun', [CLI, 'change', 'start', id]);
+  writeFileSync(join(repo.root, 'feature.txt'), 'hello\n');
+  repo.run('git', ['add', '-A']);
+  repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'feat']);
+  ctx.fixtures['仓库'] = { root: repo.root, repo };
+  ctx.fixtures['change'] = { id };
+});
+
+bdd.when('运行 change archive', (ctx) => {
+  const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
+  const id = (ctx.fixtures['change'] as { id: string }).id;
+  const result = repo.run('bun', [CLI, 'change', 'archive', id]);
+  ctx.fixtures['archive结果'] = {
+    code: result.code,
+    stdout: result.stdout,
+    stderr: result.stderr,
+  };
+});
+
+bdd.thenStep('目标分支获得 archive(sdd) 提交且目录改名', (ctx) => {
+  const { code, stdout } = ctx.fixtures['archive结果'] as ArchiveResult;
+  if (code !== 0) throw new Error(`archive failed: ${stdout}`);
+  const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
+  const log = repo.run('git', ['log', '--oneline', '-1']).stdout;
+  if (!log.includes('archive(sdd): demo-arch')) throw new Error(`close-out commit missing: ${log}`);
+  if (!existsSync(join(repo.root, 'llmanspec', 'changes', 'archive'))) {
+    throw new Error('archive dir missing');
+  }
+});
+
+bdd.given('一个带未勾任务的已绑定 change 仓库', (ctx) => {
+  const repo = makeTempRepo();
+  const id = 'demo-gate';
+  const dir = join(repo.root, 'llmanspec', 'changes', id);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'proposal.md'), '---\ndepends_on: []\n---\n\n## Why\nx\n');
+  writeFileSync(join(dir, 'tasks.md'), '# Tasks\n- [ ] pending-one\n- [x] ok\n');
+  repo.run('git', ['add', '-A']);
+  repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'draft']);
+  repo.run('bun', [CLI, 'change', 'start', id]);
+  ctx.fixtures['仓库'] = { root: repo.root, repo };
+  ctx.fixtures['change'] = { id };
+});
+
+bdd.thenStep('报错列出未勾任务且不产生归档', (ctx) => {
+  const { code, stdout } = ctx.fixtures['archive结果'] as ArchiveResult;
+  const stderr = (ctx.fixtures['archive结果'] as { stderr?: string }).stderr ?? '';
+  const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
+  if (code === 0) throw new Error(`archive should be blocked: ${stdout}`);
+  if (!`${stdout}${stderr}`.includes('pending-one')) {
+    throw new Error(`pending item not listed: ${stdout}${stderr}`);
+  }
+  if (existsSync(join(repo.root, 'llmanspec', 'changes', 'archive', 'demo-gate'))) {
+    throw new Error('archive dir created despite gate');
+  }
 });

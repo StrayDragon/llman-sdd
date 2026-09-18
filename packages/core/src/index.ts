@@ -87,6 +87,8 @@ export {
   startChange,
   type FinalizeResult,
   type FsIo,
+  archiveChange,
+  archiveTaskGate,
 } from './change/lifecycle.ts';
 export { normalizeLocale, localeFallbacks } from './templates/locale.ts';
 export {

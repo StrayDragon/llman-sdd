@@ -41,13 +41,14 @@ import {
   resolveChatConfig,
   unavailableResult,
   type TemplateIo,
+  archiveChange,
   harvestUniqueNumbers,
   renderConfigOverview,
   setExtraSkills,
   skillsJson,
   ExtraSkillsError,
 } from '@llman-sdd/core';
-import { Command } from 'commander';
+import { Command, Option } from 'commander';
 
 import { makeCliGit, makeIo } from './io.ts';
 
@@ -192,6 +193,47 @@ change
     console.log(`next free number: ${harvest.nextNumber}`);
     for (const w of harvest.warnings) console.error(`warning: ${w}`);
   });
+
+change
+  .command('archive')
+  .description('Independent seal-off: task gates + merge + archive rename + commit')
+  .argument('<id>')
+  .option('--into <branch>', 'target branch to merge into')
+  .option('--method <method>', 'merge method: squash | ff')
+  .option('--dry-run', 'print the rename plan only')
+  .addOption(new Option('--force', 'skip task and git gates').hideHelp())
+  .action(
+    (
+      id: string,
+      options: { into?: string; method?: string; dryRun?: boolean; force?: boolean },
+    ) => {
+      if (options.method !== undefined && options.method !== 'squash' && options.method !== 'ff') {
+        console.error(`invalid --method \`${options.method}\` (squash | ff)`);
+        process.exitCode = 1;
+        return;
+      }
+      const io = makeIo(process.cwd());
+      if (options.dryRun) {
+        const date = new Date().toISOString().slice(0, 10);
+        console.log(
+          `Would move llmanspec/changes/${id} -> llmanspec/changes/archive/${date}-${id}`,
+        );
+        return;
+      }
+      const config = existsSync('llmanspec/config.yaml')
+        ? loadConfig(readFileSync('llmanspec/config.yaml', 'utf8'))
+        : null;
+      const result = archiveChange(makeCliGit(process.cwd()), io, id, {
+        into: options.into,
+        method: options.method as 'squash' | 'ff' | undefined,
+        force: options.force,
+        minCompletionRatio: config?.archive?.min_completion_ratio ?? undefined,
+      });
+      console.log(
+        `archived \`${id}\` → ${result.archiveDir} (commit "${result.commitSubject}" on ${result.target})`,
+      );
+    },
+  );
 
 change
   .command('diff')
