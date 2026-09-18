@@ -2,6 +2,9 @@
 depends_on:
   - align-next-id-numeric
   - change-family-flags
+branch: sdd/change-id-template
+base_branch: main
+base_sha: 81e9e709b26ed365467e33e9e65b44afd0b85278
 ---
 
 # 消费 change_id 配置:pattern 校验与 template 渲染

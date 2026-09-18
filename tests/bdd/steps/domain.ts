@@ -1577,3 +1577,72 @@ bdd.thenStep('嵌套 change 不出现', (ctx) => {
   if (r.code !== 0) throw new Error(`list failed: ${r.stdout}`);
   if (r.stdout.includes('inner-change')) throw new Error(`nested leaked at depth 1: ${r.stdout}`);
 });
+
+// ---------------------------------------------------------------------------
+// r59/r60 — change_id pattern & template (acceptance)
+// ---------------------------------------------------------------------------
+
+bdd.given('一个配置了纯数字前缀 pattern 的临时仓库', (ctx) => {
+  const repo = makeTempRepo();
+  writeFileSync(
+    join(repo.root, 'llmanspec', 'config.yaml'),
+    'schema: spec-driven\nchange_id:\n  pattern: "^[0-9]+-[a-z0-9-]+$"\n',
+  );
+  const dir = join(repo.root, 'llmanspec', 'changes', 'bad-id');
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'proposal.md'), '---\ndepends_on: []\n---\n\n## Why\nx\n');
+  ctx.fixtures['pattern仓库'] = { repo };
+});
+
+bdd.when('创建不匹配的 change 并运行 validate', (ctx) => {
+  const { repo } = ctx.fixtures['pattern仓库'] as { repo: TempRepo };
+  const result = repo.run('bun', [CLI, 'validate', 'bad-id', '--no-check']);
+  ctx.fixtures['pattern结果'] = { code: result.code, stdout: result.stdout, stderr: result.stderr };
+});
+
+bdd.thenStep('该 change 判 ERROR 且非法正则加载即报错', (ctx) => {
+  const r = ctx.fixtures['pattern结果'] as { code: number; stdout: string; stderr: string };
+  if (r.code === 0) throw new Error(`pattern violation should fail: ${r.stdout}${r.stderr}`);
+  if (!`${r.stdout}${r.stderr}`.includes('change_id.pattern')) {
+    throw new Error(`pattern message missing: ${r.stdout}${r.stderr}`);
+  }
+});
+
+bdd.given('一个配置了 change_id.template 的临时仓库', (ctx) => {
+  const repo = makeTempRepo();
+  writeFileSync(
+    join(repo.root, 'llmanspec', 'config.yaml'),
+    'schema: spec-driven\nchange_id:\n  template: "c{{ llman_sdd_unique_id }}-{{ verb }}-{{ subject }}"\n',
+  );
+  ctx.fixtures['template仓库'] = { repo };
+});
+
+bdd.when('运行 change new --from 并带 --verb', (ctx) => {
+  const { repo } = ctx.fixtures['template仓库'] as { repo: TempRepo };
+  const result = repo.run('bun', [
+    CLI,
+    'change',
+    'new',
+    '--from',
+    'port the importer module',
+    '--verb',
+    'port',
+  ]);
+  ctx.fixtures['template结果'] = {
+    code: result.code,
+    stdout: result.stdout,
+    stderr: result.stderr,
+  };
+});
+
+bdd.thenStep('派生 id 由模板渲染生成', (ctx) => {
+  const r = ctx.fixtures['template结果'] as { code: number; stdout: string; stderr: string };
+  const { repo } = ctx.fixtures['template仓库'] as { repo: TempRepo };
+  if (r.code !== 0) throw new Error(`template render failed: ${r.stdout}${r.stderr}`);
+  if (!r.stdout.includes('c1-port-port-the-importer-module')) {
+    throw new Error(`rendered id mismatch: ${r.stdout}${r.stderr}`);
+  }
+  if (!existsSync(join(repo.root, 'llmanspec', 'changes', 'c1-port-port-the-importer-module'))) {
+    throw new Error('rendered change dir missing');
+  }
+});

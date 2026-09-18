@@ -19,3 +19,13 @@
     当 加载该 config
     那么 报错信息包含 "extra_skills"
     而且 报错条数至多 5
+
+  @req:r59 @human
+  场景: change_id pattern 契约
+    - config `change_id.pattern` MUST 在加载期编译校验(非法正则 MUST 报错);pattern 的强制点 MUST 为 validate 的 change 域(对活跃 change 目录名违反 pattern 者判 ERROR,归档/legacy 不回溯,与 v1 一致);`change new` 对显式 id 与派生 id MUST NOT 因 pattern 拒绝;pattern 缺省 MUST 为宽松 kebab 兼容(等价 ^[a-z0-9][a-z0-9-]*$)。
+
+  @req:r59 @executable
+  场景: pattern 在 validate 域强制
+    假如 一个配置了纯数字前缀 pattern 的临时仓库
+    当 创建不匹配的 change 并运行 validate
+    那么 该 change 判 ERROR 且非法正则加载即报错

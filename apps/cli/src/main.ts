@@ -45,6 +45,9 @@ import {
   addScenario,
   archiveChange,
   checkChangeDoc,
+  compileChangeIdPattern,
+  renderChangeIdTemplate,
+  nextUniqueNumber,
   changeDiffInfo,
   buildReqRegistry,
   expandRunCommand,
@@ -125,9 +128,10 @@ function collectRepeatable(value: string, previous: string[] = []): string[] {
 }
 
 function loadCliConfig(): ReturnType<typeof loadConfig> | null {
-  return existsSync('llmanspec/config.yaml')
-    ? loadConfig(readFileSync('llmanspec/config.yaml', 'utf8'))
-    : null;
+  if (!existsSync('llmanspec/config.yaml')) return null;
+  const config = loadConfig(readFileSync('llmanspec/config.yaml', 'utf8'));
+  compileChangeIdPattern(config.change_id?.pattern);
+  return config;
 }
 
 function specVerdictsToItems(
@@ -280,9 +284,11 @@ program
           return;
         }
         const config = loadCliConfig();
-        const result = checkChangeDoc(change, config?.archive ?? {}, {
-          stage: options.stage as never,
-        });
+        const result = checkChangeDoc(
+          change,
+          { ...config?.archive, change_id_pattern: config?.change_id?.pattern },
+          { stage: options.stage as never },
+        );
         const hasError = result.issues.some((i) => i.level === 'ERROR');
         const hasWarning = result.issues.some((i) => i.level === 'WARNING');
         failed = hasError || (options.strict === true && hasWarning);
@@ -317,9 +323,11 @@ program
         });
         const skipArchive = changes.filter((c) => c.name !== 'archive');
         for (const change of skipArchive) {
-          const result = checkChangeDoc(change, config?.archive ?? {}, {
-            stage: options.stage as never,
-          });
+          const result = checkChangeDoc(
+            change,
+            { ...config?.archive, change_id_pattern: config?.change_id?.pattern },
+            { stage: options.stage as never },
+          );
           const hasError = result.issues.some((i) => i.level === 'ERROR');
           const hasWarning = result.issues.some((i) => i.level === 'WARNING');
           if (hasError || (options.strict === true && hasWarning)) failed = true;
@@ -352,8 +360,9 @@ change
   .description('Create a change draft (exactly one of <id> or --from)')
   .argument('[id]')
   .option('--from <description>', 'description the id is derived from')
+  .option('--verb <verb>', 'explicit verb for change_id.template rendering')
   .option('--dry-run', 'print the resulting id without creating anything')
-  .action((id: string | undefined, options: { from?: string; dryRun?: boolean }) => {
+  .action((id: string | undefined, options: { from?: string; verb?: string; dryRun?: boolean }) => {
     if ((id === undefined) === (options.from === undefined)) {
       console.error('<CHANGE> and --from are mutually exclusive; pass one or the other');
       process.exitCode = 1;
@@ -361,6 +370,28 @@ change
     }
     if (options.dryRun) {
       console.log(id ?? deriveChangeId(options.from as string));
+      return;
+    }
+    const cliConfig = loadCliConfig();
+    const template = cliConfig?.change_id?.template;
+    if (options.from !== undefined && template) {
+      const slug = deriveChangeId(options.from);
+      const derived = renderChangeIdTemplate(template, {
+        llman_sdd_unique_id: nextUniqueNumber(
+          {
+            listDir: (p) => readdirSync(resolve(p)),
+            isDirectory: (p) => statSync(resolve(p)).isDirectory(),
+          },
+          'llmanspec',
+        ),
+        verb: (options as { verb?: string }).verb,
+        subject: slug,
+        date: new Date().toISOString().slice(0, 10),
+      });
+      console.log(`derived change id: ${derived}`);
+      const io = makeIo(process.cwd());
+      const result = newChange(io, { id: derived });
+      console.log(result.path);
       return;
     }
     const io = makeIo(process.cwd());

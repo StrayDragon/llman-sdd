@@ -22,6 +22,7 @@ export interface ChangeCheckInput {
 export interface ChangeCheckConfig {
   strict_defer?: boolean | null;
   min_completion_ratio?: number | null;
+  change_id_pattern?: string | null;
 }
 
 export const STAGE_ORDER = ['draft', 'designed', 'planned', 'full'] as const;
@@ -64,6 +65,15 @@ export function checkChangeDoc(
       level: 'WARNING',
       message: 'change has no branch binding (not started/attached)',
     });
+  }
+  if (config.change_id_pattern) {
+    const re = new RegExp(config.change_id_pattern, 'u');
+    if (!re.test(input.name)) {
+      issues.push({
+        level: 'ERROR',
+        message: `change id '${input.name}' does not match change_id.pattern '${config.change_id_pattern}'`,
+      });
+    }
   }
   if (opts.stage !== undefined) {
     const currentIdx = STAGE_ORDER.indexOf(input.stage);
