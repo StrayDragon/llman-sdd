@@ -162,3 +162,17 @@ describe('nextReqId', () => {
     expect(nextReqId(io, 'llmanspec/specs')).toBe('r6');
   });
 });
+
+describe('stageFor monotonic rule (r34)', () => {
+  test('planned requires design AND tasks; tasks-only stays draft', () => {
+    expect(stageFor(false, false, false)).toBe('draft');
+    expect(stageFor(true, false, false)).toBe('designed');
+    expect(stageFor(true, true, false)).toBe('planned');
+    expect(stageFor(true, true, true)).toBe('full');
+    // 对齐 v1:无 design 时 tasks 单独存在不升级(v1 对拍:tasks-only → draft)
+    expect(stageFor(false, true, false)).toBe('draft');
+    // 绑定不越过文件单调门槛(v1: design/tasks 缺失时 attached 仍按文件定档)
+    expect(stageFor(false, true, true)).toBe('draft');
+    expect(stageFor(true, false, true)).toBe('designed');
+  });
+});

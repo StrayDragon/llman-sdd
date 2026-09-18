@@ -1,5 +1,8 @@
 ---
 depends_on: []
+branch: sdd/align-stage-inference
+base_branch: main
+base_sha: a90ccaa2faf61ceb0119589373058ec7d1ac7943
 ---
 
 # stage 推断规则对齐 v1 单调语义
