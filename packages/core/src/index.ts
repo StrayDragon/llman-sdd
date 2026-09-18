@@ -144,7 +144,13 @@ export {
   type SpecMorphology,
   type SpecSummary,
 } from './report/specs.ts';
-export { SevenZipError, makeWasmSevenZip, type SevenZipPort } from './archive/sevenzip.ts';
+export {
+  SevenZipError,
+  embeddedWasmBinary,
+  makeWasmSevenZip,
+  resolveEmbeddedWasmB64,
+  type SevenZipPort,
+} from './archive/sevenzip.ts';
 export {
   ARCHIVE_DIR_REL,
   FREEZE_ARCHIVE_NAME,

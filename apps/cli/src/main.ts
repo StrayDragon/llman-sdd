@@ -315,19 +315,26 @@ archive
   .option('--list', 'list entries already in the cold-backup archive')
   .action(
     async (options: { before?: string; keepRecent: string; dryRun?: boolean; list?: boolean }) => {
-      const sz = await makeWasmSevenZip();
-      const root = process.cwd();
-      const io = makeIo(root);
-      if (options.list) {
-        for (const line of await runList(io, sz, root)) console.log(line);
-        return;
+      try {
+        const sz = await makeWasmSevenZip();
+        const root = process.cwd();
+        const io = makeIo(root);
+        if (options.list) {
+          for (const line of await runList(io, sz, root)) console.log(line);
+          return;
+        }
+        const result = await runFreeze(io, sz, root, {
+          before: options.before,
+          keepRecent: Number(options.keepRecent),
+          dryRun: options.dryRun,
+        });
+        for (const line of result.lines) console.log(line);
+      } catch (error) {
+        // Emscripten aborts (e.g. wasm load failure) throw raw RuntimeErrors —
+        // keep the CLI surface one-line like thaw does.
+        console.error((error as Error).message);
+        process.exitCode = 1;
       }
-      const result = await runFreeze(io, sz, root, {
-        before: options.before,
-        keepRecent: Number(options.keepRecent),
-        dryRun: options.dryRun,
-      });
-      for (const line of result.lines) console.log(line);
     },
   );
 

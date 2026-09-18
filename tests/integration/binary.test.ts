@@ -1,8 +1,10 @@
 import { expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+
+import { FREEZE_ARCHIVE_NAME } from '@llman-sdd/core';
 
 // `bun build --compile` 产物冒烟:单文件二进制内 import.meta.url 指向 $bunfs
 // 虚拟路径,任何模块加载期的文件相对读取都会 ENOENT(版本读取曾在此崩溃)。
@@ -77,6 +79,39 @@ test.skipIf(!existsSync(BIN))(
       const html = readFileSync(join(dir, 'report.html'), 'utf8');
       expect(html).toContain('<!DOCTYPE html>');
       expect(html).toContain('<title>llman-sdd review');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  },
+);
+
+test.skipIf(!existsSync(BIN))(
+  'compiled binary archive freeze/thaw roundtrip (embedded wasm)',
+  () => {
+    const dir = mkdtempSync(join(tmpdir(), 'llman-sdd-7z-'));
+    try {
+      spawnSync(BIN, ['init'], { cwd: dir, encoding: 'utf8' });
+      const old = join(dir, 'llmanspec', 'changes', 'archive', '2026-01-01-old');
+      mkdirSync(old, { recursive: true });
+      writeFileSync(join(old, 'proposal.md'), '---\ndepends_on: []\n---\n\n# old\n');
+
+      const freeze = spawnSync(BIN, ['archive', 'freeze'], { cwd: dir, encoding: 'utf8' });
+      expect(freeze.status).toBe(0);
+      expect(existsSync(join(dir, 'llmanspec', 'changes', 'archive', FREEZE_ARCHIVE_NAME))).toBe(
+        true,
+      );
+      expect(existsSync(old)).toBe(false);
+
+      const list = spawnSync(BIN, ['archive', 'freeze', '--list'], { cwd: dir, encoding: 'utf8' });
+      expect(list.status).toBe(0);
+      expect(list.stdout).toContain('2026-01-01-old');
+
+      const thaw = spawnSync(BIN, ['archive', 'thaw', '--change', '2026-01-01-old'], {
+        cwd: dir,
+        encoding: 'utf8',
+      });
+      expect(thaw.status).toBe(0);
+      expect(existsSync(join(old, 'proposal.md'))).toBe(true);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
