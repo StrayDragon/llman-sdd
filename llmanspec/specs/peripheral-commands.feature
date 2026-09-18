@@ -23,3 +23,13 @@
   @req:r22 @human
   场景: spec 助手与 migrate 引导壳
     - `spec skeleton <cap>` MUST 生成通过单轨校验的骨架(locale 按 config);`spec next-req-id` MUST 扫描全局 rN 注册表输出下一个空闲 id;`project migrate` MUST 输出 legacy 迁移不随本工具提供的说明且不执行任何迁移。
+
+  @req:r30 @human
+  场景: graph 依赖边解析双风格
+    - graph 的 frontmatter depends_on 解析 MUST 同时支持流式(`depends_on: [a, b]`)与块式(`depends_on:` 逐行 `- ` 列表)两种 YAML 风格,两种风格解析出的节点与依赖边集合 MUST 一致;`change new` 生成的空流式 `depends_on: []` MUST 兼容;畸形 frontmatter MUST 按无依赖处理且 MUST NOT 中断 graph 输出。
+
+  @req:r30 @executable
+  场景: 流式依赖边被解析
+    假如 一个含流式 depends_on 指向已归档 change 的临时工作区
+    当 运行 v2 的 graph
+    那么 archived 节点被标注 done 且依赖边保留
