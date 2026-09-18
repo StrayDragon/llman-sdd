@@ -1,5 +1,8 @@
 ---
 depends_on: []
+branch: sdd/cli-compat-flags
+base_branch: main
+base_sha: 8a6a96dce8c4d44e6e5963edb3b2ba796ceaa0d2
 ---
 
 # 杂项 CLI 兼容:thaw --dest、backend 旗标、全局 --max-scan-depth

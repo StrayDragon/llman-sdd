@@ -66,17 +66,32 @@ export function firstH1(md: string): string {
   return '';
 }
 
-export function collectChanges(io: ChangeFsIo, root: string, now: Date): ChangeSummary[] {
+export function collectChanges(
+  io: ChangeFsIo,
+  root: string,
+  now: Date,
+  opts: { maxScanDepth?: number } = {},
+): ChangeSummary[] {
   const changesDir = `${root}/${CHANGES_DIR}`;
   if (!io.exists(changesDir) || !io.isDirectory(changesDir)) return [];
+  const maxDepth = opts.maxScanDepth ?? 8;
   const out: ChangeSummary[] = [];
-  for (const name of io.listDir(changesDir).toSorted()) {
-    if (name === 'archive') continue;
-    const dir = `${changesDir}/${name}`;
-    if (!io.isDirectory(dir)) continue;
+  // r58: recursive, depth-limited proposal discovery (v1 --max-scan-depth parity)
+  const visit = (dir: string, depth: number): void => {
+    if (depth > maxDepth) return;
+    for (const name of io.listDir(dir).toSorted()) {
+      if (name === 'archive' || name.startsWith('.')) continue;
+      const child = `${dir}/${name}`;
+      if (!io.isDirectory(child)) continue;
+      if (io.exists(`${child}/proposal.md`)) {
+        readChangeDir(child, name);
+      } else {
+        visit(child, depth + 1);
+      }
+    }
+  };
+  const readChangeDir = (dir: string, name: string): void => {
     const proposal = `${dir}/proposal.md`;
-    if (!io.exists(proposal)) continue;
-
     const hasDesign = io.exists(`${dir}/design.md`);
     const hasTasks = io.exists(`${dir}/tasks.md`);
     const hasBinding = readBinding(io.readText(proposal)) !== null;
@@ -103,7 +118,8 @@ export function collectChanges(io: ChangeFsIo, root: string, now: Date): ChangeS
       lastModified,
       idleDays,
     });
-  }
+  };
+  visit(changesDir, 1);
   // v1 lists newest-first
   return out.toSorted((a, b) => b.lastModified.getTime() - a.lastModified.getTime());
 }

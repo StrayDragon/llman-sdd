@@ -141,6 +141,16 @@ function specVerdictsToItems(
   }));
 }
 
+function cliMaxScanDepth(): number {
+  const raw = program.opts().maxScanDepth as string | undefined;
+  const n = raw !== undefined ? Number(raw) : 8;
+  if (!Number.isInteger(n) || n < 1) {
+    console.error(`invalid --max-scan-depth: ${raw}`);
+    process.exit(1);
+  }
+  return n;
+}
+
 function runValidateSweep(): boolean {
   const report = validateAllSpecs(loadSpecEntries(), makeIo(process.cwd()));
   return report.verdicts.some((v) => !v.ok);
@@ -149,6 +159,11 @@ function runValidateSweep(): boolean {
 const program = new Command();
 
 program.name('llman-sdd').description('Spec-driven development workflow').version(version);
+program.option(
+  '--max-scan-depth <n>',
+  'max depth when scanning llmanspec/changes/ for proposal.md (min 1, default 8)',
+  '8',
+);
 
 program
   .command('init')
@@ -255,7 +270,9 @@ program
           process.exitCode = run.failed ? 1 : 0;
           return;
         }
-        const changes = collectChanges(makeIo(process.cwd()), process.cwd(), new Date());
+        const changes = collectChanges(makeIo(process.cwd()), process.cwd(), new Date(), {
+          maxScanDepth: cliMaxScanDepth(),
+        });
         const change = options.type === 'spec' ? undefined : changes.find((c) => c.name === item);
         if (change === undefined) {
           console.error(`no spec or change matches: ${item}`);
@@ -295,7 +312,9 @@ program
       }
       if (effectiveChanges) {
         const config = loadCliConfig();
-        const changes = collectChanges(makeIo(process.cwd()), process.cwd(), new Date());
+        const changes = collectChanges(makeIo(process.cwd()), process.cwd(), new Date(), {
+          maxScanDepth: cliMaxScanDepth(),
+        });
         const skipArchive = changes.filter((c) => c.name !== 'archive');
         for (const change of skipArchive) {
           const result = checkChangeDoc(change, config?.archive ?? {}, {
@@ -545,7 +564,9 @@ program
       emit(options.json ? renderSpecsJson(summaries) : renderSpecsList(summaries).join('\n'));
       return;
     }
-    let changes = collectChanges(makeIo(process.cwd()), process.cwd(), new Date());
+    let changes = collectChanges(makeIo(process.cwd()), process.cwd(), new Date(), {
+      maxScanDepth: cliMaxScanDepth(),
+    });
     if (options.sort === 'name') {
       changes = [...changes].sort((a, b) => a.name.localeCompare(b.name));
     }
@@ -655,7 +676,9 @@ program
       return;
     }
     if (options.output !== 'json' && options.output !== 'compact') {
-      const changes = collectChanges(makeIo(process.cwd()), process.cwd(), new Date());
+      const changes = collectChanges(makeIo(process.cwd()), process.cwd(), new Date(), {
+        maxScanDepth: cliMaxScanDepth(),
+      });
       const change = changes.find((c) => c.name === item);
       console.log(`Stage: ${change?.stage ?? 'draft'}`);
       console.log(`path: ${join('llmanspec', 'changes', item)}`);
@@ -830,12 +853,16 @@ archive
     },
     [] as string[],
   )
-  .action(async (options: { change: string[] }) => {
+  .option('--dest <path>', 'restore into this directory (created when missing)')
+  .action(async (options: { change: string[]; dest?: string }) => {
+    if (options.dest !== undefined) {
+      mkdirSync(resolve(options.dest), { recursive: true });
+    }
     const sz = await makeWasmSevenZip();
     const root = process.cwd();
     const io = makeIo(root);
     try {
-      const result = await runThaw(io, sz, root, options.change);
+      const result = await runThaw(io, sz, root, options.change, { dest: options.dest });
       for (const line of result.lines) console.log(line);
     } catch (error) {
       console.error((error as Error).message);
@@ -997,6 +1024,19 @@ configCmd
     console.log(`available: ${available.join(', ')}`);
   });
 
+function resolveBackend(flag: string | undefined): 'pageindex' {
+  const chosen = flag ?? process.env.LLMAN_SDD_INDEX_BACKEND ?? 'pageindex';
+  if (chosen === 'rag') {
+    console.error('backend `rag` has been removed — migrate to pageindex (the default)');
+    process.exit(1);
+  }
+  if (chosen !== 'pageindex') {
+    console.error(`unsupported backend: ${chosen}`);
+    process.exit(1);
+  }
+  return 'pageindex';
+}
+
 const indexCmd = program
   .command('index')
   .description('Index management commands (rebuild, check freshness)');
@@ -1004,7 +1044,9 @@ const indexCmd = program
 indexCmd
   .command('rebuild')
   .description('Rebuild the pageindex tree from spec IR (no LLM)')
-  .action(() => {
+  .option('--backend <name>', 'index backend (pageindex only)')
+  .action((options: { backend?: string }) => {
+    resolveBackend(options.backend);
     const result = rebuildIndex(makeIo(process.cwd()), 'llmanspec/specs', loadSpecEntries(), {
       chatModel: process.env.LLMAN_SDD_INDEX_CHAT_MODEL ?? '',
     });
@@ -1026,7 +1068,9 @@ program
   .option('--task <task>', 'natural language task description')
   .option('--paths <paths>', 'comma-separated file paths')
   .option('--top <n>', 'max entries per tier', '5')
-  .action(async (options: { task?: string; paths?: string; top?: string }) => {
+  .option('--backend <name>', 'retrieval backend (pageindex only)')
+  .action(async (options: { task?: string; paths?: string; top?: string; backend?: string }) => {
+    resolveBackend(options.backend);
     if (!options.task && !options.paths) {
       console.error('at least one of --task or --paths is required');
       process.exitCode = 1;

@@ -85,3 +85,13 @@
     假如 一个已存在 spec 的临时工作区
     当 运行 spec skeleton --force 与 spec next-req-id --json
     那么 覆盖成功且 JSON 形状正确
+
+  @req:r58 @human
+  场景: proposal 扫描深度全局旋钮
+    - sdd 命令面 MUST 提供全局 `--max-scan-depth <N>`(下限 1,缺省 8),约束 `llmanspec/changes/` 下 proposal.md 的递归扫描深度,并对所有扫描 changes/ 的命令(list/show/validate --all/review/graph)统一生效;低于下限 MUST 报错。
+
+  @req:r58 @executable
+  场景: 扫描深度旋钮
+    假如 一个嵌套 change 的临时仓库
+    当 运行 list --max-scan-depth 1
+    那么 嵌套 change 不出现

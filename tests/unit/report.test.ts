@@ -242,3 +242,29 @@ describe('graph scope/depth/seed (r54)', () => {
     expect(deep.some((l) => l.includes('old_a'))).toBe(true);
   });
 });
+
+describe('collectChanges maxScanDepth (r58)', () => {
+  const PROPOSALS = new Set([
+    './llmanspec/changes/top-change/proposal.md',
+    './llmanspec/changes/nested/deep/proposal.md',
+  ]);
+  const tree = {
+    exists: (p: string) => p === './llmanspec/changes' || PROPOSALS.has(p),
+    listDir: (p: string) => {
+      if (p === './llmanspec/changes') return ['top-change', 'nested'];
+      if (p === './llmanspec/changes/nested') return ['deep'];
+      return ['proposal.md'];
+    },
+    isDirectory: (p: string) => !p.endsWith('proposal.md'),
+    readText: () => '---\ndepends_on: []\n---\n\n## Why\nx\n',
+    mtimeMs: () => 0,
+  } as never;
+
+  test('depth 1 misses nested, depth 2 finds it', () => {
+    const now = new Date();
+    const shallow = collectChanges(tree, '.', now, { maxScanDepth: 1 }).map((c) => c.name);
+    expect(shallow).toEqual(['top-change']);
+    const deep = collectChanges(tree, '.', now, { maxScanDepth: 2 }).map((c) => c.name);
+    expect(deep.toSorted()).toEqual(['deep', 'top-change']);
+  });
+});

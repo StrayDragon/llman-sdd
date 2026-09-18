@@ -41,3 +41,13 @@
     假如 本仓库的真实 llmanspec 工作区
     当 运行 v2 的 review --json 并限定单一 capability
     那么 四类信号仅含该 capability 且 locked 与 validate 保持全局
+
+  @req:r56 @human
+  场景: thaw 目的地覆盖
+    - `archive thaw` MUST 支持 `--dest <path>` 将回置目标改为指定目录(目录不存在 MUST 自动创建);缺省回置目标 MUST 仍为 `llmanspec/changes/archive/`。
+
+  @req:r56 @executable
+  场景: thaw 目的地覆盖
+    假如 一个含冻结归档的临时仓库
+    当 运行 archive thaw --dest
+    那么 条目完整落到指定目录
