@@ -1,5 +1,8 @@
 ---
 depends_on: []
+branch: sdd/validate-flags-alignment
+base_branch: main
+base_sha: e8017a94c52d74e650d9b1a8ab85073be006cc1f
 ---
 
 # validate 命令面全量对齐(目标/模式/结构化输出/占位符)
