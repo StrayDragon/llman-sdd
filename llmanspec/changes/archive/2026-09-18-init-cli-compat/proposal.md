@@ -1,5 +1,8 @@
 ---
 depends_on: []
+branch: sdd/init-cli-compat
+base_branch: main
+base_sha: 73dd795cb76f7e4ee8c8eb0dffafa17d65b58ed3
 ---
 
 # init CLI 面兼容:目标路径位置参数与 --lang 别名

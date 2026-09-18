@@ -23,3 +23,23 @@
     当 v2 渲染全部 skills
     那么 与 golden 基线归一化版本号后 diff 为空
     而且 每个 SKILL.md 通过 ethics 治理门
+
+  @req:r49 @human
+  场景: init 目标路径
+    - `init [path]` MUST 支持位置参数指定目标目录(相对或绝对,不存在 MUST 自动创建),全部产物(llmanspec/、根 AGENTS.md、.agents/skills/)MUST 落在该目录下;缺省 MUST 为当前目录。
+
+  @req:r50 @human
+  场景: init locale 选项别名
+    - `init` MUST 接受 `--lang <locale>` 作为 `--locale` 的别名(渲染语义完全等效);两者同给 MUST 报错。
+
+  @req:r49 @executable
+  场景: init 子目录目标
+    假如 一个空的临时工作区
+    当 运行 init 指向不存在的子目录
+    那么 产物面完整落在该子目录下
+
+  @req:r50 @executable
+  场景: lang 别名等效
+    假如 一个空的临时工作区
+    当 运行 init --lang zh-Hans
+    那么 config locale 为 zh-Hans 且同给两个别名报错
