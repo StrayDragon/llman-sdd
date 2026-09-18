@@ -90,10 +90,12 @@ export async function runList(io: FreezeIo, sz: SevenZipPort, rootAbs: string): 
   if (!io.exists(archiveAbs)) {
     return [`No freeze archive found at ./${ARCHIVE_DIR_REL}/${FREEZE_ARCHIVE_NAME}`];
   }
-  const entries = (await sz.listEntries(archiveAbs))
-    .map((n) => n.replace(/\/$/u, ''))
-    .filter((n) => DATED_RE.test(n) && n.split('/').length === 1);
-  const unique = [...new Set(entries)].toSorted();
+  // Real 7z lists file paths under their directory (`<dir>/proposal.md`);
+  // directory entries themselves are skipped by parseListNames. Derive the
+  // archived change names from the leading path segment.
+  const entries = (await sz.listEntries(archiveAbs)).map((n) => n.replace(/\/$/u, ''));
+  const top = (n: string): string => n.split('/')[0] ?? n;
+  const unique = [...new Set(entries.map(top).filter((n) => DATED_RE.test(n)))].toSorted();
   if (unique.length === 0) {
     return [
       `Freeze archive ${ARCHIVE_DIR_REL}/${FREEZE_ARCHIVE_NAME} contains no archived changes`,
