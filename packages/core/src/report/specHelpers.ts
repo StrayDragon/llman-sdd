@@ -53,10 +53,11 @@ export function scaffoldSpec(
   specsDir: string,
   capability: string,
   locale: string,
+  opts: { force?: boolean } = {},
 ): string {
   const reqId = nextReqId(io, specsDir);
   const path = `${specsDir}/${capability}.feature`;
-  if (io.exists(path)) throw new Error(`spec already exists: ${path}`);
+  if (!opts.force && io.exists(path)) throw new Error(`spec already exists: ${path}`);
   io.mkdirp('src/');
   io.writeText(path, skeletonContent(capability, reqId, locale));
   return path;

@@ -202,3 +202,43 @@ describe('list sort (r51)', () => {
     expect(byRecent).toEqual(['b-change', 'a-change', 'c-change']);
   });
 });
+
+describe('graph scope/depth/seed (r54)', () => {
+  const mkIo = (): GraphFsIo => ({
+    exists: () => true,
+    readText: (p) => {
+      if (p.includes('seeded')) return '---\ndepends_on: [mid]\n---\n\nx\n';
+      if (p.includes('mid')) return '---\ndepends_on:\n  - old-a\n  - old-b\n---\n\nx\n';
+      return '---\ndepends_on: []\n---\n\nx\n';
+    },
+    listDir: (dir) => {
+      if (dir.endsWith('archive')) return ['2026-09-01-old-a', '2026-09-01-old-b'];
+      if (dir.endsWith('changes')) return ['seeded', 'mid', 'archive'];
+      return [];
+    },
+    isDirectory: () => true,
+  });
+
+  test('scope archived shows only archived nodes', () => {
+    const lines = graphMermaid(mkIo(), '.', { scope: 'archived' });
+    expect(lines.some((l) => l.includes('old_a'))).toBe(true);
+    expect(lines.some((l) => l.includes('mid'))).toBe(false);
+    expect(lines.some((l) => l.includes('seeded'))).toBe(false);
+  });
+
+  test('scope all shows everything', () => {
+    const lines = graphMermaid(mkIo(), '.', { scope: 'all' });
+    for (const id of ['seeded', 'mid', 'old_a', 'old_b']) {
+      expect(lines.some((l) => l.includes(id))).toBe(true);
+    }
+  });
+
+  test('seed with depth 1 keeps seed and direct deps only', () => {
+    const lines = graphMermaid(mkIo(), '.', { seed: 'seeded', depth: 1 });
+    expect(lines.some((l) => l.includes('seeded'))).toBe(true);
+    expect(lines.some((l) => l.includes('mid'))).toBe(true);
+    expect(lines.some((l) => l.includes('old_a'))).toBe(false);
+    const deep = graphMermaid(mkIo(), '.', { seed: 'seeded', depth: 2 });
+    expect(deep.some((l) => l.includes('old_a'))).toBe(true);
+  });
+});

@@ -65,3 +65,23 @@
     假如 一个含多条规则的 spec 工作区
     当 运行 show -r 1 与 show --output meta-only
     那么 单条规则反查成功且 meta-only 只含头注释
+
+  @req:r54 @human
+  场景: graph 范围与深度
+    - `graph` MUST 支持 `--scope active|archived|all` 及逗号组合(缺省 active)、`--depth <N>`(种子依赖 BFS 展开层级,缺省 1)与位置参数 `[change]`(种子);archived 节点 MUST 仅在 scope 含 archived 且被活跃依赖引用或种子可达时出现;`--format` 非 mermaid MUST 报错。
+
+  @req:r55 @human
+  场景: spec 助手兼容 flag
+    - `spec skeleton` MUST 支持 `--force`(覆盖已存在 .feature,无 force 时已存在 MUST 报错);`spec next-req-id` MUST 支持 `--json`(输出 {reqId})。
+
+  @req:r54 @executable
+  场景: scope 与种子子图
+    假如 一个含活跃与归档 change 的临时工作区
+    当 运行 graph --scope archived
+    那么 仅归档节点出现
+
+  @req:r55 @executable
+  场景: skeleton force 与 next-req-id json
+    假如 一个已存在 spec 的临时工作区
+    当 运行 spec skeleton --force 与 spec next-req-id --json
+    那么 覆盖成功且 JSON 形状正确
