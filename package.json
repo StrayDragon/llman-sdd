@@ -1,6 +1,6 @@
 {
   "name": "llman-sdd",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "private": true,
   "description": "Spec-driven development workflow for LLM agent collaboration",
   "license": "MIT",
