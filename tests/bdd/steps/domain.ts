@@ -988,3 +988,111 @@ bdd.thenStep('报错列出未勾任务且不产生归档', (ctx) => {
     throw new Error('archive dir created despite gate');
   }
 });
+
+// ---------------------------------------------------------------------------
+// r41-r43 — spec authoring helpers (acceptance)
+// ---------------------------------------------------------------------------
+
+const AUTHORING_HEAD = `# language: zh-CN
+# capability: auth
+# purpose: p
+# scope: src/
+
+功能: auth
+
+  @req:r1 @human
+  场景: 规则甲
+    - 系统 MUST 校验令牌
+`;
+
+bdd.given('一个含单一 capability spec 的临时 specs 目录', (ctx) => {
+  const root = mkdtempSync(join(tmpdir(), 'llman-author-'));
+  mkdirSync(join(root, 'llmanspec', 'specs'), { recursive: true });
+  writeFileSync(join(root, 'llmanspec', 'specs', 'auth.feature'), AUTHORING_HEAD);
+  ctx.fixtures['authoring工作区'] = { root };
+});
+
+bdd.when('运行 spec add-req 与 spec add-scenario', (ctx) => {
+  const { root } = ctx.fixtures['authoring工作区'] as { root: string };
+  const run = (args: string[]): { code: number; out: string } => {
+    const proc = spawnSync('bun', [CLI, ...args], { cwd: root, encoding: 'utf8' });
+    return { code: proc.status ?? 1, out: `${proc.stdout ?? ''}${proc.stderr ?? ''}` };
+  };
+  const r1 = run([
+    'spec',
+    'add-req',
+    'auth',
+    'r5',
+    '--title',
+    '用户规则',
+    '--statement',
+    '系统必须校验令牌',
+  ]);
+  const r2 = run([
+    'spec',
+    'add-scenario',
+    'auth',
+    'r5',
+    '令牌场景',
+    '--when',
+    '访问受保护资源',
+    '--then',
+    '访问被允许',
+  ]);
+  const r3 = run(['spec', 'resolve-req', 'r5']);
+  ctx.fixtures['authoring结果'] = { results: [r1, r2, r3], root };
+});
+
+bdd.thenStep('spec 可被解析且 resolve-req 反查一致', (ctx) => {
+  const { results, root } = ctx.fixtures['authoring结果'] as {
+    results: { code: number; out: string }[];
+    root: string;
+  };
+  for (const [i, r] of results.entries()) {
+    if (r.code !== 0) throw new Error(`authoring step ${i} failed: ${r.out}`);
+  }
+  const content = readFileSync(join(root, 'llmanspec', 'specs', 'auth.feature'), 'utf8');
+  const doc = parseCapability(content, 'auth.feature');
+  if (doc.scenarios.length < 3) throw new Error(`appended scenarios not parseable: ${content}`);
+  if (!content.includes('@req:r5 @executable')) throw new Error('acceptance scenario missing');
+});
+
+bdd.given('一个两个 spec 含相同 rN 的临时 specs 目录', (ctx) => {
+  const root = mkdtempSync(join(tmpdir(), 'llman-dedupe-'));
+  mkdirSync(join(root, 'llmanspec', 'specs'), { recursive: true });
+  for (const cap of ['auth', 'billing']) {
+    writeFileSync(
+      join(root, 'llmanspec', 'specs', `${cap}.feature`),
+      AUTHORING_HEAD.replace('capability: auth', `capability: ${cap}`).replace(
+        '功能: auth',
+        `功能: ${cap}`,
+      ),
+    );
+  }
+  ctx.fixtures['authoring工作区'] = { root };
+});
+
+bdd.when('运行 project dedupe-req-ids', (ctx) => {
+  const { root } = ctx.fixtures['authoring工作区'] as { root: string };
+  const proc = spawnSync('bun', [CLI, 'project', 'dedupe-req-ids'], {
+    cwd: root,
+    encoding: 'utf8',
+  });
+  ctx.fixtures['dedupe结果'] = {
+    code: proc.status ?? 1,
+    out: `${proc.stdout ?? ''}${proc.stderr ?? ''}`,
+    root,
+  };
+});
+
+bdd.thenStep('后一个文件的 rN 被重映射为空闲 id', (ctx) => {
+  const { code, out, root } = ctx.fixtures['dedupe结果'] as {
+    code: number;
+    out: string;
+    root: string;
+  };
+  if (code !== 0) throw new Error(`dedupe failed: ${out}`);
+  const billing = readFileSync(join(root, 'llmanspec', 'specs', 'billing.feature'), 'utf8');
+  if (billing.includes('@req:r1')) throw new Error('billing still carries the colliding r1');
+  if (!/ @req:r\d+ @human/u.test(billing)) throw new Error(`no remapped id found: ${billing}`);
+});

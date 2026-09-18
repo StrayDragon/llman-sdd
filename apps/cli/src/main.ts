@@ -41,8 +41,13 @@ import {
   resolveChatConfig,
   unavailableResult,
   type TemplateIo,
+  addReq,
+  addScenario,
   archiveChange,
+  buildReqRegistry,
   harvestUniqueNumbers,
+  planDedupe,
+  resolveReq,
   renderConfigOverview,
   setExtraSkills,
   skillsJson,
@@ -361,6 +366,32 @@ spec
 const project = program.command('project').description('Project management commands');
 
 project
+  .command('dedupe-req-ids')
+  .description('Remap globally duplicated req ids (report with --dry-run)')
+  .option('--dry-run', 'report the remap plan without writing')
+  .action((options: { dryRun?: boolean }) => {
+    const registry = buildReqRegistry(loadSpecEntries());
+    if (registry.duplicates.length === 0) {
+      console.log('No colliding req_id values in llmanspec/specs.');
+      return;
+    }
+    const io = makeIo(process.cwd());
+    const plan = planDedupe(loadSpecEntries(), io, 'llmanspec/specs', registry.duplicates);
+    if (options.dryRun) {
+      console.log('Remap plan (nothing written):');
+      for (const item of plan) {
+        console.log(
+          `  ${item.reqId}: keep ${item.keepFile}, remap ${item.remapFile} -> ${item.newReqId}`,
+        );
+      }
+      return;
+    }
+    for (const item of plan) {
+      console.log(`remapped ${item.reqId} in ${item.remapFile} -> ${item.newReqId}`);
+    }
+  });
+
+project
   .command('migrate')
   .description('Legacy migration entry (informational only)')
   .action(() => {
@@ -480,6 +511,73 @@ review
       console.log(result.lines.join('\n'));
     }
     if (result.exitCode !== 0) process.exitCode = result.exitCode;
+  });
+
+spec
+  .command('add-req')
+  .alias('add-requirement')
+  .description('Append a @human rule scenario to a capability spec')
+  .argument('<capability>')
+  .argument('<req_id>')
+  .requiredOption('--title <title>', 'rule title')
+  .requiredOption('--statement <statement>', 'rule statement (must contain MUST/SHALL)')
+  .action((capability: string, reqId: string, options: { title: string; statement: string }) => {
+    const io = makeIo(process.cwd());
+    const path = addReq(io, 'llmanspec/specs', loadSpecEntries(), {
+      capability,
+      reqId,
+      title: options.title,
+      statement: options.statement,
+    });
+    console.log(path);
+  });
+
+spec
+  .command('add-scenario')
+  .description('Append an @executable acceptance scenario bound to a req')
+  .argument('<capability>')
+  .argument('<req_id>')
+  .argument('<scenario_id>')
+  .option('--given <given>', 'Given step (optional)')
+  .requiredOption('--when <when>', 'When step')
+  .requiredOption('--then <then>', 'Then step')
+  .action(
+    (
+      capability: string,
+      reqId: string,
+      scenarioId: string,
+      options: { given?: string; when: string; then: string },
+    ) => {
+      const io = makeIo(process.cwd());
+      const path = addScenario(io, 'llmanspec/specs', loadSpecEntries(), {
+        capability,
+        reqId,
+        scenarioId,
+        given: options.given,
+        when: options.when,
+        thenText: options.then,
+      });
+      console.log(path);
+    },
+  );
+
+spec
+  .command('resolve-req')
+  .description('Resolve an rN to its capability and statement')
+  .argument('<req_id>')
+  .action((reqId: string) => {
+    const resolved = resolveReq(loadSpecEntries(), reqId);
+    if (resolved === null) {
+      console.error(`req id not found: ${reqId}`);
+      process.exitCode = 1;
+      return;
+    }
+    console.log(`reqId: ${resolved.reqId}`);
+    console.log(`capability: ${resolved.capability}`);
+    console.log(`title: ${resolved.title}`);
+    console.log(`statement: ${resolved.statement.replaceAll('\n', ' ')}`);
+    console.log('harness:');
+    for (const h of resolved.harness) console.log(`  - ${h}`);
   });
 
 const configCmd = program

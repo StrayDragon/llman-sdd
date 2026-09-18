@@ -1,6 +1,14 @@
 import { describe, expect, test } from 'bun:test';
 
-import { buildReqRegistry, localeToGherkinLang, parseCapability } from '@llman-sdd/core';
+import {
+  addReq,
+  addScenario,
+  buildReqRegistry,
+  localeToGherkinLang,
+  parseCapability,
+  planDedupe,
+  resolveReq,
+} from '@llman-sdd/core';
 
 const HUMAN_RULE = (req: string, capability = 'sample') => `# language: zh-CN
 # capability: ${capability}
@@ -116,5 +124,111 @@ describe('buildReqRegistry', () => {
     ]);
     expect(reg.byId.get('r99')).toEqual(['alpha.feature', 'beta.feature']);
     expect(reg.duplicates).toEqual([{ reqId: 'r99', files: ['alpha.feature', 'beta.feature'] }]);
+  });
+});
+
+const HEAD = `# language: zh-CN
+# capability: a
+# purpose: p
+# scope: x/
+
+功能: a
+
+  @req:r1 @human
+  场景: 规则
+    - 系统 MUST x
+`;
+
+describe('spec authoring helpers (r41-r43)', () => {
+  const memIo = (files: Record<string, string>) => {
+    const store = { ...files };
+    return {
+      io: {
+        exists: (p: string) => p in store,
+        readText: (p: string) => store[p] as string,
+        writeText: (p: string, c: string) => {
+          store[p] = c;
+        },
+      },
+      store,
+    };
+  };
+  const parse = (content: string) => parseCapability(content, 'a.feature');
+  const entriesOf = (...docs: ReturnType<typeof parseCapability>[]) =>
+    docs.map((doc, i) => ({ fileName: `${['a', 'b'][i] ?? i}.feature`, doc }));
+
+  test('addReq appends rule; duplicate id and missing keyword rejected', () => {
+    const { io, store } = memIo({ 'llmanspec/specs/a.feature': HEAD });
+    const entries = entriesOf(parse(HEAD));
+    const path = addReq(io, 'llmanspec/specs', entries, {
+      capability: 'a',
+      reqId: 'r9',
+      title: 't',
+      statement: '系统 MUST x',
+    });
+    expect(path).toBe('llmanspec/specs/a.feature');
+    expect(store['llmanspec/specs/a.feature']).toInclude('@req:r9 @human');
+    expect(() =>
+      addReq(
+        io,
+        'llmanspec/specs',
+        entriesOf(parse(store['llmanspec/specs/a.feature'] as string)),
+        {
+          capability: 'a',
+          reqId: 'r9',
+          title: 't',
+          statement: '系统 MUST x',
+        },
+      ),
+    ).toThrow(/already in use/u);
+    expect(() =>
+      addReq(io, 'llmanspec/specs', entries, {
+        capability: 'a',
+        reqId: 'r10',
+        title: 't',
+        statement: '没有关键词',
+      }),
+    ).toThrow(/keyword/u);
+  });
+
+  test('addScenario requires existing req and appends executable', () => {
+    const { io, store } = memIo({ 'llmanspec/specs/a.feature': HEAD });
+    const entries = entriesOf(parse(HEAD));
+    expect(() =>
+      addScenario(io, 'llmanspec/specs', entries, {
+        capability: 'a',
+        reqId: 'r99',
+        scenarioId: 's',
+        when: 'w',
+        thenText: 't',
+      }),
+    ).toThrow(/not found/u);
+    addScenario(io, 'llmanspec/specs', entries, {
+      capability: 'a',
+      reqId: 'r1',
+      scenarioId: 's1',
+      when: '当条件',
+      thenText: '那么结果',
+    });
+    expect(store['llmanspec/specs/a.feature']).toInclude('@req:r1 @executable');
+    expect(
+      resolveReq(entriesOf(parse(store['llmanspec/specs/a.feature'] as string)), 'r1')?.harness,
+    ).toEqual(['a.feature:s1']);
+  });
+
+  test('resolveReq returns null for unknown id; planDedupe remaps conflicts', () => {
+    const { io } = memIo({
+      'llmanspec/specs/a.feature': HEAD,
+      'llmanspec/specs/b.feature': HEAD,
+    });
+    const dup = entriesOf(
+      parse(HEAD),
+      parseCapability(HEAD.replace('capability: a', 'capability: b'), 'b.feature'),
+    );
+    const registry = buildReqRegistry(dup);
+    expect(registry.duplicates.length).toBe(1);
+    const plan = planDedupe(dup, io, 'llmanspec/specs', registry.duplicates);
+    expect(plan[0]?.reqId).toBe('r1');
+    expect(io.readText('llmanspec/specs/b.feature')).toInclude(`@req:${plan[0]?.newReqId}`);
   });
 });

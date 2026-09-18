@@ -1,5 +1,8 @@
 ---
 depends_on: []
+branch: sdd/add-spec-authoring-helpers
+base_branch: main
+base_sha: a148053e5270391436a07ff6822eb5b81103d80b
 ---
 
 # 补齐 spec 编程式 authoring 助手与 req 注册表去重
