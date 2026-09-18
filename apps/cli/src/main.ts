@@ -682,15 +682,32 @@ program
 program
   .command('graph')
   .description('Generate a change dependency graph (mermaid)')
+  .argument('[change]', 'seed change id (BFS over depends_on)')
   .option('--format <format>', 'output format', 'mermaid')
-  .action((options: { format: string }) => {
-    if (options.format !== 'mermaid') {
-      console.error(`unsupported format: ${options.format}`);
-      process.exitCode = 1;
-      return;
-    }
-    console.log(graphMermaid(makeIo(process.cwd()), process.cwd()).join('\n'));
-  });
+  .option('--scope <scope>', 'active | archived | all (comma-combined)', 'active')
+  .option('--depth <n>', 'seed BFS depth (default: 1)')
+  .action(
+    (change: string | undefined, options: { format: string; scope?: string; depth?: string }) => {
+      if (options.format !== 'mermaid') {
+        console.error(`unsupported format: ${options.format}`);
+        process.exitCode = 1;
+        return;
+      }
+      const depth = options.depth !== undefined ? Number(options.depth) : undefined;
+      if (depth !== undefined && (!Number.isInteger(depth) || depth < 0)) {
+        console.error(`invalid --depth: ${options.depth}`);
+        process.exitCode = 1;
+        return;
+      }
+      console.log(
+        graphMermaid(makeIo(process.cwd()), process.cwd(), {
+          scope: options.scope,
+          depth,
+          seed: change,
+        }).join('\n'),
+      );
+    },
+  );
 
 const spec = program.command('spec').description('Spec authoring helpers');
 
@@ -698,19 +715,31 @@ spec
   .command('skeleton')
   .description('Generate a single-track spec skeleton for a capability')
   .argument('<capability>')
-  .action((capability: string) => {
+  .option('--force', 'overwrite an existing spec file')
+  .action((capability: string, options: { force?: boolean }) => {
     const locale = existsSync('llmanspec/config.yaml')
       ? loadConfig(readFileSync('llmanspec/config.yaml', 'utf8')).locale
       : 'en';
-    const path = scaffoldSpec(makeIo(process.cwd()), 'llmanspec/specs', capability, locale);
-    console.log(`wrote ${path}`);
+    const path = join('llmanspec', 'specs', `${capability}.feature`);
+    if (!options.force && existsSync(path)) {
+      console.error(`spec already exists: ${path} (use --force to overwrite)`);
+      process.exitCode = 1;
+      return;
+    }
+    const written = scaffoldSpec(makeIo(process.cwd()), 'llmanspec/specs', capability, locale, {
+      force: options.force,
+    });
+    console.log(`wrote ${written}`);
   });
 
 spec
   .command('next-req-id')
   .description('Allocate the next free global req id (rN)')
-  .action(() => {
-    console.log(nextReqId(makeIo(process.cwd()), 'llmanspec/specs'));
+  .option('--json', 'emit {reqId}')
+  .action((options: { json?: boolean }) => {
+    const reqId = nextReqId(makeIo(process.cwd()), 'llmanspec/specs');
+    if (options.json) console.log(JSON.stringify({ reqId }, null, 2));
+    else console.log(reqId);
   });
 
 const project = program.command('project').description('Project management commands');

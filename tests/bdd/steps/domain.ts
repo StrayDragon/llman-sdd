@@ -1423,3 +1423,80 @@ bdd.thenStep('单条规则反查成功且 meta-only 只含头注释', (ctx) => {
   }
   if (r.metaOut.includes('场景')) throw new Error('meta-only must not include scenarios');
 });
+
+// ---------------------------------------------------------------------------
+// r54/r55 — graph scope & spec helper flags (acceptance)
+// ---------------------------------------------------------------------------
+
+bdd.given('一个含活跃与归档 change 的临时工作区', (ctx) => {
+  const root = mkdtempSync(join(tmpdir(), 'llman-scope-'));
+  const activeDir = join(root, 'llmanspec', 'changes', 'live-one');
+  const archivedDir = join(root, 'llmanspec', 'changes', 'archive', '2026-01-01-done-one');
+  mkdirSync(activeDir, { recursive: true });
+  mkdirSync(archivedDir, { recursive: true });
+  writeFileSync(join(activeDir, 'proposal.md'), '---\ndepends_on: [done-one]\n---\n\n## Why\nx\n');
+  writeFileSync(join(archivedDir, 'proposal.md'), '---\ndepends_on: []\n---\n\n## Why\nx\n');
+  ctx.fixtures['graph工作区'] = { root };
+});
+
+bdd.when('运行 graph --scope archived', (ctx) => {
+  const { root } = ctx.fixtures['graph工作区'] as { root: string };
+  const proc = spawnSync('bun', [CLI, 'graph', '--scope', 'archived'], {
+    cwd: root,
+    encoding: 'utf8',
+  });
+  ctx.fixtures['scope结果'] = { out: proc.stdout ?? '' };
+});
+
+bdd.thenStep('仅归档节点出现', (ctx) => {
+  const { out } = ctx.fixtures['scope结果'] as { out: string };
+  if (!out.includes('done_one')) throw new Error(`archived node missing: ${out}`);
+  if (out.includes('live_one')) throw new Error(`active node leaked into archived scope: ${out}`);
+});
+
+bdd.given('一个已存在 spec 的临时工作区', (ctx) => {
+  const root = mkdtempSync(join(tmpdir(), 'llman-skel-'));
+  mkdirSync(join(root, 'llmanspec', 'specs'), { recursive: true });
+  writeFileSync(join(root, 'llmanspec', 'config.yaml'), 'schema: spec-driven\n');
+  ctx.fixtures['skel工作区'] = { root };
+});
+
+bdd.when('运行 spec skeleton --force 与 spec next-req-id --json', (ctx) => {
+  const { root } = ctx.fixtures['skel工作区'] as { root: string };
+  const first = spawnSync('bun', [CLI, 'spec', 'skeleton', 'capx'], {
+    cwd: root,
+    encoding: 'utf8',
+  });
+  const again = spawnSync('bun', [CLI, 'spec', 'skeleton', 'capx'], {
+    cwd: root,
+    encoding: 'utf8',
+  });
+  const forced = spawnSync('bun', [CLI, 'spec', 'skeleton', 'capx', '--force'], {
+    cwd: root,
+    encoding: 'utf8',
+  });
+  const json = spawnSync('bun', [CLI, 'spec', 'next-req-id', '--json'], {
+    cwd: root,
+    encoding: 'utf8',
+  });
+  ctx.fixtures['skel结果'] = {
+    firstCode: first.status ?? 1,
+    againCode: again.status ?? 1,
+    forcedCode: forced.status ?? 1,
+    jsonOut: json.stdout ?? '',
+  };
+});
+
+bdd.thenStep('覆盖成功且 JSON 形状正确', (ctx) => {
+  const r = ctx.fixtures['skel结果'] as {
+    firstCode: number;
+    againCode: number;
+    forcedCode: number;
+    jsonOut: string;
+  };
+  if (r.firstCode !== 0) throw new Error('first skeleton failed');
+  if (r.againCode === 0) throw new Error('second skeleton should fail without --force');
+  if (r.forcedCode !== 0) throw new Error('--force overwrite failed');
+  const parsed = JSON.parse(r.jsonOut) as { reqId: string };
+  if (!/^r\d+$/u.test(parsed.reqId)) throw new Error(`bad json shape: ${r.jsonOut}`);
+});

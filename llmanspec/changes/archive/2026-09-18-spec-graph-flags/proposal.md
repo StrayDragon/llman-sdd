@@ -1,6 +1,9 @@
 ---
 depends_on:
   - fix-graph-flow-deps
+branch: sdd/spec-graph-flags
+base_branch: main
+base_sha: cf33fa7591d32debf7766b636f8c8f7c718bc707
 ---
 
 # graph 范围/深度与 spec 助手兼容 flag
