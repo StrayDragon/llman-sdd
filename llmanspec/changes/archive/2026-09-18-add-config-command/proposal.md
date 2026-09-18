@@ -1,5 +1,8 @@
 ---
 depends_on: []
+branch: sdd/add-config-command
+base_branch: main
+base_sha: 9b8d48eac2b6a7976d9a82557ee55ae4390fc430
 ---
 
 # 补齐 config 命令面(只读概览 + extra_skills 非交互管理)

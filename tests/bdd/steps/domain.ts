@@ -840,3 +840,75 @@ bdd.thenStep('输出派生 id 且不创建 changes 目录', (ctx) => {
     throw new Error('dry-run created the changes directory');
   }
 });
+
+// ---------------------------------------------------------------------------
+// r37/r38 — config overview & extra_skills management (acceptance)
+// ---------------------------------------------------------------------------
+
+interface ConfigFixture {
+  root: string;
+  original: string;
+}
+
+bdd.given('一个带注释与 extra_skills 的 llmanspec config', (ctx) => {
+  const root = mkdtempSync(join(tmpdir(), 'llman-config-'));
+  const original = [
+    '# yaml-language-server: $schema=https://x/y.json',
+    'schema: spec-driven',
+    '# 用户注释保留',
+    'extra_skills:',
+    '  - llman-sdd-ff',
+    '',
+  ].join('\n');
+  mkdirSync(join(root, 'llmanspec'), { recursive: true });
+  writeFileSync(join(root, 'llmanspec', 'config.yaml'), original);
+  ctx.fixtures['config工作区'] = { root, original } satisfies ConfigFixture;
+});
+
+bdd.when('运行 v2 的 config 概览', (ctx) => {
+  const { root, original } = ctx.fixtures['config工作区'] as ConfigFixture;
+  const proc = spawnSync('bun', [CLI, 'config'], { cwd: root, encoding: 'utf8' });
+  const after = readFileSync(join(root, 'llmanspec', 'config.yaml'), 'utf8');
+  ctx.fixtures['概览结果'] = {
+    out: proc.stdout ?? '',
+    unchanged: after === original,
+  };
+});
+
+bdd.thenStep('概览五要素输出且文件未被修改', (ctx) => {
+  const { out, unchanged } = ctx.fixtures['概览结果'] as { out: string; unchanged: boolean };
+  for (const marker of [
+    'schema:',
+    'locale:',
+    'extra_skills (enabled/total): 1 / 6',
+    'bdd: off',
+    'archive: default',
+  ]) {
+    if (!out.includes(marker)) throw new Error(`overview missing ${marker}:\n${out}`);
+  }
+  if (!unchanged) throw new Error('config overview modified config.yaml');
+});
+
+bdd.when('运行 v2 的 config skills --set 与 --unset', (ctx) => {
+  const { root } = ctx.fixtures['config工作区'] as ConfigFixture;
+  spawnSync(
+    'bun',
+    [CLI, 'config', 'skills', '--set', 'llman-sdd-validate', '--unset', 'llman-sdd-ff'],
+    {
+      cwd: root,
+      encoding: 'utf8',
+    },
+  );
+});
+
+bdd.thenStep('启用集更新且注释与 schema 头保留', (ctx) => {
+  const { root, original } = ctx.fixtures['config工作区'] as ConfigFixture;
+  const after = readFileSync(join(root, 'llmanspec', 'config.yaml'), 'utf8');
+  if (!after.includes('llman-sdd-validate') || after.includes('llman-sdd-ff')) {
+    throw new Error(`extra_skills not updated:\n${after}`);
+  }
+  if (!after.includes('# 用户注释保留') || !after.includes('# yaml-language-server')) {
+    throw new Error(`comments lost:\n${after}`);
+  }
+  if (after === original) throw new Error('config was not written');
+});

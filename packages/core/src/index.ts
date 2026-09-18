@@ -33,6 +33,12 @@ export {
   type SddConfigInput,
 } from './config/schema.ts';
 export { ConfigValidationError, MAX_REPORTED_ISSUES, loadConfig } from './config/load.ts';
+export {
+  ExtraSkillsError,
+  renderConfigOverview,
+  setExtraSkills,
+  skillsJson,
+} from './config/surface.ts';
 
 export type {
   CapabilityDoc,
