@@ -113,6 +113,39 @@ describe('graphMermaid', () => {
     expect(lines).toContain('    add_alpha -->|depends on| add_old');
     expect(lines.at(-1)).toContain('classDef archived');
   });
+
+  test('parses flow-style depends_on identically to block style (r30)', () => {
+    const mkIo = (depsLine: string): GraphFsIo => ({
+      exists: () => true,
+      readText: (p) =>
+        p.includes('add-alpha')
+          ? `---\n${depsLine}\n---\n\nx\n`
+          : '---\ndepends_on: []\n---\n\nx\n',
+      listDir: (p) =>
+        p.endsWith('archive') ? ['2026-09-01-add-old'] : ['add-alpha', 'add-beta', 'archive'],
+      isDirectory: () => true,
+    });
+    const flow = graphMermaid(mkIo('depends_on: [add-beta, add-old]'), '.');
+    expect(flow).toContain('    add_old["add-old ✓ done"]:::archived');
+    expect(flow).toContain('    add_alpha -->|depends on| add_beta');
+    expect(flow).toContain('    add_alpha -->|depends on| add_old');
+    const block = graphMermaid(mkIo('depends_on:\n  - add-beta\n  - add-old'), '.');
+    expect(flow).toEqual(block);
+  });
+
+  test('treats empty flow and malformed frontmatter as no deps (r30)', () => {
+    const mkIo = (proposal: string): GraphFsIo => ({
+      exists: () => true,
+      readText: () => proposal,
+      listDir: (p) => (p.endsWith('archive') ? [] : ['add-alpha', 'archive']),
+      isDirectory: () => true,
+    });
+    const emptyFlow = graphMermaid(mkIo('---\ndepends_on: []\n---\n\nx\n'), '.');
+    expect(emptyFlow.some((l) => l.includes('-->'))).toBe(false);
+    const malformed = graphMermaid(mkIo('---\ndepends_on: [add-\n---\n\nx\n'), '.');
+    expect(malformed[0]).toBe('flowchart TD');
+    expect(malformed.some((l) => l.includes('-->'))).toBe(false);
+  });
 });
 
 describe('nextReqId', () => {

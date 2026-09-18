@@ -610,3 +610,50 @@ bdd.thenStep('报告 stale', (ctx) => {
     throw new Error(`expected stale, got exit=${result.exitCode} output=${result.output}`);
   }
 });
+
+// ---------------------------------------------------------------------------
+// r30 — graph flow-style depends_on parsing (acceptance)
+// ---------------------------------------------------------------------------
+
+interface GraphDepsResult {
+  out: string;
+  ok: boolean;
+}
+
+bdd.given('一个含流式 depends_on 指向已归档 change 的临时工作区', (ctx) => {
+  const root = mkdtempSync(join(tmpdir(), 'llman-graph-'));
+  const changes = join(root, 'llmanspec', 'changes');
+  mkdirSync(join(changes, 'archive', '2026-01-01-dep-old'), { recursive: true });
+  writeFileSync(
+    join(changes, 'archive', '2026-01-01-dep-old', 'proposal.md'),
+    '---\ndepends_on: []\n---\n\n## Why\nx\n',
+  );
+  mkdirSync(join(changes, 'main-feat'), { recursive: true });
+  writeFileSync(
+    join(changes, 'main-feat', 'proposal.md'),
+    '---\ndepends_on: [dep-old]\n---\n\n## Why\nx\n',
+  );
+  ctx.fixtures['graph工作区'] = { root };
+});
+
+bdd.when('运行 v2 的 graph', (ctx) => {
+  const { root } = ctx.fixtures['graph工作区'] as { root: string };
+  const proc = spawnSync('bun', [CLI, 'graph', '--format', 'mermaid'], {
+    cwd: root,
+    encoding: 'utf8',
+  });
+  ctx.fixtures['graph输出'] = {
+    out: proc.stdout ?? '',
+    ok: proc.status === 0,
+  } satisfies GraphDepsResult;
+});
+
+bdd.thenStep('archived 节点被标注 done 且依赖边保留', (ctx) => {
+  const { out } = ctx.fixtures['graph输出'] as GraphDepsResult;
+  if (!out.includes('dep_old["dep-old ✓ done"]:::archived')) {
+    throw new Error(`archived node missing from graph output:\n${out}`);
+  }
+  if (!out.includes('main_feat -->|depends on| dep_old')) {
+    throw new Error(`depends-on edge missing from graph output:\n${out}`);
+  }
+});

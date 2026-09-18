@@ -25,6 +25,17 @@ function parseDeps(proposal: string): string[] {
   if (!fm?.[1]) return deps;
   let inDeps = false;
   for (const line of fm[1].split('\n')) {
+    // Flow style — `depends_on: [a, b]` (what `change new` scaffolds and the
+    // natural one-line edit; malformed content like `[add-` yields nothing).
+    const flow = line.match(/^depends_on:\s*\[([^\]]*)\]\s*$/u);
+    if (flow) {
+      for (const item of flow[1]?.split(',') ?? []) {
+        const dep = item.trim().replace(/^['"]|['"]$/gu, '');
+        if (dep !== '') deps.push(dep);
+      }
+      inDeps = false;
+      continue;
+    }
     if (/^depends_on:\s*$/u.test(line)) {
       inDeps = true;
       continue;

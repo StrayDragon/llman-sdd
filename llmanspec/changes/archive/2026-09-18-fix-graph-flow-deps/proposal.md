@@ -1,5 +1,8 @@
 ---
 depends_on: []
+branch: sdd/fix-graph-flow-deps
+base_branch: main
+base_sha: e870b6ee60a92e24ce5a3fdef5d9e278e3aa3d79
 ---
 
 # 修复 graph 依赖边对流式 depends_on 的解析缺失
