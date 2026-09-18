@@ -1,6 +1,9 @@
 ---
 depends_on:
   - align-stage-inference
+branch: sdd/list-show-output-flags
+base_branch: main
+base_sha: 982e41895ad67f9ec70c4261e36521f5eef5d3b6
 ---
 
 # list/show 输出面 flag 对齐与 show 文本合同

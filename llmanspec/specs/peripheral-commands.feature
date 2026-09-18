@@ -33,3 +33,35 @@
     假如 一个含流式 depends_on 指向已归档 change 的临时工作区
     当 运行 v2 的 graph
     那么 archived 节点被标注 done 且依赖边保留
+
+  @req:r51 @human
+  场景: list 排序与紧凑 JSON
+    - `list` MUST 支持 `--sort recent|name`(缺省 recent,按 mtime 降序)与 `--compact-json`(单行紧凑 JSON,须与 `--json` 同用)。
+
+  @req:r52 @human
+  场景: show 文本输出与 What Changes 门
+    - `show <change>`(非 --output json)MUST 输出人类可读文本(含 Stage、path 与 frontmatter 摘要);proposal 缺 `## What Changes` 段 MUST 报错且 `--output json` 同样受该门限制。
+
+  @req:r53 @human
+  场景: show spec 检视与 output 修饰
+    - `show <spec>` MUST 支持 `-r/--requirement <N>`(按 1-based 序号输出单个 requirement,越界 MUST 报错)与 `--output compact|meta-only|no-scenarios` 三种文本修饰;`--output deltas` 与 `reqs-only` MUST 报错并提示已随 checkpoint/delta 机制移除。
+
+  @req:r51 @executable
+  场景: list 排序与紧凑输出
+    假如 一个含多个 change 的临时工作区
+    当 运行 list --json --compact-json --sort name
+    那么 单行 JSON 输出且顺序为字典序
+
+  @req:r52 @executable
+  场景: show 文本与 What Changes 门
+    假如 一个缺 What Changes 段的 change 工作区
+    当 运行 show
+    那么 报错且不输出正文
+    当 补齐 What Changes 后再运行 show
+    那么 输出含 Stage 的文本
+
+  @req:r53 @executable
+  场景: spec 检视与 output 修饰
+    假如 一个含多条规则的 spec 工作区
+    当 运行 show -r 1 与 show --output meta-only
+    那么 单条规则反查成功且 meta-only 只含头注释

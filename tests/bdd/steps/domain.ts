@@ -1300,3 +1300,126 @@ bdd.thenStep('config locale 为 zh-Hans 且同给两个别名报错', (ctx) => {
   const config = readFileSync(join(root, 'llmanspec', 'config.yaml'), 'utf8');
   if (!config.includes('zh-Hans')) throw new Error(`locale not zh-Hans:\n${config}`);
 });
+
+// ---------------------------------------------------------------------------
+// r51-r53 — list sort / show text & gates / spec inspect (acceptance)
+// ---------------------------------------------------------------------------
+
+bdd.given('一个含多个 change 的临时工作区', (ctx) => {
+  const root = mkdtempSync(join(tmpdir(), 'llman-list-'));
+  for (const name of ['beta-feat', 'alpha-feat']) {
+    const dir = join(root, 'llmanspec', 'changes', name);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, 'proposal.md'),
+      '---\ndepends_on: []\n---\n\n## Why\nx\n## What Changes\ny\n',
+    );
+  }
+  ctx.fixtures['list工作区'] = { root };
+});
+
+bdd.when('运行 list --json --compact-json --sort name', (ctx) => {
+  const { root } = ctx.fixtures['list工作区'] as { root: string };
+  const proc = spawnSync('bun', [CLI, 'list', '--json', '--compact-json', '--sort', 'name'], {
+    cwd: root,
+    encoding: 'utf8',
+  });
+  const lines = (proc.stdout ?? '').trim().split('\n');
+  let names: string[] = [];
+  try {
+    names = (JSON.parse(lines[0] as string) as { changes: { name: string }[] }).changes.map(
+      (c) => c.name,
+    );
+  } catch {
+    // then-step reports
+  }
+  ctx.fixtures['list结果'] = { singleLine: lines.length === 1, names, code: proc.status ?? 1 };
+});
+
+bdd.thenStep('单行 JSON 输出且顺序为字典序', (ctx) => {
+  const r = ctx.fixtures['list结果'] as { singleLine: boolean; names: string[]; code: number };
+  if (r.code !== 0) throw new Error('list failed');
+  if (!r.singleLine) throw new Error('compact-json must be a single line');
+  if (r.names.join(',') !== 'alpha-feat,beta-feat')
+    throw new Error(`order wrong: ${r.names.join(',')}`);
+});
+
+bdd.given('一个缺 What Changes 段的 change 工作区', (ctx) => {
+  const root = mkdtempSync(join(tmpdir(), 'llman-showg-'));
+  const dir = join(root, 'llmanspec', 'changes', 'gated');
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'proposal.md'), '---\ndepends_on: []\n---\n\n## Why\nx\n');
+  ctx.fixtures['show工作区'] = { root };
+});
+
+bdd.when('运行 show', (ctx) => {
+  const { root } = ctx.fixtures['show工作区'] as { root: string };
+  const proc = spawnSync('bun', [CLI, 'show', 'gated'], { cwd: root, encoding: 'utf8' });
+  ctx.fixtures['show结果'] = {
+    beforeCode: proc.status ?? 0,
+    beforeOut: `${proc.stdout ?? ''}${proc.stderr ?? ''}`,
+  };
+});
+
+bdd.when('补齐 What Changes 后再运行 show', (ctx) => {
+  const { root } = ctx.fixtures['show工作区'] as { root: string };
+  writeFileSync(
+    join(root, 'llmanspec', 'changes', 'gated', 'proposal.md'),
+    '---\ndepends_on: []\n---\n\n## Why\nx\n## What Changes\ny\n',
+  );
+  const proc = spawnSync('bun', [CLI, 'show', 'gated'], { cwd: root, encoding: 'utf8' });
+  ctx.fixtures['show后结果'] = { afterCode: proc.status ?? 1, afterOut: proc.stdout ?? '' };
+});
+
+bdd.thenStep('报错且不输出正文', (ctx) => {
+  const r = ctx.fixtures['show结果'] as { beforeCode: number; beforeOut: string };
+  if (r.beforeCode === 0) throw new Error(`missing What Changes should fail: ${r.beforeOut}`);
+  if (!r.beforeOut.includes('What Changes'))
+    throw new Error(`gate message missing: ${r.beforeOut}`);
+});
+
+bdd.thenStep('输出含 Stage 的文本', (ctx) => {
+  const r = ctx.fixtures['show后结果'] as { afterCode: number; afterOut: string };
+  if (r.afterCode !== 0) throw new Error(`show text failed: ${r.afterOut}`);
+  if (!r.afterOut.includes('Stage:')) throw new Error(`Stage line missing: ${r.afterOut}`);
+});
+
+bdd.given('一个含多条规则的 spec 工作区', (ctx) => {
+  const root = mkdtempSync(join(tmpdir(), 'llman-showspec-'));
+  mkdirSync(join(root, 'llmanspec', 'specs'), { recursive: true });
+  writeFileSync(
+    join(root, 'llmanspec', 'specs', 'multi.feature'),
+    '# language: zh-CN\n# capability: multi\n# purpose: p\n# scope: llmanspec/\n\n功能: multi\n\n  @req:r1 @human\n  场景: 规则一\n    - 系统 MUST 一\n\n  @req:r2 @human\n  场景: 规则二\n    - 系统 MUST 二\n',
+  );
+  writeFileSync(join(root, 'llmanspec', 'config.yaml'), 'schema: spec-driven\n');
+  ctx.fixtures['showspec工作区'] = { root };
+});
+
+bdd.when('运行 show -r 1 与 show --output meta-only', (ctx) => {
+  const { root } = ctx.fixtures['showspec工作区'] as { root: string };
+  const req = spawnSync('bun', [CLI, 'show', 'multi', '-r', '1'], { cwd: root, encoding: 'utf8' });
+  const meta = spawnSync('bun', [CLI, 'show', 'multi', '--output', 'meta-only'], {
+    cwd: root,
+    encoding: 'utf8',
+  });
+  ctx.fixtures['showspec结果'] = {
+    reqOut: req.stdout ?? '',
+    reqCode: req.status ?? 1,
+    metaOut: meta.stdout ?? '',
+    metaCode: meta.status ?? 1,
+  };
+});
+
+bdd.thenStep('单条规则反查成功且 meta-only 只含头注释', (ctx) => {
+  const r = ctx.fixtures['showspec结果'] as {
+    reqOut: string;
+    reqCode: number;
+    metaOut: string;
+    metaCode: number;
+  };
+  if (r.reqCode !== 0 || !r.reqOut.includes('规则一')) throw new Error(`-r 1 failed: ${r.reqOut}`);
+  if (r.metaCode !== 0 || !r.metaOut.includes('# capability: multi')) {
+    throw new Error(`meta-only failed: ${r.metaOut}`);
+  }
+  if (r.metaOut.includes('场景')) throw new Error('meta-only must not include scenarios');
+});
