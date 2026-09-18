@@ -37,8 +37,10 @@ export function stageFor(
   hasTasks: boolean,
   hasBinding: boolean,
 ): ChangeSummary['stage'] {
-  if (hasBinding) return 'full';
-  if (hasTasks) return 'planned';
+  // Monotonic v1 parity (r34): design.md gates designed, tasks.md only
+  // upgrades on top of design, binding only upgrades the complete set.
+  if (hasDesign && hasTasks && hasBinding) return 'full';
+  if (hasDesign && hasTasks) return 'planned';
   if (hasDesign) return 'designed';
   return 'draft';
 }

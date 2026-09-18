@@ -737,3 +737,42 @@ bdd.thenStep('四类信号仅含该 capability 且 locked 与 validate 保持全
   if (!signals.some((s) => s.kind === 'locked')) throw new Error('locked signal missing');
   if (!signals.some((s) => s.kind === 'validate')) throw new Error('validate signal missing');
 });
+
+// ---------------------------------------------------------------------------
+// r34 — monotonic stage inference (acceptance)
+// ---------------------------------------------------------------------------
+
+interface StageResult {
+  stages: Record<string, string>;
+}
+
+bdd.given('一个只有 proposal 与 tasks 的 change 工作区', (ctx) => {
+  const root = mkdtempSync(join(tmpdir(), 'llman-stage-'));
+  const dir = join(root, 'llmanspec', 'changes', 'tasks-only');
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'proposal.md'), '---\ndepends_on: []\n---\n\n## Why\nx\n');
+  writeFileSync(join(dir, 'tasks.md'), '# Tasks\n- [x] a\n');
+  ctx.fixtures['stage工作区'] = { root };
+});
+
+bdd.when('运行 list --json', (ctx) => {
+  const { root } = ctx.fixtures['stage工作区'] as { root: string };
+  const proc = spawnSync('bun', [CLI, 'list', '--json'], { cwd: root, encoding: 'utf8' });
+  const stages: Record<string, string> = {};
+  try {
+    const parsed = JSON.parse(proc.stdout ?? '{}') as {
+      changes?: { name: string; stage: string }[];
+    };
+    for (const c of parsed.changes ?? []) stages[c.name] = c.stage;
+  } catch {
+    // then-step reports the failure
+  }
+  ctx.fixtures['stage结果'] = { stages } satisfies StageResult;
+});
+
+bdd.thenStep('该 change 的 stage 为 draft', (ctx) => {
+  const { stages } = ctx.fixtures['stage结果'] as StageResult;
+  if (stages['tasks-only'] !== 'draft') {
+    throw new Error(`expected tasks-only stage draft, got: ${JSON.stringify(stages)}`);
+  }
+});

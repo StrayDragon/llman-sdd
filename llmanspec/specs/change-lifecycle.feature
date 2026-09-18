@@ -43,3 +43,14 @@
     那么 attach 报错且不写绑定
     当 切到特性分支再运行 change attach
     那么 attach 绑定写入当前分支
+
+  @req:r34 @human
+  场景: stage 单调推断规则
+    - change stage MUST 按文件存在单调判定:draft(仅 proposal)→ designed(有 design.md)→ planned(design.md 与 tasks.md 双全)→ full(另有 branch 绑定);仅有 tasks.md 而无 design.md MUST 仍判 draft;stage MUST 为纯推断量,MUST NOT 写入任何文件。
+
+
+  @req:r34 @executable
+  场景: tasks-only 判 draft
+    假如 一个只有 proposal 与 tasks 的 change 工作区
+    当 运行 list --json
+    那么 该 change 的 stage 为 draft
