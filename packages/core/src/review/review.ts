@@ -26,6 +26,8 @@ export interface ReviewInput {
   boundChangeCount: number;
   /** Active change summaries for the strict sweep (pending tasks → FAIL). */
   activeChanges?: readonly { name: string; completedTasks: number; totalTasks: number }[];
+  /** Restrict per-capability signals (pending/manual/unbound/stale) to this capability. */
+  capability?: string;
 }
 
 export interface ReviewResult {
@@ -59,6 +61,9 @@ export function buildReview(input: ReviewInput, io: SpecIo): ReviewResult {
 
   for (const entry of sorted) {
     const cap = entry.doc.header.capability ?? entry.fileName;
+    // r33: per-capability signals honor the --capability filter; locked and
+    // validate stay global regardless.
+    if (input.capability !== undefined && cap !== input.capability) continue;
     const rules = entry.doc.scenarios.filter((s) => s.classification === 'human');
     const acceptance = entry.doc.scenarios.filter((s) => s.classification === 'executable');
     const acceptanceReqIds = new Set(acceptance.flatMap((s) => s.reqIds));

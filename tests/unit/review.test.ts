@@ -96,3 +96,43 @@ describe('buildReview', () => {
     expect(result.lines.some((l) => l.startsWith('validate: - (0)'))).toBe(true);
   });
 });
+
+describe('buildReview --capability filter (r33)', () => {
+  const io = { exists: () => true };
+  const twoCaps = [
+    { fileName: 'a.feature', doc: parseCapability(SPEC('a', 'r1'), 'a.feature') },
+    { fileName: 'b.feature', doc: parseCapability(SPEC('b', 'r2'), 'b.feature') },
+  ];
+
+  test('restricts per-capability signals to the chosen capability', () => {
+    const result = buildReview(
+      {
+        entries: twoCaps,
+        bindings: [{ kind: 'tags', tags: ['executable'] }],
+        boundChangeCount: 0,
+        capability: 'a',
+      },
+      io,
+    );
+    const perCap = result.signals.filter((s) => s.kind !== 'locked' && s.kind !== 'validate');
+    expect(perCap.length).toBeGreaterThan(0);
+    expect(perCap.every((s) => s.capability === 'a')).toBe(true);
+    // locked / validate 保持全局口径
+    expect(result.signals.some((s) => s.kind === 'locked')).toBe(true);
+    expect(result.signals.some((s) => s.kind === 'validate')).toBe(true);
+  });
+
+  test('no capability keeps full signals', () => {
+    const result = buildReview(
+      { entries: twoCaps, bindings: [{ kind: 'tags', tags: ['executable'] }], boundChangeCount: 0 },
+      io,
+    );
+    const caps = new Set(
+      result.signals
+        .filter((s) => s.kind !== 'locked' && s.kind !== 'validate')
+        .map((s) => s.capability),
+    );
+    expect(caps.has('a')).toBe(true);
+    expect(caps.has('b')).toBe(true);
+  });
+});

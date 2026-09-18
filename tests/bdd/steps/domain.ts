@@ -703,3 +703,37 @@ bdd.thenStep('attach 绑定写入当前分支', (ctx) => {
     throw new Error(`binding for feat/attach missing:\n${proposal}`);
   }
 });
+
+// ---------------------------------------------------------------------------
+// r33 — review --capability filter (acceptance)
+// ---------------------------------------------------------------------------
+
+interface ReviewFilterResult {
+  signals: { kind: string; capability: string }[];
+}
+
+bdd.when('运行 v2 的 review --json 并限定单一 capability', (ctx) => {
+  const proc = spawnSync('bun', [CLI, 'review', '--json', '--capability', 'peripheral-commands'], {
+    cwd: REPO_ROOT,
+    encoding: 'utf8',
+  });
+  let signals: { kind: string; capability: string }[] = [];
+  try {
+    signals = (JSON.parse(proc.stdout ?? '{}') as ReviewFilterResult).signals ?? [];
+  } catch {
+    // leave empty — the then-step will fail with a clear message
+  }
+  ctx.fixtures['review过滤'] = { signals };
+});
+
+bdd.thenStep('四类信号仅含该 capability 且 locked 与 validate 保持全局', (ctx) => {
+  const { signals } = ctx.fixtures['review过滤'] as ReviewFilterResult;
+  const perCap = signals.filter((s) => s.kind !== 'locked' && s.kind !== 'validate');
+  if (perCap.length === 0) throw new Error('no per-capability signals emitted');
+  const strangers = perCap.filter((s) => s.capability !== 'peripheral-commands');
+  if (strangers.length > 0) {
+    throw new Error(`filter leaked other capabilities: ${JSON.stringify(strangers)}`);
+  }
+  if (!signals.some((s) => s.kind === 'locked')) throw new Error('locked signal missing');
+  if (!signals.some((s) => s.kind === 'validate')) throw new Error('validate signal missing');
+});

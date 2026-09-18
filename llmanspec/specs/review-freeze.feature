@@ -31,3 +31,13 @@
     当 v2 运行 freeze 后再 thaw 回置该目录
     那么 目录完整回到 changes/archive 下
     而且 内容与冻结前一致
+
+  @req:r33 @human
+  场景: review --capability 过滤口径
+    - `review --capability <C>` MUST 将 pending/manual/unbound/stale 四类信号限定为 C(其余 capability 的信号 MUST NOT 输出),locked 与 validate 汇总 MUST 保持全局口径,退出码语义不变;`--json` 输出 MUST 同样过滤;未提供 `--capability` 时 MUST 保持全量信号。
+
+  @req:r33 @executable
+  场景: capability 过滤生效
+    假如 本仓库的真实 llmanspec 工作区
+    当 运行 v2 的 review --json 并限定单一 capability
+    那么 四类信号仅含该 capability 且 locked 与 validate 保持全局

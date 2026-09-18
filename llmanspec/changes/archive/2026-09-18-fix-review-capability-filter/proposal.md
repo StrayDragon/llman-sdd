@@ -1,5 +1,8 @@
 ---
 depends_on: []
+branch: sdd/fix-review-capability-filter
+base_branch: main
+base_sha: 7801969d931096edcb77c9f6f3eae1aeb510c7d3
 ---
 
 # review --capability 参数接线(落实现有合约 r23)
