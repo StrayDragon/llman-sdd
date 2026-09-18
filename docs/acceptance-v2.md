@@ -24,6 +24,7 @@
 - 切换后 v1 流水线(llman sdd list/validate)仍可用至本 change finalize
 - 2026-09-17(发布后定案):模板改经 `LLMAN_SDD_EMBEDDED_TEMPLATES` define 内嵌(build-binary 收集 `packages/core/templates` 为 path→content 表;Bun ≤ 1.4 无原生嵌入机制),单文件二进制 `init` / `review --export-html` 与源码/npm 版产物面一致;测试兜底 `tests/integration/binary.test.ts`
 - 2026-09-17 v0.1.3 发布:模板内嵌入五平台 Release 二进制(sha256 核对 + `--version`/`init`/`review --export-html` 实测,回显 `0.1.3` 无 v 前缀)+ npm 双包(`@llman-sdd/core` 含 embedded.ts/61 模板,`@llman-sdd/cli` 依赖正确替换为 `0.1.3`)。踩坑:首次 tag 先于版本 bump 打出(指向旧提交 → npm 403),删除重指后重发成功
+- 2026-09-18 v0.1.4 发布:7zz.wasm 经 `LLMAN_SDD_EMBEDDED_7ZZ_WASM_B64` define 注入(同模板机制;Emscripten 在 `$bunfs` 内探测 .wasm 失败曾致发布产物 freeze/thaw 全挂)。实测发现并同版修复 `archive freeze --list` 恒空(真实 7z 列目录前缀文件路径,旧过滤按裸目录名,源码态同样中招)。验收:五平台 job 全绿 + GH Release 资产 10 件 + npm 双包 registry 0.1.4 + linux-x64 产物下载后 sha256/`--version`(无 v 前缀)/init/validate/freeze→list→thaw 往返实测通过
 
 ## 3. 临时 v1 行为对拍(历史记录;门已随切换拆除)
 
