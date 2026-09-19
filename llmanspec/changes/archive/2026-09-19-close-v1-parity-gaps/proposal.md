@@ -1,5 +1,8 @@
 ---
 depends_on: []
+branch: sdd/close-v1-parity-gaps
+base_branch: main
+base_sha: 306f08c19e9cbd8e5605f4dbc1f171decdb5784e
 ---
 
 ## Why

@@ -3,10 +3,12 @@ import { describe, expect, test } from 'bun:test';
 import {
   buildTreeIndex,
   computeSpecHash,
+  loadTreeWithAutoRebuild,
   parseLock,
   resolveChatConfig,
   runContextRetrieval,
   type HashIo,
+  type IndexIo,
   type SpecEntry,
 } from '@llman-sdd/core';
 import { parseCapability } from '@llman-sdd/core';
@@ -295,5 +297,69 @@ describe('runContextRetrieval (mock fetch agentic loop)', () => {
       fetchImpl,
     });
     expect(result.direct).toEqual([{ id: 'spec-A', reason: 'first' }]);
+  });
+});
+
+describe('loadTreeWithAutoRebuild (r62)', () => {
+  function memIndexIo(specContent: { value: string }): IndexIo & { files: Map<string, string> } {
+    const files = new Map<string, string>();
+    return {
+      files,
+      exists: (p) => p === 'llmanspec/specs' || files.has(p),
+      isDirectory: (p) => p === 'llmanspec/specs',
+      listDir: (p) => (p === 'llmanspec/specs' ? ['a.feature'] : []),
+      readText: (p) => {
+        if (p === 'llmanspec/specs/a.feature') return specContent.value;
+        const v = files.get(p);
+        if (v === undefined) throw new Error(`missing ${p}`);
+        return v;
+      },
+      writeText: (p, c) => {
+        files.set(p, c);
+      },
+      remove: (p) => {
+        files.delete(p);
+      },
+      mkdirp: () => {},
+      processAlive: () => true,
+    };
+  }
+
+  test('missing index is rebuilt once and retrieval proceeds', () => {
+    const io = memIndexIo({ value: SPEC_A });
+    const r = loadTreeWithAutoRebuild(io, 'llmanspec/specs', [entry()], { chatModel: '' });
+    expect(r.error).toBeNull();
+    expect(r.rebuilt).toBe(true);
+    expect(r.tree).not.toBeNull();
+  });
+
+  test('fresh index short-circuits without rebuild', () => {
+    const io = memIndexIo({ value: SPEC_A });
+    loadTreeWithAutoRebuild(io, 'llmanspec/specs', [entry()], { chatModel: '' });
+    const r = loadTreeWithAutoRebuild(io, 'llmanspec/specs', [entry()], { chatModel: '' });
+    expect(r.rebuilt).toBe(false);
+    expect(r.error).toBeNull();
+  });
+
+  test('stale index is silently rebuilt', () => {
+    const spec = { value: SPEC_A };
+    const io = memIndexIo(spec);
+    loadTreeWithAutoRebuild(io, 'llmanspec/specs', [entry()], { chatModel: '' });
+    spec.value = SPEC_A.replace('MUST 甲', 'MUST 乙');
+    const r = loadTreeWithAutoRebuild(io, 'llmanspec/specs', [entry()], { chatModel: '' });
+    expect(r.rebuilt).toBe(true);
+    expect(r.error).toBeNull();
+    expect(r.tree).not.toBeNull();
+  });
+
+  test('rebuild failure surfaces index_rebuild_failed', () => {
+    const io = memIndexIo({ value: SPEC_A });
+    io.files.set(
+      'llmanspec/.context/pageindex/.rebuild.lock',
+      `pid = ${process.pid}\nstarted_at = "${new Date().toISOString()}"\n`,
+    );
+    const r = loadTreeWithAutoRebuild(io, 'llmanspec/specs', [entry()], { chatModel: '' });
+    expect(r.tree).toBeNull();
+    expect(r.error).toContain('auto-rebuild failed');
   });
 });

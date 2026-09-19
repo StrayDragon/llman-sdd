@@ -65,3 +65,13 @@
   场景: backend 旗标口径
     当 运行 index rebuild --backend rag
     那么 报错并提示迁移到 pageindex
+
+  @req:r62 @human
+  场景: context 检索前索引懒刷新
+    - `context` 在索引 missing/corrupted/stale 时 MUST 自动执行一次零 LLM 的 index rebuild 后再检索,MUST NOT 仅因 missing/stale 返回 quality=unavailable 或 index_stale/index_missing 类错误;rebuild 失败 MUST 输出 JSON error(ok=false, errorKind=index_rebuild_failed, 附手工重建指引)且退出码为 0;`index check`/`index rebuild` 的既有合同不变。
+
+  @req:r62 @executable
+  场景: 无索引时检索自愈
+    假如 一个含 specs 但无 .context 索引的临时仓库
+    当 运行 context 查询
+    那么 索引被自动重建且不因 missing 返回 unavailable

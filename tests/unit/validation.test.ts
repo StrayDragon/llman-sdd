@@ -6,6 +6,7 @@ import {
   expandRunCommand,
   hasPlaceholders,
   validateAllSpecs,
+  validateChange,
   type DiscoveryIo,
   type SpecEntry,
 } from '@llman-sdd/core';
@@ -154,5 +155,106 @@ describe('checkChangeDoc + placeholders (r47/r48)', () => {
         featurePath: 'llmanspec/specs/auth.feature',
       }),
     ).toBe('pytest llmanspec/specs -k auth');
+  });
+});
+
+describe('validateChange completeness WARNINGs (r63)', () => {
+  const proposalWithBinding = (needs: string): string =>
+    `---\ndepends_on: []\nbranch: sdd/demo\nbase_branch: main\nbase_sha: abc\nneeds_specs_change: ${needs}\n---\n\n## Why\nx\n\n## What Changes\n- y\n`;
+
+  const files = (needs: string): Record<string, string> => ({
+    'llmanspec/changes/demo/proposal.md': proposalWithBinding(needs),
+    'llmanspec/changes/demo/design.md': '# design\n',
+    'llmanspec/changes/demo/tasks.md': '# Tasks\n- [x] done\n',
+  });
+
+  const norm = (p: string): string => p.replace(/^\.\//u, '');
+  const io = (files: Record<string, string>) => ({
+    exists: (p: string) => files[norm(p)] !== undefined,
+    readText: (p: string) => {
+      const v = files[norm(p)];
+      if (v === undefined) throw new Error(`missing ${p}`);
+      return v;
+    },
+    listDir: (): string[] => [],
+    isDirectory: (): boolean => false,
+  });
+
+  const gitWith = (diffOut: string) => ({
+    run: (): string => '',
+    runOpt: (_args: string[]): string | null => (diffOut === '' ? null : diffOut),
+  });
+
+  const config = { strict_defer: null, min_completion_ratio: null, change_id_pattern: null };
+  const opts = (git: ReturnType<typeof gitWith> | undefined) => ({ git });
+
+  test('full + bound + no specs diff → skill-guided WARNING', () => {
+    const r = validateChange(io(files('true')), '.', 'demo', config, opts(gitWith('src/x.ts\n')));
+    const w = r.issues.find((i) => i.level === 'WARNING' && i.path === 'proposal.md');
+    expect(w?.message).toContain('specs not landed');
+    expect(w?.message).toContain('llman-sdd-propose');
+    expect(w?.message).toContain('do NOT re-run change start');
+  });
+
+  test('no warning when specs landed on the bound branch', () => {
+    const r = validateChange(
+      io(files('true')),
+      '.',
+      'demo',
+      config,
+      opts(gitWith('llmanspec/specs/demo.feature\n')),
+    );
+    expect(r.issues.some((i) => i.message.includes('specs not landed'))).toBe(false);
+  });
+
+  test('no warning when needs_specs_change: false', () => {
+    const r = validateChange(io(files('false')), '.', 'demo', config, opts(gitWith('src/x.ts\n')));
+    expect(r.issues.some((i) => i.message.includes('specs not landed'))).toBe(false);
+  });
+
+  test('no warning when not bound (planned stage)', () => {
+    const bare: Record<string, string> = {
+      'llmanspec/changes/demo/proposal.md': '---\ndepends_on: []\n---\n\n## Why\nx\n',
+      'llmanspec/changes/demo/design.md': '# design\n',
+      'llmanspec/changes/demo/tasks.md': '# Tasks\n- [x] done\n',
+    };
+    const r = validateChange(io(bare), '.', 'demo', config, opts(gitWith('src/x.ts\n')));
+    expect(r.issues.some((i) => i.message.includes('specs not landed'))).toBe(false);
+  });
+});
+
+describe('orphan acceptance WARNING (r65)', () => {
+  test('acceptance scenario without @req reports WARNING', () => {
+    const spec = `# language: zh-CN
+# capability: orphan
+# purpose: p
+# scope: llmanspec/
+
+功能: orphan
+
+  @req:r1 @human
+  场景: 规则
+    - 系统 MUST x
+
+  @executable
+  场景: 孤儿验收
+    假如 a
+    当 b
+    那么 c
+`;
+    const entries: SpecEntry[] = [
+      { fileName: 'llmanspec/specs/orphan.feature', doc: parseCapability(spec, 'orphan.feature') },
+    ];
+    const specIo = {
+      exists: (p: string) => p === 'llmanspec/' || p.startsWith('llmanspec/specs'),
+      isDirectory: (p: string) => p === 'llmanspec/',
+      listDir: (p: string) =>
+        p === 'llmanspec/specs' || p === 'llmanspec/specs/' ? ['orphan.feature'] : [],
+      readText: (): string => spec,
+    };
+    const report = validateAllSpecs(entries, specIo);
+    const items = report.verdicts.flatMap((v) => v.items);
+    const orphan = items.find((i) => i.level === 'WARNING' && i.id.includes('/acceptance/'));
+    expect(orphan?.message).toContain('orphan acceptance scenario');
   });
 });

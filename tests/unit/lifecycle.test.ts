@@ -277,3 +277,35 @@ describe('r44/r45/r46 — change family flags', () => {
     expect(info.base).toMatch(/^[0-9a-f]{40}$/u);
   });
 });
+
+describe('finalize branch gate (r15 / v1 r94)', () => {
+  const makeRepoOnBranch = (): string => {
+    const root = mkdtempSync(join(tmpdir(), 'llman-finalize-gate-'));
+    const run = (args: string[]): void => {
+      spawnSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...args], {
+        cwd: root,
+        encoding: 'utf8',
+      });
+    };
+    run(['init', '-q', '-b', 'main']);
+    const dir = join(root, 'llmanspec', 'changes', 'fam');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'proposal.md'), '---\ndepends_on: []\n---\n\n## Why\nx\n');
+    run(['add', '-A']);
+    run(['commit', '-qm', 'init']);
+    return root;
+  };
+
+  test('finalize from a foreign branch fails before any write', () => {
+    const root = makeRepoOnBranch();
+    const git = makeSpawnGit(root);
+    const io = makeNodeIo(root);
+    startChange(git, io, 'fam');
+    spawnSync('git', ['switch', 'main'], { cwd: root });
+    const before = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout;
+    expect(() => finalizeChange(git, io, 'fam')).toThrow(/bound branch/u);
+    const after = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout;
+    expect(after).toBe(before);
+    expect(existsSync(join(root, 'llmanspec', 'changes', 'fam'))).toBe(true);
+  });
+});

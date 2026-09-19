@@ -18,7 +18,7 @@
 
   @req:r15 @human
   场景: finalize 合并与归档收口
-    - `change finalize` MUST 以 squash(默认)或 ff 把特性分支合并到目标分支(into > base_branch > 默认分支),将 `changes/<id>` 重命名为 `changes/archive/<YYYY-MM-DD>-<id>`,并以单条提交 `archive(sdd): <id>` 收口;合并冲突时 MUST best-effort:输出 WARNING 与手工命令提示,仍完成归档改名与提交。
+    - `change finalize` MUST 以 squash(默认)或 ff 把特性分支合并到目标分支(into > base_branch > 默认分支),将 `changes/<id>` 重命名为 `changes/archive/<YYYY-MM-DD>-<id>`,并以单条提交 `archive(sdd): <id>` 收口;finalize MUST 校验当前分支 == binding.branch,不满足 MUST 在任何写入前报错退出(非默认分支由绑定语义保证,v1 r94 语义);合并冲突时 MUST best-effort:输出 WARNING 与手工命令提示,仍完成归档改名与提交。
 
   @req:r15 @executable
   场景: squash 收口

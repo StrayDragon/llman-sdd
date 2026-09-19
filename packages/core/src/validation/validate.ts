@@ -161,6 +161,14 @@ export function validateCapability(
   // Dangling acceptance @req links (v1 order: acceptance/@req then coverage).
   const ruleReqIds = new Set(human.flatMap((s) => s.reqIds));
   for (const sc of acceptance) {
+    // r65: orphan acceptance scenario — no @req link at all (v1 r132 WARNING).
+    if (sc.reqIds.length === 0) {
+      push(
+        'WARNING',
+        `${cap}/acceptance/${sc.name}`,
+        `orphan acceptance scenario \`${sc.name}\` has no @req:<req_id> link`,
+      );
+    }
     for (const rid of sc.reqIds) {
       if (!ruleReqIds.has(rid)) {
         push(

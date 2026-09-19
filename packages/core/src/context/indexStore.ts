@@ -124,3 +124,44 @@ export function loadTree(io: IndexIo): SerializedTreeIndex | null {
     return null;
   }
 }
+
+export interface AutoRefreshResult {
+  tree: SerializedTreeIndex | null;
+  rebuilt: boolean;
+  error: string | null;
+}
+
+/**
+ * r62: retrieval-side lazy refresh — a missing/corrupted/stale index is
+ * rebuilt once (zero-LLM) before retrieval; a failed rebuild surfaces
+ * `index_rebuild_failed` instead of a missing/stale quality note.
+ */
+export function loadTreeWithAutoRebuild(
+  io: IndexIo,
+  specsDir: string,
+  entries: readonly SpecEntry[],
+  opts: RebuildOpts,
+): AutoRefreshResult {
+  const initial = loadTree(io);
+  if (initial !== null && checkIndexFreshness(io, specsDir).fresh) {
+    return { tree: initial, rebuilt: false, error: null };
+  }
+  try {
+    rebuildIndex(io, specsDir, entries, opts);
+  } catch (error) {
+    return {
+      tree: null,
+      rebuilt: false,
+      error: `auto-rebuild failed: ${(error as Error).message} — run \`llman-sdd index rebuild\``,
+    };
+  }
+  const tree = loadTree(io);
+  if (tree === null) {
+    return {
+      tree: null,
+      rebuilt: true,
+      error: 'auto-rebuild produced an unreadable tree.json — run `llman-sdd index rebuild`',
+    };
+  }
+  return { tree, rebuilt: true, error: null };
+}

@@ -11,7 +11,19 @@
 
   @req:r12 @human
   场景: 规则域(种子缺陷判定)
-    - 缺 `# capability:` 头注释 MUST 判 ERROR;@human 规则场景描述不含 MUST/SHALL(或 必须/不得/禁止)MUST 判 ERROR;@human 场景未携带 @req 标签 MUST 判 ERROR;@human 与 @executable 同用 MUST 判 ERROR;残留 @manual tag MUST 判迁移 ERROR(0.3.0 起移除);跨 specs 全局重复 req_id MUST 对每个涉事 capability 判 ERROR;`# scope:` 声明的路径 MUST 在磁盘存在,缺失判 ERROR。staleness(git scope 漂移)SHALL 在 change 生命周期阶段接入,本能力不判定。
+    - 缺 `# capability:` 头注释 MUST 判 ERROR;@human 规则场景描述不含 MUST/SHALL(或 必须/不得/禁止)MUST 判 ERROR;@human 场景未携带 @req 标签 MUST 判 ERROR;@human 与 @executable 同用 MUST 判 ERROR;残留 @manual tag MUST 判迁移 ERROR(0.3.0 起移除);跨 specs 全局重复 req_id MUST 对每个涉事 capability 判 ERROR;`# scope:` 声明的路径 MUST 在磁盘存在,缺失在 `--strict` 下判 ERROR、否则 WARNING(v1 r42 语义)。staleness(git scope 漂移)SHALL 在 change 生命周期阶段接入,本能力不判定。
+
+  @req:r63 @human
+  场景: validate 完整性 WARNING(已绑定 change)
+    - stage=full 的已绑定 change 若 live specs 未 landed 且 `needs_specs_change` 不为 false,MUST 报带 skill 引导的 WARNING(path `proposal.md`):指引在绑定分支编辑并提交 live specs(llman-sdd-propose)、MUST NOT 建议对已 attach 的 change 重跑 change start、实施以 `llman-sdd show <id> --json` 的 readyToImplement=true 为准(llman-sdd-apply);默认分支上存在 `llmanspec/specs/` 未提交脏改动时,validate MUST 报 WARNING 指引切到绑定分支再编辑(工作区级,每次调用至多一次);两条 WARNING 缺省不阻断,`--strict` 按既有升级语义处理。
+
+  @req:r64 @human
+  场景: proposal frontmatter 合法字段集
+    - proposal frontmatter 合法字段 MUST 为 depends_on/blocks/branch/base_branch/base_sha/needs_specs_change 六个;合法集外字段(如 status/title/priority/author)MUST 报 ERROR 且错误消息 MUST 列出该字段名与合法字段集;`changes/archive/` 下的 proposal MUST 免检;stage MUST 由磁盘工件与绑定实时推断,MUST NOT 引入任何 frontmatter 字段影响 stage。
+
+  @req:r65 @human
+  场景: 孤儿验收场景
+    - 无任何 @req 链接的 @executable 验收场景 MUST 被 validate 报 WARNING(孤儿验收),path 为 `<capability>/acceptance/<场景名>`;@req 悬空链接(指向不存在规则)维持 ERROR 不变。
 
   @req:r12 @executable
   场景: 种子缺陷被判 FAIL
