@@ -29,7 +29,7 @@
 - **change id 前缀解析**（v1 r112 对齐，r61）：`show`、`validate <item>` 与
   `change start/attach/diff/finalize/archive` 支持唯一前缀解析（如 `c2805` →
   `c2805-update-todo-llm-api`），人读输出向 stderr 打 `'input' -> 'resolved'
-  (prefix match)` 提示；多前缀命中报错列候选；`--json` 的 `matchedViaPrefix`
+(prefix match)` 提示；多前缀命中报错列候选；`--json` 的 `matchedViaPrefix`
   如实上报；大小写敏感；graph 种子保持自有解析（含归档兜底）。
 - **context 索引懒刷新**（v1 r97 对齐，r62）：索引 missing/corrupted/stale 时检索前
   自动 rebuild 一次（零 LLM），不再仅因索引缺失返回 unavailable；重建失败输出
