@@ -74,7 +74,6 @@ jobs:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
       # bun publish 会把 workspace:* 替换为解析后的版本;scoped 包必须 --access public
       # 幂等守卫:已发布的版本(重打 tag 重跑)自动跳过
-      # ONE-OFF (v0.1.0): 先前发布的 0.1.0 为缺陷版本(缺 templates/单 bin/node shebang),重发前撤下;发布成功后移除本段
       - name: publish @llman-sdd/core
         working-directory: packages/core
         run: bun publish --access public
