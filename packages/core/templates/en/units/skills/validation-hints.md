@@ -12,7 +12,7 @@ Every capability `.feature` (`llmanspec/specs/<capability>.feature` or `llmanspe
 2) Tag grammar (`@human constraint scenario must carry an @req:<req_id> tag` / `orphan acceptance scenario`):
 - Rules: `@req:<id> @human` — statement in the scenario description (MUST/SHALL required).
 - Acceptance: `@executable` + at least one `@req:<id>` linking a rule.
-- `@manual` requires `@human`. Never combine `@human` with `@executable`.
+Never combine `@human` with `@executable`. (`@manual` was removed in 0.3.0 — drop it; `@human` already carries the human-judgement semantics.)
 
 3) Legacy `spec.toon` present (`legacy spec.toon found ... run ... toon2features`):
 Run `llman-sdd project migrate --kind toon2features --yes`, review the diff, commit.

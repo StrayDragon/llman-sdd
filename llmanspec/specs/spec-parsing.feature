@@ -15,7 +15,7 @@
 
   @req:r9 @human
   场景: 标签分层语义
-    - 场景标签中的 @req:rN MUST 被提取为需求链接;@manual 必须与 @human 同用;@human 与 @executable 互斥,违反 MUST 被报告;@human 规则场景描述 MUST 含 MUST/SHALL 语义词。
+    - 场景标签中的 @req:rN MUST 被提取为需求链接;残留 @manual tag MUST 被报为迁移 ERROR(0.3.0 起移除该 tag,判定语义由 @human 承担,不得静默忽略);@human 与 @executable 互斥,违反 MUST 被报告;@human 规则场景描述 MUST 含 MUST/SHALL 语义词。
 
   @req:r9 @executable
   场景: 中文 feature 解析为 IR

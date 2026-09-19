@@ -77,20 +77,18 @@ function extractHeader(source: string): CapabilityHeader {
 
 function classify(tags: string[]): {
   classification: ScenarioIR['classification'];
-  manual: boolean;
   errors: SpecStructuralError[];
 } {
   const errors: SpecStructuralError[] = [];
   const has = (t: string): boolean => tags.includes(t);
   const human = has('human');
   const executable = has('executable');
-  const manual = has('manual');
   const label = tags.join(',');
 
-  if (manual && !human) {
+  if (has('manual')) {
     errors.push({
-      code: 'tag:manual-orphan',
-      message: `@manual 必须与 @human 同用(tags: ${label})`,
+      code: 'tag:manual-removed',
+      message: `@manual was removed in 0.3.0 — drop the tag (@human already carries the human-judgement semantics) (tags: ${label})`,
     });
   }
   if (human && executable) {
@@ -104,7 +102,7 @@ function classify(tags: string[]): {
     : executable
       ? 'executable'
       : 'unclassified';
-  return { classification, manual, errors };
+  return { classification, errors };
 }
 
 /** Parse one capability .feature source into the single-track IR. */
@@ -165,7 +163,6 @@ export function parseCapability(source: string, fileName = '<inline>'): Capabili
       tags,
       reqIds,
       classification: kind.classification,
-      manual: kind.manual,
       statement,
       stepCount: stepTexts.length,
       steps,

@@ -812,7 +812,7 @@ program
       const raw = readFileSync(specPath, 'utf8').trimEnd();
       const summary = collectSpecs(loadSpecEntries()).find((x) => x.id === item);
       const morphology = summary
-        ? `\n\n## Morphology\nruleCount=${summary.morphology.ruleCount} enforced=${summary.morphology.ruleEnforcedCount} manual=${summary.morphology.ruleManualCount} pending=${summary.morphology.rulePendingCount} acceptanceCount=${summary.morphology.acceptanceCount}`
+        ? `\n\n## Morphology\nruleCount=${summary.morphology.ruleCount} enforced=${summary.morphology.ruleEnforcedCount} pending=${summary.morphology.rulePendingCount} acceptanceCount=${summary.morphology.acceptanceCount}`
         : '';
       console.log(`## Spec\n${raw}${morphology}`);
       return;
@@ -905,9 +905,6 @@ function renderSpecJson(
     ruleCount: humans.length,
     ruleEnforcedCount: humans.filter((r) =>
       acceptances.some((a) => a.reqIds.some((rid) => r.reqIds.includes(rid))),
-    ).length,
-    ruleManualCount: humans.filter(
-      (r) => r.reqIds.includes('manual') || r.statement.includes('@manual'),
     ).length,
     rulePendingCount: humans.filter(
       (r) => !acceptances.some((a) => a.reqIds.some((rid) => r.reqIds.includes(rid))),
@@ -1140,7 +1137,7 @@ archive
 
 const review = program
   .command('review')
-  .description('Aggregate review: pending/manual/unbound/stale signals plus a validate sweep');
+  .description('Aggregate review: pending/unbound/stale signals plus a validate sweep');
 
 review
   .option('--capability <capability>', 'restrict the sweep to one capability/spec id')

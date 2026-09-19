@@ -6,7 +6,7 @@ import { evaluateStaleness, notApplicableStaleness } from '../validation/stalene
  */
 import { validateAllSpecs, type SpecEntry, type SpecIo } from '../validation/validate.ts';
 
-export type ReviewKind = 'pending' | 'manual' | 'unbound' | 'stale' | 'locked' | 'validate';
+export type ReviewKind = 'pending' | 'unbound' | 'stale' | 'locked' | 'validate';
 
 export interface ReviewSignal {
   kind: ReviewKind;
@@ -28,7 +28,7 @@ export interface ReviewInput {
   boundChangeCount: number;
   /** Active change summaries for the strict sweep (pending tasks → FAIL). */
   activeChanges?: readonly { name: string; completedTasks: number; totalTasks: number }[];
-  /** Restrict per-capability signals (pending/manual/unbound/stale) to this capability. */
+  /** Restrict per-capability signals (pending/unbound/stale) to this capability. */
   capability?: string;
   /** git + root for real staleness evaluation (v1 parity). */
   git?: GitLike;
@@ -65,12 +65,10 @@ export function buildReview(input: ReviewInput, io: SpecIo): ReviewResult {
     const acceptance = entry.doc.scenarios.filter((s) => s.classification === 'executable');
     const acceptanceReqIds = new Set(acceptance.flatMap((s) => s.reqIds));
     const pending = rules.filter((r) => !r.reqIds.some((id) => acceptanceReqIds.has(id)));
-    const manual = rules.filter((r) => r.manual);
     // v1 r5: unbound = orphan acceptance scenarios (no @req link).
     const unbound = acceptance.filter((s) => s.reqIds.length === 0);
 
     push('pending', cap, pending.length);
-    push('manual', cap, manual.length);
     push('unbound', cap, unbound.length);
 
     // staleness (v1 evaluate): real base-ref/scope evaluation.
@@ -131,7 +129,7 @@ export function buildReview(input: ReviewInput, io: SpecIo): ReviewResult {
 
   const lines: string[] = [`Review: critical=${criticalCount} warning=${warningCount}`];
   for (const cap of sorted.map((e) => e.doc.header.capability ?? e.fileName)) {
-    for (const kind of ['pending', 'manual', 'unbound', 'stale'] as const) {
+    for (const kind of ['pending', 'unbound', 'stale'] as const) {
       const s = signals.find((x) => x.kind === kind && x.capability === cap);
       if (!s) continue;
       lines.push(`${kind}: ${cap} (${s.count})`);

@@ -493,9 +493,9 @@ bdd.when('v2 运行 review', (ctx) => {
   }
 });
 
-bdd.thenStep('signals 覆盖六种 kind', (ctx) => {
+bdd.thenStep('signals 覆盖五种 kind', (ctx) => {
   const kinds = (ctx.fixtures['review'] as { kinds: Set<string> }).kinds;
-  for (const kind of ['pending', 'manual', 'unbound', 'stale', 'locked', 'validate']) {
+  for (const kind of ['pending', 'unbound', 'stale', 'locked', 'validate']) {
     if (!kinds.has(kind)) throw new Error(`missing signal kind: ${kind}`);
   }
 });
@@ -726,7 +726,7 @@ bdd.when('运行 v2 的 review --json 并限定单一 capability', (ctx) => {
   ctx.fixtures['review过滤'] = { signals };
 });
 
-bdd.thenStep('四类信号仅含该 capability 且 locked 与 validate 保持全局', (ctx) => {
+bdd.thenStep('三类信号仅含该 capability 且 locked 与 validate 保持全局', (ctx) => {
   const { signals } = ctx.fixtures['review过滤'] as ReviewFilterResult;
   const perCap = signals.filter((s) => s.kind !== 'locked' && s.kind !== 'validate');
   if (perCap.length === 0) throw new Error('no per-capability signals emitted');

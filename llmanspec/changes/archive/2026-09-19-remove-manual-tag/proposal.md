@@ -1,5 +1,8 @@
 ---
 depends_on: []
+branch: sdd/remove-manual-tag
+base_branch: main
+base_sha: a8b4d21a6f570fed30e0ff91c725b66713cf332f
 ---
 
 ## Why
