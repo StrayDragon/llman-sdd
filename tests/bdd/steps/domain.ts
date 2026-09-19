@@ -1672,3 +1672,47 @@ bdd.thenStep('派生 id 由模板渲染生成', (ctx) => {
     throw new Error('rendered change dir missing');
   }
 });
+
+// ---------------------------------------------------------------------------
+// r61 — change id prefix resolution (acceptance)
+// ---------------------------------------------------------------------------
+
+interface PrefixShowResult {
+  stdout: string;
+  stderr: string;
+  status: number;
+}
+
+bdd.given('一个含 c2805-update-todo 与 c2806-fix-bug 两个 change 的临时仓库', (ctx) => {
+  const root = mkdtempSync(join(tmpdir(), 'llman-prefix-'));
+  for (const id of ['c2805-update-todo', 'c2806-fix-bug']) {
+    const dir = join(root, 'llmanspec', 'changes', id);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, 'proposal.md'),
+      '---\ndepends_on: []\n---\n\n## Why\nx\n\n## What Changes\n- y\n',
+    );
+  }
+  ctx.fixtures['prefix仓库'] = { root };
+});
+
+bdd.when('运行 show c2805', (ctx) => {
+  const { root } = ctx.fixtures['prefix仓库'] as { root: string };
+  const proc = spawnSync('bun', [CLI, 'show', 'c2805'], { cwd: root, encoding: 'utf8' });
+  ctx.fixtures['prefix结果'] = {
+    stdout: proc.stdout ?? '',
+    stderr: proc.stderr ?? '',
+    status: proc.status ?? 1,
+  };
+});
+
+bdd.thenStep('解析到 c2805-update-todo 且 stderr 含 prefix match 提示', (ctx) => {
+  const r = ctx.fixtures['prefix结果'] as PrefixShowResult;
+  if (r.status !== 0) throw new Error(`show c2805 failed: ${r.stderr}`);
+  if (!r.stderr.includes("'c2805' -> 'c2805-update-todo' (prefix match)")) {
+    throw new Error(`prefix match hint missing on stderr: ${r.stderr}`);
+  }
+  if (!r.stdout.includes('path: c2805-update-todo')) {
+    throw new Error(`resolved id not used in output: ${r.stdout}`);
+  }
+});
