@@ -22,7 +22,11 @@ export interface ShowDeps {
   specsDir: string;
 }
 
-export function showChangeJson(deps: ShowDeps, id: string): Record<string, unknown> {
+export function showChangeJson(
+  deps: ShowDeps,
+  id: string,
+  opts: { matchedViaPrefix?: boolean } = {},
+): Record<string, unknown> {
   const { io, git, root } = deps;
   const dir = `${root}/${CHANGES_DIR}/${id}`;
   const proposalPath = `${dir}/proposal.md`;
@@ -129,6 +133,6 @@ export function showChangeJson(deps: ShowDeps, id: string): Record<string, unkno
     deltaCount: 0,
     deltas: [] as string[],
     gateChecks,
-    matchedViaPrefix: false,
+    matchedViaPrefix: opts.matchedViaPrefix === true,
   };
 }

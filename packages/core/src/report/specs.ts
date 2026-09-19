@@ -26,10 +26,15 @@ export interface SpecSummary {
   morphology: SpecMorphology;
 }
 
-function morphologyOf(doc: CapabilityDoc): SpecMorphology {
-  const rules = doc.scenarios.filter((s) => s.classification === 'human');
-  const acceptance = doc.scenarios.filter((s) => s.classification === 'executable');
-  const acceptanceReqIds = new Set(acceptance.flatMap((s) => s.reqIds));
+/** Morphology counts shared by `list --specs`, `show <spec> --json`, and the
+ * CLI text render — the single source of the enforced/pending two-state rule
+ * (rules = @human; enforced = @req-linked acceptance coverage; pending = rest). */
+export function morphologyOfScenarios(
+  scenarios: readonly { classification: string; reqIds: readonly string[] }[],
+): SpecMorphology {
+  const rules = scenarios.filter((s) => s.classification === 'human');
+  const acceptance = scenarios.filter((s) => s.classification === 'executable');
+  const acceptanceReqIds = new Set(acceptance.flatMap((s) => [...s.reqIds]));
   const enforced = rules.filter((r) => r.reqIds.some((id) => acceptanceReqIds.has(id)));
   const orphan = acceptance.filter((s) => s.reqIds.length === 0);
   return {
@@ -39,6 +44,10 @@ function morphologyOf(doc: CapabilityDoc): SpecMorphology {
     acceptanceCount: acceptance.length,
     orphanAcceptanceCount: orphan.length,
   };
+}
+
+function morphologyOf(doc: CapabilityDoc): SpecMorphology {
+  return morphologyOfScenarios(doc.scenarios);
 }
 
 export function collectSpecs(entries: readonly SpecEntry[]): SpecSummary[] {

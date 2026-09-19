@@ -12,6 +12,7 @@ import {
   embeddedTemplates,
   graphMermaid,
   makeEmbeddedTemplateIo,
+  morphologyOfScenarios,
   nextReqId,
   changeDiff,
   deriveChangeId,
@@ -25,6 +26,7 @@ import {
   renderReviewHtml,
   renderSpecsJson,
   renderSpecsList,
+  resolveChangeId,
   runInit,
   scaffoldSpec,
   showChangeJson,
@@ -401,13 +403,27 @@ program
           process.exitCode = mine.valid ? 0 : 1;
           return;
         }
-        // change single
+        // change single (r61: v1 r112 prefix resolution on the change id)
         const io = makeIo(process.cwd());
         const root = process.cwd();
+        let changeId = item;
+        let viaPrefix = false;
+        try {
+          const resolved = resolveChangeId(io, root, item, { maxScanDepth: cliMaxScanDepth() });
+          changeId = resolved.id;
+          viaPrefix = resolved.viaPrefix;
+        } catch (error) {
+          console.error((error as Error).message);
+          process.exitCode = 1;
+          return;
+        }
+        if (viaPrefix && !options.json) {
+          console.error(`'${item}' -> '${changeId}' (prefix match)`);
+        }
         const res = validateChange(
           io,
           root,
-          item,
+          changeId,
           {
             strict_defer: loadCliConfig()?.archive?.strict_defer ?? null,
             min_completion_ratio: loadCliConfig()?.archive?.min_completion_ratio ?? null,
@@ -420,13 +436,13 @@ program
           renderValidateJson(
             [
               {
-                id: item,
+                id: changeId,
                 type: 'change',
                 valid: res.valid,
                 issues: res.issues,
                 durationMs: 0,
                 staleness: notApplicableStaleness(),
-                matchedViaPrefix: false,
+                matchedViaPrefix: viaPrefix,
               },
             ],
             options.compactJson === true,
@@ -435,9 +451,9 @@ program
           return;
         }
         if (res.valid) {
-          console.log(`Change '${item}' is valid`);
+          console.log(`Change '${changeId}' is valid`);
         } else {
-          console.error(`Change '${item}' has issues`);
+          console.error(`Change '${changeId}' has issues`);
           for (const issue of res.issues.filter((i) => i.level !== 'INFO'))
             console.error(`  [${issue.level}] ${issue.path}: ${issue.message}`);
           console.error('Next steps:');
@@ -819,13 +835,24 @@ program
     }
 
     // ---- change ----
-    const proposalPath = join('llmanspec', 'changes', item, 'proposal.md');
-    if (!existsSync(proposalPath)) {
-      console.error(`change not found: ${item}`);
+    // r61: v1 r112 prefix chain — exact > unique prefix > multiple > not found.
+    let changeId = item;
+    let viaPrefix = false;
+    try {
+      const resolved = resolveChangeId(makeIo(process.cwd()), process.cwd(), item, {
+        maxScanDepth: cliMaxScanDepth(),
+      });
+      changeId = resolved.id;
+      viaPrefix = resolved.viaPrefix;
+    } catch (error) {
+      console.error((error as Error).message);
       process.exitCode = 1;
       return;
     }
-    const proposal = readFileSync(proposalPath, 'utf8');
+    if (viaPrefix && !asJson) {
+      console.error(`'${item}' -> '${changeId}' (prefix match)`);
+    }
+    const proposal = readFileSync(join('llmanspec', 'changes', changeId, 'proposal.md'), 'utf8');
     if (asJson) {
       // v1 parse_change gates: Why first, then What Changes (json only).
       if (!hasSection(proposal, 'Why')) {
@@ -843,7 +870,8 @@ program
           root: process.cwd(),
           specsDir: 'llmanspec/specs',
         },
-        item,
+        changeId,
+        { matchedViaPrefix: viaPrefix },
       );
       console.log(JSON.stringify(result, null, asCompact ? 0 : 2));
       return;
@@ -852,9 +880,9 @@ program
     const changes = collectChanges(makeIo(process.cwd()), process.cwd(), new Date(), {
       maxScanDepth: cliMaxScanDepth(),
     });
-    const change = changes.find((c) => c.name === item);
+    const change = changes.find((c) => c.name === changeId);
     console.log(`Stage: ${change?.stage ?? 'draft'}`);
-    console.log(`path: ${item}`);
+    console.log(`path: ${changeId}`);
     process.stdout.write(proposal);
     if (!proposal.endsWith('\n')) console.log();
     const gates = showChangeJson(
@@ -864,7 +892,7 @@ program
         root: process.cwd(),
         specsDir: 'llmanspec/specs',
       },
-      item,
+      changeId,
     ).gateChecks as { name: string; pass: boolean; hint: string }[];
     const passCount = gates.filter((g) => g.pass).length;
     console.log(`Gates: ${passCount}/${gates.length} pass`);
@@ -901,17 +929,7 @@ function renderSpecJson(
   const purpose = doc?.header.purpose ?? '';
   const humans = doc?.scenarios.filter((s) => s.classification === 'human') ?? [];
   const acceptances = doc?.scenarios.filter((s) => s.classification === 'executable') ?? [];
-  const morphology = {
-    ruleCount: humans.length,
-    ruleEnforcedCount: humans.filter((r) =>
-      acceptances.some((a) => a.reqIds.some((rid) => r.reqIds.includes(rid))),
-    ).length,
-    rulePendingCount: humans.filter(
-      (r) => !acceptances.some((a) => a.reqIds.some((rid) => r.reqIds.includes(rid))),
-    ).length,
-    acceptanceCount: acceptances.length,
-    orphanAcceptanceCount: acceptances.filter((a) => a.reqIds.length === 0).length,
-  };
+  const morphology = morphologyOfScenarios(doc?.scenarios ?? []);
   if (opts.metaOnly) {
     return {
       id: item,

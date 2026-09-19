@@ -112,6 +112,7 @@ export {
 } from './git/spawnGit.ts';
 export { DRAFT_PROPOSAL_TEMPLATE, deriveChangeId, isLegalChangeId } from './change/id.ts';
 export { extractUniqueNumber, harvestUniqueNumbers } from './change/nextId.ts';
+export { ChangeIdResolveError, resolveChangeId, type ResolvedChangeId } from './change/resolve.ts';
 export {
   CHANGES_DIR,
   LifecycleError,
@@ -184,6 +185,7 @@ export {
 } from './report/specHelpers.ts';
 export {
   collectSpecs,
+  morphologyOfScenarios,
   renderSpecsJson,
   renderSpecsList,
   type SpecMorphology,
