@@ -43,7 +43,31 @@ llman-sdd:spec 驱动开发(SDD)工作流(TypeScript + Bun),将完全接替 Rust
 
 - 输出对齐口径(2026-09 定案):v1→v2 对齐只覆盖影响脚本/agent 消费的面(JSON 输出字段、退出码、结构化报告、CLI flag 面);人读文案细节(init 输出行、list 时间戳精度、start/finalize 文案、skeleton 头注释 locale 文案)不做逐字节对齐
 - 不移植(定案维持):`show --output deltas/reqs-only` 与 `change checkpoint/delta` 随 checkpoint/delta 机制移除(相关调用固化为报错+指引,r53);worktree 并行、project import、migrate 实现体维持移除
+- 锁定哈希门禁(v1 spec-format r135 / sdd-workflow r130)不移植:改/删 `@human` 规则的报告制 WARNING 由 git 分支对比 + `review`/`change diff` 浮现,不经 validate/finalize 报告通道;review 的 `locked` 信号恒 0 系有意(2026-09 定案,close-v1-parity-gaps 核验转正)
 - `llmanspec/AGENTS.md` 托管块:v2 init 写入 LLMANSPEC:START/END 标记(v1 不写),属有意改进,保留
+
+## Change Proposal Frontmatter SSOT
+
+`changes/` 任意深度含 proposal.md 的目录都是 change(叶子目录名 = change id,扫描深度缺省 8,`--max-scan-depth` 可调)。frontmatter YAML 是变更元信息的唯一权威;生命周期阶段(stage/readyToImplement)由 CLI 从磁盘工件 + git 绑定实时推断,绝不写入 frontmatter;正文 MUST NOT 复读 frontmatter 字段,正文 H1 是人类可读标题而非 change id 的复读。
+
+### 合法字段集(validation r64 强制)
+
+| 字段 | 必填 | 谁写入 | 说明 |
+|---|---|---|---|
+| `depends_on` | 是(CLI 骨架默认 `[]`) | agent | 依赖 change id 列表,流式/块式均可(graph 解析) |
+| `blocks` | 否 | agent | 反向依赖声明(当前仅校验列表格式) |
+| `branch` | 否 | CLI(change start/attach) | 绑定特性分支 |
+| `base_branch` | 否 | CLI(change start;attach --base 可覆盖) | finalize/archive 合并目标解析,缺键回退本地默认分支;不参与 diff 范围计算(现算 merge-base) |
+| `base_sha` | 否 | CLI(change start) | 审计用基点,仅审计不参与范围计算 |
+| `needs_specs_change` | 否(缺省 true) | agent | false 跳过 specs landing 检查(无 live 合约编辑的 change) |
+
+合法集外字段(如 `status`/`title`/`priority`/`author`)→ validate 报 ERROR,错误消息列出字段名与合法集;`changes/archive/` 下的 proposal 免检。
+
+### 已废弃/移除字段
+
+- `stage` 不是 frontmatter 字段:实时推断 draft/designed/planned/full(绑定参与升级)。
+- `checkpointed`/`checkpoint_sha`/`skip_specs_landing`/`rules_edit_acked`/`rules_touched`/`agent_acked` 已随 checkpoint/锁定确认机制移除——出现即 ERROR,无兼容读取。
+- 锁定 `@human` 规则改动为报告制(见范围决策);改动经 git 分支对比与 `review`/`change diff` 审视。
 
 ## 工程规则
 
