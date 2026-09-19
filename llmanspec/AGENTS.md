@@ -37,7 +37,9 @@ llman-sdd:spec 驱动开发(SDD)工作流(TypeScript + Bun),将完全接替 Rust
 - ink 是 TUI 战略方向(v1 不引入):所有交互走 PromptDriver 接口;ink 与 inquirer 禁止同进程混用
 - 测试/构建选型终局,rust 生态工具不迁移:rstest 仅适用 Rust 栈,本仓库以
   bun:test + Gherkin runner 承担同等角色;rsbuild/rspack 属 web 阶段(见技术栈
-  Monorepo 条),现阶段 CLI/测试链路零打包器——后续需求直接引用本条,勿重新调研
+  Monorepo 条),现阶段 CLI/测试链路零打包器——后续需求直接引用本条,勿重新调研。
+  撞名注意:config 的 `bdd.framework: rstest-bdd` 指 Rust rstest crate 生态;
+  Rstack 的 JS 测试框架写作 Rstest(`@rstest/core`),同名不同物,讨论时消歧
 
 - 输出对齐口径(2026-09 定案):v1→v2 对齐只覆盖影响脚本/agent 消费的面(JSON 输出字段、退出码、结构化报告、CLI flag 面);人读文案细节(init 输出行、list 时间戳精度、start/finalize 文案、skeleton 头注释 locale 文案)不做逐字节对齐
 - 不移植(定案维持):`show --output deltas/reqs-only` 与 `change checkpoint/delta` 随 checkpoint/delta 机制移除(相关调用固化为报错+指引,r53);worktree 并行、project import、migrate 实现体维持移除
@@ -52,6 +54,11 @@ llman-sdd:spec 驱动开发(SDD)工作流(TypeScript + Bun),将完全接替 Rust
 - BDD:Gherkin→bun:test runner(`tests/bdd/`,~200 行,源自 crystalith 移植);
   带 `@executable` 标签的场景必须可被 `bun test tests/bdd` 执行
 - specs 写法:zh-CN Gherkin 关键字(功能/场景/规则),与 `locale: zh-Hans` 一致
+- 门禁 verbosity:`just qa` 默认 L0 静默(只用工具原生安静开关:`bun test
+  --only-failures` / `oxlint --quiet` / `bun run --silent`,每步一行
+  `[check]`/`[pass]` 摘要);`just QA_VERBOSE=2 qa` 全量输出排障。禁止
+  grep/sed 过滤管道作门禁主路径;输出噪音先修根因(如泄漏的 logger、
+  失效的 disable 注释);任何档位失败详情与 exit code 必须完整
 
 ## 语言约定
 
