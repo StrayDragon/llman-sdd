@@ -112,8 +112,8 @@ export function validateCapability(
     push('ERROR', `${cap}/feature`, 'Feature line must carry a title');
   }
 
-  // Parser-level structural errors (mutual exclusion, manual orphan, nested
-  // rule scenarios). Header gates and the MUST-word gate are owned here
+  // Parser-level structural errors (mutual exclusion, removed-tag migration,
+  // nested rule scenarios). Header gates and the MUST-word gate are owned here
   // (mapped below), so the parser's duplicate findings are skipped.
   const OWNED_BY_THIS_LAYER = ['missing-header:', 'rule:missing-must-word'];
   for (const err of doc.errors) {
@@ -180,7 +180,7 @@ export function validateCapability(
         push(
           'INFO',
           coveragePath(cap),
-          `rule ${rid} is pending: no @executable acceptance scenario and no @manual waiver`,
+          `rule ${rid} is pending: no @executable acceptance scenario`,
         );
       }
     }

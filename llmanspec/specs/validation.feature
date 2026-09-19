@@ -11,7 +11,7 @@
 
   @req:r12 @human
   场景: 规则域(种子缺陷判定)
-    - 缺 `# capability:` 头注释 MUST 判 ERROR;@human 规则场景描述不含 MUST/SHALL(或 必须/不得/禁止)MUST 判 ERROR;@human 场景未携带 @req 标签 MUST 判 ERROR;@human 与 @executable 同用 MUST 判 ERROR;@manual 无 @human MUST 判 ERROR;跨 specs 全局重复 req_id MUST 对每个涉事 capability 判 ERROR;`# scope:` 声明的路径 MUST 在磁盘存在,缺失判 ERROR。staleness(git scope 漂移)SHALL 在 change 生命周期阶段接入,本能力不判定。
+    - 缺 `# capability:` 头注释 MUST 判 ERROR;@human 规则场景描述不含 MUST/SHALL(或 必须/不得/禁止)MUST 判 ERROR;@human 场景未携带 @req 标签 MUST 判 ERROR;@human 与 @executable 同用 MUST 判 ERROR;残留 @manual tag MUST 判迁移 ERROR(0.3.0 起移除);跨 specs 全局重复 req_id MUST 对每个涉事 capability 判 ERROR;`# scope:` 声明的路径 MUST 在磁盘存在,缺失判 ERROR。staleness(git scope 漂移)SHALL 在 change 生命周期阶段接入,本能力不判定。
 
   @req:r12 @executable
   场景: 种子缺陷被判 FAIL

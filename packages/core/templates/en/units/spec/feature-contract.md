@@ -25,5 +25,5 @@ It is the only spec artifact — there is no `spec.toon`.
 - Header comments (`# capability:` / `# purpose:` / `# scope:`) are REQUIRED; `scope` drives staleness.
 - `@human` scenarios are human-owned constraints; their description carries the normative statement verbatim. Editing/removing them yields a WARNING only (report-only, never blocks a gate) — compare via git branch diff; the legacy lock-ack metadata `rules_touched` / `agent_acked` / `@agent` is removed with no aliases and no compat layer (locked rules are report-only: a warning, never a block).
 - `@executable` scenarios are runner-bound acceptance; they link rules via `@req:<req_id>`.
-- Coverage tiers: enforced (has acceptance) / manual (`@manual`) / pending. `list --specs` reports all three.
+- Coverage tiers: enforced (has acceptance) / pending. `list --specs` reports both.
 - Scenarios MUST stay top-level: `Rule:` blocks are rejected (the runner skips them silently).

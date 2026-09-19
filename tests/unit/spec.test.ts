@@ -72,19 +72,28 @@ describe('parseCapability', () => {
     expect(doc.errors.map((e) => e.code)).toContain('rule:missing-must-word');
   });
 
-  test('@human and @executable are mutually exclusive; @manual requires @human', () => {
+  test('@human and @executable are mutually exclusive; residual @manual is a migration ERROR', () => {
     const src = `${HUMAN_RULE('r1')}
   @req:r1 @human @executable
   场景: 互斥违规
     - 必须 x
 
   @manual
-  场景: 孤儿 manual
+  场景: 残留 manual
     - 人工检查
+
+  @req:r1 @human @manual
+  场景: 与 human 同用的残留 manual
+    - 必须 人工评审 x
 `;
-    const codes = parseCapability(src).errors.map((e) => e.code);
+    const doc = parseCapability(src);
+    const codes = doc.errors.map((e) => e.code);
     expect(codes).toContain('tag:mutually-exclusive');
-    expect(codes).toContain('tag:manual-orphan');
+    // removed in 0.3.0: the tag itself is rejected, with or without @human
+    expect(codes.filter((c) => c === 'tag:manual-removed')).toHaveLength(2);
+    expect(doc.errors.find((e) => e.code === 'tag:manual-removed')?.message).toContain(
+      'removed in 0.3.0',
+    );
   });
 
   test('Rule-block nested scenarios are rejected', () => {

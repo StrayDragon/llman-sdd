@@ -19,7 +19,6 @@ export interface ScenarioIR {
   /** `@req:rN` links, normalized to `rN`. */
   reqIds: string[];
   classification: ScenarioClassification;
-  manual: boolean;
   /** Rule statement (description lines, trimmed) + step texts for executables. */
   statement: string;
   stepCount: number;

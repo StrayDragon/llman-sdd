@@ -10,7 +10,6 @@ import { pad } from './collect.ts';
 export interface SpecMorphology {
   ruleCount: number;
   ruleEnforcedCount: number;
-  ruleManualCount: number;
   rulePendingCount: number;
   acceptanceCount: number;
   orphanAcceptanceCount: number;
@@ -36,7 +35,6 @@ function morphologyOf(doc: CapabilityDoc): SpecMorphology {
   return {
     ruleCount: rules.length,
     ruleEnforcedCount: enforced.length,
-    ruleManualCount: rules.filter((r) => r.manual).length,
     rulePendingCount: rules.length - enforced.length,
     acceptanceCount: acceptance.length,
     orphanAcceptanceCount: orphan.length,
@@ -68,7 +66,7 @@ export function renderSpecsList(summaries: readonly SpecSummary[]): string[] {
   for (const s of summaries) {
     const m = s.morphology;
     lines.push(
-      `  ${pad(s.id, idWidth)}rules ${m.ruleCount}  enforced ${m.ruleEnforcedCount}  manual ${m.ruleManualCount}  pending ${m.rulePendingCount}  acceptance ${m.acceptanceCount}`,
+      `  ${pad(s.id, idWidth)}rules ${m.ruleCount}  enforced ${m.ruleEnforcedCount}  pending ${m.rulePendingCount}  acceptance ${m.acceptanceCount}`,
     );
   }
   return lines;

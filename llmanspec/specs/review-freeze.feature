@@ -7,13 +7,13 @@
 
   @req:r23 @human
   场景: review 五信号聚合合同
-    - `review` MUST 输出 signals 数组,元素字段 MUST 为 kind/capability/count/detail;kind MUST 覆盖 pending(规则无匹配验收)、manual、unbound(v1 孤儿语义:无 @req 链接的验收场景)、stale(v1 语义:基于 base-ref/scope 的真实 staleness 计算)、locked(恒 0)、validate(sweep FAIL 汇总;v1 快照内部 sweep 的恒失败缺陷不复制);JSON MUST 含 summary{criticalCount, warningCount},warningCount MUST 等于 pending 总数,criticalCount MUST 等于 sweep FAIL 的 capability 数;退出码 MUST 仅在 criticalCount > 0 时非零;`--capability` MUST 限定单一 capability;`--export-html <path>` MUST 写出自包含 HTML 报告。
+    - `review` MUST 输出 signals 数组,元素字段 MUST 为 kind/capability/count/detail;kind MUST 覆盖 pending(规则无匹配验收)、unbound(v1 孤儿语义:无 @req 链接的验收场景)、stale(v1 语义:基于 base-ref/scope 的真实 staleness 计算)、locked(恒 0)、validate(sweep FAIL 汇总;v1 快照内部 sweep 的恒失败缺陷不复制);JSON MUST 含 summary{criticalCount, warningCount},warningCount MUST 等于 pending 总数,criticalCount MUST 等于 sweep FAIL 的 capability 数;退出码 MUST 仅在 criticalCount > 0 时非零;`--capability` MUST 限定单一 capability;`--export-html <path>` MUST 写出自包含 HTML 报告。
 
   @req:r23 @executable
   场景: v2 review 信号形状合法
     假如 本仓库的真实 llmanspec 工作区
     当 v2 运行 review
-    那么 signals 覆盖六种 kind
+    那么 signals 覆盖五种 kind
     而且 summary 含 criticalCount 与 warningCount
     而且 退出码与 criticalCount 一致
 
@@ -34,13 +34,13 @@
 
   @req:r33 @human
   场景: review --capability 过滤口径
-    - `review --capability <C>` MUST 将 pending/manual/unbound/stale 四类信号限定为 C(其余 capability 的信号 MUST NOT 输出),locked 与 validate 汇总 MUST 保持全局口径,退出码语义不变;`--json` 输出 MUST 同样过滤;未提供 `--capability` 时 MUST 保持全量信号。
+    - `review --capability <C>` MUST 将 pending/unbound/stale 三类信号限定为 C(其余 capability 的信号 MUST NOT 输出),locked 与 validate 汇总 MUST 保持全局口径,退出码语义不变;`--json` 输出 MUST 同样过滤;未提供 `--capability` 时 MUST 保持全量信号。
 
   @req:r33 @executable
   场景: capability 过滤生效
     假如 本仓库的真实 llmanspec 工作区
     当 运行 v2 的 review --json 并限定单一 capability
-    那么 四类信号仅含该 capability 且 locked 与 validate 保持全局
+    那么 三类信号仅含该 capability 且 locked 与 validate 保持全局
 
   @req:r56 @human
   场景: thaw 目的地覆盖

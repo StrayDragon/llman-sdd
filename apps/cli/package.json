@@ -1,6 +1,6 @@
 {
   "name": "@llman-sdd/cli",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Spec-driven development workflow CLI (the `llman-sdd` command)",
   "license": "MIT",
   "repository": {
