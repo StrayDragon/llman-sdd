@@ -1375,12 +1375,17 @@ function commandChain(argv: string[]): string {
   let chain = '';
   let rest = argv.slice(2);
   while (rest.length > 0) {
-    const child = node.commands.find((c) => c.name() === rest[0]);
+    let child: Command | undefined;
+    for (const cmd of node.commands) {
+      if (cmd.name() === rest[0]) {
+        child = cmd;
+        break;
+      }
+    }
     if (child === undefined) break;
     chain += ` ${child.name()}`;
     node = child;
     rest = rest.slice(1);
-    // eslint-disable-next-line no-loop-func
   }
   return chain;
 }
