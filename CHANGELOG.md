@@ -2,6 +2,16 @@
 
 本项目遵循语义化版本（SemVer）。breaking 变更随大版本/次版本标注迁移说明。
 
+## 0.3.1 (2026-09-19)
+
+修复 0.3.0 的发布缺陷：升版本号时未刷新 `bun.lock` 的工作区版本，`bun publish`
+把 `@llman-sdd/cli@0.3.0` 的依赖解析为 `@llman-sdd/core@0.2.0`，导致 npm 安装的
+CLI 启动即崩（`loadTreeWithAutoRebuild` 导出不存在）。**npm 上的 0.3.0 请勿使用**；
+v0.3.0 的 GitHub 单二进制产物不受影响（源码内嵌，不经 npm 依赖解析）。
+
+0.3.1 将工作区版本对齐并刷新 lockfile，`@llman-sdd/cli@0.3.1` 依赖
+`@llman-sdd/core@0.3.1`。功能内容与 0.3.0 完全一致，见下方 0.3.0 条目。
+
 ## 0.3.0 (2026-09-19)
 
 **breaking**：移除 `@manual` tag 豁免语义（never fully implemented — 三处实现互不一致，
