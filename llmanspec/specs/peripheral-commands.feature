@@ -22,7 +22,7 @@
 
   @req:r61 @human
   场景: change id 前缀解析
-    - `show` 与 `validate <item>` 的 change id 解析 MUST 按 v1 r112 优先级链:exact match 优先于前缀;唯一前缀命中 MUST 解析到该 change,且人读输出 MUST 向 stderr 打 `'input' -> 'resolved' (prefix match)` 提示;多个前缀命中 MUST 报错并列出全部候选,退出码非零;无匹配 MUST 报 change not found;解析 MUST 大小写敏感;JSON 的 matchedViaPrefix MUST 如实上报(exact 为 false,前缀命中为 true);spec id 的精确匹配 MUST 优先于同前缀 change id(不被劫持)。
+    - `show`、`validate <item>` 与 `change start/attach/diff/finalize/archive` 的 change id 解析 MUST 按 v1 r112 优先级链:exact match 优先于前缀;唯一前缀命中 MUST 解析到该 change,且人读输出 MUST 向 stderr 打 `'input' -> 'resolved' (prefix match)` 提示;多个前缀命中 MUST 报错并列出全部候选,退出码非零;无匹配 MUST 报 change not found;解析 MUST 大小写敏感;JSON 的 matchedViaPrefix MUST 如实上报(exact 为 false,前缀命中为 true);spec id 的精确匹配 MUST 优先于同前缀 change id(不被劫持);共享解析器不含归档兜底(v1 的 archived 回退与 did-you-mean 有意不移植)。`graph` 种子 MUST 支持前缀解析,但走其自有口径:精确 > 活跃唯一前缀 > 归档唯一前缀,多命中/无命中按 graph not found 报错——归档兜底为 graph 特有。
 
   @req:r61 @executable
   场景: 唯一前缀解析生效

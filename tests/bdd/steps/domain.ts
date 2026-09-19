@@ -1716,3 +1716,40 @@ bdd.thenStep('解析到 c2805-update-todo 且 stderr 含 prefix match 提示', (
     throw new Error(`resolved id not used in output: ${r.stdout}`);
   }
 });
+
+// ---------------------------------------------------------------------------
+// r62 — context index lazy refresh (acceptance)
+// ---------------------------------------------------------------------------
+
+bdd.given('一个含 specs 但无 .context 索引的临时仓库', (ctx) => {
+  const root = mkdtempSync(join(tmpdir(), 'llman-ctx-'));
+  const specsDir = join(root, 'llmanspec', 'specs');
+  mkdirSync(specsDir, { recursive: true });
+  writeFileSync(
+    join(specsDir, 'demo.feature'),
+    '# language: zh-CN\n# capability: demo\n# purpose: p\n# scope: .\n\n功能: demo\n\n  @req:r1 @human\n  场景: 规则\n    - 系统 MUST x\n',
+  );
+  ctx.fixtures['ctx仓库'] = { root };
+});
+
+bdd.when('运行 context 查询', (ctx) => {
+  const { root } = ctx.fixtures['ctx仓库'] as { root: string };
+  const proc = spawnSync('bun', [CLI, 'context', '--paths', 'llmanspec/specs'], {
+    cwd: root,
+    encoding: 'utf8',
+  });
+  ctx.fixtures['ctx结果'] = { stdout: proc.stdout ?? '', status: proc.status ?? 1 };
+});
+
+bdd.thenStep('索引被自动重建且不因 missing 返回 unavailable', (ctx) => {
+  const { root } = ctx.fixtures['ctx仓库'] as { root: string };
+  const r = ctx.fixtures['ctx结果'] as { stdout: string; status: number };
+  if (r.status !== 0) throw new Error(`context exited non-zero: ${r.stdout}`);
+  if (!existsSync(join(root, 'llmanspec', '.context', 'pageindex', 'tree.json'))) {
+    throw new Error('tree.json was not auto-rebuilt');
+  }
+  const parsed = JSON.parse(r.stdout) as { status?: { errorKind?: string } };
+  if (parsed.status?.errorKind === 'index_rebuild_failed') {
+    throw new Error(`unexpected rebuild failure: ${r.stdout}`);
+  }
+});

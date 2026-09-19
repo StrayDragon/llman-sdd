@@ -1,8 +1,10 @@
+import { readBinding } from '../change/frontmatter.ts';
 /**
  * Change-domain validation (v1 `commands/validate.rs` change path parity):
  * frontmatter/depends_on gates, design/tasks constraints, completeness stage
  * INFO, pattern gate and task gates. IO + git injected (pure).
  */
+import type { GitLike } from '../git/spawnGit.ts';
 
 export type ChangeIssueLevel = 'ERROR' | 'WARNING' | 'INFO';
 
@@ -111,18 +113,21 @@ const COMPLETENESS: Record<string, string> = {
     "Change is in 'designed' stage (next: add tasks.md to reach 'planned', then `llman sdd change start` to enter feature branch and reach 'full')",
   planned:
     "Change is in 'planned' stage (next: `llman sdd change start` to enter feature branch and reach 'full')",
+  full: "Change is bound and stage is 'full' (verify readiness via `llman sdd show <id> --json` readyToImplement)",
 };
 
 /**
  * File-aware change validation with v1 messages/paths (used by the validate
  * command). `strict` escalates WARNING issues to ERROR (v1 build_report).
+ * `git` (optional) enables the r63 completeness WARNINGs — Full-not-ready
+ * with skill guidance, per change.
  */
 export function validateChange(
   io: ChangeFsIoLite,
   root: string,
   id: string,
   config: ChangeValidationConfig,
-  opts: { stage?: StageGate; strict?: boolean } = {},
+  opts: { stage?: StageGate; strict?: boolean; git?: GitLike } = {},
 ): ChangeCheckResult {
   const issues: ChangeIssue[] = [];
   const push = (level: ChangeIssueLevel, path: string, message: string): void => {
@@ -206,7 +211,15 @@ export function validateChange(
 
     const hasDesign = io.exists(`${dir}design.md`);
     const hasTasks = io.exists(`${dir}tasks.md`);
-    const stage = hasDesign && hasTasks ? 'planned' : hasDesign ? 'designed' : 'draft';
+    const binding = readBinding(text);
+    const stage =
+      hasDesign && hasTasks
+        ? binding !== null
+          ? 'full'
+          : 'planned'
+        : hasDesign
+          ? 'designed'
+          : 'draft';
 
     if (hasTasks && !hasDesign) {
       push(
@@ -239,6 +252,24 @@ export function validateChange(
 
     // completeness INFO (v1 surface).
     push('INFO', 'completeness', COMPLETENESS[stage] ?? '');
+
+    // r63: Full-but-not-ready WARNING with skill guidance (v1 r1 surface).
+    if (opts.git !== undefined && binding !== null && stage === 'full') {
+      const needs =
+        text.match(/^needs_specs_change:\s*(true|false)\s*$/mu)?.[1] !== undefined
+          ? text.match(/^needs_specs_change:\s*(true|false)\s*$/mu)?.[1] === 'true'
+          : true;
+      const touched =
+        opts.git.runOpt(['diff', '--name-only', `${binding.baseBranch}...${binding.branch}`]) ?? '';
+      const landed = touched.includes('llmanspec/specs/');
+      if (!landed && needs) {
+        push(
+          'WARNING',
+          'proposal.md',
+          `specs not landed: change bound to \`${binding.branch}\` but no changes under \`llmanspec/specs/\` on its bound branch. Edit live specs there and commit (or set \`needs_specs_change: false\` if this change has no live contract edits). Skill: llman-sdd-propose — do NOT re-run change start when already attached; apply only when \`llman-sdd show <id> --json\` reports readyToImplement=true (llman-sdd-apply).`,
+        );
+      }
+    }
   }
 
   // pattern gate (v1 change-id path).

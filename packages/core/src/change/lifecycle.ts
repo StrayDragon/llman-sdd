@@ -184,6 +184,14 @@ export function finalizeChange(
   if (binding === null) {
     throw new LifecycleError(`change \`${id}\` has no branch binding — run start/attach first`);
   }
+  // r15 (v1 r94): finalize runs on the bound branch — any other branch must
+  // fail before any write (no switch, no merge, no rename).
+  const current = currentBranch(git);
+  if (current !== binding.branch) {
+    throw new LifecycleError(
+      `finalize must run on the bound branch \`${binding.branch}\` (current: ${current ?? 'detached HEAD'})`,
+    );
+  }
   const method = opts.method ?? 'squash';
   const target = opts.into ?? binding.baseBranch ?? defaultBranch(git);
   return mergeRenameCommit(git, io, id, binding.branch, target, method, opts.today, opts.noCommit);

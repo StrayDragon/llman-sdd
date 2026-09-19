@@ -8,9 +8,12 @@ import {
   buildReview,
   collectChanges,
   collectSpecs,
+  currentBranch,
+  defaultBranch,
   discoverSpecs,
   embeddedTemplates,
   graphMermaid,
+  loadTreeWithAutoRebuild,
   makeEmbeddedTemplateIo,
   morphologyOfScenarios,
   nextReqId,
@@ -18,7 +21,6 @@ import {
   deriveChangeId,
   finalizeChange,
   loadConfig,
-  loadTree,
   newChange,
   renderChangesJson,
   runContextRetrieval,
@@ -105,6 +107,42 @@ function cliMaxScanDepth(): number {
     process.exit(1);
   }
   return n;
+}
+
+/**
+ * r61: shared v1-r112 change id resolution for every change-taking command.
+ * Emits the `(prefix match)` hint on stderr and exits with the resolver's
+ * error message when resolution fails; returns null after reporting.
+ */
+function resolveChangeIdOrExit(
+  input: string,
+  opts: { suppressHint?: boolean } = {},
+): { id: string; viaPrefix: boolean } | null {
+  try {
+    const resolved = resolveChangeId(makeIo(process.cwd()), process.cwd(), input, {
+      maxScanDepth: cliMaxScanDepth(),
+    });
+    if (resolved.viaPrefix && opts.suppressHint !== true) {
+      console.error(`'${input}' -> '${resolved.id}' (prefix match)`);
+    }
+    return resolved;
+  } catch (error) {
+    console.error((error as Error).message);
+    process.exitCode = 1;
+    return null;
+  }
+}
+
+/** r63: default-branch dirty live specs — workspace-level guard, once per run. */
+function warnDirtySpecsOnDefaultBranch(): void {
+  const git = makeCliGit(process.cwd());
+  const current = currentBranch(git);
+  if (current === null || current !== defaultBranch(git)) return;
+  const out = git.runOpt(['status', '--porcelain', '--', 'llmanspec/specs']) ?? '';
+  if (out.trim() === '') return;
+  console.error(
+    `[WARNING] llmanspec/specs: live specs dirty on default branch \`${current}\`: do not commit unimplemented contracts to the default branch. Switch to the change's bound branch (or \`llman-sdd change start <id>\`) before editing llmanspec/specs/.`,
+  );
 }
 
 function runValidateSweep(): boolean {
@@ -227,6 +265,7 @@ function specV1Items(opts: { strict?: boolean }): VItem[] {
 
 function changeV1Items(names: string[], opts: { stage?: string; strict?: boolean }): VItem[] {
   const io = makeIo(process.cwd());
+  const git = makeCliGit(process.cwd());
   const config = loadCliConfig();
   const items: VItem[] = [];
   for (const name of names) {
@@ -239,7 +278,7 @@ function changeV1Items(names: string[], opts: { stage?: string; strict?: boolean
         min_completion_ratio: config?.archive?.min_completion_ratio ?? null,
         change_id_pattern: config?.change_id?.pattern ?? null,
       },
-      { stage: opts.stage as never, strict: opts.strict === true },
+      { stage: opts.stage as never, strict: opts.strict === true, git },
     );
     items.push({
       id: name,
@@ -353,6 +392,7 @@ program
         process.exitCode = 1;
         return;
       }
+      warnDirtySpecsOnDefaultBranch();
       if (options.type !== undefined && options.type !== 'change' && options.type !== 'spec') {
         console.error(`invalid --type: ${options.type}`);
         process.exitCode = 1;
@@ -406,20 +446,9 @@ program
         // change single (r61: v1 r112 prefix resolution on the change id)
         const io = makeIo(process.cwd());
         const root = process.cwd();
-        let changeId = item;
-        let viaPrefix = false;
-        try {
-          const resolved = resolveChangeId(io, root, item, { maxScanDepth: cliMaxScanDepth() });
-          changeId = resolved.id;
-          viaPrefix = resolved.viaPrefix;
-        } catch (error) {
-          console.error((error as Error).message);
-          process.exitCode = 1;
-          return;
-        }
-        if (viaPrefix && !options.json) {
-          console.error(`'${item}' -> '${changeId}' (prefix match)`);
-        }
+        const resolved = resolveChangeIdOrExit(item, { suppressHint: options.json === true });
+        if (resolved === null) return;
+        const changeId = resolved.id;
         const res = validateChange(
           io,
           root,
@@ -429,7 +458,11 @@ program
             min_completion_ratio: loadCliConfig()?.archive?.min_completion_ratio ?? null,
             change_id_pattern: loadCliConfig()?.change_id?.pattern ?? null,
           },
-          { stage: options.stage as never, strict: options.strict === true },
+          {
+            stage: options.stage as never,
+            strict: options.strict === true,
+            git: makeCliGit(process.cwd()),
+          },
         );
         const infos = res.issues.filter((i) => i.level === 'INFO');
         if (options.json) {
@@ -442,7 +475,7 @@ program
                 issues: res.issues,
                 durationMs: 0,
                 staleness: notApplicableStaleness(),
-                matchedViaPrefix: viaPrefix,
+                matchedViaPrefix: resolved.viaPrefix,
               },
             ],
             options.compactJson === true,
@@ -560,13 +593,15 @@ change
     'feature branch prefix (default: sdd.branch_prefix config, then sdd/)',
   )
   .action((id: string, options: { branchPrefix?: string }) => {
+    const resolved = resolveChangeIdOrExit(id);
+    if (resolved === null) return;
     const git = makeCliGit(process.cwd());
     const config = loadCliConfig();
-    const result = startChange(git, makeIo(process.cwd()), id, {
+    const result = startChange(git, makeIo(process.cwd()), resolved.id, {
       branchPrefix: options.branchPrefix ?? config?.sdd?.branch_prefix ?? 'sdd/',
     });
     console.log(
-      `started change \`${id}\` → branch \`${result.branch}\` base \`${result.baseSha}\` base-branch \`${result.baseBranch}\``,
+      `started change \`${resolved.id}\` → branch \`${result.branch}\` base \`${result.baseSha}\` base-branch \`${result.baseBranch}\``,
     );
   });
 
@@ -577,12 +612,14 @@ change
   .option('--force', 'rebind an already attached change to the current branch')
   .option('--base <branch>', 'explicit fork-point branch to record')
   .action((id: string, options: { force?: boolean; base?: string }) => {
-    const result = attachChange(makeCliGit(process.cwd()), makeIo(process.cwd()), id, {
+    const resolved = resolveChangeIdOrExit(id);
+    if (resolved === null) return;
+    const result = attachChange(makeCliGit(process.cwd()), makeIo(process.cwd()), resolved.id, {
       force: options.force,
       base: options.base,
     });
     console.log(
-      `attached change \`${id}\` → branch \`${result.branch}\` base \`${result.baseSha}\` base-branch \`${result.baseBranch}\``,
+      `attached change \`${resolved.id}\` → branch \`${result.branch}\` base \`${result.baseSha}\` base-branch \`${result.baseBranch}\``,
     );
   });
 
@@ -623,10 +660,13 @@ change
       options: { into?: string; method?: string; dryRun?: boolean; force?: boolean },
     ) => {
       if (options.method !== undefined && options.method !== 'squash' && options.method !== 'ff') {
-        console.error(`invalid --method \`${options.method}\` (squash | ff)`);
+        console.error(`invalid --method: ${options.method}`);
         process.exitCode = 1;
         return;
       }
+      const resolved = resolveChangeIdOrExit(id);
+      if (resolved === null) return;
+      id = resolved.id;
       const io = makeIo(process.cwd());
       if (options.dryRun) {
         const date = new Date().toISOString().slice(0, 10);
@@ -677,6 +717,9 @@ change
   .option('--json', 'emit {change, branch, base, commitCount}')
   .option('--export-patch <path>', 'write the diff to a file instead of stdout')
   .action((id: string, options: { json?: boolean; exportPatch?: string }) => {
+    const resolved = resolveChangeIdOrExit(id);
+    if (resolved === null) return;
+    id = resolved.id;
     const git = makeCliGit(process.cwd());
     if (options.json) {
       const info = changeDiffInfo(git, makeIo(process.cwd()), id);
@@ -721,6 +764,9 @@ change
           return;
         }
       }
+      const resolved = resolveChangeIdOrExit(id);
+      if (resolved === null) return;
+      id = resolved.id;
       const config = loadCliConfig();
       const method = options.method ?? config?.sdd?.merge_method ?? 'squash';
       const result = finalizeChange(makeCliGit(process.cwd()), makeIo(process.cwd()), id, {
@@ -836,22 +882,10 @@ program
 
     // ---- change ----
     // r61: v1 r112 prefix chain — exact > unique prefix > multiple > not found.
-    let changeId = item;
-    let viaPrefix = false;
-    try {
-      const resolved = resolveChangeId(makeIo(process.cwd()), process.cwd(), item, {
-        maxScanDepth: cliMaxScanDepth(),
-      });
-      changeId = resolved.id;
-      viaPrefix = resolved.viaPrefix;
-    } catch (error) {
-      console.error((error as Error).message);
-      process.exitCode = 1;
-      return;
-    }
-    if (viaPrefix && !asJson) {
-      console.error(`'${item}' -> '${changeId}' (prefix match)`);
-    }
+    const resolved = resolveChangeIdOrExit(item, { suppressHint: asJson });
+    if (resolved === null) return;
+    const changeId = resolved.id;
+    const viaPrefix = resolved.viaPrefix;
     const proposal = readFileSync(join('llmanspec', 'changes', changeId, 'proposal.md'), 'utf8');
     if (asJson) {
       // v1 parse_change gates: Why first, then What Changes (json only).
@@ -1361,16 +1395,26 @@ program
       return;
     }
     const config = resolveChatConfig(process.env as Record<string, string | undefined>);
+    // r62: lazy refresh runs BEFORE the chat-model gate (v1 r97 — the index
+    // self-heals even when retrieval subsequently fails with api_error).
+    const refresh = loadTreeWithAutoRebuild(
+      makeIo(process.cwd()),
+      'llmanspec/specs',
+      loadSpecEntries(),
+      { chatModel: process.env.LLMAN_SDD_INDEX_CHAT_MODEL ?? '' },
+    );
+    if (refresh.tree === null || refresh.error !== null) {
+      const failed = unavailableResult();
+      failed.status.errorKind = 'index_rebuild_failed';
+      failed.status.qualityNote =
+        refresh.error ?? 'index rebuild failed — run `llman-sdd index rebuild`';
+      console.log(JSON.stringify(failed, null, 2));
+      return;
+    }
+    const tree = refresh.tree;
     if (config === null) {
       // v1 parity: unavailable/error JSON on stdout, exit 0.
       console.log(JSON.stringify(unavailableResult(), null, 2));
-      return;
-    }
-    const tree = loadTree(makeIo(process.cwd()));
-    if (tree === null) {
-      const missing = unavailableResult();
-      missing.status.qualityNote = 'index missing — run `llman-sdd index rebuild` first';
-      console.log(JSON.stringify(missing, null, 2));
       return;
     }
     const result = await runContextRetrieval({
