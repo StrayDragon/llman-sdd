@@ -2,17 +2,18 @@
 
 llman-sdd:spec 驱动开发(SDD)工作流 CLI(monorepo:`packages/core` 纯域逻辑 + `apps/cli` commander 入口),由 llman SDD 自身管理开发(见 `llmanspec/`)。
 
-## 命令入口:`llman-sdd` / `llmanspec` / `llman sdd` 的区别
+## 命令入口:锚定 `llman-sdd` 单一口径
 
 | 入口              | 状态        | 何时使用                                                                                                                                      |
 | ----------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | `llman-sdd <cmd>` | ✅ 主命令   | 日常使用一律用它(来自 `npm i -g @llman-sdd/cli`)                                                                                              |
-| `llmanspec <cmd>` | ✅ 等价别名 | 与 `llman-sdd` 同一二进制,按习惯选用                                                                                                          |
 | `llman sdd <cmd>` | 🔁 自动委托 | 旧版 Rust llman 的 muscle-memory 入口;非内置命令,经 llman 的 `llman-*` 外部发现转发给 `llman-sdd`(argv 原样转发、退出码透传),未安装时报找不到 |
 
 > 说明:旧版 llman(v0.0.79 起)已移除内置 `sdd` 子命令,`llman sdd <args>` 未命中内置命令时
 > 走 git 风格外部子命令机制(cli.feature r56)自动委托给 PATH 上的 `llman-sdd`——
 > 与直接输入 `llman-sdd` 等效。
+> 历史别名 `llmanspec` 已移除(npm 0.2.0 仍随附,随下一个发布消失):脚本/文档/CI 一律写 `llman-sdd`;
+> `llmanspec/` **目录名**不变,零迁移。
 
 ## 常用命令
 
@@ -49,4 +50,4 @@ bun run build      # CLI 单二进制(apps/cli/dist/)
 
 ## 发布
 
-tag(`vX.Y.Z`)触发 `.github/workflows/release.yml`:`--compile` 五平台二进制(含 sha256)+ npm 三包(`@llman-sdd/core` + `@llman-sdd/cli` + `llmanspec` alias)。版本 SSOT 是 git tag。
+tag(`vX.Y.Z`)触发 `.github/workflows/release.yml`:`--compile` 五平台二进制(含 sha256)+ npm 两包(`@llman-sdd/core` + `@llman-sdd/cli`)。版本 SSOT 是 git tag。
