@@ -31,19 +31,34 @@ export { effectiveRunCommand } from '../templates/skills.ts';
 const MARKER_START = '<!-- LLMANSPEC:START -->';
 const MARKER_END = '<!-- LLMANSPEC:END -->';
 
-/** Marker-block update: replace block body if present, else prepend the block. */
+/**
+ * Marker-block update: replace block body if present, else prepend the block.
+ * Formatter-friendly (0.0.78 parity): exactly one blank line after START and
+ * after END; on the END boundary an existing blank line is preserved verbatim
+ * and a missing one is inserted, so repeated updates never accumulate blanks.
+ */
 export function updateFileWithMarkers(content: string, body: string): string {
   if (content === '') {
-    return `${MARKER_START}\n${body}\n${MARKER_END}\n`;
+    return `${MARKER_START}\n\n${body}\n${MARKER_END}\n`;
   }
   const start = content.indexOf(MARKER_START);
   const end = content.indexOf(MARKER_END);
   if (start !== -1 && end !== -1) {
     if (end < start)
       throw new Error('Invalid marker state: end marker appears before start marker.');
-    return `${content.slice(0, start)}${MARKER_START}\n${body}\n${MARKER_END}${content.slice(end + MARKER_END.length)}`;
+    const suffix = content.slice(end + MARKER_END.length);
+    return `${content.slice(0, start)}${MARKER_START}\n\n${body}\n${MARKER_END}${separatorAfterEndMarker(suffix)}`;
   }
-  return `${MARKER_START}\n${body}\n${MARKER_END}\n${content}`;
+  return `${MARKER_START}\n\n${body}\n${MARKER_END}\n\n${content}`;
+}
+
+/** END-boundary suffix, guaranteed blank-line-separated from following content. */
+function separatorAfterEndMarker(suffix: string): string {
+  const br = /^\r?\n/u.exec(suffix);
+  if (br === null) return suffix === '' ? '\n' : `\n\n${suffix}`;
+  const rest = suffix.slice(br[0].length);
+  if (rest === '' || /^\r?\n/u.test(rest)) return suffix;
+  return `${br[0]}${suffix}`;
 }
 
 export const TEMPLATES_ROOT = join(import.meta.dirname, '..', '..', 'templates');

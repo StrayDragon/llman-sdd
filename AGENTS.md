@@ -1,4 +1,5 @@
 <!-- LLMANSPEC:START -->
+
 # LLMAN 规范驱动开发
 
 本项目使用 llman SDD。阅读 `llmanspec/config.yaml` 了解 SDD 命令行为配置，以及 `llmanspec/AGENTS.md` 获取项目附加规则。
@@ -18,4 +19,3 @@ llman-sdd:spec 驱动开发(SDD)工作流 CLI(Bun + TypeScript monorepo)。上�
 - 项目规则与技术选型定案:`llmanspec/AGENTS.md`(必读)
 - 常用命令:`just qa`(静态门禁 + 全部测试;默认 L0 静默输出,`just QA_VERBOSE=2 qa` 全量排障)/ `just golden`(golden 四门)/ `just smoke-context`(真实 LLM 冒烟)/ `bun run build`(单二进制)
 - QA 门禁与 capture 契约:`README.md`;过程性结论不落独立文档,强约束一律收敛至 `llmanspec/AGENTS.md`
-
