@@ -11,7 +11,7 @@
 
   @req:r38 @human
   场景: config skills 非交互管理
-    - `config skills`(默认/`--no-interactive`)MUST 打印当前启用集与可用全集(v1 文本形态);`--json` MUST 输出 {enabled, available},available MUST 为六枚举(llman-sdd-continue/llman-sdd-ff/llman-sdd-validate/llman-sdd-arch-review/llman-sdd-wayfinder/llman-sdd-research);`--set`/`--unset` MUST NOT 存在于 flag 面(未知选项按 v1 语义 rc=2 报错,不产生任何写回)。
+    - `config skills` 缺省(无输出 flag)MUST 输出 TOON({enabled, available} 同载荷)且 MUST 支持 `--output <toon|json|human>`;`--output human`(及 `--no-interactive`)MUST 打印当前启用集与可用全集(v1 文本形态);`--json` MUST 输出 {enabled, available},available MUST 为六枚举(llman-sdd-continue/llman-sdd-ff/llman-sdd-validate/llman-sdd-arch-review/llman-sdd-wayfinder/llman-sdd-research);`--set`/`--unset` MUST NOT 存在于 flag 面(未知选项按 v1 语义 rc=2 报错,不产生任何写回)。
 
   @req:r37 @executable
   场景: config 概览只读

@@ -1,3 +1,4 @@
+import { renderMachine } from '../render/machine.ts';
 /**
  * Specs listing (peripheral-commands capability, r20/r21): morphology counts
  * aligned with v1 — rules = @human scenarios; enforced = rules carrying an
@@ -81,6 +82,9 @@ export function renderSpecsList(summaries: readonly SpecSummary[]): string[] {
   return lines;
 }
 
-export function renderSpecsJson(summaries: readonly SpecSummary[]): string {
-  return JSON.stringify(summaries, null, 2);
+export function renderSpecsJson(
+  summaries: readonly SpecSummary[],
+  mode: 'json' | 'compact-json' | 'toon' = 'json',
+): string {
+  return renderMachine(summaries, mode);
 }

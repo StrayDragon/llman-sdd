@@ -12,6 +12,7 @@ import {
   defaultBranch,
   discoverSpecs,
   embeddedTemplates,
+  graphData,
   graphMermaid,
   loadTreeWithAutoRebuild,
   makeEmbeddedTemplateIo,
@@ -63,6 +64,7 @@ import {
   planDedupe,
   resolveReq,
   renderConfigOverview,
+  renderMachine,
   skillsJson,
   type StalenessInfo,
   type ChangeIssue,
@@ -304,6 +306,32 @@ function printStalenessLines(info: StalenessInfo): void {
   for (const note of info.notes) console.log(`Note: ${note}`);
 }
 
+type OutMode = 'toon' | 'json' | 'compact-json' | 'human';
+
+/**
+ * toon-default-output: explicit `--output` wins, then the v1-parity legacy
+ * flags, then the toon default. Legacy `--compact-json` keeps its v1 guard
+ * (must pair with `--json`) — standalone compact goes through `--output`.
+ */
+function resolveOutMode(
+  output: string | undefined,
+  legacyJson: boolean | undefined,
+  legacyCompact: boolean | undefined,
+): OutMode | null {
+  const modes: readonly string[] = ['toon', 'json', 'compact-json', 'human'];
+  if (output !== undefined) {
+    if (!modes.includes(output)) {
+      console.error(`invalid --output: ${output} (toon | json | compact-json | human)`);
+      process.exitCode = 1;
+      return null;
+    }
+    return output as OutMode;
+  }
+  if (legacyCompact) return 'compact-json';
+  if (legacyJson) return 'json';
+  return 'toon';
+}
+
 function renderValidateText(items: VItem[]): void {
   const passed = items.filter((i) => i.valid).length;
   const failed = items.length - passed;
@@ -321,7 +349,7 @@ function renderValidateText(items: VItem[]): void {
   console.log(`Totals: ${passed} passed, ${failed} failed (${items.length} items)`);
 }
 
-function renderValidateJson(items: VItem[], compact: boolean): void {
+function renderValidateReport(items: VItem[], mode: 'json' | 'compact-json' | 'toon'): void {
   const types = [...new Set(items.map((i) => i.type))] as string[];
   const summary = {
     totals: {
@@ -342,8 +370,7 @@ function renderValidateJson(items: VItem[], compact: boolean): void {
       {},
     ),
   };
-  const out = JSON.stringify({ items, summary, version: '1.0' }, null, compact ? 0 : 2);
-  console.log(compact ? JSON.stringify(JSON.parse(out)) : out);
+  console.log(renderMachine({ items, summary, version: '1.0' }, mode));
 }
 
 const SPEC_NEXT_STEPS = [
@@ -352,9 +379,9 @@ const SPEC_NEXT_STEPS = [
   '- Re-run with --json to see structured report',
 ];
 const CHANGE_NEXT_STEPS = [
-  '- Edit live single-track specs (`llmanspec/specs/<capability>.feature`) on the feature branch (@human constraints and @executable acceptance share one track, linked via @req); run `llman sdd change start <id>` or `change attach <id>`',
+  '- Edit live single-track specs (`llmanspec/specs/<capability>.feature`) on the feature branch (@human constraints and @executable acceptance share one track, linked via @req); run `llman-sdd change start <id>` or `change attach <id>`',
   '- Ensure proposal.md, design.md (if needed), and tasks.md are complete before apply',
-  '- Debug change state: llman sdd show <id> --json --type change',
+  '- Debug change state: llman-sdd show <id> --json --type change',
 ];
 
 program
@@ -369,6 +396,8 @@ program
   .option('--strict', 'warnings also make the exit code non-zero')
   .option('--json', 'emit {items:[{id,type,valid,issues}]}')
   .option('--compact-json', 'single-line --json (requires --json)')
+  .option('--include-info', 'keep INFO-level issues (default: WARNING and above)')
+  .option('--output <mode>', 'report format: toon (default) | json | compact-json | human')
   .option('--no-check', 'skip the bdd.run_command check (structural validation only)')
   .option('--check', 'run the bdd.run_command check (default when configured; accepted alias)')
   .action(
@@ -383,15 +412,24 @@ program
         strict?: boolean;
         json?: boolean;
         compactJson?: boolean;
+        includeInfo?: boolean;
+        output?: string;
         noCheck?: boolean;
         check?: boolean;
       },
     ) => {
-      if (options.compactJson && !options.json) {
+      if (options.compactJson && !options.json && options.output === undefined) {
         console.error('--compact-json requires --json');
         process.exitCode = 1;
         return;
       }
+      const outMode = resolveOutMode(options.output, options.json, options.compactJson);
+      if (outMode === null) return;
+      // r32: INFO issues are presentation noise — dropped unless opted in.
+      // Filtering never touches `valid`, summaries, or exit codes.
+      const keepInfo = options.includeInfo === true;
+      const stripInfo = <T extends { issues: { level: string }[] }>(it: T): T =>
+        keepInfo ? it : { ...it, issues: it.issues.filter((x) => x.level !== 'INFO') };
       warnDirtySpecsOnDefaultBranch();
       if (options.type !== undefined && options.type !== 'change' && options.type !== 'spec') {
         console.error(`invalid --type: ${options.type}`);
@@ -424,23 +462,24 @@ program
             process.exitCode = 1;
             return;
           }
-          if (options.json) {
-            renderValidateJson([mine], options.compactJson === true);
-            process.exitCode = mine.valid ? 0 : 1;
+          const shown = stripInfo(mine);
+          if (outMode !== 'human') {
+            renderValidateReport([shown], outMode);
+            process.exitCode = shown.valid ? 0 : 1;
             return;
           }
-          if (mine.valid) {
+          if (shown.valid) {
             console.log(`Specification '${item}' is valid`);
           } else {
             console.error(`Specification '${item}' has issues`);
-            for (const issue of mine.issues)
+            for (const issue of shown.issues)
               console.error(`  [${issue.level}] ${issue.path}: ${issue.message}`);
             console.error('Next steps:');
             for (const s of SPEC_NEXT_STEPS) console.error(s);
           }
-          if (mine.type === 'spec') printStalenessLines(mine.staleness);
-          if (!mine.valid) console.error('Error: validation failed');
-          process.exitCode = mine.valid ? 0 : 1;
+          if (shown.type === 'spec') printStalenessLines(shown.staleness);
+          if (!shown.valid) console.error('Error: validation failed');
+          process.exitCode = shown.valid ? 0 : 1;
           return;
         }
         // change single (r61: v1 r112 prefix resolution on the change id)
@@ -465,10 +504,10 @@ program
           },
         );
         const infos = res.issues.filter((i) => i.level === 'INFO');
-        if (options.json) {
-          renderValidateJson(
+        if (outMode !== 'human') {
+          renderValidateReport(
             [
-              {
+              stripInfo({
                 id: changeId,
                 type: 'change',
                 valid: res.valid,
@@ -476,9 +515,9 @@ program
                 durationMs: 0,
                 staleness: notApplicableStaleness(),
                 matchedViaPrefix: resolved.viaPrefix,
-              },
+              }),
             ],
-            options.compactJson === true,
+            outMode,
           );
           process.exitCode = res.valid ? 0 : 1;
           return;
@@ -492,7 +531,9 @@ program
           console.error('Next steps:');
           for (const s of CHANGE_NEXT_STEPS) console.error(s);
         }
-        for (const info of infos) console.error(`[${info.level}] ${info.path}: ${info.message}`);
+        if (keepInfo) {
+          for (const info of infos) console.error(`[${info.level}] ${info.path}: ${info.message}`);
+        }
         if (!res.valid) console.error('Error: validation failed');
         process.exitCode = res.valid ? 0 : 1;
         return;
@@ -516,9 +557,10 @@ program
         );
       }
       items.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : a.type.localeCompare(b.type)));
+      if (!keepInfo) items = items.map(stripInfo);
 
-      if (options.json) {
-        renderValidateJson(items, options.compactJson === true);
+      if (outMode !== 'human') {
+        renderValidateReport(items, outMode);
         if (items.some((i) => !i.valid)) console.error('Error: validation failed');
         process.exitCode = items.some((i) => !i.valid) ? 1 : 0;
         return;
@@ -794,36 +836,57 @@ program
   .option('--specs', 'list specs instead of changes')
   .option('--json', 'machine-readable output')
   .option('--compact-json', 'single-line --json (requires --json)')
+  .option('--output <mode>', 'report format: toon (default) | json | compact-json | human')
   .option('--sort <order>', 'recent (mtime desc, default) | name')
-  .action((options: { specs?: boolean; json?: boolean; compactJson?: boolean; sort?: string }) => {
-    if (options.compactJson && !options.json) {
-      console.error('--compact-json requires --json');
-      process.exitCode = 1;
-      return;
-    }
-    if (options.sort !== undefined && options.sort !== 'recent' && options.sort !== 'name') {
-      console.error(`invalid --sort: ${options.sort}`);
-      process.exitCode = 1;
-      return;
-    }
-    const emit = (text: string): void => {
-      console.log(options.compactJson ? text.replaceAll('\n', '') : text);
-    };
-    if (options.specs) {
-      const summaries = collectSpecs(loadSpecEntries());
-      emit(options.json ? renderSpecsJson(summaries) : renderSpecsList(summaries).join('\n'));
-      return;
-    }
-    let changes = collectChanges(makeIo(process.cwd()), process.cwd(), new Date(), {
-      maxScanDepth: cliMaxScanDepth(),
-    });
-    if (options.sort === 'name') {
-      changes = [...changes].toSorted((a, b) => a.name.localeCompare(b.name));
-    }
-    emit(
-      options.json ? renderChangesJson(changes) : renderChangesList(changes, new Date()).join('\n'),
-    );
-  });
+  .action(
+    (options: {
+      specs?: boolean;
+      json?: boolean;
+      compactJson?: boolean;
+      output?: string;
+      sort?: string;
+    }) => {
+      if (options.compactJson && !options.json && options.output === undefined) {
+        console.error('--compact-json requires --json');
+        process.exitCode = 1;
+        return;
+      }
+      if (options.sort !== undefined && options.sort !== 'recent' && options.sort !== 'name') {
+        console.error(`invalid --sort: ${options.sort}`);
+        process.exitCode = 1;
+        return;
+      }
+      const emit = (text: string): void => {
+        console.log(options.compactJson ? text.replaceAll('\n', '') : text);
+      };
+      if (options.specs) {
+        const summaries = collectSpecs(loadSpecEntries());
+        const specsMode = resolveOutMode(options.output, options.json, options.compactJson);
+        if (specsMode === null) return;
+        emit(
+          specsMode !== 'human'
+            ? renderSpecsJson(summaries, specsMode)
+            : renderSpecsList(summaries).join('\n'),
+        );
+        return;
+      }
+      let changes = collectChanges(makeIo(process.cwd()), process.cwd(), new Date(), {
+        maxScanDepth: cliMaxScanDepth(),
+      });
+      if (options.sort === 'name') {
+        changes = [...changes].toSorted((a, b) => a.name.localeCompare(b.name));
+      }
+      emit(
+        (() => {
+          const changesMode = resolveOutMode(options.output, options.json, options.compactJson);
+          if (changesMode === null) return '';
+          return changesMode !== 'human'
+            ? renderChangesJson(changes, changesMode)
+            : renderChangesList(changes, new Date()).join('\n');
+        })(),
+      );
+    },
+  );
 
 program
   .command('show')
@@ -839,18 +902,43 @@ program
         .map((t) => t.trim())
         .filter((t) => t !== ''),
     );
-    const asJson = outTokens.has('json');
     const asCompact = outTokens.has('compact');
     const metaOnly = outTokens.has('meta-only');
     const noScenarios = outTokens.has('no-scenarios');
     const reqsOnly = outTokens.has('reqs-only');
+    // toon-default-output: no --output → toon; machine modes share the json
+    // gates (Why/What validation) and suppress the prefix hint; `human` is the
+    // sole v1 text form. Legacy modifiers (meta-only/no-scenarios/reqs-only/
+    // deltas/-r) belong to the text face — they route to human (v1 no-op
+    // render semantics preserved).
+    const wantsMachine = outTokens.has('json') || outTokens.has('toon') || asCompact;
+    // no --output at all → toon; explicit legacy-only modifiers → human text
+    const isHuman = options.output !== undefined && (outTokens.has('human') || !wantsMachine);
+    const asJson = !isHuman;
+    const showMode: 'json' | 'compact-json' | 'toon' = asCompact
+      ? 'compact-json'
+      : outTokens.has('json')
+        ? 'json'
+        : 'toon';
     // v1: unknown output tokens are rejected by clap; script consumers rely on
     // the deprecation being a no-op render rather than an error.
+    // Spec 判定与 collectSpecs/discoverSpecs 同口径:扁平文件与目录式
+    // `specs/<cap>/<cap>.feature` 均按 entry 精确 id(capability ?? fileName)
+    // 命中;r25 spec id 精确匹配优先于 change 前缀,不做模糊解析。
+    const specEntry = loadSpecEntries().find(
+      (e) => (e.doc.header.capability ?? e.fileName.replace(/\.feature$/u, '')) === item,
+    );
     const isSpec =
-      options.type === 'spec' || existsSync(join('llmanspec', 'specs', `${item}.feature`));
+      options.type === 'spec' ||
+      existsSync(join('llmanspec', 'specs', `${item}.feature`)) ||
+      specEntry !== undefined;
 
     if (isSpec) {
-      const specPath = join('llmanspec', 'specs', `${item}.feature`);
+      const flatSpecPath = join('llmanspec', 'specs', `${item}.feature`);
+      // discoverSpecs 的 fileName 已是含 specs 目录前缀的相对路径
+      // (如 `llmanspec/specs/<cap>/<cap>.feature`),直接使用。
+      const specPath =
+        specEntry !== undefined && !existsSync(flatSpecPath) ? specEntry.fileName : flatSpecPath;
       if (!existsSync(specPath)) {
         console.error(`spec not found: ${item}`);
         process.exitCode = 1;
@@ -858,13 +946,12 @@ program
       }
       if (asJson) {
         console.log(
-          JSON.stringify(
+          renderMachine(
             renderSpecJson(item, {
               metaOnly,
               noScenarios: noScenarios || reqsOnly,
             }),
-            null,
-            asCompact ? 0 : 2,
+            showMode,
           ),
         );
         return;
@@ -907,7 +994,7 @@ program
         changeId,
         { matchedViaPrefix: viaPrefix },
       );
-      console.log(JSON.stringify(result, null, asCompact ? 0 : 2));
+      console.log(renderMachine(result, showMode));
       return;
     }
     // text: Stage / path / content / Gates trailer (no section gates).
@@ -1019,9 +1106,9 @@ program
   .option('--depth <n>', 'seed BFS depth (default: 1)')
   .action(
     (change: string | undefined, options: { format: string; scope?: string; depth?: string }) => {
-      if (options.format !== 'mermaid') {
+      if (options.format !== 'mermaid' && options.format !== 'json' && options.format !== 'toon') {
         process.exitCode = 1;
-        throw new Error(`Unsupported format: ${options.format}. Supported: mermaid`);
+        throw new Error(`Unsupported format: ${options.format}. Supported: mermaid | json | toon`);
       }
       const depth = options.depth !== undefined ? Number(options.depth) : undefined;
       if (depth !== undefined && (!Number.isInteger(depth) || depth < 0)) {
@@ -1029,13 +1116,18 @@ program
         process.exitCode = 1;
         return;
       }
-      console.log(
-        graphMermaid(makeIo(process.cwd()), process.cwd(), {
-          scope: options.scope,
-          depth: depth ?? 1,
-          seed: change,
-        }).join('\n'),
-      );
+      const graphOpts = {
+        scope: options.scope,
+        depth: depth ?? 1,
+        seed: change,
+      };
+      if (options.format === 'mermaid') {
+        console.log(graphMermaid(makeIo(process.cwd()), process.cwd(), graphOpts).join('\n'));
+      } else {
+        console.log(
+          renderMachine(graphData(makeIo(process.cwd()), process.cwd(), graphOpts), options.format),
+        );
+      }
     },
   );
 
@@ -1194,50 +1286,55 @@ const review = program
 review
   .option('--capability <capability>', 'restrict the sweep to one capability/spec id')
   .option('--json', 'emit structured JSON (signals + summary)')
+  .option('--output <mode>', 'report format: toon (default) | json | compact-json | human')
   .option('--export-html <path>', 'write a self-contained HTML report')
-  .action((options: { capability?: string; json?: boolean; exportHtml?: string }) => {
-    const config = existsSync('llmanspec/config.yaml')
-      ? loadConfig(readFileSync('llmanspec/config.yaml', 'utf8'))
-      : null;
-    const bindings = config?.bdd?.bindings?.filter((b) => b.kind === 'tags') ?? [];
-    const io = makeIo(process.cwd());
-    const entries = loadSpecEntries();
-    if (options.capability !== undefined) {
-      const known = new Set(
-        entries.map((e) => e.doc.header.capability ?? e.fileName.replace(/\.feature$/u, '')),
-      );
-      if (!known.has(options.capability)) {
-        console.error(`capability \`${options.capability}\` not found`);
-        process.exitCode = 1;
-        return;
+  .action(
+    (options: { capability?: string; json?: boolean; output?: string; exportHtml?: string }) => {
+      const config = existsSync('llmanspec/config.yaml')
+        ? loadConfig(readFileSync('llmanspec/config.yaml', 'utf8'))
+        : null;
+      const bindings = config?.bdd?.bindings?.filter((b) => b.kind === 'tags') ?? [];
+      const io = makeIo(process.cwd());
+      const entries = loadSpecEntries();
+      if (options.capability !== undefined) {
+        const known = new Set(
+          entries.map((e) => e.doc.header.capability ?? e.fileName.replace(/\.feature$/u, '')),
+        );
+        if (!known.has(options.capability)) {
+          console.error(`capability \`${options.capability}\` not found`);
+          process.exitCode = 1;
+          return;
+        }
       }
-    }
-    const activeChanges = collectChanges(io, process.cwd(), new Date());
-    const result = buildReview(
-      {
-        entries,
-        bindings: bindings.map((b) => ({ kind: 'tags', tags: b.tags })),
-        boundChangeCount: activeChanges.filter((c) => c.hasBinding).length,
-        activeChanges,
-        capability: options.capability,
-        git: makeCliGit(process.cwd()),
-        root: process.cwd(),
-        specsDir: 'llmanspec/specs',
-      },
-      io,
-    );
-    if (options.exportHtml !== undefined) {
-      const template = templateIo.readText(join(TEMPLATES_ROOT, 'shared', 'review.html'));
-      writeFileSync(options.exportHtml, renderReviewHtml(template, result));
-      console.log(`wrote ${options.exportHtml}`);
-    }
-    if (options.json) {
-      console.log(JSON.stringify({ signals: result.signals, summary: result.summary }, null, 2));
-    } else {
-      console.log(result.lines.join('\n'));
-    }
-    if (result.exitCode !== 0) process.exitCode = result.exitCode;
-  });
+      const activeChanges = collectChanges(io, process.cwd(), new Date());
+      const result = buildReview(
+        {
+          entries,
+          bindings: bindings.map((b) => ({ kind: 'tags', tags: b.tags })),
+          boundChangeCount: activeChanges.filter((c) => c.hasBinding).length,
+          activeChanges,
+          capability: options.capability,
+          git: makeCliGit(process.cwd()),
+          root: process.cwd(),
+          specsDir: 'llmanspec/specs',
+        },
+        io,
+      );
+      if (options.exportHtml !== undefined) {
+        const template = templateIo.readText(join(TEMPLATES_ROOT, 'shared', 'review.html'));
+        writeFileSync(options.exportHtml, renderReviewHtml(template, result));
+        console.log(`wrote ${options.exportHtml}`);
+      }
+      const outMode = resolveOutMode(options.output, options.json, false);
+      if (outMode === null) return;
+      if (outMode !== 'human') {
+        console.log(renderMachine({ signals: result.signals, summary: result.summary }, outMode));
+      } else {
+        console.log(result.lines.join('\n'));
+      }
+      if (result.exitCode !== 0) process.exitCode = result.exitCode;
+    },
+  );
 
 spec
   .command('add-req')
@@ -1320,11 +1417,14 @@ configCmd
   .description('Manage extra_skills (non-interactive)')
   .option('--json', 'emit {enabled, available}')
   .option('--no-interactive', 'print state instead of launching the interactive picker')
-  .action((options: { json?: boolean }) => {
+  .option('--output <mode>', 'report format: toon (default) | json | compact-json | human')
+  .action((options: { json?: boolean; output?: string; interactive?: boolean }) => {
     const path = 'llmanspec/config.yaml';
     const info = skillsJson(readFileSync(path, 'utf8'));
-    if (options.json) {
-      console.log(JSON.stringify(info, null, 2));
+    const mode = resolveOutMode(options.output, options.json, false);
+    if (mode === null) return;
+    if (mode !== 'human') {
+      console.log(renderMachine(info, mode));
       return;
     }
     const enabled = info.enabled;
@@ -1345,7 +1445,7 @@ function resolveBackend(flag: string | undefined): 'pageindex' {
   const chosen = flag ?? process.env.LLMAN_SDD_INDEX_BACKEND ?? 'pageindex';
   if (chosen === 'rag') {
     throw new Error(
-      'Backend `rag` is no longer supported. Use the default pageindex backend instead:\nSet `LLMAN_SDD_INDEX_CHAT_MODEL` to a tool-calling chat model, then\nrun `llman sdd index rebuild`.',
+      'Backend `rag` is no longer supported. Use the default pageindex backend instead:\nSet `LLMAN_SDD_INDEX_CHAT_MODEL` to a tool-calling chat model, then\nrun `llman-sdd index rebuild`.',
     );
   }
   if (chosen !== 'pageindex') {
@@ -1374,9 +1474,16 @@ indexCmd
 indexCmd
   .command('check')
   .description('Check index freshness without rebuilding')
-  .action(() => {
+  .option('--output <mode>', 'report format: toon (default) | json | compact-json | human')
+  .action((options: { output?: string }) => {
     const result = checkIndexFreshness(makeIo(process.cwd()), 'llmanspec/specs');
-    for (const line of result.lines) console.log(line);
+    const mode = resolveOutMode(options.output, undefined, undefined);
+    if (mode === null) return;
+    if (mode !== 'human') {
+      console.log(renderMachine({ fresh: result.fresh, notes: result.lines }, mode));
+    } else {
+      for (const line of result.lines) console.log(line);
+    }
     if (!result.fresh) process.exitCode = 1;
   });
 

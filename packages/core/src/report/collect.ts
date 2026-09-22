@@ -4,6 +4,7 @@
  */
 import { readBinding } from '../change/frontmatter.ts';
 import { CHANGES_DIR } from '../change/lifecycle.ts';
+import { renderMachine } from '../render/machine.ts';
 
 export interface ChangeFsIo {
   exists(path: string): boolean;
@@ -160,8 +161,11 @@ export function renderChangesList(changes: readonly ChangeSummary[], now: Date):
   return lines;
 }
 
-export function renderChangesJson(changes: readonly ChangeSummary[]): string {
-  return JSON.stringify(
+export function renderChangesJson(
+  changes: readonly ChangeSummary[],
+  mode: 'json' | 'compact-json' | 'toon' = 'json',
+): string {
+  return renderMachine(
     {
       changes: changes.map((c) => ({
         name: c.name,
@@ -174,7 +178,6 @@ export function renderChangesJson(changes: readonly ChangeSummary[]): string {
         status: statusFor(c.totalTasks, c.completedTasks),
       })),
     },
-    null,
-    2,
+    mode,
   );
 }

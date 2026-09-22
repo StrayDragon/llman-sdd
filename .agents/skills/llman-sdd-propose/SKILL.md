@@ -2,7 +2,7 @@
 name: "llman-sdd-propose"
 description: "创建带规划工件（proposal/tasks；先 `change start`/`attach` 完成 Branch binding，再在绑定分支编辑 live specs/feature）的 llman SDD 变更提案。用于 MUST/SHALL 行为合约变更。"
 metadata:
-  version: "0.3.0"
+  version: "0.3.1"
 ---
 
 # LLMAN SDD Propose
@@ -147,6 +147,7 @@ flowchart LR
 ### 4b) 单轨 feature 撰写
 - 规划壳（proposal/design/tasks）可短暂留在默认分支；**不要**在默认分支上编辑 live `llmanspec/specs/**`。Branch binding 之后，Specs landing 与实现都发生在绑定分支上。
 - **单轨**：每个 capability 只有一个 `<capability>.feature`。约束规则是 `@req:<id> @human` 场景（statement 全文放描述）；可执行验收场景带 `@executable` 并用 `@req:<req_id>` 挂回规则。绝不把场景嵌进 `Rule:` 块（runner 会静默跳过其中场景）。
+- **@human/@executable 分流判据**（撰写新条款前先判定）：凡 GWT（假如/当/那么）可表达的自动化判定行为，MUST 落成 `@executable` 验收场景并挂回对应规则——纯文字规则无法守护行为；`@human` 仅用于无法自动化判定的人工约束（流程裁决、审美、外部事实）。新增 `@human` 条款若无可配对的 `@executable` 验收，MUST 在 proposal/design 记录不可执行理由。
 - change 壳：`llman-sdd change new <change-id>` → 填 proposal/design/tasks → `llman-sdd change start <change-id>`（或 `change attach`）→ **然后**在绑定分支编辑 live specs 并 commit（Specs landing）。
 - **不要**使用 `change delta` / solidify / `*.feature.delta.toon`；存在活跃 `*.feature.delta.toon` 或遗留 `spec.toon` 时，先跑 `llman-sdd project migrate --kind toon2features`。
 
@@ -172,6 +173,7 @@ flowchart LR
 2）tag 语法（`@human constraint scenario must carry an @req:<req_id> tag` / `orphan acceptance scenario`）：
 - 规则：`@req:<id> @human` —— statement 放场景描述（须含 MUST/SHALL）。
 - 验收：`@executable` 且至少一个 `@req:<id>` 挂到规则。
+- 配对：新增 `@human` 规则时先做分流判定——凡 GWT 可表达的自动化判定行为 MUST 落 `@executable` 验收并挂回规则（纯文字规则无行为守护）；`@human` 仅用于不可自动化的人工约束，无法配对时在 proposal/design 记录理由。
 - 禁止 `@human` 与 `@executable` 同场景；`@manual` 已在 0.3.0 移除——残留会被报迁移 ERROR，删掉该 tag 即可（`@human` 本身已承载人工判定语义）。
 
 3）遗留 `spec.toon`（`legacy spec.toon found ... run ... toon2features`）：

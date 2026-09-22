@@ -1,6 +1,9 @@
 ---
 depends_on: []
 needs_specs_change: false
+branch: sdd/fix-review-validate-detail
+base_branch: main
+base_sha: f06a67e89e2d1f8f3113cb1a509005e3829a2021
 ---
 
 # 修复 review validate 信号的误导性 detail 文案

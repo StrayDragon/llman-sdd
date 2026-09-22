@@ -175,7 +175,8 @@ export {
   type ChangeStatus,
   type ChangeSummary,
 } from './report/collect.ts';
-export { graphMermaid, type GraphFsIo } from './report/graph.ts';
+export { graphData, graphMermaid, type GraphDataIr, type GraphFsIo } from './report/graph.ts';
+export { renderMachine, type MachineFormat } from './render/machine.ts';
 export { showChangeJson, type ShowDeps, type ShowFsIo } from './report/show.ts';
 export {
   nextReqId,

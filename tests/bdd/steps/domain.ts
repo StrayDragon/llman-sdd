@@ -358,6 +358,45 @@ bdd.given('本仓库的等价 config(zh-Hans 与 bdd 配置)', (ctx) => {
   ctx.fixtures['init'] = { root };
 });
 
+bdd.when('渲染 propose skill 与 validation-hints 单元', (ctx) => {
+  const zhRoot = (ctx.fixtures['init'] as { root: string }).root;
+  runInit(
+    makeNodeIo(zhRoot),
+    { exists: (p) => existsSync(p), readText: (p) => readFileSync(p, 'utf8') },
+    { update: true, version: '0.1.0' },
+  );
+  // en locale 渲染进独立临时目录,断言双 locale 同语义判据
+  const enRoot = mkdtempSync(join(tmpdir(), 'llman-sdd-init-en-'));
+  mkdirSync(join(enRoot, 'llmanspec'), { recursive: true });
+  writeFileSync(join(enRoot, 'llmanspec', 'config.yaml'), 'schema: spec-driven\nlocale: en\n');
+  runInit(
+    makeNodeIo(enRoot),
+    { exists: (p) => existsSync(p), readText: (p) => readFileSync(p, 'utf8') },
+    { update: true, version: '0.1.0' },
+  );
+  ctx.fixtures['配对判据产物'] = {
+    zh: readFileSync(join(zhRoot, '.agents', 'skills', 'llman-sdd-propose', 'SKILL.md'), 'utf8'),
+    en: readFileSync(join(enRoot, '.agents', 'skills', 'llman-sdd-propose', 'SKILL.md'), 'utf8'),
+  };
+});
+
+bdd.thenStep('产物含 @human/@executable 分流判据小节标识', (ctx) => {
+  const r = ctx.fixtures['配对判据产物'] as { zh: string; en: string };
+  if (!r.zh.includes('@human/@executable 分流判据')) {
+    throw new Error('zh-Hans propose render lacks the pairing-triage section');
+  }
+});
+
+bdd.thenStep('zh-Hans 与 en 产物均含该判据', (ctx) => {
+  const r = ctx.fixtures['配对判据产物'] as { zh: string; en: string };
+  if (!r.zh.includes('MUST 落成 `@executable` 验收场景')) {
+    throw new Error('zh-Hans render lacks the triage rule body');
+  }
+  if (!r.en.includes('@human/@executable triage')) {
+    throw new Error('en propose render lacks the pairing-triage section');
+  }
+});
+
 bdd.when('v2 渲染全部 skills', (ctx) => {
   const root = (ctx.fixtures['init'] as { root: string }).root;
   runInit(
@@ -1361,7 +1400,10 @@ bdd.given('一个缺 What Changes 段的 change 工作区', (ctx) => {
 
 bdd.when('运行 show', (ctx) => {
   const { root } = ctx.fixtures['show工作区'] as { root: string };
-  const proc = spawnSync('bun', [CLI, 'show', 'gated'], { cwd: root, encoding: 'utf8' });
+  const proc = spawnSync('bun', [CLI, 'show', 'gated', '--output', 'human'], {
+    cwd: root,
+    encoding: 'utf8',
+  });
   ctx.fixtures['show结果'] = {
     beforeCode: proc.status ?? 0,
     beforeOut: `${proc.stdout ?? ''}${proc.stderr ?? ''}`,
@@ -1386,7 +1428,10 @@ bdd.when('补齐 What Changes 后再运行 show', (ctx) => {
     join(root, 'llmanspec', 'changes', 'gated', 'proposal.md'),
     '---\ndepends_on: []\n---\n\n## Why\nx\n## What Changes\ny\n',
   );
-  const proc = spawnSync('bun', [CLI, 'show', 'gated'], { cwd: root, encoding: 'utf8' });
+  const proc = spawnSync('bun', [CLI, 'show', 'gated', '--output', 'human'], {
+    cwd: root,
+    encoding: 'utf8',
+  });
   ctx.fixtures['show后结果'] = { afterCode: proc.status ?? 1, afterOut: proc.stdout ?? '' };
 });
 
@@ -1422,10 +1467,13 @@ bdd.given('一个含多条规则的 spec 工作区', (ctx) => {
   ctx.fixtures['showspec工作区'] = { root };
 });
 
-bdd.when('运行 show -r 1 与 show --output meta-only', (ctx) => {
+bdd.when('运行 show --output human -r 1 与 show --output human,meta-only', (ctx) => {
   const { root } = ctx.fixtures['showspec工作区'] as { root: string };
-  const req = spawnSync('bun', [CLI, 'show', 'multi', '-r', '1'], { cwd: root, encoding: 'utf8' });
-  const meta = spawnSync('bun', [CLI, 'show', 'multi', '--output', 'meta-only'], {
+  const req = spawnSync('bun', [CLI, 'show', 'multi', '--output', 'human', '-r', '1'], {
+    cwd: root,
+    encoding: 'utf8',
+  });
+  const meta = spawnSync('bun', [CLI, 'show', 'multi', '--output', 'human,meta-only'], {
     cwd: root,
     encoding: 'utf8',
   });
@@ -1698,7 +1746,10 @@ bdd.given('一个含 c2805-update-todo 与 c2806-fix-bug 两个 change 的临时
 
 bdd.when('运行 show c2805', (ctx) => {
   const { root } = ctx.fixtures['prefix仓库'] as { root: string };
-  const proc = spawnSync('bun', [CLI, 'show', 'c2805'], { cwd: root, encoding: 'utf8' });
+  const proc = spawnSync('bun', [CLI, 'show', 'c2805', '--output', 'human'], {
+    cwd: root,
+    encoding: 'utf8',
+  });
   ctx.fixtures['prefix结果'] = {
     stdout: proc.stdout ?? '',
     stderr: proc.stderr ?? '',
@@ -1751,5 +1802,82 @@ bdd.thenStep('索引被自动重建且不因 missing 返回 unavailable', (ctx) 
   const parsed = JSON.parse(r.stdout) as { status?: { errorKind?: string } };
   if (parsed.status?.errorKind === 'index_rebuild_failed') {
     throw new Error(`unexpected rebuild failure: ${r.stdout}`);
+  }
+});
+
+// r32 — INFO-level issue default filtering (acceptance)
+// ---------------------------------------------------------------------------
+
+bdd.given('一个含 pending 规则的有效 spec 工作区', (ctx) => {
+  const repo = makeTempRepo();
+  mkdirSync(join(repo.root, 'llmanspec', 'specs'), { recursive: true });
+  // @human 规则无可执行验收覆盖 → 稳定产生一条 INFO 级 pending 提示,spec 仍 valid
+  writeFileSync(
+    join(repo.root, 'llmanspec', 'specs', 'auth.feature'),
+    '# language: zh-CN\n# capability: auth\n# purpose: p\n# scope: llmanspec/\n\n功能: auth\n\n  @req:r2 @human\n  场景: 规则\n    - 系统 MUST x\n',
+  );
+  repo.run('git', ['add', '-A']);
+  repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'init']);
+  ctx.fixtures['info仓库'] = repo;
+});
+
+bdd.when('运行 validate --all --json 与 validate --all --json --include-info', (ctx) => {
+  const repo = ctx.fixtures['info仓库'] as TempRepo;
+  const def = repo.run('bun', [CLI, 'validate', '--all', '--json', '--no-check']);
+  const full = repo.run('bun', [
+    CLI,
+    'validate',
+    '--all',
+    '--json',
+    '--include-info',
+    '--no-check',
+  ]);
+  ctx.fixtures['info两态'] = {
+    def: { code: def.code, stdout: def.stdout },
+    full: { code: full.code, stdout: full.stdout },
+  };
+});
+
+interface InfoValidateRun {
+  code: number;
+  stdout: string;
+}
+
+bdd.thenStep('缺省输出不含 INFO 级 issue 且 include-info 输出含 INFO 级 issue', (ctx) => {
+  const { def, full } = ctx.fixtures['info两态'] as {
+    def: InfoValidateRun;
+    full: InfoValidateRun;
+  };
+  const parse = (r: InfoValidateRun): { level: string; id: string }[] => {
+    const d = JSON.parse(r.stdout) as {
+      items: { id: string; issues: { level: string }[] }[];
+    };
+    return d.items.flatMap((i) => i.issues.map((issue) => ({ level: issue.level, id: i.id })));
+  };
+  const defIssues = parse(def);
+  const fullIssues = parse(full);
+  if (defIssues.some((i) => i.level === 'INFO')) {
+    throw new Error(`default output must drop INFO issues: ${def.stdout}`);
+  }
+  if (!fullIssues.some((i) => i.level === 'INFO')) {
+    throw new Error(`--include-info must keep INFO issues: ${full.stdout}`);
+  }
+});
+
+bdd.thenStep('两次运行的 valid 判定与退出码一致', (ctx) => {
+  const { def, full } = ctx.fixtures['info两态'] as {
+    def: InfoValidateRun;
+    full: InfoValidateRun;
+  };
+  const validOf = (r: InfoValidateRun): unknown =>
+    (JSON.parse(r.stdout) as { items: { id: string; valid: boolean }[] }).items.map((i) => [
+      i.id,
+      i.valid,
+    ]);
+  if (JSON.stringify(validOf(def)) !== JSON.stringify(validOf(full))) {
+    throw new Error('valid verdicts diverged between default and --include-info runs');
+  }
+  if (def.code !== full.code) {
+    throw new Error(`exit codes diverged: ${def.code} vs ${full.code}`);
   }
 });

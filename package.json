@@ -32,6 +32,7 @@
     "@cucumber/gherkin": "^42.0.1",
     "@cucumber/messages": "^34.2.1",
     "@llman-sdd/core": "workspace:*",
+    "@toon-format/toon": "^4.1.1",
     "@types/bun": "^1.4.2",
     "@types/nunjucks": "^3.2.6",
     "oxfmt": "^0.67.0",

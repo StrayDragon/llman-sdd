@@ -2,6 +2,22 @@
 
 本项目遵循语义化版本（SemVer）。breaking 变更随大版本/次版本标注迁移说明。
 
+## Unreleased (0.4.0)
+
+**breaking**：报告型命令（`review` / `validate` / `list` / `show` / `config skills` /
+`index check`）的**缺省输出从人读文本变更为 TOON**（Token-Oriented Object Notation，
+机器与 LLM 友好的紧凑编码）。变更链：`add-render-layer`（渲染层地基）→
+`filter-info-issues-by-default`（INFO 级 issue 缺省过滤）→ `toon-default-output`。
+
+### 迁移说明（详见 `migrations/v0.3-v0.4/README.md`）
+
+- agent/LLM 消费：直接吃 TOON（省 ~40% token，`[N]{fields}` 结构护栏），或加
+  `--include-info` 恢复 INFO 级 issue 全量
+- 依赖旧人读文本的脚本：追加 `--output human`（唯一 v1 文本形态入口）
+- 需要稳定机器面的脚本：`--json` / `--compact-json` 别名保留，输出结构与退出码
+  保持 v1 字节不变（v1 parity 收窄为别名面）
+- 生命周期命令（`change *` / `init` / `spec *` / `graph` / `project *`）不受影响
+
 ## 0.3.1 (2026-09-19)
 
 修复 0.3.0 的发布缺陷：升版本号时未刷新 `bun.lock` 的工作区版本，`bun publish`

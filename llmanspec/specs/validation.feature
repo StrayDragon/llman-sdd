@@ -25,6 +25,10 @@
   场景: 孤儿验收场景
     - 无任何 @req 链接的 @executable 验收场景 MUST 被 validate 报 WARNING(孤儿验收),path 为 `<capability>/acceptance/<场景名>`;@req 悬空链接(指向不存在规则)维持 ERROR 不变。
 
+  @req:r32 @human
+  场景: INFO 级 issue 缺省过滤
+    - `validate` 的 issues 输出(文本与 `--json` 同口径)缺省 MUST 仅含 WARNING 及以上级别,INFO 级 issue(如 pending 规则提示)MUST NOT 出现;`--include-info` MUST 恢复完整 issues;级别过滤 MUST NOT 影响 valid 判定、summary 计数口径与退出码。
+
   @req:r12 @executable
   场景: 种子缺陷被判 FAIL
     假如 一个含互斥 tag 与重复 req_id 缺陷的 specs 目录
@@ -38,7 +42,7 @@
 
   @req:r47 @human
   场景: validate 目标与模式 flag
-    - `validate` MUST 支持位置参数 `[item]`(spec id 或 change id 自动消歧)、`--all`(全部 changes 与 specs)、`--changes`/`--specs`(限定域)、`--type change|spec`(强制消歧)、`--stage draft|designed|planned|full`(change 域按 v1 产物语义判门:designed 需 design.md、planned 需 design.md+tasks.md、full 另需 tasks.md)、`--strict`(WARNING 按 v1 范围升级为 ERROR 并影响退出)与 `--json`/`--compact-json`(输出 items[].{id,type,valid,issues[].{level,path,message}},staleness,summary{items,passed,failed},version 的 v1 结构);`--specs` 旧 no-op 标记 MUST 废除,域限定语义由 `--changes`/`--specs` 承担。
+    - `validate` MUST 支持位置参数 `[item]`(spec id 或 change id 自动消歧)、`--all`(全部 changes 与 specs)、`--changes`/`--specs`(限定域)、`--type change|spec`(强制消歧)、`--stage draft|designed|planned|full`(change 域按 v1 产物语义判门:designed 需 design.md、planned 需 design.md+tasks.md、full 另需 tasks.md)、`--strict`(WARNING 按 v1 范围升级为 ERROR 并影响退出)与 `--json`/`--compact-json`(输出 items[].{id,type,valid,issues[].{level,path,message}},staleness,summary{items,passed,failed},version 的 v1 结构);`--specs` 旧 no-op 标记 MUST 废除,域限定语义由 `--changes`/`--specs` 承担;`validate` MUST 支持 `--output <toon|json|compact-json|human>` 且缺省输出 TOON(items 与 json 同载荷),`--output human` 输出 v1 人读报告行(含 Totals 收尾与 Next steps 引导),Next steps 引导 MUST 仅出现在 human 模式,stderr 错误摘要(`Error: validation failed`、阶段强制缺失行)不随输出格式变化。
 
   @req:r48 @human
   场景: bdd run_command 占位符替换
@@ -55,3 +59,10 @@
     假如 一个 run_command 含 {feature_name} 占位符的临时仓库
     当 运行 validate --specs
     那么 runner 按目标逐项执行
+
+  @req:r32 @executable
+  场景: INFO 过滤与恢复
+    假如 一个含 pending 规则的有效 spec 工作区
+    当 运行 validate --all --json 与 validate --all --json --include-info
+    那么 缺省输出不含 INFO 级 issue 且 include-info 输出含 INFO 级 issue
+    而且 两次运行的 valid 判定与退出码一致

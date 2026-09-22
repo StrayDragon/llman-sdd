@@ -159,6 +159,7 @@ llman-sdd show <id> --json --type change
 2）tag 语法（`@human constraint scenario must carry an @req:<req_id> tag` / `orphan acceptance scenario`）：
 - 规则：`@req:<id> @human` —— statement 放场景描述（须含 MUST/SHALL）。
 - 验收：`@executable` 且至少一个 `@req:<id>` 挂到规则。
+- 配对：新增 `@human` 规则时先做分流判定——凡 GWT 可表达的自动化判定行为 MUST 落 `@executable` 验收并挂回规则（纯文字规则无行为守护）；`@human` 仅用于不可自动化的人工约束，无法配对时在 proposal/design 记录理由。
 - 禁止 `@human` 与 `@executable` 同场景；`@manual` 已在 0.3.0 移除——残留会被报迁移 ERROR，删掉该 tag 即可（`@human` 本身已承载人工判定语义）。
 
 3）遗留 `spec.toon`（`legacy spec.toon found ... run ... toon2features`）：

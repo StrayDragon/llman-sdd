@@ -108,12 +108,12 @@ export type ChangeValidationConfig = ChangeCheckConfig;
 
 const COMPLETENESS: Record<string, string> = {
   draft:
-    "Change is in 'draft' stage (next: add design.md + tasks.md, then `llman sdd change start <id>` to enter a feature branch)",
+    "Change is in 'draft' stage (next: add design.md + tasks.md, then `llman-sdd change start <id>` to enter a feature branch)",
   designed:
-    "Change is in 'designed' stage (next: add tasks.md to reach 'planned', then `llman sdd change start` to enter feature branch and reach 'full')",
+    "Change is in 'designed' stage (next: add tasks.md to reach 'planned', then `llman-sdd change start` to enter feature branch and reach 'full')",
   planned:
-    "Change is in 'planned' stage (next: `llman sdd change start` to enter feature branch and reach 'full')",
-  full: "Change is bound and stage is 'full' (verify readiness via `llman sdd show <id> --json` readyToImplement)",
+    "Change is in 'planned' stage (next: `llman-sdd change start` to enter feature branch and reach 'full')",
+  full: "Change is bound and stage is 'full' (verify readiness via `llman-sdd show <id> --json` readyToImplement)",
 };
 
 /**
@@ -204,7 +204,7 @@ export function validateChange(
         push(
           'ERROR',
           'proposal.md/frontmatter',
-          `proposal.md frontmatter has unknown field '${m[1]}'; allowed fields are: ${ALLOWED_FIELDS.join(', ')}. Stage is inferred from on-disk artifacts (run \`llman sdd show\` / \`llman sdd list\`); do not store lifecycle state in frontmatter.`,
+          `proposal.md frontmatter has unknown field '${m[1]}'; allowed fields are: ${ALLOWED_FIELDS.join(', ')}. Stage is inferred from on-disk artifacts (run \`llman-sdd show\` / \`llman-sdd list\`); do not store lifecycle state in frontmatter.`,
         );
       }
     }

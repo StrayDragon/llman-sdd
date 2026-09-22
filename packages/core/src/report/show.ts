@@ -77,7 +77,7 @@ export function showChangeJson(
     : !hasTasks
       ? 'add tasks.md (current: designed → planned)'
       : stage === 'planned'
-        ? 'bind via `llman sdd change start <id>` (planned → full)'
+        ? 'bind via `llman-sdd change start <id>` (planned → full)'
         : '';
   const tasksHint =
     total > 0 && completed < total
@@ -93,7 +93,7 @@ export function showChangeJson(
     {
       name: 'on-bound-branch',
       pass: onBoundBranch,
-      hint: onBoundBranch ? '' : 'change is not attached; run `llman sdd change start <id>`',
+      hint: onBoundBranch ? '' : 'change is not attached; run `llman-sdd change start <id>`',
     },
     {
       name: 'stage-complete',
@@ -116,7 +116,7 @@ export function showChangeJson(
     {
       name: 'validate',
       pass: validateOk,
-      hint: validateOk ? '' : 'fix issues reported by `llman sdd validate <id> --strict`',
+      hint: validateOk ? '' : 'fix issues reported by `llman-sdd validate <id> --strict`',
     },
   ];
 

@@ -7,7 +7,8 @@
 
   @req:r23 @human
   场景: review 五信号聚合合同
-    - `review` MUST 输出 signals 数组,元素字段 MUST 为 kind/capability/count/detail;kind MUST 覆盖 pending(规则无匹配验收)、unbound(v1 孤儿语义:无 @req 链接的验收场景)、stale(v1 语义:基于 base-ref/scope 的真实 staleness 计算)、locked(恒 0)、validate(sweep FAIL 汇总;v1 快照内部 sweep 的恒失败缺陷不复制);JSON MUST 含 summary{criticalCount, warningCount},warningCount MUST 等于 pending、unbound、stale 三类信号计数之和,criticalCount MUST 等于 sweep FAIL 的 capability 数;退出码 MUST 仅在 criticalCount > 0 时非零;`--capability` MUST 限定单一 capability;`--export-html <path>` MUST 写出自包含 HTML 报告。
+    - `review` MUST 支持 `--output <toon|json|compact-json|human>` 且缺省(无输出 flag)输出 TOON(IR 与 json 同载荷);`--json`/`--compact-json` 为兼容别名,其 JSON 输出与 v1 字节一致;`--output human` 输出 v1 人读行形态;退出码语义不随输出格式变化。
+  - `review` MUST 输出 signals 数组,元素字段 MUST 为 kind/capability/count/detail;kind MUST 覆盖 pending(规则无匹配验收)、unbound(v1 孤儿语义:无 @req 链接的验收场景)、stale(v1 语义:基于 base-ref/scope 的真实 staleness 计算)、locked(恒 0)、validate(sweep FAIL 汇总;v1 快照内部 sweep 的恒失败缺陷不复制);JSON MUST 含 summary{criticalCount, warningCount},warningCount MUST 等于 pending、unbound、stale 三类信号计数之和,criticalCount MUST 等于 sweep FAIL 的 capability 数;退出码 MUST 仅在 criticalCount > 0 时非零;`--capability` MUST 限定单一 capability;`--export-html <path>` MUST 写出自包含 HTML 报告。
 
   @req:r23 @executable
   场景: v2 review 信号形状合法

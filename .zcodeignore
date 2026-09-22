@@ -1,0 +1,226 @@
+# .gitignore file created for free with Tower (https://www.git-tower.com/)
+# For suggestions or improvements please contact us using support@git-tower.com
+# Generated on 2026-09-14
+# Includes: typescript, rust, python, react
+
+### Universal ###
+# Common files that should be ignored in all projects
+
+# Logs
+*.log
+# Temporary files
+*.tmp
+*~
+
+*.bak
+# Environment files (containing secrets, API keys, credentials)
+.env
+*.env
+.env.*
+
+# Local configuration that shouldn't be shared
+*.local
+
+### Typescript ###
+# typescript specific files
+
+*.tsbuildinfo
+node_modules/
+dist/
+
+### Rust ###
+# rust specific files
+
+/target/
+**/*.rs.bk
+debug/
+target/debug/
+target/release/
+
+### Python ###
+# Python compiled files, virtual environments, and cache
+
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+pypackages/
+build/
+develop-eggs/
+dist/
+downloads/
+
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+
+.installed.cfg
+*.egg
+MANIFEST
+.venv
+env/
+
+venv/
+ENV/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# PyInstaller
+*.manifest
+*.spec
+# Installer logs
+pip-log.txt
+
+pip-delete-this-directory.txt
+# Unit test / coverage reports
+.tox/
+.nox/
+.coverage.*
+
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+
+cover/
+# Translations
+*.mo
+*.pot
+# Django
+
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+# Flask
+instance/
+
+.webassets-cache
+# Scrapy
+.scrapy
+# Sphinx
+docs/_build/
+
+# PyBuilder
+.pybuilder/
+target/
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+# pyenv
+#.python-version
+
+# pipenv
+#Pipfile.lock
+# poetry
+#poetry.lock
+# pdm
+
+.pdm.toml
+__pypackages__/
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath
+*.sage.py
+# Spyder
+.spyderproject
+.spyproject
+
+# Rope
+.ropeproject
+# mkdocs
+/site
+# mypy
+
+.mypy_cache/
+.dmypy.json
+dmypy.json
+# Pyre
+.pyre/
+
+# pytype
+.pytype/
+# Cython
+cython_debug/
+# Poetry
+
+poetry.toml
+# ruff
+.ruff_cache/
+# LSP
+pyrightconfig.json
+
+*.sage.py
+.pdm.toml
+profile_default/
+.nox/
+.spyproject
+
+site/
+
+### React ###
+# React build directory and environment files
+
+build/
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_*
+**/*.backup.*
+
+**/*.back.*
+*.sublime*
+psd
+thumb
+sketch
+
+coverage/
+
+
+### llman sdd derived cache
+llmanspec/.context/
+
+# ===== ↑ 以上同步自 .gitignore（「从 .gitignore 同步」只重写以上部分）=====
+.git/
+.hg/
+.svn/
+bower_components/
+jspm_packages/
+site-packages/
+lcov-report/
+cmakefiles/
+cmake-build-*/
+bazel-*/
+pods/
+deriveddata/
+storybook-static/
+playwright-report/
+test-results/
+allure-results/
+allure-report/
+cdk.out/
+*.dist-info/
+pip-wheel-metadata/
+# ----- ↑ 以上为 ZCode 默认排除规则（自定义规则请写在本行下方，不会被同步/恢复改动）-----
+# 自定义规则写在下方（本行提示可删除）

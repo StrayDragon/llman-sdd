@@ -91,6 +91,7 @@ export function buildReview(input: ReviewInput, io: SpecIo): ReviewResult {
   }
 
   const failed = sweep.verdicts.filter((v) => !v.ok);
+  const sweepFailedCount = failed.length;
   // v1 sweep = `validate --all --strict --no-check`: pending tasks escalate a
   // change to FAIL, and that feeds the review critical count.
   for (const c of strictChangeFails) {
@@ -113,13 +114,24 @@ export function buildReview(input: ReviewInput, io: SpecIo): ReviewResult {
     'locked',
     '-',
     0,
-    `${boundChangeCount} bound change(s); inspect with \`llman sdd change diff <id>\``,
+    `${boundChangeCount} bound change(s); inspect with \`llman-sdd change diff <id>\``,
   );
+  // detail names the failing source: sweep failures point at `validate --all`;
+  // strict-only failures name the offending changes instead of a command that
+  // would report green.
+  const sweepDetail =
+    sweepFailedCount > 0 ? 'validate --all failed; run `llman-sdd validate --all` for details' : '';
+  const strictDetail =
+    strictChangeFails.length > 0
+      ? `${strictChangeFails.length} active change(s) with unchecked tasks: ${strictChangeFails
+          .map((c) => `${c.name} (${c.totalTasks - c.completedTasks} unchecked)`)
+          .join(', ')}`
+      : '';
   push(
     'validate',
     '-',
     failed.length,
-    failed.length > 0 ? 'validate --all failed; run `llman sdd validate --all` for details' : 'ok',
+    [sweepDetail, strictDetail].filter(Boolean).join('; ') || 'ok',
   );
 
   const warningCount = signals

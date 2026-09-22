@@ -7,7 +7,7 @@
 
   @req:r20 @human
   场景: list 合同
-    - `list --json` MUST 输出 changes 数组,元素字段 MUST 为 name/path/stage/completedTasks/totalTasks/lastModified/idleDays/status;status 枚举 MUST 为 no-tasks(无任务)、complete(全部完成)、in-progress(进行中);人读输出 MUST 以列布局呈现阶段、任务计数、相对时间与 idle 天数。
+    - `list --json` MUST 输出 changes 数组,元素字段 MUST 为 name/path/stage/completedTasks/totalTasks/lastModified/idleDays/status;status 枚举 MUST 为 no-tasks(无任务)、complete(全部完成)、in-progress(进行中);`--output human` MUST 以列布局呈现阶段、任务计数、相对时间与 idle 天数;`list` 缺省(无输出 flag)MUST 输出 TOON(IR 与 `--json` 同载荷),并 MUST 支持 `--output <toon|json|compact-json|human>`。
 
   @req:r20 @executable
   场景: 输出结构合法
@@ -50,7 +50,7 @@
 
   @req:r52 @human
   场景: show 文本输出与 Why/What Changes 门
-    - `show <change>`(非 --output json)MUST 输出人类可读文本(含 `Stage:`、`path:`、proposal 全文与 `Gates: n/m pass` 尾节),文本模式 MUST NOT 对 `## Why`/`## What Changes` 设门(v1 语义);`--output json` MUST 按序校验:缺 `## Why` 报 `Change must have a Why section`、缺 `## What Changes` 报 `Change must have a What Changes section`,任一不满足 MUST 退出码非零。
+    - `show <change>` 仅 `--output human` MUST 输出人类可读文本(含 `Stage:`、`path:`、proposal 全文与 `Gates: n/m pass` 尾节),文本模式 MUST NOT 对 `## Why`/`## What Changes` 设门(v1 语义);`show` 缺省(无 --output)MUST 输出 TOON(change/spec IR 与 json 同载荷),并 MUST 支持 `--output <toon|json|compact-json|human>`;`--output json` MUST 按序校验:缺 `## Why` 报 `Change must have a Why section`、缺 `## What Changes` 报 `Change must have a What Changes section`,任一不满足 MUST 退出码非零。
 
   @req:r53 @human
   场景: show spec 检视与 output 修饰
@@ -73,7 +73,7 @@
   @req:r53 @executable
   场景: spec 检视与 output 修饰
     假如 一个含多条规则的 spec 工作区
-    当 运行 show -r 1 与 show --output meta-only
+    当 运行 show --output human -r 1 与 show --output human,meta-only
     那么 文本模式 -r 与 meta-only 均为全量渲染
 
   @req:r54 @human

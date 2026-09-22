@@ -32,6 +32,10 @@
   场景: init locale 选项别名
     - `init` MUST 接受 `--lang <locale>` 作为 `--locale` 的别名(渲染语义完全等效);两者同给 MUST 报错。
 
+  @req:r66 @human
+  场景: spec 撰写配对引导判据
+    - skills 撰写引导(单轨 feature 撰写节与 tag 语法节)MUST 含 @human/@executable 分流判据:凡 GWT(假如/当/那么)可表达的自动化判定行为 MUST 落 @executable 验收场景并挂回对应规则,@human 仅用于无法自动化判定的人工约束,新增 @human 条款无可配对验收时 MUST 在 proposal/design 记录不可执行理由;判据 MUST 在 zh-Hans 与 en 双 locale 模板中同语义存在。
+
   @req:r49 @executable
   场景: init 子目录目标
     假如 一个空的临时工作区
@@ -43,3 +47,10 @@
     假如 一个空的临时工作区
     当 运行 init --lang zh-Hans
     那么 config locale 为 zh-Hans 且同给两个别名报错
+
+  @req:r66 @executable
+  场景: 配对判据入渲染产物
+    假如 本仓库的等价 config(zh-Hans 与 bdd 配置)
+    当 渲染 propose skill 与 validation-hints 单元
+    那么 产物含 @human/@executable 分流判据小节标识
+    而且 zh-Hans 与 en 产物均含该判据

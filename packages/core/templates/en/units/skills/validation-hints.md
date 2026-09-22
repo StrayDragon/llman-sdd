@@ -12,6 +12,7 @@ Every capability `.feature` (`llmanspec/specs/<capability>.feature` or `llmanspe
 2) Tag grammar (`@human constraint scenario must carry an @req:<req_id> tag` / `orphan acceptance scenario`):
 - Rules: `@req:<id> @human` — statement in the scenario description (MUST/SHALL required).
 - Acceptance: `@executable` + at least one `@req:<id>` linking a rule.
+- Pairing: before adding an `@human` rule, run the triage — any GWT-expressible automated-verifiable behavior MUST get a paired `@executable` acceptance (prose-only rules guard nothing); `@human` is for non-automatable human judgment only; record the justification in proposal/design when no pairing is possible.
 Never combine `@human` with `@executable`. (`@manual` was removed in 0.3.0 — drop it; `@human` already carries the human-judgement semantics.)
 
 3) Legacy `spec.toon` present (`legacy spec.toon found ... run ... toon2features`):

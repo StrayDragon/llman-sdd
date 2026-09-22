@@ -272,6 +272,48 @@ export interface GraphOptions {
   seed?: string;
 }
 
+export interface GraphNodeIr {
+  id: string;
+  archived: boolean;
+  present: boolean;
+}
+
+export interface GraphEdgeIr {
+  from: string;
+  to: string;
+}
+
+export interface GraphDataIr {
+  scope: string;
+  nodes: GraphNodeIr[];
+  edges: GraphEdgeIr[];
+}
+
+/** Structured graph IR (cli-output-cleanup): same traversal graphMermaid
+ * renders, exposed for `graph --output json|toon`. Empty-node cases yield an
+ * empty nodes array (the mermaid placeholder line is a render concern). */
+export function graphData(io: GraphFsIo, root: string, opts: GraphOptions = {}): GraphDataIr {
+  const scope = opts.scope ?? 'active';
+  const kinds = parseScope(scope);
+
+  let nodes: GraphNode[];
+  if (opts.seed !== undefined) {
+    nodes = buildSeedNeighborhood(io, root, opts.seed, opts.depth ?? 1, kinds);
+  } else {
+    nodes = buildDefaultNodes(io, root, kinds);
+  }
+  const irNodes: GraphNodeIr[] = nodes.map((n) => ({
+    id: n.id,
+    archived: n.archived,
+    present: n.present,
+  }));
+  const irEdges: GraphEdgeIr[] =
+    nodes.length === 0
+      ? []
+      : collectEdges(io, root, nodes).map((e) => ({ from: e.from, to: e.to }));
+  return { scope, nodes: irNodes, edges: irEdges };
+}
+
 export function graphMermaid(io: GraphFsIo, root: string, opts: GraphOptions = {}): string[] {
   const scope = opts.scope ?? 'active';
   const kinds = parseScope(scope);

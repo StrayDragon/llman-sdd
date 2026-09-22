@@ -83,6 +83,69 @@ describe('buildReview', () => {
     expect(result.exitCode).toBe(1);
   });
 
+  test('sweep-only failure: validate detail points at llman-sdd validate --all', () => {
+    const broken = `功能: broken\n\n  @req:r1 @human\n  场景: 缺头\n    - 系统 MUST x\n`;
+    const entries = [
+      { fileName: 'broken.feature', doc: parseCapability(broken, 'broken.feature') },
+    ];
+    const result = buildReview(
+      { entries, bindings: [{ kind: 'tags', tags: ['executable'] }], boundChangeCount: 0 },
+      io,
+    );
+    const validate = result.signals.find((s) => s.kind === 'validate');
+    expect(validate?.detail).toInclude('llman-sdd validate --all');
+    expect(validate?.detail).not.toInclude('unchecked');
+  });
+
+  test('strict-only failure (unchecked tasks): detail names the change, no misleading sweep hint', () => {
+    const entries = [{ fileName: 'a.feature', doc: parseCapability(SPEC('a', 'r1'), 'a.feature') }];
+    const result = buildReview(
+      {
+        entries,
+        bindings: [{ kind: 'tags', tags: ['executable'] }],
+        boundChangeCount: 0,
+        activeChanges: [{ name: 'c1-do-stuff', completedTasks: 2, totalTasks: 5 }],
+      },
+      io,
+    );
+    expect(result.summary.criticalCount).toBe(1);
+    expect(result.exitCode).toBe(1);
+    const validate = result.signals.find((s) => s.kind === 'validate');
+    expect(validate?.count).toBe(1);
+    expect(validate?.detail).toInclude('c1-do-stuff (3 unchecked)');
+    expect(validate?.detail).not.toInclude('validate --all failed');
+  });
+
+  test('sweep + strict failures: detail reports both sources', () => {
+    const broken = `功能: broken\n\n  @req:r1 @human\n  场景: 缺头\n    - 系统 MUST x\n`;
+    const entries = [
+      { fileName: 'broken.feature', doc: parseCapability(broken, 'broken.feature') },
+    ];
+    const result = buildReview(
+      {
+        entries,
+        bindings: [{ kind: 'tags', tags: ['executable'] }],
+        boundChangeCount: 0,
+        activeChanges: [{ name: 'c2-half-done', completedTasks: 0, totalTasks: 4 }],
+      },
+      io,
+    );
+    const validate = result.signals.find((s) => s.kind === 'validate');
+    expect(validate?.count).toBe(2);
+    expect(validate?.detail).toInclude('validate --all failed');
+    expect(validate?.detail).toInclude('c2-half-done (4 unchecked)');
+  });
+
+  test('locked detail uses the v2 command name', () => {
+    const entries = [{ fileName: 'a.feature', doc: parseCapability(SPEC('a', 'r1'), 'a.feature') }];
+    const result = buildReview(
+      { entries, bindings: [{ kind: 'tags', tags: ['executable'] }], boundChangeCount: 1 },
+      io,
+    );
+    const locked = result.signals.find((s) => s.kind === 'locked');
+    expect(locked?.detail).toInclude('`llman-sdd change diff <id>`');
+  });
+
   test('text lines follow the v1 layout', () => {
     const entries = [{ fileName: 'a.feature', doc: parseCapability(SPEC('a', 'r1'), 'a.feature') }];
     const result = buildReview(
