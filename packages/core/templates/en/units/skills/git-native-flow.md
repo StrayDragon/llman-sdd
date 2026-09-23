@@ -38,3 +38,13 @@ Hard rules:
 2. For changes with no live contract edits, set frontmatter `needs_specs_change: false`. Enter apply only when `llman-sdd show <id> --output json` has `readyToImplement=true` — `Full ∧` every `gateChecks` item passes (specs-landed = `specsLanded ∨ needs_specs_change=false`; ranges are live merge-bases, stored `base_sha` is audit-only).
 3. `change checkpoint` is removed (no mid-flight archive point; `change finalize` does not require a clean tree). Close-out is `llman-sdd change finalize <id>`: it auto-commits `archive(sdd): <id>` (impl diff + rename in one commit); `--no-commit` skips the auto commit for manual/CI histories. Commits on the change branch are free (segmented or finalize single-shot).
 4. **Do not** commit live specs to the default branch just to satisfy the clean-tree gate; if already attached, do not re-run `start`.
+
+Worktree-mode decision table (multi-checkout workflows):
+
+| Working style | Command | Criteria |
+|---|---|---|
+| Classic single checkout | `llman-sdd change start <id>` | On the default branch with a clean tree; switches this checkout to the new branch |
+| Keep current checkout / parallel changes | `llman-sdd change start <id> --worktree` | Branch lives in a dedicated worktree (`sdd.worktree_root` / `sdd.worktree_naming` config; default sibling of the repo root), current checkout untouched, output includes the worktree path; pair with `--base <branch>` for a non-default fork source |
+| Already on a feature branch (incl. manual wt/git-worktree) | `llman-sdd change attach <id>` | Branch already exists; `--base <branch>` records the fork source explicitly |
+
+finalize target location: when the target branch is held by another worktree, `llman-sdd change finalize <id>` / `llman-sdd change archive <id>` automatically run the merge, rename and commit inside that worktree (output includes `executed in target worktree <path>`); a dirty holding worktree aborts with disposal options and zero writes.

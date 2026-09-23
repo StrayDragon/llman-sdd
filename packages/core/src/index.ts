@@ -112,7 +112,9 @@ export {
   isCleanTree,
   makeSpawnGit,
   currentBranch,
+  worktreeList,
   type GitLike,
+  type WorktreeEntry,
 } from './git/spawnGit.ts';
 export { DRAFT_PROPOSAL_TEMPLATE, deriveChangeId } from './change/id.ts';
 export { parseTaskCheckboxes, type ParsedTaskCheckboxes } from './change/tasks.ts';

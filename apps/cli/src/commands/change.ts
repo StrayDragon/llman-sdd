@@ -106,17 +106,30 @@ export function registerChange(program: Command): void {
       '--branch-prefix <prefix>',
       'feature branch prefix (default: sdd.branch_prefix config, then sdd/)',
     )
-    .action((id: string, options: { branchPrefix?: string }) => {
+    .option(
+      '--base <branch>',
+      'explicit fork-source branch to record (must exist and differ from the new branch; exempts the default-branch gate)',
+    )
+    .option(
+      '--worktree',
+      'create the branch in a dedicated worktree (sdd.worktree_root / sdd.worktree_naming config) instead of switching this checkout',
+    )
+    .action((id: string, options: { branchPrefix?: string; base?: string; worktree?: boolean }) => {
       const resolved = resolveChangeIdOrExit(program, id);
       if (resolved === null) return;
       const git = makeCliGit(process.cwd());
       const config = loadCliConfig();
       const result = startChange(git, newIo(), resolved.id, {
         branchPrefix: options.branchPrefix ?? config?.sdd?.branch_prefix ?? 'sdd/',
+        base: options.base,
+        worktree: options.worktree,
+        worktreeRoot: config?.sdd?.worktree_root ?? undefined,
+        worktreeNaming: config?.sdd?.worktree_naming ?? undefined,
       });
       console.log(
         `started change \`${resolved.id}\` → branch \`${result.branch}\` base \`${result.baseSha}\` base-branch \`${result.baseBranch}\``,
       );
+      if (result.worktreePath !== undefined) console.log(`worktree ${result.worktreePath}`);
     });
 
   change
@@ -216,6 +229,9 @@ export function registerChange(program: Command): void {
           (result.archiveDir ?? '').lastIndexOf('/') + 1,
         );
         console.log(`Change '${id}' archived as '${archiveName}'.`);
+        if (result.executedIn !== null) {
+          console.log(`executed in target worktree ${result.executedIn}`);
+        }
       },
     );
 
@@ -284,11 +300,17 @@ export function registerChange(program: Command): void {
           console.log(
             `finalized \`${id}\` → ${result.archiveDir} on ${result.target} (close-out commit skipped — run: git add -A && git commit -m "archive(sdd): ${id}")`,
           );
+          if (result.executedIn !== null) {
+            console.log(`executed in target worktree ${result.executedIn}`);
+          }
           return;
         }
         console.log(
           `finalized \`${id}\` → ${result.archiveDir} (commit "${result.commitSubject}" on ${result.target})`,
         );
+        if (result.executedIn !== null) {
+          console.log(`executed in target worktree ${result.executedIn}`);
+        }
       },
     );
 }

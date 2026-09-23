@@ -74,6 +74,7 @@ bdd.when('对其运行 change finalize', (ctx) => {
   ctx.fixtures['finalize结果'] = {
     exitCode: result.code,
     stdout: result.stdout,
+    stderr: result.stderr,
   } satisfies CliResult;
 });
 
@@ -378,5 +379,188 @@ bdd.thenStep('报错提示缺少默认分支', (ctx) => {
   }
   if (!r.stdout.includes('no local main/master or origin')) {
     throw new Error(`default-branch-missing message missing: ${r.stdout}`);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// r68 — start 分叉保真与 worktree 模式(acceptance):--worktree 建树不劫持
+// 当前检出、worktree 路径与检出断言、--base 显式分叉源记录。fixture 复用
+// makeTempRepo 工厂,双 worktree 经 `git worktree add` 构造(design D4)。
+// ---------------------------------------------------------------------------
+
+interface StartCliResult {
+  code: number;
+  stdout: string;
+  stderr: string;
+}
+
+bdd.given(
+  '一个已提交的临时 git 仓库切到 {branch} 分支且含 change "{id}" 的 proposal',
+  (ctx, branch: string, id: string) => {
+    const repo = makeTempRepo();
+    seedChange(repo, id, {
+      proposal: '---\ndepends_on: []\n---\n\n## Why\nTODO\n',
+      commit: 'draft',
+    });
+    repo.run('git', ['switch', '-qc', branch]);
+    ctx.fixtures['仓库'] = { root: repo.root, repo };
+    ctx.fixtures['change'] = { id };
+  },
+);
+
+bdd.when('对其运行 change start --worktree', (ctx) => {
+  const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
+  const id = (ctx.fixtures['change'] as { id: string }).id;
+  const result = repo.run('bun', [CLI, 'change', 'start', id, '--worktree']);
+  ctx.fixtures['startcli结果'] = {
+    code: result.code,
+    stdout: result.stdout,
+    stderr: result.stderr,
+  } satisfies StartCliResult;
+});
+
+bdd.when('对其运行 change start --base {branch}', (ctx, base) => {
+  const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
+  const id = (ctx.fixtures['change'] as { id: string }).id;
+  const result = repo.run('bun', [CLI, 'change', 'start', id, '--base', base]);
+  ctx.fixtures['startcli结果'] = {
+    code: result.code,
+    stdout: result.stdout,
+    stderr: result.stderr,
+  } satisfies StartCliResult;
+});
+
+bdd.thenStep('当前检出保持 {branch}', (ctx, branch: string) => {
+  const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
+  const r = ctx.fixtures['startcli结果'] as StartCliResult;
+  if (r.code !== 0) throw new Error(`change start failed: ${r.stdout}${r.stderr}`);
+  const current = repo.run('git', ['branch', '--show-current']).stdout.trim();
+  if (current !== branch) throw new Error(`expected checkout to stay on ${branch}, got ${current}`);
+});
+
+bdd.thenStep('worktree 目录存在且检出 {branch}', (ctx, branch: string) => {
+  const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
+  const r = ctx.fixtures['startcli结果'] as StartCliResult;
+  // Deterministic default layout (design D2): sibling dir named
+  // <repo-basename>-<branch with '/' folded to '-'>.
+  const basename = repo.root.slice(repo.root.lastIndexOf('/') + 1);
+  const parent = repo.root.slice(0, repo.root.lastIndexOf('/'));
+  const wtPath = join(parent, `${basename}-${branch.replaceAll('/', '-')}`);
+  if (!r.stdout.includes(wtPath)) {
+    throw new Error(`worktree path ${wtPath} missing in output: ${r.stdout}`);
+  }
+  const inWt = spawnSync('git', ['-C', wtPath, 'branch', '--show-current'], {
+    encoding: 'utf8',
+  });
+  const checked = (inWt.stdout ?? '').trim();
+  if (checked !== branch) {
+    throw new Error(`worktree ${wtPath} should hold ${branch}, got ${checked}`);
+  }
+});
+
+bdd.thenStep('frontmatter base_branch 记录 {branch}', (ctx, branch: string) => {
+  const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
+  const id = (ctx.fixtures['change'] as { id: string }).id;
+  const r = ctx.fixtures['startcli结果'] as StartCliResult;
+  if (r.code !== 0) throw new Error(`change start failed: ${r.stdout}${r.stderr}`);
+  const proposal = readFileSync(join(repo.root, 'llmanspec', 'changes', id, 'proposal.md'), 'utf8');
+  if (!proposal.includes(`base_branch: ${branch}`)) {
+    throw new Error(`expected base_branch: ${branch} in:\n${proposal}`);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// r69 — finalize/archive worktree 感知目标执行(acceptance):目标分支被其他
+// worktree 持有时持有干净 → 持有 worktree 内原地执行;持有脏 → 报错含路径
+// 且零写入。双 worktree fixture:主仓库切到特性分支,`git worktree add`
+// 让兄弟目录持有 main(design D4)。
+// ---------------------------------------------------------------------------
+
+interface HoldFixture {
+  repo: TempRepo;
+  holderPath: string;
+  id: string;
+}
+
+function makeHeldTargetRepo(dirtyHolder: boolean): HoldFixture {
+  const repo = makeTempRepo();
+  const id = 'demo-hold';
+  seedChange(repo, id, {
+    proposal: '---\ndepends_on: []\n---\n\n## Why\nTODO\n',
+    commit: 'draft',
+  });
+  repo.run('bun', [CLI, 'change', 'start', id]);
+  // The holder: a sibling worktree checking out the target branch (main).
+  const holderPath = `${repo.root}-holder`;
+  repo.run('git', ['worktree', 'add', holderPath, 'main']);
+  if (dirtyHolder) writeFileSync(join(holderPath, 'uncommitted.txt'), 'dirty\n');
+  // Feature work on the bound branch inside the main checkout.
+  writeFileSync(join(repo.root, 'feature.txt'), 'hello\n');
+  repo.run('git', ['add', '-A']);
+  repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'feat: hello']);
+  return { repo, holderPath, id };
+}
+
+bdd.given('一个目标分支被其他干净 worktree 持有且已完成 start 并有特性提交的临时仓库', (ctx) => {
+  const fx = makeHeldTargetRepo(false);
+  ctx.fixtures['持有仓库'] = fx;
+  ctx.fixtures['仓库'] = { root: fx.repo.root, repo: fx.repo };
+  ctx.fixtures['change'] = { id: fx.id };
+});
+
+bdd.given('一个目标分支被其他脏 worktree 持有且已完成 start 并有特性提交的临时仓库', (ctx) => {
+  const fx = makeHeldTargetRepo(true);
+  ctx.fixtures['持有仓库'] = fx;
+  ctx.fixtures['仓库'] = { root: fx.repo.root, repo: fx.repo };
+  ctx.fixtures['change'] = { id: fx.id };
+});
+
+bdd.thenStep('目标分支获得 archive 提交', (ctx) => {
+  const fx = ctx.fixtures['持有仓库'] as HoldFixture;
+  const r = ctx.fixtures['finalize结果'] as { exitCode: number; stdout: string; stderr?: string };
+  if (r.exitCode !== 0) throw new Error(`finalize failed: ${r.stdout}${r.stderr ?? ''}`);
+  const subject = fx.repo.run('git', ['log', '--format=%s', '-1', 'main']).stdout.trim();
+  if (!subject.startsWith('archive(sdd):')) {
+    throw new Error(`expected archive(sdd) commit on main, got: ${subject}`);
+  }
+});
+
+bdd.thenStep('输出含 "{text}"', (ctx, text: string) => {
+  const r = ctx.fixtures['finalize结果'] as { stdout: string };
+  if (!r.stdout.includes(text)) {
+    throw new Error(`expected "${text}" in finalize output: ${r.stdout}`);
+  }
+});
+
+bdd.thenStep('持有 worktree 内完成归档改名与内容合并', (ctx) => {
+  const fx = ctx.fixtures['持有仓库'] as HoldFixture;
+  if (!existsSync(join(fx.holderPath, 'llmanspec', 'changes', 'archive'))) {
+    throw new Error(`archive rename missing in holder worktree ${fx.holderPath}`);
+  }
+  if (existsSync(join(fx.holderPath, 'llmanspec', 'changes', fx.id))) {
+    throw new Error(`changes/${fx.id} should have been renamed away in the holder worktree`);
+  }
+  if (!existsSync(join(fx.holderPath, 'feature.txt'))) {
+    throw new Error(`feature content did not land in holder worktree ${fx.holderPath}`);
+  }
+});
+
+bdd.thenStep('报错含持有 worktree 路径且目标分支无新提交', (ctx) => {
+  const fx = ctx.fixtures['持有仓库'] as HoldFixture;
+  const r = ctx.fixtures['finalize结果'] as { exitCode: number; stdout: string; stderr?: string };
+  if (r.exitCode === 0) {
+    throw new Error(`finalize should fail on dirty holder: ${r.stdout}`);
+  }
+  if (!`${r.stdout}${r.stderr ?? ''}`.includes(fx.holderPath)) {
+    throw new Error(
+      `error should contain holder path ${fx.holderPath}: ${r.stdout}${r.stderr ?? ''}`,
+    );
+  }
+  const subject = fx.repo.run('git', ['log', '--format=%s', '-1', 'main']).stdout.trim();
+  if (subject.startsWith('archive(sdd):')) {
+    throw new Error(`zero-write violated: archive commit landed on main: ${subject}`);
+  }
+  if (!existsSync(join(fx.repo.root, 'llmanspec', 'changes', fx.id))) {
+    throw new Error('zero-write violated: change dir was renamed in the current worktree');
   }
 });

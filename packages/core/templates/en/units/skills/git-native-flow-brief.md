@@ -7,3 +7,4 @@ Hard rules:
 2. No live contract edits → `needs_specs_change: false`. Apply requires `readyToImplement=true`.
 3. Close-out: `change finalize` (auto commit `archive(sdd): <id>`; `--no-commit` to skip). `change checkpoint` is removed (calling it exits non-zero and points to finalize).
 4. **Do not** commit live specs on the default branch; if already attached, do not re-run `start`.
+5. Worktree mode (optional): `change start --worktree` creates the branch in a dedicated worktree without hijacking the current checkout (`--base <branch>` records a non-default fork source); finalize runs in place when the target is held by another worktree (location annotated in output).

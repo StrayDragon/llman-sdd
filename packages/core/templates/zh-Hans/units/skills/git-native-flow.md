@@ -38,3 +38,13 @@ flowchart TB
 2. 无 live 合约变更时可设 frontmatter `needs_specs_change: false`。进入 apply 前 `llman-sdd show <id> --output json` 的 `readyToImplement` 须为 true（`Full ∧ gateChecks 全过`；specs-landed 项 = `specsLanded ∨ needs_specs_change=false`；一切范围 = 现算 merge-base，存储 `base_sha` 仅审计）。
 3. `change checkpoint` 已移除（无存档点概念：中途不必存档，`change finalize` 不要求干净树）。收口一律 `llman-sdd change finalize <id>`：自动提交 `archive(sdd): <id>`（实现 diff + 改名一次提交）；`--no-commit` 跳过自动提交（CI/手动历史场景）。change 分支上提交自由（分段或 finalize 单次收尾均可）。
 4. **禁止**为过干净树门禁把 live specs commit 到默认分支；已 attach 时不要重复 `start`。
+
+Worktree 模式决策表（多检出工作流）：
+
+| 工作形态 | 命令 | 判据 |
+|---|---|---|
+| 经典单检出 | `llman-sdd change start <id>` | 当前在默认分支且树干净；直接切到新分支 |
+| 保留当前检出 / 并行多 change | `llman-sdd change start <id> --worktree` | 分支建于独立 worktree（`sdd.worktree_root` / `sdd.worktree_naming` 可调，缺省仓库根兄弟目录），当前检出不动，输出含 worktree 路径；配 `--base <branch>` 记录非默认分叉源 |
+| 已在 feature 分支（含手工 wt/git-worktree） | `llman-sdd change attach <id>` | 分支已存在；`--base <branch>` 显式记录分叉源 |
+
+finalize 目标定位：目标分支被其他 worktree 持有时，`llman-sdd change finalize <id>` / `llman-sdd change archive <id>` 自动在该 worktree 内完成合并、改名与提交（输出含 `executed in target worktree <path>`）；持有 worktree 脏时中止报错并列出处置选项（零写入）。

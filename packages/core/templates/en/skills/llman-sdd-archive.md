@@ -52,7 +52,7 @@ flowchart LR
   - **stop immediately on first failure**, report remaining unprocessed IDs.
 - **Git-native close-out**:
   - Prerequisites: Branch binding done (`change start` / `attach`); still on the bound branch (or the target branch after the auto merge).
-  - `change archive` / `change finalize` run the **auto merge** (target `--into` > binding `base_branch` > default branch; method squash by default or `ff`; if the target is held by another worktree the merge is skipped with an explicit manual command), **then** rename change docs into `changes/archive/` — rename is never rolled back on merge failure and degradation is reported explicitly.
+  - `change archive` / `change finalize` run the **auto merge** (target `--into` > binding `base_branch` > default branch; method squash by default or `ff`; when the target is held by another worktree the merge and commit run in place inside that worktree, with `executed in target worktree <path>` in the output; if that worktree is dirty the command aborts with disposal options and zero writes), **then** rename change docs into `changes/archive/` — rename is never rolled back on merge failure and degradation is reported explicitly.
   - **Default: `change finalize` (one-command close)** — gates → auto merge → docs rename → **auto commit** `archive(sdd): <change-id>` (squash default: impl diff + rename collapse into ONE commit on the target; no manual `git commit` needed; locked-rule edits are a report-only WARNING — warn, never block):
     ```text
     1. Implement live specs + code (working tree may stay dirty; commits on the branch are free — segmented or none)

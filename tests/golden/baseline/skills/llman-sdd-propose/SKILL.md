@@ -51,6 +51,16 @@ flowchart TB
 2. 无 live 合约变更时可设 frontmatter `needs_specs_change: false`。进入 apply 前 `llman-sdd show <id> --output json` 的 `readyToImplement` 须为 true（`Full ∧ gateChecks 全过`；specs-landed 项 = `specsLanded ∨ needs_specs_change=false`；一切范围 = 现算 merge-base，存储 `base_sha` 仅审计）。
 3. `change checkpoint` 已移除（无存档点概念：中途不必存档，`change finalize` 不要求干净树）。收口一律 `llman-sdd change finalize <id>`：自动提交 `archive(sdd): <id>`（实现 diff + 改名一次提交）；`--no-commit` 跳过自动提交（CI/手动历史场景）。change 分支上提交自由（分段或 finalize 单次收尾均可）。
 4. **禁止**为过干净树门禁把 live specs commit 到默认分支；已 attach 时不要重复 `start`。
+
+Worktree 模式决策表（多检出工作流）：
+
+| 工作形态 | 命令 | 判据 |
+|---|---|---|
+| 经典单检出 | `llman-sdd change start <id>` | 当前在默认分支且树干净；直接切到新分支 |
+| 保留当前检出 / 并行多 change | `llman-sdd change start <id> --worktree` | 分支建于独立 worktree（`sdd.worktree_root` / `sdd.worktree_naming` 可调，缺省仓库根兄弟目录），当前检出不动，输出含 worktree 路径；配 `--base <branch>` 记录非默认分叉源 |
+| 已在 feature 分支（含手工 wt/git-worktree） | `llman-sdd change attach <id>` | 分支已存在；`--base <branch>` 显式记录分叉源 |
+
+finalize 目标定位：目标分支被其他 worktree 持有时，`llman-sdd change finalize <id>` / `llman-sdd change archive <id>` 自动在该 worktree 内完成合并、改名与提交（输出含 `executed in target worktree <path>`）；持有 worktree 脏时中止报错并列出处置选项（零写入）。
 # 人读摘要（强制）
 
 在本工作流中产出的每一份报告、交接或门禁输出，MUST 在任何机器细节之前
@@ -125,7 +135,7 @@ flowchart LR
    - 仅当存在权衡/迁移时写 `design.md`
    - **写 tasks.md 前确认测试边界（seam，接缝）**：列出将要测试的 seam 并与用户确认。seam = 由 `*.feature` GWT 步骤驱动的公共边界（CLI 子进程或公共接口）——MUST 复用既有 harness seam，MUST NOT 脱离 `.feature` 凭空发明 seam。没有 `.feature` 时，seam = 被测的 CLI 子命令或公共函数边界。
    - `tasks.md`：按**垂直切片**拆分（每个 task 打穿 schema→API→UI→tests 一条窄而完整的路径，可独立验证），并带 `[blocked-by: <task-id>]` 依赖标记。**大范围重构例外**（一个机械改动扫全库、单点编辑牵动大量调用处）：按 expand-contract 排序（旧的旁边加新的 → 分批迁移调用处 → 删掉旧的），不强拆垂直切片。
-   - **先** `llman-sdd change start <change-id>`（推荐；默认分支上工作树干净时）或手动建分支后 `change attach <change-id>` 到达 Full（bound）。
+   - **先** `llman-sdd change start <change-id>`（推荐；默认分支上工作树干净时；需保留当前检出用 `--worktree`，非默认分叉源用 `--base <branch>`）或手动建分支后 `change attach <change-id>` 到达 Full（bound）。
    - **然后**在绑定的非默认分支上编辑 live `llmanspec/specs/<capability>.feature`（扁平，或目录 `llmanspec/specs/<capability>/` 内主文件）并 commit（Specs landing）。**不要**在 start 之前改 live specs；**不要**为过干净树门禁把 live specs commit 到默认分支。已 attach 时勿重复 `start`（丢失 specs 时用 checkout/重建 + `attach --force` 恢复）。
    - 无 live 合约编辑的 change，设置 frontmatter `needs_specs_change: false`。仅当 `llman-sdd show <id> --output json` 给出 `readyToImplement=true` 才进入 apply。
    - **破坏性合约变更**（移除/重命名字段、命令、tag 或 stage 值域）MUST 规划升级路径：`migrations/v<from>-v<to>/`（README prompt + 一次性脚本，随仓库发布）——写进提案的 What Changes。

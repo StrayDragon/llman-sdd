@@ -93,3 +93,33 @@ export function dirtyCount(git: GitLike): number {
 export function mergeBase(git: GitLike, current: string, other: string): string {
   return git.runOpt(['merge-base', current, other]) ?? git.run(['rev-parse', current]);
 }
+
+export interface WorktreeEntry {
+  /** Absolute worktree path as reported by `git worktree list --porcelain`. */
+  path: string;
+  head: string | null;
+  /** Checked-out local branch (`refs/heads/` stripped); null when detached/bare. */
+  branch: string | null;
+}
+
+/** Parse `git worktree list --porcelain` into entries (r69 held-target detection). */
+export function worktreeList(git: GitLike): WorktreeEntry[] {
+  const out = git.run(['worktree', 'list', '--porcelain']);
+  const entries: WorktreeEntry[] = [];
+  let current: WorktreeEntry | null = null;
+  for (const line of out.split('\n')) {
+    if (line.startsWith('worktree ')) {
+      if (current !== null) entries.push(current);
+      current = { path: line.slice('worktree '.length), head: null, branch: null };
+    } else if (current === null) {
+      continue;
+    } else if (line.startsWith('HEAD ')) {
+      current.head = line.slice('HEAD '.length);
+    } else if (line.startsWith('branch ')) {
+      current.branch = line.slice('branch '.length).replace(/^refs\/heads\//u, '');
+    }
+    // `detached` / `bare` marker lines leave branch null on purpose.
+  }
+  if (current !== null) entries.push(current);
+  return entries;
+}

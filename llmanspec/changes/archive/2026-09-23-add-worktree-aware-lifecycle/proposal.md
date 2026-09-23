@@ -1,6 +1,9 @@
 ---
 depends_on: []
 needs_specs_change: true
+branch: sdd/add-worktree-aware-lifecycle
+base_branch: main
+base_sha: cd2a85ee5303a46382435a331f9fdd537fd772e4
 ---
 
 # worktree 感知的 change 生命周期:start --worktree / 分叉保真 / finalize 目标灵活度

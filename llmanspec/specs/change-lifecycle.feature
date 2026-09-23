@@ -154,3 +154,40 @@
     假如 一个默认分支布局为 none 的临时仓库
     当 运行 change start
     那么 报错提示缺少默认分支
+
+  @req:r68 @human
+  场景: start 分叉保真与 worktree 模式
+    - `change start` MUST 支持 `--base <branch>` 显式记录分叉源:base_branch MUST 记录该分支,该分支 MUST 存在且 MUST NOT 等于新建分支;`--base` 或 `--worktree` 给定时 MUST 豁免「当前在默认分支」门(干净树门保持)。`change start` MUST 支持 `--worktree`:MUST NOT 切换当前检出,而 MUST 在 `sdd.worktree_root`(缺省为仓库根的父目录,相对路径按仓库根解析)下以 `worktree_naming`(id → 分支 `/` 换 `-`;hash → base32(sha256(change_id))[:8];缺省 id)命名的目录创建 worktree 并在其中检出新分支,当前 checkout MUST 保持原分支,输出 MUST 含 worktree 路径;分叉源判定 MUST 依次取 --base 显式 > 当前分支(如实记录,可为非默认分支) > 默认分支解析;分支或 worktree 路径已存在 MUST 报错且零写入;无旗标经典路径行为 MUST 逐字节保持(v1 parity)。
+
+  @req:r68 @executable
+  场景: start --worktree 建树不劫持检出
+    假如 一个已提交的临时 git 仓库切到 feature/src 分支且含 change "demo-wt" 的 proposal
+    当 对其运行 change start --worktree
+    那么 当前检出保持 feature/src
+    而且 worktree 目录存在且检出 sdd/demo-wt
+    而且 frontmatter base_branch 记录 feature/src
+
+  @req:r68 @executable
+  场景: start --base 记录显式分叉源
+    假如 一个已提交的临时 git 仓库切到 feature/src 分支且含 change "demo-fork" 的 proposal
+    当 对其运行 change start --base feature/src
+    那么 分支 sdd/demo-fork 被创建且被检出
+    而且 frontmatter base_branch 记录 feature/src
+
+  @req:r69 @human
+  场景: finalize/archive worktree 感知目标执行
+    - `change finalize` 与 `change archive` MUST 在合并前以 `git worktree list --porcelain` 检测目标分支的持有 worktree:目标被其他 worktree 持有且该 worktree 工作树干净时,MUST 以该 worktree 为执行根完成合并、归档改名与收口提交,输出 MUST 含 `executed in target worktree <path>` 执行位置行;持有且工作树脏时 MUST 报错(错误信息 MUST 含该 worktree 路径与处置指引:清理该 worktree 或手动执行合并)且零写入;目标由当前 worktree 自己持有或未被任何 worktree 持有时 MUST 保持现行行为;`--into` 优先序(into > base_branch > 默认分支)与合并语义 MUST 不变。
+
+  @req:r69 @executable
+  场景: finalize 目标被干净 worktree 持有时原地执行
+    假如 一个目标分支被其他干净 worktree 持有且已完成 start 并有特性提交的临时仓库
+    当 对其运行 change finalize
+    那么 目标分支获得 archive 提交
+    而且 输出含 "executed in target worktree"
+    而且 持有 worktree 内完成归档改名与内容合并
+
+  @req:r69 @executable
+  场景: finalize 目标被脏 worktree 持有时零写入报错
+    假如 一个目标分支被其他脏 worktree 持有且已完成 start 并有特性提交的临时仓库
+    当 对其运行 change finalize
+    那么 报错含持有 worktree 路径且目标分支无新提交

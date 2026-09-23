@@ -12,6 +12,8 @@ export const CLI = join(REPO_ROOT, 'apps', 'cli', 'src', 'main.ts');
 export interface CliResult {
   exitCode: number;
   stdout: string;
+  /** Populated by steps that need to assert on error output. */
+  stderr?: string;
 }
 
 export interface TempRepo {

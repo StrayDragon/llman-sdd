@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import {
   currentBranch,
   defaultBranch,
@@ -5,6 +7,7 @@ import {
   isCleanTree,
   mergeBase,
   revParseHead,
+  worktreeList,
   type GitLike,
 } from '../git/spawnGit.ts';
 import { readBinding, writeBinding } from './frontmatter.ts';
@@ -48,13 +51,80 @@ export function newChange(
   return { id, path };
 }
 
+export interface StartResult {
+  branch: string;
+  baseBranch: string;
+  baseSha: string;
+  /** Absolute worktree path when started with --worktree (r68); undefined on the classic path. */
+  worktreePath?: string;
+}
+
+/**
+ * r68 worktree path (design D2): `<root>/<repo-basename>-<name>` where root is
+ * `sdd.worktree_root` (absolute, or repo-root-relative; default = the repo
+ * root's parent, the wt-style sibling layout) and name is the branch with `/`
+ * folded to `-` (naming=id, default) or base32(sha256(change_id))[:8]
+ * (naming=hash).
+ */
+function resolveWorktreePath(
+  git: GitLike,
+  id: string,
+  branch: string,
+  worktreeRoot: string | undefined,
+  naming: 'id' | 'hash' | undefined,
+): string {
+  const toplevel = git.run(['rev-parse', '--show-toplevel']);
+  const cut = toplevel.lastIndexOf('/');
+  const basename = toplevel.slice(cut + 1);
+  const name =
+    naming === 'hash'
+      ? `${basename}-${base32Sha8(id)}`
+      : `${basename}-${branch.replaceAll('/', '-')}`;
+  let root = cut <= 0 ? '/' : toplevel.slice(0, cut);
+  if (worktreeRoot !== undefined && worktreeRoot !== '') {
+    const configured = worktreeRoot.replace(/\/+$/u, '');
+    root = configured.startsWith('/') ? configured : `${toplevel}/${configured}`;
+  }
+  return `${root}/${name}`;
+}
+
+const BASE32 = 'abcdefghijklmnopqrstuvwxyz234567';
+
+/** First 8 chars of base32(sha256(change_id)), lowercase RFC-4648 alphabet. */
+function base32Sha8(input: string): string {
+  const bytes = createHash('sha256').update(input, 'utf8').digest();
+  let out = '';
+  let buffer = 0;
+  let bitsLeft = 0;
+  for (const byte of bytes) {
+    buffer = (buffer << 8) | byte;
+    bitsLeft += 8;
+    while (bitsLeft >= 5 && out.length < 8) {
+      out += BASE32[(buffer >>> (bitsLeft - 5)) & 31];
+      bitsLeft -= 5;
+    }
+    if (out.length >= 8) break;
+  }
+  return out;
+}
+
 /** `change start`: clean-tree + default-branch gates, then branch + binding. */
 export function startChange(
   git: GitLike,
   io: FsIo,
   id: string,
-  opts: { branchPrefix?: string } = {},
-): { branch: string; baseBranch: string; baseSha: string } {
+  opts: {
+    branchPrefix?: string;
+    /** r68: explicit fork source; exempts the default-branch gate (clean-tree gate stays). */
+    base?: string;
+    /** r68: create the branch in a dedicated worktree instead of switching this checkout. */
+    worktree?: boolean;
+    /** Config sdd.worktree_root (unresolved). */
+    worktreeRoot?: string;
+    /** Config sdd.worktree_naming. */
+    worktreeNaming?: 'id' | 'hash';
+  } = {},
+): StartResult {
   const path = proposalPath(id);
   if (!io.exists(path)) throw new LifecycleError(`proposal not found: ${path}`);
   const dirty = dirtyCount(git);
@@ -62,21 +132,61 @@ export function startChange(
     throw new LifecycleError(
       `dirty tree: ${dirty} uncommitted files; commit/stash before \`change start\``,
     );
-  const baseBranch = defaultBranch(git);
   const here = currentBranch(git);
-  if (here !== null && here !== baseBranch) {
-    throw new LifecycleError(
-      `already on non-default branch \`${here}\`; use \`change attach\` to bind it, or switch to the default branch before \`change start\``,
-    );
-  }
   if (here === null) throw new LifecycleError('detached HEAD is not allowed for change binding');
   const branchPrefix = opts.branchPrefix ?? 'sdd/';
   const branch = `${branchPrefix}${id}`;
-  git.run(['switch', '-c', branch]);
+
+  if (opts.base !== undefined) {
+    if (
+      git.runOpt(['show-ref', '--verify', '--quiet', `refs/heads/${opts.base}`]) === null &&
+      git.runOpt(['show-ref', '--verify', '--quiet', `refs/remotes/${opts.base}`]) === null
+    ) {
+      throw new LifecycleError(
+        `base branch \`${opts.base}\` does not exist; --base records the fork source branch for merge-target resolution`,
+      );
+    }
+    if (opts.base === branch) {
+      throw new LifecycleError(`--base must differ from the new branch \`${branch}\``);
+    }
+  }
+
+  // r68 fork-source resolution: --base explicit > current branch (worktree
+  // mode records the actual source, which may be a non-default branch) >
+  // default branch. The classic path keeps the r14 default-branch gate.
+  let baseBranch: string;
+  if (opts.base !== undefined) {
+    baseBranch = opts.base;
+  } else if (opts.worktree) {
+    baseBranch = here;
+  } else {
+    baseBranch = defaultBranch(git);
+    if (here !== baseBranch) {
+      throw new LifecycleError(
+        `already on non-default branch \`${here}\`; use \`change attach\` to bind it, or switch to the default branch before \`change start\``,
+      );
+    }
+  }
+
+  let worktreePath: string | undefined;
+  if (opts.worktree) {
+    if (git.runOpt(['show-ref', '--verify', '--quiet', `refs/heads/${branch}`]) !== null) {
+      throw new LifecycleError(`branch \`${branch}\` already exists; choose another change id`);
+    }
+    worktreePath = resolveWorktreePath(git, id, branch, opts.worktreeRoot, opts.worktreeNaming);
+    if (io.exists(worktreePath)) {
+      throw new LifecycleError(`worktree path already exists: ${worktreePath}`);
+    }
+    git.run(['worktree', 'add', '-b', branch, worktreePath]);
+  } else {
+    git.run(['switch', '-c', branch]);
+  }
   const baseSha =
     currentBranch(git) !== null ? mergeBase(git, 'HEAD', baseBranch) : revParseHead(git);
   io.writeText(path, writeBinding(io.readText(path), { branch, baseBranch, baseSha }));
-  return { branch, baseBranch, baseSha };
+  return worktreePath !== undefined
+    ? { branch, baseBranch, baseSha, worktreePath }
+    : { branch, baseBranch, baseSha };
 }
 
 /** `change attach`: bind the current branch — same branch gate family as start (r31). */
@@ -131,6 +241,8 @@ export interface FinalizeResult {
   archiveDir: string;
   warnings: string[];
   commitSubject: string;
+  /** r69: absolute worktree path the close-out executed in; null on the classic path. */
+  executedIn: string | null;
 }
 
 export interface ArchiveTaskGate {
@@ -184,6 +296,34 @@ export function finalizeChange(
   return mergeRenameCommit(git, io, id, binding.branch, target, method, opts.today, opts.noCommit);
 }
 
+/** r69: GitLike view bound to another worktree via `git -C <path>` prefixing. */
+function gitAt(git: GitLike, cwd: string): GitLike {
+  return {
+    run: (args) => git.run(['-C', cwd, ...args]),
+    runOpt: (args) => git.runOpt(['-C', cwd, ...args]),
+  };
+}
+
+/** r69: FsIo view re-rooted at another worktree (root-relative paths join). */
+function ioAt(io: FsIo, root: string): FsIo {
+  const at = (p: string): string => (p.startsWith('/') ? p : `${root}/${p}`);
+  return {
+    exists: (p) => io.exists(at(p)),
+    readText: (p) => io.readText(at(p)),
+    writeText: (p, content) => io.writeText(at(p), content),
+    rename: (from, to) => io.rename(at(from), at(to)),
+    listDir: (p) => io.listDir(at(p)),
+  };
+}
+
+/** r69: worktree path currently holding <branch> checked out, or null. */
+function holderOfWorktree(git: GitLike, branch: string): string | null {
+  for (const entry of worktreeList(git)) {
+    if (entry.branch === branch) return entry.path;
+  }
+  return null;
+}
+
 /** Shared close-out: merge → archive rename → single archive(sdd) commit. */
 function mergeRenameCommit(
   git: GitLike,
@@ -196,11 +336,35 @@ function mergeRenameCommit(
   noCommit?: boolean,
 ): FinalizeResult {
   const warnings: string[] = [];
-  git.run(['switch', target]);
+  // r69: when the target branch is checked out in another worktree, `git
+  // switch` there would fail outright — run every write (switch / merge /
+  // rename / commit) inside the holding worktree instead.
+  const here = git.runOpt(['rev-parse', '--show-toplevel']);
+  const holder = holderOfWorktree(git, target);
+  let execGit = git;
+  let execIo = io;
+  let executedIn: string | null = null;
+  if (
+    here !== null &&
+    holder !== null &&
+    holder.replace(/\/+$/u, '') !== here.replace(/\/+$/u, '')
+  ) {
+    if (!isCleanTree(gitAt(git, holder))) {
+      throw new LifecycleError(
+        `target branch \`${target}\` is held by a dirty worktree at \`${holder}\` — nothing written; ` +
+          `either clean that worktree (commit/stash, or \`git worktree remove ${holder}\`) ` +
+          `or merge manually: git -C ${holder} merge ${method === 'ff' ? '--ff-only' : '--squash'} ${featureBranch} && git -C ${holder} add -A && git -C ${holder} commit -m "archive(sdd): ${id}"`,
+      );
+    }
+    execGit = gitAt(git, holder);
+    execIo = ioAt(io, holder);
+    executedIn = holder;
+  }
+  execGit.run(['switch', target]);
   const mergeArgs =
     method === 'ff' ? ['merge', '--ff-only', featureBranch] : ['merge', '--squash', featureBranch];
-  if (git.runOpt(mergeArgs) === null) {
-    git.runOpt(['merge', '--abort']);
+  if (execGit.runOpt(mergeArgs) === null) {
+    execGit.runOpt(['merge', '--abort']);
     warnings.push(
       `merge ${method} failed — resolve manually, e.g. \`git merge ${method === 'ff' ? '--ff-only' : '--squash'} ${featureBranch}\``,
     );
@@ -208,13 +372,18 @@ function mergeRenameCommit(
 
   const date = today ?? new Date().toISOString().slice(0, 10);
   const archiveDir = `${CHANGES_DIR}/archive/${date}-${id}`;
-  io.rename(`${CHANGES_DIR}/${id}`, archiveDir);
+  execIo.rename(`${CHANGES_DIR}/${id}`, archiveDir);
 
-  if (noCommit) return { target, archiveDir, warnings, commitSubject: '' };
-  git.run(['add', '-A']);
+  if (noCommit) return { target, archiveDir, warnings, commitSubject: '', executedIn };
+  execGit.run(['add', '-A']);
   const commitSubject = `archive(sdd): ${id}`;
-  git.run(['commit', '-m', commitSubject]);
-  return { target, archiveDir, warnings, commitSubject };
+  execGit.run(['commit', '-m', commitSubject]);
+  if (executedIn !== null) {
+    warnings.push(
+      `this worktree still shows the pre-archive \`llmanspec/changes/${id}\` checkout (expected) — clean up with \`git worktree remove\` / \`wt remove\` when done`,
+    );
+  }
+  return { target, archiveDir, warnings, commitSubject, executedIn };
 }
 
 /** `change archive`: independent seal-off with task + strict git gates (r39/r40). */

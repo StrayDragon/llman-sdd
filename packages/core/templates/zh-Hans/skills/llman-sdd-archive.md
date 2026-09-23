@@ -52,7 +52,7 @@ flowchart LR
   - **任一失败立即停止**，报告剩余未处理 ID。
 - **Git-native 收尾**：
   - 前置：已 Branch binding（`change start` / `attach`）；仍在绑定分支上（或合并后已在目标分支）。
-  - `change archive` / `change finalize` **先自动合并**（目标 `--into` > 绑定 `base_branch` > 默认分支；方式 squash 缺省或 `ff`；目标被其他 worktree 持有时跳过并打印手动命令），**再**将 change 文档改名到 `changes/archive/`——合并失败也不会回滚改名，降级提示显式可见。
+  - `change archive` / `change finalize` **先自动合并**（目标 `--into` > 绑定 `base_branch` > 默认分支；方式 squash 缺省或 `ff`；目标被其他 worktree 持有时在该 worktree 内原地执行合并与提交，输出标注 `executed in target worktree <path>`；该 worktree 脏时中止报错并列出处置选项，零写入），**再**将 change 文档改名到 `changes/archive/`——合并失败也不会回滚改名，降级提示显式可见。
   - **默认：`change finalize`（单命令收口）**——门禁 → 自动合并 → 文档改名 → **自动提交** `archive(sdd): <change-id>`（squash 缺省：实现 diff + 改名收敛为目标分支**单个**提交；无需手动 `git commit`；锁定规则改动为报告制 WARNING——只警告不阻断）：
     ```text
     1. 实现 live specs + 代码（工作区可保持脏；分支上提交自由——分段或完全不提交）
