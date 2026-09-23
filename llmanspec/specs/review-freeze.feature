@@ -52,3 +52,11 @@
     假如 一个含冻结归档的临时仓库
     当 运行 archive thaw --dest
     那么 条目完整落到指定目录
+
+  @req:r24 @executable
+  场景: freeze 冷备合同可执行验收
+    假如 一个含三个带日期归档目录的临时仓库
+    当 v2 先 dry-run 再按 before 与 keep-recent 执行 freeze
+    那么 冷备文件生成且被冻结目录自 archive 删除
+    而且 dry-run 仅列候选且未做任何变更
+    而且 freeze --list 列出冷备条目

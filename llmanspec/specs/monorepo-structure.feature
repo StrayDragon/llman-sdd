@@ -30,3 +30,27 @@
     假如 工作目录是仓库根
     当 执行命令 "bun test tests/unit/template-command-parity.test.ts"
     那么 退出码为 0
+
+  @req:r1 @executable
+  场景: 工作区布局合约对账通过
+    假如 工作目录是仓库根
+    当 执行命令 "bun tests/bdd/assert/monorepo-layout.ts"
+    那么 退出码为 0
+
+  @req:r2 @executable
+  场景: 质量门禁合约对账通过
+    假如 工作目录是仓库根
+    当 执行命令 "bun tests/bdd/assert/quality-gates.ts"
+    那么 退出码为 0
+
+  @req:r3 @executable
+  场景: core 纯域纪律合约对账通过
+    假如 工作目录是仓库根
+    当 执行命令 "bun tests/bdd/assert/core-purity.ts"
+    那么 退出码为 0
+
+  @req:r4 @executable
+  场景: BDD runner 就绪合约对账通过
+    假如 工作目录是仓库根
+    当 执行命令 "bun tests/bdd/assert/bdd-runner.ts"
+    那么 退出码为 0

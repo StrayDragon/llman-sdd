@@ -11,6 +11,7 @@ import './steps/smoke.ts';
 import './steps/domain.ts';
 import './steps/context.ts';
 import { runFeature, type TestContext } from './runner.ts';
+import './steps/meta-foundation.ts';
 
 const FEATURES_DIR = join(import.meta.dirname, 'features');
 // Capability specs (@executable scenarios drive the real core APIs).

@@ -1,6 +1,9 @@
 ---
 depends_on: []
 needs_specs_change: true
+branch: sdd/add-bdd-exe-meta-foundation
+base_branch: main
+base_sha: 0588ead04e6ad8f8ef58bed753c0177a16948f58
 ---
 
 # BDD executable 化·LOWER 批:init + monorepo + review-freeze 元基座配对验收
