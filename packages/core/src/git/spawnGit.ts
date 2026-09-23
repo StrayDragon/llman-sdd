@@ -123,3 +123,59 @@ export function worktreeList(git: GitLike): WorktreeEntry[] {
   if (current !== null) entries.push(current);
   return entries;
 }
+
+export interface MainCheckoutProbe {
+  /** Resolved default branch name (local-first main → master → origin/*). */
+  defaultBranch: string | null;
+  /** Absolute path of the executing worktree; null when unresolvable. */
+  here: string | null;
+  /**
+   * Absolute path of the worktree holding the default branch (the main
+   * checkout); null when no worktree holds it.
+   */
+  main: string | null;
+}
+
+/**
+ * r24: best-effort main-checkout probe — the main checkout is the worktree
+ * holding the default branch. Any git failure (no resolvable default branch,
+ * worktree list failure, outside a repo) yields nulls so callers skip the
+ * warning instead of failing the command.
+ */
+export function probeMainCheckout(git: GitLike): MainCheckoutProbe {
+  try {
+    const def = defaultBranch(git);
+    const here = git.runOpt(['rev-parse', '--show-toplevel']);
+    let main: string | null = null;
+    for (const entry of worktreeList(git)) {
+      if (entry.branch === def) {
+        main = entry.path;
+        break;
+      }
+    }
+    const norm = (p: string | null): string | null => (p === null ? null : p.replace(/\/+$/u, ''));
+    return { defaultBranch: def, here: norm(here), main: norm(main) };
+  } catch {
+    return { defaultBranch: null, here: null, main: null };
+  }
+}
+
+/**
+ * r24: freeze/thaw warning line when executed outside the main checkout —
+ * names the non-main checkout, the possibly-incomplete cold backup, and the
+ * main-checkout recommendation; null when at the main checkout or when the
+ * probe could not resolve the executing worktree at all.
+ */
+export function nonMainCheckoutWarning(probe: MainCheckoutProbe): string | null {
+  if (probe.here === null || probe.here === probe.main) return null;
+  const mainDesc =
+    probe.main !== null
+      ? probe.main
+      : 'not checked out in any worktree (cannot return to a main checkout)';
+  return (
+    `WARNING: this is a non-main checkout (${probe.here}); the main checkout holding ` +
+    `\`${probe.defaultBranch ?? '<unknown>'}\` is: ${mainDesc} — the cold backup may be ` +
+    'incomplete and freeze/thaw effects are only visible in this worktree; ' +
+    'prefer running freeze/thaw from the main checkout'
+  );
+}

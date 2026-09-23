@@ -21,6 +21,7 @@
   @req:r24 @human
   场景: freeze 冷备合同
     - `archive freeze` MUST 将候选归档目录写入 `llmanspec/changes/archive/freezed_changes.7z.archived` 并删除原目录;候选 MUST 为目录名带 `YYYY-MM-DD-` 前缀且早于 `--before` 日期者,`--keep-recent N` MUST 按名保留最近 N 个不冻结;`--dry-run` MUST 仅列候选不做变更;`--list` MUST 列出冷备内条目。
+    - 执行 worktree 非主检出(主检出 = 持有默认分支的 worktree)时,freeze 与 thaw MUST 输出 WARNING(指明当前为非主检出、冷备可能不完整、建议回主检出执行)且 MUST NOT 阻断:退出码与既有产物形态不变;主检出探测失败 SHALL 静默跳过警告(best-effort)。
 
   @req:r25 @human
   场景: thaw 回置与双向兼容
@@ -60,3 +61,10 @@
     那么 冷备文件生成且被冻结目录自 archive 删除
     而且 dry-run 仅列候选且未做任何变更
     而且 freeze --list 列出冷备条目
+
+  @req:r24 @executable
+  场景: 非主检出 freeze 警告且归档仍产出
+    假如 一个次级 worktree 持有非默认分支且含带日期归档目录的临时仓库
+    当 在次级 worktree 运行 archive freeze
+    那么 输出含非主检出 WARNING
+    而且 冷备仍产出且候选目录被冻结移除

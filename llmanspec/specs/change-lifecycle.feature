@@ -58,12 +58,25 @@
   @req:r35 @human
   场景: next-id 数字编号计数
     - `change next-id` MUST 无参数执行,递归扫描 `llmanspec/` 全树目录名(任意深度,跳过符号链接与点目录)提取编号:内置启发式 MUST 取 token 边界上的 `c<数字>` 串(大小写不敏感,匹配 c2790、c10-active 与 2026-01-01-c20-slug 等形态),纯前导数字名(如 3-third)MUST NOT 计入;人读输出 MUST 为 `max number in tree: N`(无编号时 `no numbered change dirs found in tree`)加 `next free number: M` 两行;`--json` MUST 输出 {maxNumber, nextNumber, warnings},无编号时 maxNumber MUST 为 null 且 nextNumber MUST 为 1;本命令 MUST 为只读,不创建任何目录;归档内条目扫描 SHALL 为 best-effort 扩展,v2 最小实现不进入冻结包。
+    - 扫描范围 MUST 为当前工作树加全部关联 git worktree(`git worktree list --porcelain`,路径去重)各自的 `llmanspec/` 全树;worktree list 失败 SHALL 退化为仅当前树(best-effort,与归档扫描同级)并在 warnings 记录退化;同一编号出现于多个 worktree 时 `--json` 的 warnings MUST 给出提示(含该编号与 worktree 路径);human 两行输出形态 MUST 不变。
 
   @req:r35 @executable
   场景: 编号扫描与 next free
     假如 一个含 c10-active 与嵌套 c2620 目录的 llmanspec 树
     当 运行 change next-id --json
     那么 maxNumber 为 2620 且 nextNumber 为 2621
+
+  @req:r35 @executable
+  场景: next-id 吸收关联 worktree 的更大编号
+    假如 一个主检出含 c10 且关联 worktree 含更高编号目录的临时仓库
+    当 在主检出运行 change next-id --json
+    那么 跨 worktree maxNumber 为 2620 且 nextNumber 为 2621
+
+  @req:r35 @executable
+  场景: 同编号跨 worktree 提示
+    假如 一个主检出与关联 worktree 均含相同编号目录的临时仓库
+    当 在主检出运行 change next-id --json
+    那么 warnings 提示编号 2620 出现在多个 worktree
 
   @req:r36 @executable
   场景: dry-run 零副作用

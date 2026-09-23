@@ -114,12 +114,20 @@ export {
   makeSpawnGit,
   currentBranch,
   worktreeList,
+  probeMainCheckout,
+  nonMainCheckoutWarning,
   type GitLike,
   type WorktreeEntry,
+  type MainCheckoutProbe,
 } from './git/spawnGit.ts';
 export { DRAFT_PROPOSAL_TEMPLATE, deriveChangeId } from './change/id.ts';
 export { parseTaskCheckboxes, type ParsedTaskCheckboxes } from './change/tasks.ts';
-export { extractUniqueNumber, harvestUniqueNumbers } from './change/nextId.ts';
+export {
+  extractUniqueNumber,
+  collectNumbers,
+  harvestUniqueNumbers,
+  harvestAcrossWorktrees,
+} from './change/nextId.ts';
 export { ChangeIdResolveError, resolveChangeId, type ResolvedChangeId } from './change/resolve.ts';
 export {
   CHANGES_DIR,

@@ -8,7 +8,7 @@ import {
   changeDiffInfo,
   deriveChangeId,
   finalizeChange,
-  harvestUniqueNumbers,
+  harvestAcrossWorktrees,
   newChange,
   nextUniqueNumber,
   parseTaskCheckboxes,
@@ -155,7 +155,10 @@ export function registerChange(program: Command): void {
     .description('Preview the next free change id number (read-only)')
     .option('--json', 'emit {maxNumber, nextNumber, warnings}')
     .action((options: { json?: boolean }) => {
-      const harvest = harvestUniqueNumbers(
+      // r35: the scan covers this tree plus every linked git worktree's own
+      // llmanspec/ tree (degrades to the current tree when worktree list fails).
+      const harvest = harvestAcrossWorktrees(
+        makeCliGit(process.cwd()),
         {
           listDir: (p) => readdirSync(resolve(p)),
           isDirectory: (p) => statSync(resolve(p)).isDirectory(),

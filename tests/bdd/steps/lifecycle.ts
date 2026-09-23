@@ -564,3 +564,86 @@ bdd.thenStep('报错含持有 worktree 路径且目标分支无新提交', (ctx)
     throw new Error('zero-write violated: change dir was renamed in the current worktree');
   }
 });
+
+// ---------------------------------------------------------------------------
+// r35 扩展 — next-id 跨 worktree 扫描(acceptance):扫描吸收全部关联
+// worktree 各自 llmanspec/ 全树的编号;同一编号出现于多个 worktree 时
+// --json warnings 给出提示。fixture 复用 makeTempRepo 工厂,关联 worktree
+// 经 `git worktree add` 构造(design D3)。
+// ---------------------------------------------------------------------------
+
+interface CrossWorktreeNextId {
+  code: number;
+  payload: { maxNumber: number | null; nextNumber: number; warnings: string[] };
+}
+
+const writeNumberedChange = (root: string, name: string): void => {
+  const dir = join(root, 'llmanspec', 'changes', name);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'proposal.md'), '---\ndepends_on: []\n---\nx\n');
+};
+
+const commitAll = (repo: TempRepo, message: string): void => {
+  repo.run('git', ['add', '-A']);
+  repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', message]);
+};
+
+bdd.given('一个主检出含 c10 且关联 worktree 含更高编号目录的临时仓库', (ctx) => {
+  const repo = makeTempRepo();
+  writeNumberedChange(repo.root, 'c10-active');
+  commitAll(repo, 'seed c10');
+  // The side worktree gets its own branch: `main` is already checked out in
+  // repo.root and git refuses a second checkout of the same branch.
+  const sidePath = `${repo.root}-side`;
+  const added = repo.run('git', ['worktree', 'add', '-b', 'feature/side', sidePath]);
+  if (added.code !== 0) throw new Error(`worktree add failed: ${added.stderr}`);
+  // worktree-local (uncommitted) higher number: only visible in the side tree.
+  writeNumberedChange(sidePath, 'c2620-tool-x');
+  ctx.fixtures['跨worktree'] = { root: repo.root, sidePath };
+});
+
+bdd.given('一个主检出与关联 worktree 均含相同编号目录的临时仓库', (ctx) => {
+  const repo = makeTempRepo();
+  // Committed number: visible from every worktree of the repo.
+  writeNumberedChange(repo.root, 'c2620-shared');
+  commitAll(repo, 'seed c2620');
+  const sidePath = `${repo.root}-side`;
+  const added = repo.run('git', ['worktree', 'add', '-b', 'feature/side', sidePath]);
+  if (added.code !== 0) throw new Error(`worktree add failed: ${added.stderr}`);
+  ctx.fixtures['跨worktree'] = { root: repo.root, sidePath };
+});
+
+bdd.when('在主检出运行 change next-id --json', (ctx) => {
+  const { root } = ctx.fixtures['跨worktree'] as { root: string };
+  const proc = spawnSync('bun', [CLI, 'change', 'next-id', '--json'], {
+    cwd: root,
+    encoding: 'utf8',
+  });
+  ctx.fixtures['跨worktree结果'] = {
+    code: proc.status ?? 1,
+    payload: JSON.parse(proc.stdout ?? '{}'),
+  } satisfies CrossWorktreeNextId;
+});
+
+bdd.thenStep(
+  '跨 worktree maxNumber 为 {n:d} 且 nextNumber 为 {m:d}',
+  (ctx, maxN: string, nextN: string) => {
+    const r = ctx.fixtures['跨worktree结果'] as CrossWorktreeNextId;
+    if (r.code !== 0) throw new Error(`next-id exited non-zero: ${JSON.stringify(r.payload)}`);
+    if (r.payload.maxNumber !== Number(maxN) || r.payload.nextNumber !== Number(nextN)) {
+      throw new Error(`expected max=${maxN} next=${nextN}, got ${JSON.stringify(r.payload)}`);
+    }
+  },
+);
+
+bdd.thenStep('warnings 提示编号 {n:d} 出现在多个 worktree', (ctx, n: string) => {
+  const r = ctx.fixtures['跨worktree结果'] as CrossWorktreeNextId;
+  const hit = r.payload.warnings.find(
+    (w) => w.includes(`number ${n} `) && w.includes('multiple worktrees'),
+  );
+  if (!hit) {
+    throw new Error(
+      `expected cross-worktree warning for ${n}, got: ${JSON.stringify(r.payload.warnings)}`,
+    );
+  }
+});

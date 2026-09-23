@@ -1,6 +1,9 @@
 ---
 depends_on: []
 needs_specs_change: true
+branch: sdd/add-worktree-hardening
+base_branch: main
+base_sha: 725f3c4eb66587b9b969f67eb50561c3c4cf613e
 ---
 
 # worktree 加固:next-id 跨 worktree 扫描 + freeze 主检出警告

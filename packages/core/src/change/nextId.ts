@@ -3,7 +3,11 @@
  * Read-only: walks directory names at any depth under `llmanspec/` and
  * extracts `c<digits>` tokens at token boundaries — the same value
  * `change new --from` used to inject as `llman_sdd_unique_id`.
+ * r35 extension: the scan covers the current tree plus every linked git
+ * worktree's own `llmanspec/` tree (see harvestAcrossWorktrees).
  */
+
+import { worktreeList, type GitLike } from '../git/spawnGit.ts';
 
 export interface NextIdIo {
   listDir(path: string): string[];
@@ -29,7 +33,11 @@ export function extractUniqueNumber(name: string): number | null {
   return m ? Number(m[1]) : null;
 }
 
-export function harvestUniqueNumbers(io: NextIdIo, root: string): IdHarvest {
+/** Numbers found under one tree root plus per-walk listing warnings. */
+export function collectNumbers(
+  io: NextIdIo,
+  root: string,
+): { numbers: number[]; warnings: string[] } {
   const numbers: number[] = [];
   const warnings: string[] = [];
   const walk = (dir: string): void => {
@@ -50,6 +58,59 @@ export function harvestUniqueNumbers(io: NextIdIo, root: string): IdHarvest {
     }
   };
   walk(root);
+  return { numbers, warnings };
+}
+
+export function harvestUniqueNumbers(io: NextIdIo, root: string): IdHarvest {
+  const { numbers, warnings } = collectNumbers(io, root);
   const maxNumber = numbers.length > 0 ? Math.max(...numbers) : null;
+  return { maxNumber, nextNumber: maxNumber === null ? 1 : maxNumber + 1, warnings };
+}
+
+/**
+ * r35 extension: harvest across the current tree AND every linked git
+ * worktree's own `llmanspec/` tree (worktree paths deduped). Worktree listing
+ * failure degrades to the current tree only (best-effort, same grade as the
+ * archive sweep) with the cause recorded in warnings; the same number visible
+ * in more than one worktree raises a warning naming it and the worktrees.
+ */
+export function harvestAcrossWorktrees(git: GitLike, io: NextIdIo, root: string): IdHarvest {
+  const warnings: string[] = [];
+  let paths: string[] | null;
+  try {
+    const seen = new Set<string>();
+    paths = [];
+    for (const entry of worktreeList(git)) {
+      const path = entry.path.replace(/\/+$/u, '');
+      if (!seen.has(path)) {
+        seen.add(path);
+        paths.push(path);
+      }
+    }
+  } catch (error) {
+    paths = null;
+    warnings.push(
+      `worktree list failed: ${(error as Error).message} — scanned the current tree only`,
+    );
+  }
+  const trees = paths === null ? [root] : paths.map((p) => `${p}/llmanspec`);
+  const perTree = trees.map((at) => ({ at, ...collectNumbers(io, at) }));
+  for (const tree of perTree) warnings.push(...tree.warnings);
+  const where = new Map<number, Set<string>>();
+  for (const tree of perTree) {
+    for (const n of new Set(tree.numbers)) {
+      const labels = where.get(n) ?? new Set<string>();
+      if (labels.size === 0) where.set(n, labels);
+      labels.add(tree.at);
+    }
+  }
+  for (const n of [...where.keys()].toSorted((a, b) => a - b)) {
+    const labels = [...(where.get(n) as Set<string>)].toSorted();
+    if (labels.length > 1) {
+      warnings.push(`number ${n} appears in multiple worktrees: ${labels.join(', ')}`);
+    }
+  }
+  const all = perTree.flatMap((tree) => tree.numbers);
+  const maxNumber = all.length > 0 ? Math.max(...all) : null;
   return { maxNumber, nextNumber: maxNumber === null ? 1 : maxNumber + 1, warnings };
 }

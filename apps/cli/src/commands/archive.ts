@@ -1,10 +1,26 @@
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import { makeWasmSevenZip, runFreeze, runList, runThaw } from '@llman-sdd/core';
+import {
+  makeWasmSevenZip,
+  nonMainCheckoutWarning,
+  probeMainCheckout,
+  runFreeze,
+  runList,
+  runThaw,
+} from '@llman-sdd/core';
 import type { Command } from 'commander';
 
-import { makeIo } from '../io.ts';
+import { makeCliGit, makeIo } from '../io.ts';
+
+/**
+ * r24: warn (never block) when freeze/thaw runs outside the main checkout —
+ * the worktree NOT holding the default branch. Probe failures skip silently.
+ */
+function warnIfNotMainCheckout(root: string): void {
+  const warning = nonMainCheckoutWarning(probeMainCheckout(makeCliGit(root)));
+  if (warning !== null) console.log(warning);
+}
 
 export function registerArchive(program: Command): void {
   const archive = program
@@ -28,8 +44,9 @@ export function registerArchive(program: Command): void {
         list?: boolean;
       }) => {
         try {
-          const sz = await makeWasmSevenZip();
           const root = process.cwd();
+          warnIfNotMainCheckout(root);
+          const sz = await makeWasmSevenZip();
           const io = makeIo(root);
           if (options.list) {
             for (const line of await runList(io, sz, root)) console.log(line);
@@ -67,8 +84,9 @@ export function registerArchive(program: Command): void {
       if (options.dest !== undefined) {
         mkdirSync(resolve(options.dest), { recursive: true });
       }
-      const sz = await makeWasmSevenZip();
       const root = process.cwd();
+      warnIfNotMainCheckout(root);
+      const sz = await makeWasmSevenZip();
       const io = makeIo(root);
       try {
         const result = await runThaw(io, sz, root, options.change, { dest: options.dest });
