@@ -42,6 +42,16 @@ export interface CapabilityDoc {
 }
 
 /**
+ * Single spec-id caliber (r25) for every consumer that labels a discovered
+ * spec entry: the `# capability:` header wins, else the fileName minus the
+ * `.feature` suffix. Unifies the former dual caliber (bare `fileName` vs
+ * stripped stem) shared by review/context-tree/specs-report/validate paths.
+ */
+export function specIdOf(entry: { fileName: string; doc: CapabilityDoc }): string {
+  return entry.doc.header.capability ?? entry.fileName.replace(/\.feature$/u, '');
+}
+
+/**
  * v1 wording: constraint statements must contain one of these tokens.
  * Shared by the parser (structural error) and validation (verdict gate) so
  * the two MUST-word checks cannot drift apart.

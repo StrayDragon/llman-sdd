@@ -1,4 +1,5 @@
 import type { GitLike } from '../git/spawnGit.ts';
+import { specIdOf } from '../spec/ir.ts';
 import { evaluateStaleness, notApplicableStaleness } from '../validation/staleness.ts';
 /**
  * Review aggregation (review-freeze capability, r23): five-signal review over
@@ -66,7 +67,7 @@ export function buildReview(input: ReviewInput, io: SpecIo): ReviewResult {
   const sorted = [...entries].toSorted((a, b) => a.fileName.localeCompare(b.fileName));
 
   for (const entry of sorted) {
-    const cap = entry.doc.header.capability ?? entry.fileName;
+    const cap = specIdOf(entry);
     // r33: per-capability signals honor the --capability filter; locked and
     // validate stay global regardless.
     if (input.capability !== undefined && cap !== input.capability) continue;
@@ -148,7 +149,7 @@ export function buildReview(input: ReviewInput, io: SpecIo): ReviewResult {
   const criticalCount = failed.length;
 
   const lines: string[] = [`Review: critical=${criticalCount} warning=${warningCount}`];
-  for (const cap of sorted.map((e) => e.doc.header.capability ?? e.fileName)) {
+  for (const cap of sorted.map((e) => specIdOf(e))) {
     for (const kind of ['pending', 'unbound', 'stale'] as const) {
       const s = signals.find((x) => x.kind === kind && x.capability === cap);
       if (!s) continue;

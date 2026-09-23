@@ -5,7 +5,7 @@
  * injected via SpecIo.
  */
 import type { CapabilityDoc } from '../spec/ir.ts';
-import { MUST_WORD_RE } from '../spec/ir.ts';
+import { MUST_WORD_RE, specIdOf } from '../spec/ir.ts';
 import { buildReqRegistry } from '../spec/reqRegistry.ts';
 
 export type ValidationLevel = 'ERROR' | 'WARNING' | 'INFO';
@@ -51,7 +51,7 @@ export function validateCapability(
   opts: { strict?: boolean } = {},
 ): SpecVerdict {
   const { doc } = entry;
-  const cap = doc.header.capability ?? entry.fileName;
+  const cap = specIdOf(entry);
   const strict = opts.strict === true;
   const items: ValidationItem[] = [];
 

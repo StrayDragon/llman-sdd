@@ -53,6 +53,7 @@ export type {
   ScenarioIR,
   SpecStructuralError,
 } from './spec/ir.ts';
+export { specIdOf } from './spec/ir.ts';
 export {
   SpecParseError,
   localeToGherkinLang,

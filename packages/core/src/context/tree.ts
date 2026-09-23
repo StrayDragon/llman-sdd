@@ -6,6 +6,7 @@
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 
+import { specIdOf } from '../spec/ir.ts';
 import type { SpecEntry } from '../validation/validate.ts';
 
 export const TREE_VERSION = 1;
@@ -52,7 +53,7 @@ function joinSteps(
 export function buildDocs(entries: readonly SpecEntry[]): SerializedDocNode[] {
   return entries
     .map((entry) => {
-      const cap = entry.doc.header.capability ?? entry.fileName;
+      const cap = specIdOf(entry);
       const reqs = entry.doc.scenarios
         .filter((s) => s.classification === 'human')
         .map((s) => ({

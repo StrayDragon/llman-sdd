@@ -6,6 +6,7 @@ import {
   collectChanges,
   renderMachine,
   renderReviewHtml,
+  specIdOf,
   TEMPLATES_ROOT,
 } from '@llman-sdd/core';
 import type { Command } from 'commander';
@@ -36,9 +37,7 @@ export function registerReview(program: Command): void {
         const io = newIo();
         const entries = loadSpecEntries();
         if (options.capability !== undefined) {
-          const known = new Set(
-            entries.map((e) => e.doc.header.capability ?? e.fileName.replace(/\.feature$/u, '')),
-          );
+          const known = new Set(entries.map((e) => specIdOf(e)));
           if (!known.has(options.capability)) {
             console.error(`capability \`${options.capability}\` not found`);
             process.exitCode = 1;

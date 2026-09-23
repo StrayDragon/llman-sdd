@@ -9,6 +9,7 @@ import {
   notApplicableStaleness,
   renderMachine,
   specRelFor,
+  specIdOf,
   STAGE_ORDER,
   validateCapability,
   validateChange,
@@ -53,7 +54,7 @@ function specV1Items(
 
   const items: VItem[] = [];
   for (const entry of entries) {
-    const cap = entry.doc.header.capability ?? entry.fileName.replace(/\.feature$/u, '');
+    const cap = specIdOf(entry);
     const verdict = validateCapability(entry as never, duplicatesFor, io, {
       strict: opts.strict === true,
     });
@@ -259,12 +260,7 @@ export function registerValidate(program: Command): void {
         if (item !== undefined) {
           const entries = loadSpecEntries();
           const specEntry =
-            options.type === 'change'
-              ? undefined
-              : entries.find(
-                  (e) =>
-                    (e.doc.header.capability ?? e.fileName.replace(/\.feature$/u, '')) === item,
-                );
+            options.type === 'change' ? undefined : entries.find((e) => specIdOf(e) === item);
           if (specEntry !== undefined) {
             const items = specV1Items({ strict: options.strict }, entries);
             const mine = items.find((i) => i.id === item);

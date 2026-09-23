@@ -17,6 +17,22 @@
 `MissingUnitError` / `revParseHead` 不再经 `@llman-sdd/core` 入口 re-export
 （源模块内部导出保留）。
 
+阶段性 QA 重构（行为面仅两处已批准的文案级变化）：
+
+- **spec id 双口径归一**：spec 条目 id 派生统一到 core 新增的
+  `specIdOf(entry)`（strip 口径：`# capability:` header 优先，否则去 `.feature`
+  后缀的 fileName）。此前 review/context-index tree/specs 报表/validate 走裸
+  `fileName` 口径，CLI 命令走 strip 口径。唯一可见变化：capability header
+  缺失（本就 ERROR 路径）时，错误消息与报告中的 id 从 `t.feature` 形态变为
+  `t` 形态（如 `FAIL spec/t`、`spec \`t\`: missing ...`、review 信号与
+tree.json 的 `spec_id`）。
+- proposal frontmatter 块提取统一：三处内联 `/^---\n([\s\S]*?)\n---/u` 正则
+  （graph deps / show needsSpecsChange / changeCheck depends_on·blocks 门）收敛到
+  `change/frontmatter.ts` 新增的 `extractFrontmatter`（与原正则逐字节等价，
+  经 characterization 测试钉板，含 CRLF / 无闭合 / 闭合后尾随文本 / 块内含
+  `---` 行 / 空文件等病态输入，全部消费点零行为差异）；`splitFrontmatter`
+  写侧契约不变，`writeBinding` 输出字节稳定。
+
 ### 迁移说明（详见 `migrations/v0.3-v0.4/README.md`）
 
 - agent/LLM 消费：直接吃 TOON（省 ~40% token，`[N]{fields}` 结构护栏），或加

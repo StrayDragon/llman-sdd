@@ -1,4 +1,5 @@
 import { renderMachine } from '../render/machine.ts';
+import { specIdOf } from '../spec/ir.ts';
 /**
  * Specs listing (peripheral-commands capability, r20/r21): morphology counts
  * aligned with v1 — rules = @human scenarios; enforced = rules carrying an
@@ -55,8 +56,8 @@ export function collectSpecs(entries: readonly SpecEntry[]): SpecSummary[] {
   return entries.map((e) => {
     const morphology = morphologyOf(e.doc);
     return {
-      id: e.doc.header.capability ?? e.fileName,
-      title: e.doc.header.capability ?? e.fileName,
+      id: specIdOf(e),
+      title: specIdOf(e),
       purpose: e.doc.header.purpose ?? '',
       validScope: (e.doc.header.scope ?? '')
         .split(',')

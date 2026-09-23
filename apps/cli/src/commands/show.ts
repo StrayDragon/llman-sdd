@@ -7,6 +7,7 @@ import {
   morphologyOfScenarios,
   renderMachine,
   showChangeJson,
+  specIdOf,
 } from '@llman-sdd/core';
 import type { Command } from 'commander';
 
@@ -25,9 +26,7 @@ function renderSpecJson(
   item: string,
   opts: { metaOnly: boolean; noScenarios: boolean },
 ): Record<string, unknown> {
-  const entry = entries.find(
-    (e) => (e.doc.header.capability ?? e.fileName.replace(/\.feature$/u, '')) === item,
-  );
+  const entry = entries.find((e) => specIdOf(e) === item);
   const doc = entry?.doc as
     | {
         header: { capability: string | null; purpose: string | null };
@@ -127,14 +126,13 @@ export function registerShow(program: Command): void {
       // v1: unknown output tokens are rejected by clap; script consumers rely on
       // the deprecation being a no-op render rather than an error.
       // Spec 判定与 collectSpecs/discoverSpecs 同口径:扁平文件与目录式
-      // `specs/<cap>/<cap>.feature` 均按 entry 精确 id(capability ?? fileName)
-      // 命中;r25 spec id 精确匹配优先于 change 前缀,不做模糊解析。
+      // `specs/<cap>/<cap>.feature` 均按 entry 精确 id(specIdOf:capability ?? 去
+      // `.feature` 后缀的 fileName)命中;r25 spec id 精确匹配优先于 change 前缀,
+      // 不做模糊解析。
       // Discover once per run — the spec lookup, summary and JSON render below
       // all share these entries.
       const entries = loadSpecEntries();
-      const specEntry = entries.find(
-        (e) => (e.doc.header.capability ?? e.fileName.replace(/\.feature$/u, '')) === item,
-      );
+      const specEntry = entries.find((e) => specIdOf(e) === item);
       const isSpec =
         options.type === 'spec' ||
         existsSync(join('llmanspec', 'specs', `${item}.feature`)) ||

@@ -6,6 +6,7 @@
  */
 
 import type { CapabilityDoc } from './ir.ts';
+import { specIdOf } from './ir.ts';
 
 const RULE_KEYWORDS = ['MUST', 'SHALL', '必须', '不得', '禁止'] as const;
 
@@ -147,8 +148,7 @@ export interface ResolvedReq {
 export function resolveReq(entries: readonly SpecEntryLike[], reqId: string): ResolvedReq | null {
   const rule = findReq(entries, reqId);
   if (rule === null) return null;
-  const capability =
-    rule.entry.doc.header.capability ?? rule.entry.fileName.replace(/\.feature$/u, '');
+  const capability = specIdOf(rule.entry);
   const harness: string[] = [];
   for (const entry of entries) {
     for (const scenario of entry.doc.scenarios) {
