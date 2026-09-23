@@ -15,8 +15,8 @@ Every capability `.feature` (`llmanspec/specs/<capability>.feature` or `llmanspe
 - Pairing: before adding an `@human` rule, run the triage — any GWT-expressible automated-verifiable behavior MUST get a paired `@executable` acceptance (prose-only rules guard nothing); `@human` is for non-automatable human judgment only; record the justification in proposal/design when no pairing is possible.
 Never combine `@human` with `@executable`. (`@manual` was removed in 0.3.0 — drop it; `@human` already carries the human-judgement semantics.)
 
-3) Legacy `spec.toon` present (`legacy spec.toon found ... run ... toon2features`):
-Run `llman-sdd project migrate --kind toon2features --yes`, review the diff, commit.
+3) Legacy `spec.toon` / `*.feature.delta.toon` (v1 leftovers):
+v2 ships no migration command (`project migrate` prints an informational note only) — convert the content back to a single-track `.feature` by hand, or delete the leftover files, then re-run validation.
 
 Git-native guardrail:
 - **Branch binding** → **Specs landing**: first `change start` / `attach`, then edit live `.feature` files on the bound non-default branch and commit.

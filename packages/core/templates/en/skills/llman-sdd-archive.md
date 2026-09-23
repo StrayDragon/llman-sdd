@@ -53,7 +53,7 @@ flowchart LR
 - **Git-native close-out**:
   - Prerequisites: Branch binding done (`change start` / `attach`); still on the bound branch (or the target branch after the auto merge).
   - `change archive` / `change finalize` run the **auto merge** (target `--into` > binding `base_branch` > default branch; method squash by default or `ff`; if the target is held by another worktree the merge is skipped with an explicit manual command), **then** rename change docs into `changes/archive/` — rename is never rolled back on merge failure and degradation is reported explicitly.
-  - Legacy `*.feature.delta.toon` or `spec.toon` under specs is a migration blocker — run `llman-sdd project migrate --kind toon2features`.
+  - Legacy `*.feature.delta.toon` or `spec.toon` under specs are v1 leftovers with no v2 migration command — convert back to single-track `.feature` by hand, or delete, before closing out.
   - **Default: `change finalize` (one-command close)** — gates → auto merge → docs rename → **auto commit** `archive(sdd): <change-id>` (squash default: impl diff + rename collapse into ONE commit on the target; no manual `git commit` needed; locked-rule edits are a report-only WARNING — warn, never block):
     ```text
     1. Implement live specs + code (working tree may stay dirty; commits on the branch are free — segmented or none)

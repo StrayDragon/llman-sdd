@@ -162,8 +162,8 @@ llman-sdd show <id> --json --type change
 - 配对：新增 `@human` 规则时先做分流判定——凡 GWT 可表达的自动化判定行为 MUST 落 `@executable` 验收并挂回规则（纯文字规则无行为守护）；`@human` 仅用于不可自动化的人工约束，无法配对时在 proposal/design 记录理由。
 - 禁止 `@human` 与 `@executable` 同场景；`@manual` 已在 0.3.0 移除——残留会被报迁移 ERROR，删掉该 tag 即可（`@human` 本身已承载人工判定语义）。
 
-3）遗留 `spec.toon`（`legacy spec.toon found ... run ... toon2features`）：
-运行 `llman-sdd project migrate --kind toon2features --yes`，审阅 diff 后提交。
+3）遗留 `spec.toon` / `*.feature.delta.toon`（v1 遗产）：
+v2 不提供迁移命令（`project migrate` 仅打印说明）——手工把内容转回单轨 `.feature` 或删除遗留文件，再重跑校验。
 
 Git-native 护栏：
 - **Branch binding** → **Specs landing**：先 `change start` / `attach`，再在绑定的非默认分支编辑 live `.feature` 并 commit。

@@ -53,7 +53,7 @@ flowchart LR
 - **Git-native 收尾**：
   - 前置：已 Branch binding（`change start` / `attach`）；仍在绑定分支上（或合并后已在目标分支）。
   - `change archive` / `change finalize` **先自动合并**（目标 `--into` > 绑定 `base_branch` > 默认分支；方式 squash 缺省或 `ff`；目标被其他 worktree 持有时跳过并打印手动命令），**再**将 change 文档改名到 `changes/archive/`——合并失败也不会回滚改名，降级提示显式可见。
-  - specs 下遗留 `*.feature.delta.toon` 或 `spec.toon` 均为迁移阻断项——跑 `llman-sdd project migrate --kind toon2features`。
+  - specs 下遗留 `*.feature.delta.toon` 或 `spec.toon` 属 v1 遗产，v2 不提供迁移命令——先手工转回单轨 `.feature` 或删除，再收口。
   - **默认：`change finalize`（单命令收口）**——门禁 → 自动合并 → 文档改名 → **自动提交** `archive(sdd): <change-id>`（squash 缺省：实现 diff + 改名收敛为目标分支**单个**提交；无需手动 `git commit`；锁定规则改动为报告制 WARNING——只警告不阻断）：
     ```text
     1. 实现 live specs + 代码（工作区可保持脏；分支上提交自由——分段或完全不提交）
@@ -102,8 +102,8 @@ flowchart LR
 - 配对：新增 `@human` 规则时先做分流判定——凡 GWT 可表达的自动化判定行为 MUST 落 `@executable` 验收并挂回规则（纯文字规则无行为守护）；`@human` 仅用于不可自动化的人工约束，无法配对时在 proposal/design 记录理由。
 - 禁止 `@human` 与 `@executable` 同场景；`@manual` 已在 0.3.0 移除——残留会被报迁移 ERROR，删掉该 tag 即可（`@human` 本身已承载人工判定语义）。
 
-3）遗留 `spec.toon`（`legacy spec.toon found ... run ... toon2features`）：
-运行 `llman-sdd project migrate --kind toon2features --yes`，审阅 diff 后提交。
+3）遗留 `spec.toon` / `*.feature.delta.toon`（v1 遗产）：
+v2 不提供迁移命令（`project migrate` 仅打印说明）——手工把内容转回单轨 `.feature` 或删除遗留文件，再重跑校验。
 
 Git-native 护栏：
 - **Branch binding** → **Specs landing**：先 `change start` / `attach`，再在绑定的非默认分支编辑 live `.feature` 并 commit。
