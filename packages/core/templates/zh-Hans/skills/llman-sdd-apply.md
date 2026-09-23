@@ -62,7 +62,7 @@ flowchart LR
 - 确认已在经 `llman-sdd change start <id>` 或 `change attach <id>` 绑定的非默认 feature 分支上（仅在需要重绑时用 `--force`）。分支上的 specs/features 即 SSOT——不要在 `changes/<id>/specs/` 下编写。
 {{ unit("skills/stage-guard") }}
 - 使用 `llman-sdd context --task "<proposal 中的目标>" --paths "<specs 中的 scope>"` 获取相关 specs。
-  - 若 context 不可用，运行 `llman-sdd index rebuild` 后重试。
+  - 若 context 不可用，先跑 `llman-sdd index check`：stale/缺失 → `llman-sdd index rebuild` 后重试；index 已 fresh 仍不可用（`LLMAN_SDD_INDEX_CHAT_MODEL` 未设）→ 回退 `llman-sdd list --specs` + 直读 `.feature` 文件——不要循环 rebuild。
 
 ### 2) 阅读 SSOT 工件
 必须通读以下文件：

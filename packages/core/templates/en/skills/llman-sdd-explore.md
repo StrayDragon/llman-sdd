@@ -45,7 +45,7 @@ flowchart LR
 ## Suggested moves
 1. Use `llman-sdd context --task "<task>" --paths "<files>"` to quickly locate relevant specs.
    - Read the `direct` spec files (these are the contracts you must understand).
-   - If context is unavailable, rebuild with `llman-sdd index rebuild` (default `pageindex`, no model needed) and retry.
+   - If context is unavailable, run `llman-sdd index check` first: stale/missing → rebuild with `llman-sdd index rebuild` (default `pageindex`, no model needed) and retry; still unavailable on a fresh index (`LLMAN_SDD_INDEX_CHAT_MODEL` unset) → fall back to `llman-sdd list --specs` + reading `.feature` files directly — do not loop on rebuild.
 2. Clarify the goal and constraints (ask 1–3 questions).
 3. **Grilling branch (optional, only when the user explicitly triggers)**: triggers on "deep-dig" / "grill" / "one at a time" / "nail it down". Walks the decision tree one question at a time:
    - **Ask one question at a time**, with your recommended answer, waiting for feedback before the next.

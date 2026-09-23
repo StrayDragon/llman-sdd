@@ -70,3 +70,23 @@
     那么 zh 与 en 变体按映射表归一化且空值回退 en
     而且 回退链为去重的归一化值语言主部与 en 序列
     而且 资源按 unit 级独立回退且首个命中 locale 生效
+
+  @req:r70 @human
+  场景: 模板指引语义对齐
+    - 模板 skills 与 units(zh-Hans 与 en 双 locale)中对 CLI 的行为性指引 MUST 与实际值域与行为一致:review 人审检查点 MUST 用无旗标调用(--capability 值域仅限 spec id)、失效旗标(--skip-specs)MUST NOT 再被推荐、change archive 收口 MUST 表述为与 finalize 同样的自动提交、context unavailable 修复指引 MUST 覆盖 index stale 与 chat model 未设双分支、引用不存在的 JSON 字段 MUST NOT 出现;对账 MUST 以自动门禁纳入 bun test 套件(随 qa 运行),以禁用模式与必含标记声明,违例 MUST 逐条报出来源模板与违例原因;对账面为 packages/core/templates/** 模板源头,渲染产物与 golden 基线为下游,不重复设门。
+
+  @req:r71 @human
+  场景: authoring helpers 撰写引导
+    - propose 撰写引导 MUST 将 spec authoring helpers 声明为结构化新增首选(next-req-id 全局 id 分配、add-req/add-scenario 追加规则与验收、skeleton 新建 capability、resolve-req 反查),手改 .feature MUST 保留为逃生门;引导 MUST 在 zh-Hans 与 en 双 locale 模板中同语义存在。
+
+  @req:r70 @executable
+  场景: 指引语义对齐门禁通过
+    假如 工作目录是仓库根
+    当 执行命令 "bun test tests/unit/template-guidance-parity.test.ts"
+    那么 退出码为 0
+
+  @req:r71 @executable
+  场景: authoring helpers 引导入渲染产物
+    假如 本仓库的等价 config(zh-Hans 与 bdd 配置)
+    当 渲染 propose skill 与 validation-hints 单元
+    那么 zh-Hans 与 en 产物均含 authoring helpers 引导标识

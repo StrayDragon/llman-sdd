@@ -18,7 +18,7 @@ Run the propose-equivalent path quickly: planning shell → Branch binding → S
 
 ## Steps
 
-1. Ask the user for a short description, change id (or derive), impacted capability, and confirm the final id.
+1. Take a short description from the user; derive the change id when not supplied and announce it (non-blocking, same rule as propose); identify the impacted capability.
 2. Ensure `llman-sdd init` has been run (`llmanspec/` exists).
 3. If `llmanspec/changes/<id>/` exists: ask fill-missing vs new id; do not overwrite without confirmation.
 4. Create the **planning shell** (OK briefly on the default branch):

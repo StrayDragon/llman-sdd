@@ -27,7 +27,7 @@ llman-sdd show <change-id> --output json --type change
 ### 1) Loop: implement → test
 For each incomplete task:
 1. Implement per task + live specs (minimal diff)
-2. Run `tasks[].test` if present
+2. Run the task's stated verification command when the task text names one
 3. On failure, fix and retry (same self-repair budget as `llman-sdd-apply`: cap 8 rounds)
 4. Check off `tasks.md` as `[x]`
 

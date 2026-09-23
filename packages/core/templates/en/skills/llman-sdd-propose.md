@@ -61,7 +61,7 @@ If the user just wants to **capture an idea** (e.g. "draft a proposal", "note do
    - **Meta-spec change** (SDD templates/process) → full SDD workflow
    - When uncertain, choose full SDD (conservative).
 2. Use `llman-sdd context --task "<goal>" --paths "<scope>"` to find relevant specs.
-   - If context unavailable, rebuild with `llman-sdd index rebuild` (default `pageindex`, no model needed) and continue.
+   - If context is unavailable, run `llman-sdd index check` first: stale/missing → rebuild with `llman-sdd index rebuild` (default `pageindex`, no model needed) and retry; still unavailable on a fresh index (`LLMAN_SDD_INDEX_CHAT_MODEL` unset) → fall back to `llman-sdd list --specs` + reading `.feature` files directly — do not loop on rebuild.
 3. Gather input:
    - A short description of the change
    - A change id (user-supplied if given; otherwise derive it with the non-blocking rule above and announce it)
@@ -103,6 +103,7 @@ If the user just wants to **capture an idea** (e.g. "draft a proposal", "note do
 ### 4b) Single-track feature authoring
 - Planning shell (proposal/design/tasks) may briefly live on the default branch; **do not** edit live `llmanspec/specs/**` on the default branch. After Branch binding, Specs landing and implementation happen on the bound branch.
 - **Single-track**: each capability is ONE `<capability>.feature`. Constraint rules are `@req:<id> @human` scenarios (statement verbatim in the description); executable acceptance scenarios carry `@executable` and link back via `@req:<req_id>`. Never nest scenarios in `Rule:` blocks (the runner skips them).
+- **Structured adds preferred**: to append rules/acceptances to an existing capability, prefer `llman-sdd spec next-req-id` (global rN allocation) + `spec add-req` / `spec add-scenario` (pairing tag syntax built in; write path auto-resolves flat vs directory layout). New capability → `spec skeleton <capability>`; id lookup → `spec resolve-req <rN>`. Hand-editing the `.feature` stays the escape hatch (best suited to editing existing clauses).
 - **@human/@executable triage** (decide before writing any new clause): any behavior expressible as GWT (Given/When/Then) MUST land as an `@executable` acceptance scenario linked back to its rule — prose-only rules guard nothing; `@human` is only for human judgment that cannot be automated (process rulings, aesthetics, external facts). A new `@human` clause without a paired `@executable` MUST record the justification in proposal/design.
 - Change shell: `llman-sdd change new <change-id>` → fill proposal/design/tasks → `llman-sdd change start <change-id>` (or `change attach`) → **then** edit live specs on the bound branch and commit (Specs landing).
 - Do **not** use `change delta` / solidify / `*.feature.delta.toon`.

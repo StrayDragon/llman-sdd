@@ -18,7 +18,7 @@ metadata:
 
 ## 步骤
 
-1. 询问用户：一句话描述、change id（或派生）、受影响 capability、确认最终 id。
+1. 从用户处取得一句话描述；change id 未给出则派生并宣布（非阻塞，同 propose 规则）；确定受影响 capability。
 2. 确保已 `llman-sdd init`（存在 `llmanspec/`）。
 3. 若 `llmanspec/changes/<id>/` 已存在：询问补齐或换 id；勿未确认就覆盖。
 4. 创建**规划壳**（可短暂在默认分支）：

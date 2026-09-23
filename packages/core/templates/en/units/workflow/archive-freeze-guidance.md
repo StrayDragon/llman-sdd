@@ -4,3 +4,4 @@
   - Freeze old archives: `llman-sdd archive freeze --before <YYYY-MM-DD> --keep-recent <N>`
   - Restore when needed: `llman-sdd archive thaw --change <YYYY-MM-DD-id>`
 - Apply freeze/thaw only to dated archive directories (`YYYY-MM-DD-*`) and keep a small recent window unfrozen when possible.
+- freeze/thaw print a warning (never block) when run outside the main checkout (a worktree not holding the default branch) — continue there only intentionally.

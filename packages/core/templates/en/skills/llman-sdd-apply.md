@@ -62,7 +62,7 @@ flowchart LR
 - Confirm you are on the non-default feature branch bound via `llman-sdd change start <id>` or `change attach <id>` (`--force` only to rebind). Specs/features on the branch are SSOT — do not author under `changes/<id>/specs/`.
 {{ unit("skills/stage-guard") }}
 - Use `llman-sdd context --task "<goal from proposal>" --paths "<scope from specs>"` to get relevant specs.
-  - If context is unavailable, run `llman-sdd index rebuild` and retry.
+  - If context is unavailable, run `llman-sdd index check` first: stale/missing → `llman-sdd index rebuild` and retry; still unavailable on a fresh index (`LLMAN_SDD_INDEX_CHAT_MODEL` unset) → fall back to `llman-sdd list --specs` + reading `.feature` files directly — do not loop on rebuild.
 
 ### 2) Read SSOT artifacts
 You must read through:

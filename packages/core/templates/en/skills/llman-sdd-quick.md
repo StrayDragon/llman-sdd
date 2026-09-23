@@ -37,7 +37,7 @@ flowchart LR
 
 ## Steps
 1. Use `llman-sdd context --task "..." --paths "..."` to confirm no spec changes needed.
-   - If context returns `quality: "unavailable"`, rebuild with `llman-sdd index rebuild` (default `pageindex`, no model needed).
+   - If context returns `quality: "unavailable"`, run `llman-sdd index check` first: stale/missing → `llman-sdd index rebuild` (default `pageindex`, no model needed) and retry; still unavailable on a fresh index (`LLMAN_SDD_INDEX_CHAT_MODEL` unset) → fall back to `llman-sdd list --specs` + reading `.feature` files directly — do not loop on rebuild.
    - Use `llman-sdd list --specs --json` for keyword-level spec metadata.
 2. Modify the code directly.
 3. If you need to touch `llmanspec/specs/**`, STOP unless you are on a bound non-default change branch (mini change: `change start`/`attach` → edit → commit). Never commit live specs on the default branch — not even for typo or scope-only fixes. Prefer routing live-spec maintenance to `llman-sdd-propose`, or require an existing bound branch.

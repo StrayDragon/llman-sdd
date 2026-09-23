@@ -21,10 +21,10 @@ propose 4b「单轨 feature 撰写」是撰写引导的自然归属;**不动** v
 
 apply-cycle 已带 `disable-model-invocation: true` 且渲染链路(frontmatter 原样透传)已验证;wayfinder 补同键兑现其 description 声明。不改 description 本身。
 
-## D5 specs 规则:r68 / r69 各配 @executable
+## D5 specs 规则:r70 / r71 各配 @executable
 
-- r68(指引语义对齐):模板对 CLI 的行为性指引 MUST 与实际值域/行为一致,双 locale 同语义——验收 = 执行命令 `bun test tests/unit/template-guidance-parity.test.ts` 退出 0。
-- r69(authoring helpers 引导):propose 撰写引导 MUST 引入结构化新增首选与逃生门定位,双 locale 同语义——验收同上(r68/r69 共用一个门禁文件,分两条场景各自驱动,失败信息按断言条目标注来源)。
+- r70(指引语义对齐):模板对 CLI 的行为性指引 MUST 与实际值域/行为一致,双 locale 同语义——验收 = 执行命令 `bun test tests/unit/template-guidance-parity.test.ts` 退出 0。
+- r71(authoring helpers 引导):propose 撰写引导 MUST 引入结构化新增首选与逃生门定位,双 locale 同语义——验收同上(r70/r71 共用一个门禁文件,分两条场景各自驱动,失败信息按断言条目标注来源)。
 
 pending 基线为 0:两条 @human 均有配对,不升基线。id 分配走 `spec next-req-id`(狗粮)。
 

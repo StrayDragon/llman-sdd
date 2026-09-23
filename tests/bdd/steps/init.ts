@@ -73,6 +73,18 @@ bdd.thenStep('zh-Hans 与 en 产物均含该判据', (ctx) => {
   }
 });
 
+// r71: authoring helpers guidance must reach the rendered propose skill in
+// both locales (structured-adds-first, hand-edit as escape hatch).
+bdd.thenStep('zh-Hans 与 en 产物均含 authoring helpers 引导标识', (ctx) => {
+  const r = ctx.fixtures['配对判据产物'] as { zh: string; en: string };
+  if (!r.zh.includes('结构化新增首选') || !r.zh.includes('spec next-req-id')) {
+    throw new Error('zh-Hans propose render lacks the authoring-helpers guidance');
+  }
+  if (!r.en.includes('Structured adds preferred') || !r.en.includes('spec next-req-id')) {
+    throw new Error('en propose render lacks the authoring-helpers guidance');
+  }
+});
+
 bdd.when('v2 渲染全部 skills', (ctx) => {
   const root = (ctx.fixtures['init'] as { root: string }).root;
   runInit(

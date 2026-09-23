@@ -54,7 +54,7 @@ flowchart LR
 ## 建议动作
 1. 使用 `llman-sdd context --task "<任务>" --paths "<文件>"` 快速定位相关 specs。
    - 阅读 context 的 `direct` 列出的 spec 全文（这些是必须理解的合约）。
-   - 如果 context 不可用，运行 `llman-sdd index rebuild`（默认 `pageindex`，无需模型）后重试。
+   - 如果 context 不可用，先跑 `llman-sdd index check`：stale/缺失 → `llman-sdd index rebuild`（默认 `pageindex`，无需模型）后重试；index 已 fresh 仍不可用（`LLMAN_SDD_INDEX_CHAT_MODEL` 未设）→ 回退 `llman-sdd list --specs` + 直读 `.feature` 文件——不要循环 rebuild。
 2. 澄清目标与约束（问 1–3 个问题）。
 3. **逐问深挖分支（可选，仅当用户显式触发时进入）**：触发词为「深挖」「grill」「逐个问」「彻底理清」。进入后一问一答走清决策：
    - **一次只问一个问题**，并附你的推荐答案，等用户反馈后再继续下一个。

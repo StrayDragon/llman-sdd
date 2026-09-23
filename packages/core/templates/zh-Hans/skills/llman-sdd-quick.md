@@ -37,7 +37,7 @@ flowchart LR
 
 ## 步骤
 1. 用 `llman-sdd context --task "..." --paths "..."` 确认无相关 spec 变更需要。
-   - 如果 context 返回 `quality: "unavailable"`，运行 `llman-sdd index rebuild`（默认 `pageindex`，无需模型）。
+   - 如果 context 返回 `quality: "unavailable"`，先跑 `llman-sdd index check`：stale/缺失 → `llman-sdd index rebuild`（默认 `pageindex`，无需模型）后重试；index 已 fresh 仍不可用（`LLMAN_SDD_INDEX_CHAT_MODEL` 未设）→ 回退 `llman-sdd list --specs` + 直读 `.feature` 文件——不要循环 rebuild。
    - 可以用 `llman-sdd list --specs --json` 查看 specs 元数据。
 2. 直接修改代码。
 3. 若要动 `llmanspec/specs/**`，STOP——除非已在绑定的非默认 change 分支上（迷你 change：`change start`/`attach` → 编辑 → commit）。禁止在默认分支 commit live specs，即使是 typo 或仅收紧 scope 也不行。优先把 live specs 维护路由到 `llman-sdd-propose`，或要求已有绑定分支。

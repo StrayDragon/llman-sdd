@@ -1,6 +1,6 @@
 ---
 name: "llman-sdd-archive"
-description: "归档已完成的 llman SDD 变更。自动合并回基准分支（squash 缺省），再将 change 文档改名到 archive/。在 verify 报告全绿后运行。"
+description: "归档已完成的 llman SDD 变更。自动合并回基准分支（squash 缺省），将 change 文档改名到 archive/，并自动提交一笔收口 `archive(sdd): <id>`。在 verify 报告全绿后运行。"
 metadata:
   version: "0.1.0"
 ---
@@ -42,13 +42,12 @@ flowchart LR
 - 确认每个 change 都已通过 verify 阶段的全绿验证。
 
 ### 2) 逐个归档
-- **人审检查点（每个 id 归档执行前，含批量）**：运行 `llman-sdd review --capability <id>`。退出码为零 → 继续；非零 = CRITICAL 发现：STOP 修复后重跑；MUST NOT 带着 CRITICAL 归档。
+- **人审检查点（每个 id 归档执行前，含批量）**：运行 `llman-sdd review`（无旗标；`--capability` 只接受 spec id，不接受 change id）。退出码为零 → 继续；非零 = CRITICAL 发现：STOP 修复后重跑；MUST NOT 带着 CRITICAL 归档。
 - 先逐个校验：`llman-sdd validate <id> --strict --no-interactive`。
 - 校验失败 → STOP 并报告；不要跳过校验强行归档。
 - 可选预览：`llman-sdd change archive <id> --dry-run`。
 - 执行归档：
   - 默认：`llman-sdd change archive <id>`
-  - 仅工具类变更：`llman-sdd change archive <id> --skip-specs`
   - **任一失败立即停止**，报告剩余未处理 ID。
 - **Git-native 收尾**：
   - 前置：已 Branch binding（`change start` / `attach`）；仍在绑定分支上（或合并后已在目标分支）。
@@ -60,7 +59,7 @@ flowchart LR
     3. 可选：git commit --amend          # 调整提交说明；git branch -D <feature>  # squash 后分支不再是祖先，-d 会被 git 拒绝
     ```
     `--no-commit` 跳过自动提交（CI / pre-commit hook 冲突）：finalize 此时留脏工作区并打印手动 `git commit` 命令。幂等重试：自动提交失败后重跑会识别已归档改名并补提交。
-  - **Fallback：普通 `change archive <id>`**——同样的合并 + 改名，无自动提交；要求干净树。`checkpointed`/`checkpoint_sha` 字段已随 checkpoint 一同移除（无存档点概念：`change finalize` 不要求干净树）——无需预写任何存档字段，快照审查用 `change diff`。
+  - **Fallback：普通 `change archive <id>`**——与 finalize 同样的自动合并 + 改名 + 收口提交（同样自动提交 `archive(sdd): <id>`；此路无 `--no-commit`）；门禁：task 全勾 + 干净树 + 在绑定的非默认分支（`--force` 可跳过门禁）。`checkpointed`/`checkpoint_sha` 字段已随 checkpoint 一同移除（无存档点概念：`change finalize` 不要求干净树）——无需预写任何存档字段，快照审查用 `change diff`。
 
 ### 3) 全量校验
 - 全部归档完成后执行：`llman-sdd validate --all --strict --no-interactive`。
@@ -80,6 +79,7 @@ flowchart LR
   - 冻结旧归档：`llman-sdd archive freeze --before <YYYY-MM-DD> --keep-recent <N>`
   - 需要恢复时：`llman-sdd archive thaw --change <YYYY-MM-DD-id>`
 - freeze/thaw 仅用于日期归档目录（`YYYY-MM-DD-*`）；建议保留少量最近目录不冻结。
+- freeze/thaw 在非主检出（不持有默认分支的 worktree）运行时会打印警告（仅提示、不阻断）——有意为之才在该处继续。
 
 > 命令细节用 `llman-sdd <cmd> --help` 查看；命令参考以 CLI 为准，skill 不内嵌命令表。
 > 文中「规约」= 本项目 `llmanspec/specs/` 下的 `.feature` 文件；用 `llman-sdd list --specs` / `llman-sdd show <capability>` 查全文。

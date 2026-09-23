@@ -81,13 +81,13 @@ llman-sdd show <id> --output json --type change
 
 | 条件 | 动作 |
 |------|------|
-| `stage=draft`（仅 proposal.md） | STOP。长大到 Designed（补 design.md）→ Planned（补 tasks.md）→ Branch binding → Specs landing。draft 不能直接 apply/verify。若已有 proposal+design+tasks 仍是 `draft`：tasks 无 design 需先补 design.md。**不要**建 `changes/<id>/specs/`，**不要**先在默认分支改 live specs。 |
+| `stage=draft`（仅 proposal.md） | STOP。长大到 Designed（补 design.md）→ Planned（补 tasks.md）→ Branch binding → Specs landing。draft 不能直接 apply/verify。若已有 proposal+tasks 而仍是 `draft`（tasks 无 design——design.md 是 stage 的门槛）：需先补 design.md。**不要**建 `changes/<id>/specs/`，**不要**先在默认分支改 live specs。 |
 | `stage=designed`（proposal + design） | 下一步：补 tasks.md → `planned`。规划工件齐全后再 `change start` / `attach`（Branch binding）。 |
 | `stage=planned`（proposal + design + tasks） | STOP 直到绑定：跑 `change start` / `attach`（Branch binding）→ `full`。 |
 | `stage=full` 且 `readyToImplement=false` | STOP。在**绑定分支**完成 Specs landing（编辑 `llmanspec/specs/**` 并 commit），或设 `needs_specs_change: false`。**不要**再跑 `change start`。丢失绑定分支 specs → checkout/重建 + 必要时 `attach --force`。 |
 | `readyToImplement=true` | 可通过 apply/verify 前置检查。`changes/<id>/specs/` 预期**不存在**，勿当缺失。 |
 - 使用 `llman-sdd context --task "<proposal 中的目标>" --paths "<specs 中的 scope>"` 获取相关 specs。
-  - 若 context 不可用，运行 `llman-sdd index rebuild` 后重试。
+  - 若 context 不可用，先跑 `llman-sdd index check`：stale/缺失 → `llman-sdd index rebuild` 后重试；index 已 fresh 仍不可用（`LLMAN_SDD_INDEX_CHAT_MODEL` 未设）→ 回退 `llman-sdd list --specs` + 直读 `.feature` 文件——不要循环 rebuild。
 
 ### 2) 阅读 SSOT 工件
 必须通读以下文件：

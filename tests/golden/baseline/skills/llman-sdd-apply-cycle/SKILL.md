@@ -27,7 +27,7 @@ llman-sdd show <change-id> --output json --type change
 ### 1) 循环：实施 → 测试
 对每个未完成 task：
 1. 按 task + live specs 实现（最小改动）
-2. 运行 `tasks[].test`（若有）
+2. task 文本写明了验证命令时，运行之
 3. 失败则修复重试（自修复预算与 `llman-sdd-apply` 一致：上限 8 轮）
 4. 勾选 `tasks.md` 为 `[x]`
 

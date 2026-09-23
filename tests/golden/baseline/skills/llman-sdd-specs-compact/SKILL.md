@@ -41,7 +41,7 @@ flowchart LR
 2. 如果已归档历史较大，先执行 archive freeze：
    - 预览：`llman-sdd archive freeze --dry-run`
    - 执行：`llman-sdd archive freeze --before <YYYY-MM-DD> --keep-recent <N>`
-3. 识别跨 capability 的重叠项。
+3. 识别跨 capability 的重叠项（跨 specs 重复 req id：`llman-sdd project dedupe-req-ids --dry-run` 报告重映射计划）。
 4. 产出压缩计划（canonical requirements + keep/merge/remove 决策 + 迁移说明）。
 5. 执行并验证（`llman-sdd validate --specs --strict --no-interactive`）。
 

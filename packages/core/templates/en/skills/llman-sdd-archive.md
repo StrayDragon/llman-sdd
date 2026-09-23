@@ -1,6 +1,6 @@
 ---
 name: "llman-sdd-archive"
-description: "Archive completed llman SDD changes. Auto-merge back into the fork-point branch (squash by default), then rename change docs to archive/. Use after verify reports all-clear."
+description: "Archive completed llman SDD changes. Auto-merge back into the fork-point branch (squash by default), rename change docs to archive/, and commit one close-out `archive(sdd): <id>`. Use after verify reports all-clear."
 metadata:
   version: "{{ llman_version }}"
 ---
@@ -42,13 +42,12 @@ flowchart LR
 - Confirm each change has passed verify phase all-green.
 
 ### 2) Archive one by one
-- **Human review checkpoint (before each id is archived, including batches)**: run `llman-sdd review --capability <id>`. Exit code zero → continue; non-zero = CRITICAL findings: STOP, fix, re-run; MUST NOT archive with CRITICAL findings open.
+- **Human review checkpoint (before each id is archived, including batches)**: run `llman-sdd review` (plain; `--capability` takes a spec id, not a change id). Exit code zero → continue; non-zero = CRITICAL findings: STOP, fix, re-run; MUST NOT archive with CRITICAL findings open.
 - Validate each first: `llman-sdd validate <id> --strict --no-interactive`.
 - Validation failure → STOP and report; don't skip validation and force archive.
 - Optional preview: `llman-sdd change archive <id> --dry-run`.
 - Execute archive:
   - default: `llman-sdd change archive <id>`
-  - tooling-only: `llman-sdd change archive <id> --skip-specs`
   - **stop immediately on first failure**, report remaining unprocessed IDs.
 - **Git-native close-out**:
   - Prerequisites: Branch binding done (`change start` / `attach`); still on the bound branch (or the target branch after the auto merge).
@@ -60,7 +59,7 @@ flowchart LR
     3. optional: git commit --amend    # adjust the message; git branch -D <feature>  # after squash the branch is no longer an ancestor; -d gets refused
     ```
     `--no-commit` skips the auto commit (CI / pre-commit-hook conflicts): finalize then leaves the tree dirty and prints the manual `git commit` command. Idempotent retry: a rerun after a failed auto commit detects the already-archived rename and finishes the commit.
-  - **Fallback: plain `change archive <id>`** — same merge + rename, no auto commit; requires a clean tree. `checkpointed`/`checkpoint_sha` fields went away with checkpoint (no mid-flight archive point; `change finalize` needs no clean tree) — nothing to write beforehand, and nothing to review for the snapshot (use `change diff` instead).
+  - **Fallback: plain `change archive <id>`** — same auto merge + rename + close-out commit as finalize (it auto-commits `archive(sdd): <id>` too; there is no `--no-commit` here); gates: task completion + clean tree + on the bound non-default branch (`--force` skips the gates). `checkpointed`/`checkpoint_sha` fields went away with checkpoint (no mid-flight archive point; `change finalize` needs no clean tree) — nothing to write beforehand, and nothing to review for the snapshot (use `change diff` instead).
 
 ### 3) Full validation
 - After all archives complete: `llman-sdd validate --all --strict --no-interactive`.

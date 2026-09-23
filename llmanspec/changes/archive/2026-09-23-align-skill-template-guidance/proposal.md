@@ -1,5 +1,8 @@
 ---
 depends_on: []
+branch: sdd/align-skill-template-guidance
+base_branch: main
+base_sha: f3b68d987e16dfdf43306219c6faa54e1fe2136a
 ---
 
 # 技能模板指引全量对齐:命令值域·行为语义·authoring helpers 覆盖
@@ -30,8 +33,8 @@ add-worktree-aware-lifecycle / add-worktree-hardening / polish-cli-followups 等
 
 ## Capabilities
 
-- init-generators:模板指引内容合约——新增 r68(指引语义对齐)与 r69(authoring helpers 引导),均配 @executable 验收(id 经 `spec next-req-id` 分配)。
-- monorepo-structure:r67 门禁保持不动;新增姊妹门禁 `tests/unit/template-guidance-parity.test.ts`(禁用模式 + 必含标记,双 locale 源扫描),由 r68/r69 的 @executable 场景驱动。
+- init-generators:模板指引内容合约——新增 r70(指引语义对齐)与 r71(authoring helpers 引导),均配 @executable 验收(id 经 `spec next-req-id` 分配)。
+- monorepo-structure:r67 门禁保持不动;新增姊妹门禁 `tests/unit/template-guidance-parity.test.ts`(禁用模式 + 必含标记,双 locale 源扫描),由 r70/r71 的 @executable 场景驱动。
 
 ## Impact
 

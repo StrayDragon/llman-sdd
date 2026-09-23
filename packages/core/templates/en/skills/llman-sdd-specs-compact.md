@@ -41,7 +41,7 @@ flowchart LR
 2. If archived history is large, run archive freeze first:
    - Preview: `llman-sdd archive freeze --dry-run`
    - Execute: `llman-sdd archive freeze --before <YYYY-MM-DD> --keep-recent <N>`
-3. Identify overlapping items across capabilities.
+3. Identify overlapping items across capabilities (duplicate req ids across specs: `llman-sdd project dedupe-req-ids --dry-run` reports the remap plan).
 4. Produce a compaction plan (canonical requirements + keep/merge/remove decisions + migration notes).
 5. Execute and validate (`llman-sdd validate --specs --strict --no-interactive`).
 
