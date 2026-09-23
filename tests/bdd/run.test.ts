@@ -8,7 +8,17 @@ import { readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 import './steps/smoke.ts';
-import './steps/domain.ts';
+import './steps/config.ts';
+import './steps/parse.ts';
+import './steps/validation.ts';
+import './steps/lifecycle.ts';
+import './steps/archive.ts';
+import './steps/init.ts';
+import './steps/review.ts';
+import './steps/context-index.ts';
+import './steps/peripheral.ts';
+import './steps/output-contract.ts';
+import './steps/spec-authoring.ts';
 import './steps/context.ts';
 import { runFeature, type TestContext } from './runner.ts';
 import './steps/meta-foundation.ts';
