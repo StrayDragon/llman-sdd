@@ -20,7 +20,7 @@ metadata:
    - `.feature` 是 harness 权威——可执行 GWT 只在 live `.feature` 维护（无 solidify；无 `feature_delta` / `change delta`）。
    - Change 生命周期门禁：`change start` / `attach`（Branch binding）、`finalize`（收口；自动提交 `archive(sdd): <id>`，`--no-commit` 跳过）/ `diff`（只读）。`change checkpoint` 已移除（无存档点概念：中途不必存档，`change finalize` 不要求干净树）。
    - `llman-sdd validate --specs` 默认自动运行 `bdd.run_command`。
-   - 可用 `list --specs --json` 查看 `morphology`（含 `dualWriteCount`）。
+   - 可用 `list --specs --json` 查看 `morphology`（ruleCount / ruleEnforcedCount / rulePendingCount / acceptanceCount / orphanAcceptanceCount）。
    - Change JSON 状态字段：`stage`（draft/designed/planned/full）/ `specsLanded` / `needsSpecsChange` / `readyToImplement`（`show --output json`）。
 {% endif %}
 

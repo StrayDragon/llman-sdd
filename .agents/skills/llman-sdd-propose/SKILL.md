@@ -134,7 +134,7 @@ flowchart LR
    ```bash
    llman-sdd validate <change-id> --strict --no-interactive
    ```
-   这一步 MUST 通过后才能继续。若出现 TOON 解析错误，修复引号：表格式行中含逗号/冒号/括号的值必须加双引号。
+   这一步 MUST 通过后才能继续；失败项以 validate 输出的 `items[].issues[]` 逐条指明，按条修复后重跑。
 
 ### 4a) 可选 BDD runner（`bdd:` 段）
 - 读 `llmanspec/config.yaml`。是否含 `bdd:` 段？

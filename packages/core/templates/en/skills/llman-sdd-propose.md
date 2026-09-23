@@ -90,8 +90,7 @@ If the user just wants to **capture an idea** (e.g. "draft a proposal", "note do
    ```bash
    llman-sdd validate <change-id> --strict --no-interactive
    ```
-   This MUST pass before proceeding. If TOON parse errors appear, fix quoting:
-   values containing commas/colons/brackets must be double-quoted in tabular rows.
+   This MUST pass before proceeding; failing items are listed one by one in the validate output's `items[].issues[]` — fix each and re-run.
 
 ### 4a) Optional BDD runner (`bdd:` block)
 - Read `llmanspec/config.yaml`. Is there a `bdd:` block?

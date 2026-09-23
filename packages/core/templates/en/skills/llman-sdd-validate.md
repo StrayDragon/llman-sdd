@@ -20,7 +20,7 @@ Use this skill to validate change/spec format and staleness.
    - `.feature` is the harness authority — executable GWT lives only in live `.feature` (no solidify; no `feature_delta` / `change delta`).
    - Change lifecycle gates: `change start` / `attach` (Branch binding), `finalize` (close-out; auto commit `archive(sdd): <id>`, `--no-commit` to skip) / `diff` (read-only). `change checkpoint` is removed (no mid-flight archive point; `change finalize` does not require a clean tree).
    - `llman-sdd validate --specs` runs `bdd.run_command` by default.
-   - Use `list --specs --json` for `morphology` (includes `dualWriteCount`).
+   - Use `list --specs --json` for `morphology` (ruleCount / ruleEnforcedCount / rulePendingCount / acceptanceCount / orphanAcceptanceCount).
    - Change JSON status fields: `stage` (draft/designed/planned/full) / `specsLanded` / `needsSpecsChange` / `readyToImplement` (`show --output json`).
 {% endif %}
 
