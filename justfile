@@ -41,6 +41,10 @@ lint-fix:
 format:
     bun run format:write
 
+# pending 计量门:无配对 @executable 验收的规则数不得高于基线(阶段 QA,随 executable 化批次下调)
+pending-gate:
+    bun run scripts/pending-gate.ts
+
 # 构建 CLI 单二进制(apps/cli/dist/)
 build:
     bun run build

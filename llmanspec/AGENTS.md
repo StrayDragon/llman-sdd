@@ -90,3 +90,14 @@ llman-sdd:spec 驱动开发(SDD)工作流(TypeScript + Bun),将完全接替 Rust
 
 - change 文档(proposal/design/tasks)用中文;代码、标识符、CLI 输出文案用英文
 - commit message:conventional type 前缀(英文)+ 中文描述,如 `feat(sdd): 新增校验引擎`
+
+## 并行开发(worktrunk)规约
+
+工具:worktrunk(`wt`)。心智模型:**一个 change 分支 = 一个 worktree = 一个独立 agent 工作区**;项目配置在 `.config/wt.toml`(post-start 自动 `bun install`)。
+
+- 生命周期:main worktree 保持 main → `llman-sdd change start <id>`(干净树建 `sdd/<id>` 绑定)→ `wt switch sdd/<id>` 落 worktree → 在 worktree 内做 Specs landing / 实施 / 门禁 → 回 main worktree `llman-sdd change finalize <id>`(squash 合并 + SSOT 改名 + 归档提交)→ `wt remove`
+- 收口一律 `change finalize`,不用 `wt merge`(finalize 负责 specs SSOT 改名与 archive 提交;其合并步骤对目标被 worktree 持有有显式降级)
+- 并行约束:同批并行 change 的 `llmanspec/specs/**` 文件必须两两不相交;触碰同一代码文件(如 main.ts)的改动不得并行——规划时按文件相交性分组
+- 门禁:worktree 内 `just qa` + `just pending-gate` + `just golden`;合并顺序由 main worktree 串行执行(先到先 finalize,后来者 rebase)
+- 多 agent 拉起:`wt switch sdd/<id> -x <agent-cli> -- '<任务提示>'`;监控 `wt list` / `wt step for-each`
+

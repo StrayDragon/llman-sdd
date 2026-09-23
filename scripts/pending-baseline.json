@@ -1,0 +1,4 @@
+{
+  "maxPending": 19,
+  "note": "rulePendingCount 上限;executable 化三批(add-bdd-exe-*)finalize 时依次下调 13/7/0,见 llmanspec/changes/add-bdd-exe-* 提案"
+}

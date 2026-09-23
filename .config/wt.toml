@@ -1,0 +1,12 @@
+# worktrunk 项目配置——并行 agent 开发(llman-sdd SDD 工作流)
+# 生命周期:change start(main worktree)→ wt switch sdd/<id> → worktree 内实施 →
+#          change finalize(main worktree 收口)→ wt remove
+# 详见 llmanspec/AGENTS.md「并行开发(worktrunk)规约」
+
+[post-start]
+# 新 worktree 依赖就绪;bun 全局缓存使冷安装很快,不用 copy-ignored 搬 node_modules
+install = "bun install --frozen-lockfile"
+
+[pre-merge]
+# wt merge 前的全量门禁(SDD 收口走 change finalize,此处守护绕行路径)
+qa = "just qa"
