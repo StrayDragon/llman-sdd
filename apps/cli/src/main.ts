@@ -893,7 +893,7 @@ program
   .description('Show a change or spec')
   .argument('<item>')
   .option('--output <format>', 'json | compact | meta-only | no-scenarios | deltas | reqs-only')
-  .option('--type <itemType>', 'item type hint: change|spec')
+  .option('--type <type>', 'force disambiguation: change | spec')
   .option('-r, --requirement <n>', 'spec only: show a specific requirement by 1-based index')
   .action((item: string, options: { output?: string; type?: string; requirement?: string }) => {
     const outTokens = new Set(
