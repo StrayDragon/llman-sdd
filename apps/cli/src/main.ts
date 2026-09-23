@@ -54,7 +54,9 @@ import {
   validateChange,
   applyStrict,
   evaluateStaleness,
-  buildReqRegistry,
+  buildDuplicatesFor,
+  formatTotals,
+  specRelFor,
   splitVerb,
   notApplicableStaleness,
   compileChangeIdPattern,
@@ -68,6 +70,7 @@ import {
   renderConfigOverview,
   renderMachine,
   skillsJson,
+  parseTaskCheckboxes,
   type StalenessInfo,
   type ChangeIssue,
 } from '@llman-sdd/core';
@@ -242,14 +245,13 @@ function compareItems(a: VItem, b: VItem): number {
   return a.id < b.id ? -1 : a.id > b.id ? 1 : a.type.localeCompare(b.type);
 }
 
-function specV1Items(opts: { strict?: boolean }): VItem[] {
+function specV1Items(
+  opts: { strict?: boolean },
+  entries: ReturnType<typeof discoverSpecs> = loadSpecEntries(),
+): VItem[] {
   const io = newIo();
   const git = makeCliGit(process.cwd());
-  const entries = discoverSpecs('llmanspec/specs', io);
-  const registry = buildReqRegistry(entries);
-  const duplicateIds = new Set(registry.duplicates.flatMap((d) => d.reqId));
-  const structurallyClean = entries.every((e) => e.doc.errors.length === 0);
-  const duplicatesFor = (reqId: string): boolean => structurallyClean && duplicateIds.has(reqId);
+  const duplicatesFor = buildDuplicatesFor(entries);
 
   const items: VItem[] = [];
   for (const entry of entries) {
@@ -257,9 +259,7 @@ function specV1Items(opts: { strict?: boolean }): VItem[] {
     const verdict = validateCapability(entry as never, duplicatesFor, io, {
       strict: opts.strict === true,
     });
-    const specRel = entry.fileName.startsWith('llmanspec/')
-      ? entry.fileName
-      : `llmanspec/specs/${entry.fileName}`;
+    const specRel = specRelFor(entry.fileName);
     const staleness = evaluateStaleness({
       git,
       root: process.cwd(),
@@ -394,7 +394,7 @@ function renderValidateText(items: VItem[]): void {
     }
     if (item.type === 'spec') printStalenessLines(item.staleness);
   }
-  console.log(`Totals: ${passed} passed, ${failed} failed (${items.length} items)`);
+  console.log(formatTotals(passed, failed, items.length));
 }
 
 function renderValidateReport(items: VItem[], mode: 'json' | 'compact-json' | 'toon'): void {
@@ -497,7 +497,7 @@ program
 
       // ---- single item (auto-disambiguate: spec first, then change) ----
       if (item !== undefined) {
-        const entries = discoverSpecs('llmanspec/specs', newIo());
+        const entries = loadSpecEntries();
         const specEntry =
           options.type === 'change'
             ? undefined
@@ -505,7 +505,7 @@ program
                 (e) => (e.doc.header.capability ?? e.fileName.replace(/\.feature$/u, '')) === item,
               );
         if (specEntry !== undefined) {
-          const items = specV1Items({ strict: options.strict });
+          const items = specV1Items({ strict: options.strict }, entries);
           const mine = items.find((i) => i.id === item);
           if (mine === undefined) {
             console.error(`no spec or change matches: ${item}`);
@@ -768,14 +768,15 @@ change
       if (!options.force) {
         const tasksPath = `llmanspec/changes/${id}/tasks.md`;
         if (existsSync(tasksPath)) {
-          const pending: string[] = [];
-          for (const line of readFileSync(tasksPath, 'utf8').split('\n')) {
-            const m = line.match(/^\s*-\s+\[ \]\s*(.*)$/u);
-            if (m && m[1] !== undefined) pending.push(m[1].trim());
-          }
-          if (pending.length > 0) {
-            console.error(`Archive blocked: ${pending.length} unchecked task(s).`);
-            for (const item of pending) console.error(`  - [ ] ${item}`);
+          const { pendingLines } = parseTaskCheckboxes(readFileSync(tasksPath, 'utf8'));
+          if (pendingLines.length > 0) {
+            console.error(`Archive blocked: ${pendingLines.length} unchecked task(s).`);
+            // pendingLines are trimmed `- [ ] text` lines; re-derive the bare
+            // task text after the checkbox (byte-identical to the former
+            // inline `[ ]` regex extraction).
+            for (const line of pendingLines) {
+              console.error(`  - [ ] ${line.replace(/^-\s+\[ \]\s*/u, '').trim()}`);
+            }
             console.error(
               'Options:\n  1. Complete the remaining tasks\n  2. Use --force to archive anyway (not recommended)',
             );
@@ -961,7 +962,10 @@ program
     // Spec 判定与 collectSpecs/discoverSpecs 同口径:扁平文件与目录式
     // `specs/<cap>/<cap>.feature` 均按 entry 精确 id(capability ?? fileName)
     // 命中;r25 spec id 精确匹配优先于 change 前缀,不做模糊解析。
-    const specEntry = loadSpecEntries().find(
+    // Discover once per run — the spec lookup, summary and JSON render below
+    // all share these entries.
+    const entries = loadSpecEntries();
+    const specEntry = entries.find(
       (e) => (e.doc.header.capability ?? e.fileName.replace(/\.feature$/u, '')) === item,
     );
     const isSpec =
@@ -983,7 +987,7 @@ program
       if (asJson) {
         console.log(
           renderMachine(
-            renderSpecJson(item, {
+            renderSpecJson(entries, item, {
               metaOnly,
               noScenarios: noScenarios || reqsOnly,
             }),
@@ -995,7 +999,7 @@ program
       // text mode: v1 ignores all output modifiers (meta-only/no-scenarios/-r)
       // and renders the full source + morphology.
       const raw = readFileSync(specPath, 'utf8').trimEnd();
-      const summary = collectSpecs(loadSpecEntries()).find((x) => x.id === item);
+      const summary = collectSpecs(entries).find((x) => x.id === item);
       const morphology = summary
         ? `\n\n## Morphology\nruleCount=${summary.morphology.ruleCount} enforced=${summary.morphology.ruleEnforcedCount} pending=${summary.morphology.rulePendingCount} acceptanceCount=${summary.morphology.acceptanceCount}`
         : '';
@@ -1064,10 +1068,11 @@ function hasSection(proposal: string, heading: string): boolean {
 }
 
 function renderSpecJson(
+  entries: ReturnType<typeof discoverSpecs>,
   item: string,
   opts: { metaOnly: boolean; noScenarios: boolean },
 ): Record<string, unknown> {
-  const entry = loadSpecEntries().find(
+  const entry = entries.find(
     (e) => (e.doc.header.capability ?? e.fileName.replace(/\.feature$/u, '')) === item,
   );
   const doc = entry?.doc as

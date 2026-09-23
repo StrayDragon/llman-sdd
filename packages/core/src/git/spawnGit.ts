@@ -55,6 +55,8 @@ export function isCleanTree(git: GitLike): boolean {
 }
 
 /** Local-first default branch resolution: main → master → origin/HEAD → origin/*. */
+// Deliberately NOT shared with defaultBranchNameFn() in validation/staleness.ts
+// (that probe is local-only with a 'main' fallback — v1 staleness parity). Do not merge.
 export function defaultBranch(git: GitLike): string {
   for (const candidate of ['main', 'master']) {
     if (git.runOpt(['show-ref', '--verify', '--quiet', `refs/heads/${candidate}`]) !== null) {

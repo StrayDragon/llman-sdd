@@ -1,10 +1,12 @@
 import { readBinding } from '../change/frontmatter.ts';
+import { parseTaskCheckboxes } from '../change/tasks.ts';
 /**
  * Change-domain validation (v1 `commands/validate.rs` change path parity):
  * frontmatter/depends_on gates, design/tasks constraints, completeness stage
  * INFO, pattern gate and task gates. IO + git injected (pure).
  */
 import type { GitLike } from '../git/spawnGit.ts';
+import { stageFor } from '../report/collect.ts';
 
 export type ChangeIssueLevel = 'ERROR' | 'WARNING' | 'INFO';
 
@@ -137,6 +139,10 @@ export function validateChange(
   const dir = `${root}/llmanspec/changes/${id}/`;
   const baseDir = `${root}/llmanspec/changes`;
   const proposal = `${dir}proposal.md`;
+  // Probed once here: shared by the stage inference below and the --stage
+  // artifact gate at the end (v1 issue order preserved).
+  const hasDesign = io.exists(`${dir}design.md`);
+  const hasTasks = io.exists(`${dir}tasks.md`);
   if (!io.exists(proposal)) {
     push('ERROR', 'proposal.md', 'Change is missing proposal.md.');
   } else {
@@ -209,17 +215,9 @@ export function validateChange(
       }
     }
 
-    const hasDesign = io.exists(`${dir}design.md`);
-    const hasTasks = io.exists(`${dir}tasks.md`);
     const binding = readBinding(text);
-    const stage =
-      hasDesign && hasTasks
-        ? binding !== null
-          ? 'full'
-          : 'planned'
-        : hasDesign
-          ? 'designed'
-          : 'draft';
+    // stageFor (report/collect) is the monotonic stage SSOT (r34).
+    const stage = stageFor(hasDesign, hasTasks, binding !== null);
 
     if (hasTasks && !hasDesign) {
       push(
@@ -230,16 +228,7 @@ export function validateChange(
     }
 
     if (hasTasks) {
-      const tasks = io.readText(`${dir}tasks.md`);
-      let total = 0;
-      let completed = 0;
-      for (const line of tasks.split('\n')) {
-        const m = line.match(/^\s*-\s+\[( |x|X)\]/u);
-        if (m) {
-          total += 1;
-          if (m[1] !== ' ') completed += 1;
-        }
-      }
+      const { completed, total } = parseTaskCheckboxes(io.readText(`${dir}tasks.md`));
       if (total > 0 && completed < total) {
         const n = total - completed;
         push(
@@ -290,8 +279,6 @@ export function validateChange(
 
   // stage gate (v1 --stage: artifact presence per gate).
   if (opts.stage !== undefined) {
-    const hasDesign = io.exists(`${dir}design.md`);
-    const hasTasks = io.exists(`${dir}tasks.md`);
     if (opts.stage === 'designed' && !hasDesign) {
       push('ERROR', 'design.md', `Stage forced to 'designed' but design.md is missing`);
     }

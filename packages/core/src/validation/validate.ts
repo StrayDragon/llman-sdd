@@ -202,13 +202,26 @@ export function validateCapability(
   };
 }
 
-export function validateAllSpecs(entries: readonly SpecEntry[], io: SpecIo): ValidationReport {
+/**
+ * Shared req_id duplicate gate — single source of truth for the CLI
+ * (`validate <spec>` path) and the full sweep. v1 parity: a structural error
+ * anywhere aborts the req_id index scan, so the duplicate gate only fires
+ * when every spec parses cleanly.
+ */
+export function buildDuplicatesFor(entries: readonly SpecEntry[]): (reqId: string) => boolean {
   const registry = buildReqRegistry(entries);
   const duplicateIds = new Set(registry.duplicates.flatMap((d) => d.reqId));
-  // v1 parity: a structural error anywhere aborts the req_id index scan, so
-  // the duplicate gate only fires when every spec parses cleanly.
   const structurallyClean = entries.every((e) => e.doc.errors.length === 0);
-  const duplicatesFor = (reqId: string): boolean => structurallyClean && duplicateIds.has(reqId);
+  return (reqId: string): boolean => structurallyClean && duplicateIds.has(reqId);
+}
+
+/** `Totals:` report line — single wording source for the engine and the CLI. */
+export function formatTotals(passed: number, failed: number, total: number): string {
+  return `Totals: ${passed} passed, ${failed} failed (${total} items)`;
+}
+
+export function validateAllSpecs(entries: readonly SpecEntry[], io: SpecIo): ValidationReport {
+  const duplicatesFor = buildDuplicatesFor(entries);
 
   const verdicts = entries.map((e) => validateCapability(e, duplicatesFor, io));
   const failed = verdicts.some((v) => !v.ok);
@@ -221,9 +234,7 @@ export function validateAllSpecs(entries: readonly SpecEntry[], io: SpecIo): Val
       lines.push(`  [${item.level}] ${item.id}: ${item.message}`);
     }
   }
-  lines.push(
-    `Totals: ${passed} passed, ${verdicts.length - passed} failed (${verdicts.length} items)`,
-  );
+  lines.push(formatTotals(passed, verdicts.length - passed, verdicts.length));
 
   return { verdicts, lines, failed };
 }

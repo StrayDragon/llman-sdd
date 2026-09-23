@@ -85,6 +85,7 @@ export type {
   ValidationReport,
 } from './validation/validate.ts';
 export { validateAllSpecs, validateCapability, applyStrict } from './validation/validate.ts';
+export { buildDuplicatesFor, formatTotals } from './validation/validate.ts';
 export { splitVerb } from './config/changeId.ts';
 export {
   evaluateStaleness,
@@ -114,6 +115,7 @@ export {
   type GitLike,
 } from './git/spawnGit.ts';
 export { DRAFT_PROPOSAL_TEMPLATE, deriveChangeId } from './change/id.ts';
+export { parseTaskCheckboxes, type ParsedTaskCheckboxes } from './change/tasks.ts';
 export { extractUniqueNumber, harvestUniqueNumbers } from './change/nextId.ts';
 export { ChangeIdResolveError, resolveChangeId, type ResolvedChangeId } from './change/resolve.ts';
 export {
@@ -205,6 +207,7 @@ export {
 export {
   buildReview,
   renderReviewHtml,
+  specRelFor,
   type ReviewInput,
   type ReviewKind,
   type ReviewResult,

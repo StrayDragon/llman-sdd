@@ -1,9 +1,10 @@
+import { readBinding } from '../change/frontmatter.ts';
+import { CHANGES_DIR } from '../change/lifecycle.ts';
 /**
  * Change collection + rendering (peripheral-commands capability, r20).
  * Port of v1 commands/list.rs shapes. Pure — IO injected.
  */
-import { readBinding } from '../change/frontmatter.ts';
-import { CHANGES_DIR } from '../change/lifecycle.ts';
+import { parseTaskCheckboxes } from '../change/tasks.ts';
 import { renderMachine } from '../render/machine.ts';
 
 export interface ChangeFsIo {
@@ -47,15 +48,7 @@ export function stageFor(
 }
 
 export function countTasks(tasksMd: string): { completed: number; total: number } {
-  let completed = 0;
-  let total = 0;
-  for (const line of tasksMd.split('\n')) {
-    const m = line.match(/^\s*-\s+\[( |x|X)\]/u);
-    if (m) {
-      total += 1;
-      if (m[1] !== ' ') completed += 1;
-    }
-  }
+  const { completed, total } = parseTaskCheckboxes(tasksMd);
   return { completed, total };
 }
 

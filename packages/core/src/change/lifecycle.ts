@@ -16,6 +16,7 @@ import { readBinding, writeBinding } from './frontmatter.ts';
  * the git cwd binding lives in the GitLike adapter.
  */
 import { DRAFT_PROPOSAL_TEMPLATE, deriveChangeId } from './id.ts';
+import { parseTaskCheckboxes } from './tasks.ts';
 
 export interface FsIo {
   exists(path: string): boolean;
@@ -144,20 +145,10 @@ export function archiveTaskGate(
 ): ArchiveTaskGate {
   const reasons: string[] = [];
   if (tasksMd !== null) {
-    let completed = 0;
-    let total = 0;
-    for (const line of tasksMd.split('\n')) {
-      const m = line.match(/^\s*-\s+\[( |x|X)\]/u);
-      if (m) {
-        total += 1;
-        if (m[1] !== ' ') completed += 1;
-      }
-    }
+    const { completed, total, pendingLines } = parseTaskCheckboxes(tasksMd);
     if (total > 0 && completed < total) {
       reasons.push(`archive blocked by unchecked tasks (${total - completed}/${total} pending)`);
-      for (const line of tasksMd.split('\n')) {
-        if (/^\s*-\s+\[ \]/u.test(line)) reasons.push(line.trim());
-      }
+      for (const line of pendingLines) reasons.push(line);
     }
     if (minCompletionRatio !== undefined && total > 0 && completed / total < minCompletionRatio) {
       reasons.push(

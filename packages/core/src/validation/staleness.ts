@@ -150,6 +150,9 @@ function revParse(git: GitLike, ref: string): string | null {
   return git.runOpt(['rev-parse', '--verify', '--quiet', ref]) ?? null;
 }
 
+// Deliberately NOT shared with defaultBranch() in git/spawnGit.ts — this
+// v1-staleness probe is local-only (main → master, 'main' fallback, no origin
+// consultation). Do not merge the two.
 function defaultBranchNameFn(git: GitLike): string {
   if (git.runOpt(['show-ref', '--verify', '--quiet', 'refs/heads/main']) !== null) return 'main';
   if (git.runOpt(['show-ref', '--verify', '--quiet', 'refs/heads/master']) !== null)

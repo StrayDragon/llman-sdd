@@ -43,6 +43,15 @@ export interface ReviewResult {
   exitCode: number;
 }
 
+/**
+ * Root-relative spec path for staleness (`specRel` contract): repo-root
+ * discovery yields `llmanspec/…` paths while bare stems get the specs prefix.
+ * Shared with the CLI's spec validate path.
+ */
+export function specRelFor(fileName: string): string {
+  return fileName.startsWith('llmanspec/') ? fileName : `llmanspec/specs/${fileName}`;
+}
+
 export function buildReview(input: ReviewInput, io: SpecIo): ReviewResult {
   const { entries, boundChangeCount } = input;
   const strictChangeFails = (input.activeChanges ?? []).filter(
@@ -75,8 +84,7 @@ export function buildReview(input: ReviewInput, io: SpecIo): ReviewResult {
     let staleInfo = notApplicableStaleness();
     let staleCount = 0;
     if (input.git !== undefined && input.root !== undefined) {
-      const specRel =
-        (entry.fileName.startsWith('llmanspec/') ? '' : 'llmanspec/specs/') + entry.fileName;
+      const specRel = specRelFor(entry.fileName);
       const evalResult = evaluateStaleness({
         git: input.git,
         root: input.root,
