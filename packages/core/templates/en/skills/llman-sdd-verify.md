@@ -71,7 +71,6 @@ flowchart LR
    - Confirm the change is attached and you are on that feature branch.
    - `llman-sdd validate --specs`: Gherkin + `@req`/dual-write gates; runs `bdd.run_command` by default (`--no-check` to skip).
    - Optional read-only review: `llman-sdd change diff <id>` (or `--export-patch <path>`). Diff is review/export only — never treat it as an apply step.
-   - Check: legacy `spec.toon` / `*.feature.delta.toon` absent (v1 leftovers; v2 has no migration command — convert back to `.feature` by hand or delete; do not invent a solidify / repair hunt).
    - Next step after verify passes: `llman-sdd-archive` (not inline finalize here).
 {% if bdd_verify_prompt %}
    - Extra requirement: {{ bdd_verify_prompt }}

@@ -106,7 +106,7 @@ If the user just wants to **capture an idea** (e.g. "draft a proposal", "note do
 - **Single-track**: each capability is ONE `<capability>.feature`. Constraint rules are `@req:<id> @human` scenarios (statement verbatim in the description); executable acceptance scenarios carry `@executable` and link back via `@req:<req_id>`. Never nest scenarios in `Rule:` blocks (the runner skips them).
 - **@human/@executable triage** (decide before writing any new clause): any behavior expressible as GWT (Given/When/Then) MUST land as an `@executable` acceptance scenario linked back to its rule — prose-only rules guard nothing; `@human` is only for human judgment that cannot be automated (process rulings, aesthetics, external facts). A new `@human` clause without a paired `@executable` MUST record the justification in proposal/design.
 - Change shell: `llman-sdd change new <change-id>` → fill proposal/design/tasks → `llman-sdd change start <change-id>` (or `change attach`) → **then** edit live specs on the bound branch and commit (Specs landing).
-- Do **not** use `change delta` / solidify / `*.feature.delta.toon`; legacy `*.feature.delta.toon` / `spec.toon` are v1 leftovers with no v2 migration command — convert them back to `.feature` by hand, or delete them, before continuing.
+- Do **not** use `change delta` / solidify / `*.feature.delta.toon`.
 
 ### 5) Summarize and suggest next step
    - Enter implementation phase: `llman-sdd-apply`.

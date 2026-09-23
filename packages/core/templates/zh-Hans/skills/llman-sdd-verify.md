@@ -71,7 +71,6 @@ flowchart LR
    - 确认 change 已 attach，且当前在对应 feature 分支上。
    - `llman-sdd validate --specs`：Gherkin + `@req`/双写门禁；默认跑 `bdd.run_command`（可用 `--no-check` 跳过）。
    - 可选只读审查：`llman-sdd change diff <id>`（或 `--export-patch <path>`）。diff 仅作审查/导出——绝不当作 apply 步骤。
-   - 检查：无遗留 `spec.toon` / `*.feature.delta.toon`（v1 遗产，v2 无迁移命令——手工转回 `.feature` 或删除；不要自创 solidify/找补步骤）。
    - verify 通过后下一步：`llman-sdd-archive`（勿在此 inline finalize）。
 {% if bdd_verify_prompt %}
    - 额外要求: {{ bdd_verify_prompt }}
