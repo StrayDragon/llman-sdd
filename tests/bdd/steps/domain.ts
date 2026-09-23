@@ -17,6 +17,7 @@ import { join } from 'node:path';
 import {
   buildReqRegistry,
   discoverSpecs,
+  ETHICS_KEYS,
   runInit,
   loadConfig,
   localeToGherkinLang,
@@ -33,10 +34,6 @@ import { bdd } from '../runner.ts';
 
 const REPO_ROOT = join(import.meta.dirname, '..', '..', '..');
 const CLI = join(REPO_ROOT, 'apps', 'cli', 'src', 'main.ts');
-const runCmd = (cmd: string, args: string[]): string => {
-  const proc = spawnSync(cmd, args, { cwd: REPO_ROOT, encoding: 'utf8' });
-  return proc.stdout ?? '';
-};
 
 interface ParseResult {
   doc: CapabilityDoc;
@@ -342,14 +339,6 @@ bdd.thenStep('特性分支上的变更内容出现在目标分支', (ctx) => {
 // ---------------------------------------------------------------------------
 // init-generators capability — v2 render vs golden baseline (normalized)
 // ---------------------------------------------------------------------------
-
-const ETHICS_KEYS = [
-  'ethics.risk_level',
-  'ethics.prohibited_actions',
-  'ethics.required_evidence',
-  'ethics.refusal_contract',
-  'ethics.escalation_policy',
-];
 
 bdd.given('本仓库的等价 config(zh-Hans 与 bdd 配置)', (ctx) => {
   const root = mkdtempSync(join(tmpdir(), 'llman-sdd-init-'));

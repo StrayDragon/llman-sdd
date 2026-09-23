@@ -1,15 +1,6 @@
 import { afterAll, describe, expect, test } from 'bun:test';
 import { execFileSync } from 'node:child_process';
-import {
-  mkdirSync,
-  existsSync,
-  mkdtempSync,
-  readFileSync,
-  writeFileSync,
-  readdirSync,
-  renameSync,
-  rmSync,
-} from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -24,6 +15,8 @@ import {
   type FsIo,
 } from '@llman-sdd/core';
 
+import { makeNodeIo } from '../helpers/nodeIo.ts';
+
 const TMP_ROOTS: string[] = [];
 
 function mkRepo(): { root: string; git: ReturnType<typeof makeSpawnGit>; io: FsIo } {
@@ -34,21 +27,7 @@ function mkRepo(): { root: string; git: ReturnType<typeof makeSpawnGit>; io: FsI
   execFileSync('git', ['config', 'user.email', 't@t'], { cwd: root });
   execFileSync('git', ['config', 'user.name', 't'], { cwd: root });
   const git = makeSpawnGit(root);
-  const io: FsIo = {
-    exists: (p) => existsSync(join(root, p)),
-    readText: (p) => readFileSync(join(root, p), 'utf8'),
-    writeText: (p, c) => {
-      const full = join(root, p);
-      mkdirSync(full.slice(0, full.lastIndexOf('/')), { recursive: true });
-      writeFileSync(full, c);
-    },
-    rename: (from, to) => {
-      const target = join(root, to);
-      mkdirSync(target.slice(0, target.lastIndexOf('/')), { recursive: true });
-      renameSync(join(root, from), target);
-    },
-    listDir: (p) => readdirSync(join(root, p)),
-  };
+  const io: FsIo = makeNodeIo(root);
   io.writeText('llmanspec/config.yaml', 'schema: spec-driven\n');
   git.run(['add', '-A']);
   git.run(['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-m', 'init']);

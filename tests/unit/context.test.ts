@@ -4,6 +4,7 @@ import {
   buildTreeIndex,
   computeSpecHash,
   loadTreeWithAutoRebuild,
+  parseCapability,
   parseLock,
   resolveChatConfig,
   runContextRetrieval,
@@ -11,7 +12,6 @@ import {
   type IndexIo,
   type SpecEntry,
 } from '@llman-sdd/core';
-import { parseCapability } from '@llman-sdd/core';
 
 const SPEC_A = `# language: zh-CN
 # capability: alpha
@@ -185,28 +185,18 @@ describe('runContextRetrieval (mock fetch agentic loop)', () => {
     expect(messages.some((m) => m.role === 'tool')).toBe(true);
   });
 
-  test('r29 HTTP failure → unavailable + error summary shape', async () => {
-    const fetchImpl = (async () =>
-      new Response('boom', { status: 500 })) as unknown as typeof fetch;
-    const tree = buildTreeIndex([], { specHash: 'h', buildTimestamp: 'x', chatModel: 'mock' });
-    const result = await runContextRetrieval({
-      config: { model: 'mock', host: 'https://mock.example/v1', apiKey: 'k' },
-      task: 't',
-      tree,
-      readFile: () => '',
-      root: '.',
-      fetchImpl,
-    });
-    expect(result.status.ok).toBe(false);
-    expect(result.status.quality).toBe('unavailable');
-    expect(result.status.errorKind).toBe('api_error');
-    expect(result.summary).toEqual({ totalSpecs: 0, error: true });
-  });
-
-  test('r29 network throw → unavailable + error summary shape', async () => {
-    const fetchImpl = (async () => {
-      throw new Error('ECONNREFUSED');
-    }) as unknown as typeof fetch;
+  test.each([
+    [
+      'HTTP failure',
+      (async () => new Response('boom', { status: 500 })) as unknown as typeof fetch,
+    ],
+    [
+      'network throw',
+      (async () => {
+        throw new Error('ECONNREFUSED');
+      }) as unknown as typeof fetch,
+    ],
+  ] as const)('r29 %s → unavailable + error summary shape', async (_label, fetchImpl) => {
     const tree = buildTreeIndex([], { specHash: 'h', buildTimestamp: 'x', chatModel: 'mock' });
     const result = await runContextRetrieval({
       config: { model: 'mock', host: 'https://mock.example/v1', apiKey: 'k' },

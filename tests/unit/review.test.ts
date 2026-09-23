@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { buildReview } from '@llman-sdd/core';
-import { parseCapability } from '@llman-sdd/core';
+import { buildReview, parseCapability } from '@llman-sdd/core';
 
 const SPEC = (cap: string, req: string, extraTags = ''): string => `# language: zh-CN
 # capability: ${cap}

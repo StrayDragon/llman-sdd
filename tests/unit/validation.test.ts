@@ -3,12 +3,12 @@ import { describe, expect, test } from 'bun:test';
 import {
   checkChangeDoc,
   discoverSpecs,
+  parseCapability,
   validateAllSpecs,
   validateChange,
   type DiscoveryIo,
   type SpecEntry,
 } from '@llman-sdd/core';
-import { parseCapability } from '@llman-sdd/core';
 
 const io: DiscoveryIo = {
   exists: (p) => p.startsWith('llmanspec/') || p.startsWith('src/'),

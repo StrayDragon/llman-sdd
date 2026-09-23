@@ -1,7 +1,8 @@
 /**
- * Test-side InitIo/ShowFsIo adapter over node:fs, rooted at a temp project
- * directory. Mirrors apps/cli/src/io.ts's CliIo resolution (root-relative
- * paths; absolute pass through) without importing the CLI entrypoint.
+ * Test-side InitIo/FsIo/ShowFsIo/ChangeFsIo adapter over node:fs, rooted at a
+ * temp project directory. Mirrors apps/cli/src/io.ts's CliIo resolution
+ * (root-relative paths; absolute pass through) without importing the CLI
+ * entrypoint.
  */
 import {
   existsSync,
@@ -10,6 +11,7 @@ import {
   readFileSync,
   renameSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import { dirname, isAbsolute, join } from 'node:path';
@@ -28,6 +30,8 @@ export function makeNodeIo(root: string) {
       mkdirSync(full(p), { recursive: true });
     },
     listDir: (p: string): string[] => readdirSync(full(p)),
+    isDirectory: (p: string): boolean => statSync(full(p)).isDirectory(),
+    mtimeMs: (p: string): number => statSync(full(p)).mtimeMs,
     removeDir: (p: string): void => rmSync(full(p), { recursive: true, force: true }),
     rename: (from: string, to: string): void => {
       mkdirSync(dirname(full(to)), { recursive: true });

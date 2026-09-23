@@ -64,15 +64,13 @@ describe('collectChanges', () => {
     expect(changes[1]?.idleDays).toBe(5);
   });
 
-  test('status enum and list/json rendering', () => {
+  test('statusFor task matrix (no-tasks / complete / in-progress)', () => {
     expect(statusFor(0, 0)).toBe('no-tasks');
     expect(statusFor(2, 2)).toBe('complete');
     expect(statusFor(2, 1)).toBe('in-progress');
-    expect(stageFor(false, false, false)).toBe('draft');
-    expect(stageFor(true, false, false)).toBe('designed');
-    expect(stageFor(true, true, false)).toBe('planned');
-    expect(stageFor(true, true, true)).toBe('full');
+  });
 
+  test('json rendering carries name/stage/status/task counts', () => {
     const changes = collectChanges(fakeChangeIo(), '.', NOW);
     const json = JSON.parse(renderChangesJson(changes));
     expect(json.changes[0]).toMatchObject({
@@ -82,6 +80,10 @@ describe('collectChanges', () => {
       completedTasks: 1,
       totalTasks: 2,
     });
+  });
+
+  test('list rendering annotates idle only for no-tasks rows', () => {
+    const changes = collectChanges(fakeChangeIo(), '.', NOW);
     const lines = renderChangesList(changes, NOW);
     expect(lines[0]).toBe('Active changes:');
     // no-tasks 行才带 idle 段
@@ -178,29 +180,29 @@ describe('stageFor monotonic rule (r34)', () => {
   });
 });
 
-describe('list sort (r51)', () => {
-  test('name sort is alphabetical, recent stays mtime desc', () => {
-    const base = {
-      path: '',
-      title: '',
-      stage: 'draft' as const,
-      hasBinding: false,
-      completedTasks: 0,
-      totalTasks: 0,
-      idleDays: 0,
-      status: 'no-tasks' as const,
+describe('collectChanges ordering (r51 recent base)', () => {
+  test('orders newest-first (mtime desc), independent of name alphabet', () => {
+    // r51 的 `--sort name` 字典序在 CLI 侧(apps/cli),由 BDD @executable 覆盖;
+    // core 层锚定缺省 recent 排序的载荷顺序:collectChanges 按 mtime 降序返回。
+    const mkIo = (mtimes: Record<string, number>): ChangeFsIo => ({
+      exists: (p) => p.endsWith('changes') || p.endsWith('proposal.md'),
+      readText: (p) =>
+        p.includes('a-change')
+          ? '---\ndepends_on: []\n---\n\n# A\n'
+          : p.includes('b-change')
+            ? '---\ndepends_on: []\n---\n\n# B\n'
+            : '---\ndepends_on: []\n---\n\n# C\n',
+      listDir: (p) => (p.endsWith('changes') ? ['a-change', 'b-change', 'c-change'] : []),
+      isDirectory: (p) => !p.endsWith('.md'),
+      mtimeMs: (p) => mtimes[p] ?? 0,
+    });
+    const mtimes = {
+      './llmanspec/changes/a-change/proposal.md': 1_000,
+      './llmanspec/changes/b-change/proposal.md': 3_000,
+      './llmanspec/changes/c-change/proposal.md': 2_000,
     };
-    const changes = [
-      { ...base, name: 'b-change', lastModified: new Date('2026-01-03') },
-      { ...base, name: 'a-change', lastModified: new Date('2026-01-02') },
-      { ...base, name: 'c-change', lastModified: new Date('2026-01-01') },
-    ];
-    const byName = [...changes].toSorted((a, b) => a.name.localeCompare(b.name)).map((c) => c.name);
-    expect(byName).toEqual(['a-change', 'b-change', 'c-change']);
-    const byRecent = [...changes]
-      .toSorted((a, b) => b.lastModified.getTime() - a.lastModified.getTime())
-      .map((c) => c.name);
-    expect(byRecent).toEqual(['b-change', 'a-change', 'c-change']);
+    const names = collectChanges(mkIo(mtimes), '.', NOW).map((c) => c.name);
+    expect(names).toEqual(['b-change', 'c-change', 'a-change']);
   });
 });
 

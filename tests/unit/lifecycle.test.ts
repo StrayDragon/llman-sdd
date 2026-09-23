@@ -21,6 +21,31 @@ import {
 
 import { makeNodeIo } from '../helpers/nodeIo.ts';
 
+/**
+ * 临时 git 仓库工厂:在 main 分支上提交一个含 proposal.md(可选 tasks.md)的
+ * change 目录,返回 root 与带仓库内身份(-c user.email/name)的 git 驱动,
+ * 供各生命周期用例复用,避免每套用例手写一遍 init/commit 样板。
+ */
+const makeGitRepo = (
+  changeId: string,
+  opts: { tasks?: string; prefix?: string } = {},
+): { root: string; run: (args: string[]) => ReturnType<typeof spawnSync> } => {
+  const root = mkdtempSync(join(tmpdir(), opts.prefix ?? 'llman-lifecycle-'));
+  const run = (args: string[]): ReturnType<typeof spawnSync> =>
+    spawnSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...args], {
+      cwd: root,
+      encoding: 'utf8',
+    });
+  run(['init', '-q', '-b', 'main']);
+  const dir = join(root, 'llmanspec', 'changes', changeId);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'proposal.md'), '---\ndepends_on: []\n---\n\n## Why\nx\n');
+  if (opts.tasks !== undefined) writeFileSync(join(dir, 'tasks.md'), opts.tasks);
+  run(['add', '-A']);
+  run(['commit', '-qm', 'init']);
+  return { root, run };
+};
+
 describe('frontmatter binding', () => {
   const WITH_COMMENTS = `---
 # 生命周期由 llman 管理
@@ -85,27 +110,8 @@ describe('deriveChangeId', () => {
 });
 
 describe('attachChange default-branch gate (r31)', () => {
-  const makeRepo = (): string => {
-    const root = mkdtempSync(join(tmpdir(), 'llman-attach-'));
-    const run = (args: string[]): void => {
-      spawnSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...args], {
-        cwd: root,
-        encoding: 'utf8',
-      });
-    };
-    run(['init', '-q', '-b', 'main']);
-    mkdirSync(join(root, 'llmanspec', 'changes', 'demo-a'), { recursive: true });
-    writeFileSync(
-      join(root, 'llmanspec', 'changes', 'demo-a', 'proposal.md'),
-      '---\ndepends_on: []\n---\n\n## Why\nx\n',
-    );
-    run(['add', '-A']);
-    run(['commit', '-qm', 'init']);
-    return root;
-  };
-
   test('refuses to attach on the default branch and writes no binding', () => {
-    const root = makeRepo();
+    const { root } = makeGitRepo('demo-a', { prefix: 'llman-attach-' });
     const git = makeSpawnGit(root);
     const io = makeNodeIo(root);
     expect(() => attachChange(git, io, 'demo-a')).toThrow(/default branch/u);
@@ -117,10 +123,10 @@ describe('attachChange default-branch gate (r31)', () => {
   });
 
   test('attaches on a feature branch', () => {
-    const root = makeRepo();
+    const { root, run } = makeGitRepo('demo-a', { prefix: 'llman-attach-' });
     const git = makeSpawnGit(root);
     const io = makeNodeIo(root);
-    spawnSync('git', ['switch', '-qc', 'feat/x'], { cwd: root });
+    run(['switch', '-qc', 'feat/x']);
     const result = attachChange(git, io, 'demo-a');
     expect(result.branch).toBe('feat/x');
     const proposal = readFileSync(
@@ -132,10 +138,10 @@ describe('attachChange default-branch gate (r31)', () => {
   });
 
   test('still refuses detached HEAD', () => {
-    const root = makeRepo();
+    const { root, run } = makeGitRepo('demo-a', { prefix: 'llman-attach-' });
     const git = makeSpawnGit(root);
     const io = makeNodeIo(root);
-    spawnSync('git', ['switch', '-q', '--detach'], { cwd: root });
+    run(['switch', '-q', '--detach']);
     expect(() => attachChange(git, io, 'demo-a')).toThrow(/detached/u);
   });
 });
@@ -181,24 +187,6 @@ describe('harvestUniqueNumbers (r35, v1 c-token parity)', () => {
 });
 
 describe('archiveChange gates (r39/r40)', () => {
-  const makeBoundRepo = (tasks: string): { root: string } => {
-    const root = mkdtempSync(join(tmpdir(), 'llman-archive-'));
-    const run = (args: string[]): void => {
-      spawnSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...args], {
-        cwd: root,
-        encoding: 'utf8',
-      });
-    };
-    run(['init', '-q', '-b', 'main']);
-    const dir = join(root, 'llmanspec', 'changes', 'demo-arch');
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, 'proposal.md'), '---\ndepends_on: []\n---\n\n## Why\nx\n');
-    if (tasks !== '') writeFileSync(join(dir, 'tasks.md'), tasks);
-    run(['add', '-A']);
-    run(['commit', '-qm', 'init']);
-    return { root };
-  };
-
   test('archiveTaskGate: pending blocks with item list; ratio gate fires', () => {
     const gate = archiveTaskGate('# Tasks\n- [ ] a\n- [x] b\n', undefined);
     expect(gate.blocked).toBe(true);
@@ -211,28 +199,11 @@ describe('archiveChange gates (r39/r40)', () => {
 });
 
 describe('r44/r45/r46 — change family flags', () => {
-  const makeRepoOnBranch = (): string => {
-    const root = mkdtempSync(join(tmpdir(), 'llman-family-'));
-    const run = (args: string[]): void => {
-      spawnSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...args], {
-        cwd: root,
-        encoding: 'utf8',
-      });
-    };
-    run(['init', '-q', '-b', 'main']);
-    const dir = join(root, 'llmanspec', 'changes', 'fam');
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, 'proposal.md'), '---\ndepends_on: []\n---\n\n## Why\nx\n');
-    run(['add', '-A']);
-    run(['commit', '-qm', 'init']);
-    return root;
-  };
-
   test('attach refuses rebind without --force and allows with it; --base must exist', () => {
-    const root = makeRepoOnBranch();
+    const { root, run } = makeGitRepo('fam', { prefix: 'llman-family-' });
     const git = makeSpawnGit(root);
     const io = makeNodeIo(root);
-    spawnSync('git', ['switch', '-qc', 'feat/a'], { cwd: root });
+    run(['switch', '-qc', 'feat/a']);
     attachChange(git, io, 'fam');
     expect(() => attachChange(git, io, 'fam')).toThrow(/already attached/u);
     attachChange(git, io, 'fam', { force: true });
@@ -245,32 +216,28 @@ describe('r44/r45/r46 — change family flags', () => {
   });
 
   test('finalize noCommit renames without close-out commit', () => {
-    const root = makeRepoOnBranch();
+    const { root, run } = makeGitRepo('fam', { prefix: 'llman-family-' });
     const git = makeSpawnGit(root);
     const io = makeNodeIo(root);
     startChange(git, io, 'fam');
     writeFileSync(join(root, 'feat.txt'), 'x\n');
-    spawnSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'add', '-A'], { cwd: root });
-    spawnSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'work'], {
-      cwd: root,
-    });
+    run(['add', '-A']);
+    run(['commit', '-qm', 'work']);
     const result = finalizeChange(git, io, 'fam', { noCommit: true });
     expect(result.commitSubject).toBe('');
-    const status = spawnSync('git', ['status', '--porcelain'], { cwd: root, encoding: 'utf8' });
+    const status = run(['status', '--porcelain']);
     expect(status.stdout).not.toBe('');
     expect(existsSync(join(root, 'llmanspec', 'changes', 'archive'))).toBe(true);
   });
 
   test('changeDiffInfo reports commitCount', () => {
-    const root = makeRepoOnBranch();
+    const { root, run } = makeGitRepo('fam', { prefix: 'llman-family-' });
     const git = makeSpawnGit(root);
     const io = makeNodeIo(root);
     startChange(git, io, 'fam');
     writeFileSync(join(root, 'feat.txt'), 'x\n');
-    spawnSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'add', '-A'], { cwd: root });
-    spawnSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'work'], {
-      cwd: root,
-    });
+    run(['add', '-A']);
+    run(['commit', '-qm', 'work']);
     const info = changeDiffInfo(git, io, 'fam');
     // v1 parity: `base` is the recorded base_sha (merge-base), not the branch name.
     expect(info).toMatchObject({ change: 'fam', branch: 'sdd/fam', commitCount: 1 });
@@ -279,32 +246,15 @@ describe('r44/r45/r46 — change family flags', () => {
 });
 
 describe('finalize branch gate (r15 / v1 r94)', () => {
-  const makeRepoOnBranch = (): string => {
-    const root = mkdtempSync(join(tmpdir(), 'llman-finalize-gate-'));
-    const run = (args: string[]): void => {
-      spawnSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...args], {
-        cwd: root,
-        encoding: 'utf8',
-      });
-    };
-    run(['init', '-q', '-b', 'main']);
-    const dir = join(root, 'llmanspec', 'changes', 'fam');
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, 'proposal.md'), '---\ndepends_on: []\n---\n\n## Why\nx\n');
-    run(['add', '-A']);
-    run(['commit', '-qm', 'init']);
-    return root;
-  };
-
   test('finalize from a foreign branch fails before any write', () => {
-    const root = makeRepoOnBranch();
+    const { root, run } = makeGitRepo('fam', { prefix: 'llman-finalize-gate-' });
     const git = makeSpawnGit(root);
     const io = makeNodeIo(root);
     startChange(git, io, 'fam');
-    spawnSync('git', ['switch', 'main'], { cwd: root });
-    const before = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout;
+    run(['switch', 'main']);
+    const before = run(['rev-parse', 'HEAD']).stdout;
     expect(() => finalizeChange(git, io, 'fam')).toThrow(/bound branch/u);
-    const after = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout;
+    const after = run(['rev-parse', 'HEAD']).stdout;
     expect(after).toBe(before);
     expect(existsSync(join(root, 'llmanspec', 'changes', 'fam'))).toBe(true);
   });
