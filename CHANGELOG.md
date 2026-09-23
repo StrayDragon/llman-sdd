@@ -33,6 +33,19 @@ tree.json 的 `spec_id`）。
   `---` 行 / 空文件等病态输入，全部消费点零行为差异）；`splitFrontmatter`
   写侧契约不变，`writeBinding` 输出字节稳定。
 
+**skill 模板指引对齐**（change `align-skill-template-guidance` + quick 收尾，含
+此前 0.4.0 周期内的模板修正批次）：模板对 CLI 的行为性指引与实现全量对齐——
+review 人审检查点去掉 `--capability`（值域仅 spec id）；context unavailable 修复
+指引双分支（stale→`index rebuild`；index fresh 但 `LLMAN_SDD_INDEX_CHAT_MODEL`
+未设→回退 `list --specs` 直读，禁止 rebuild 循环）；plain `change archive` 与
+finalize 同样自动收口提交（`--skip-specs` 为 v1 no-op，不再推荐）；`readyToImplement`
+语义归位（apply 入门 = specs-landed 门；其为 true 是 verify/finalize 前的完成信号，
+聚合全部 gateChecks 含 tasks-done）；propose 撰写引导纳入 `spec` authoring helpers
+（next-req-id / add-req / add-scenario / skeleton / resolve-req）结构化新增首选；
+wayfinder 补 `disable-model-invocation`。双 locale 同语义；新增语义对齐门禁
+`tests/unit/template-guidance-parity.test.ts`（禁用模式 + 必含标记，
+init-generators r70/r71 配 @executable 验收）。
+
 ### 迁移说明（详见 `migrations/v0.3-v0.4/README.md`）
 
 - agent/LLM 消费：直接吃 TOON（省 ~40% token，`[N]{fields}` 结构护栏），或加
