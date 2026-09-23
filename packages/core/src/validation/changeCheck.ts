@@ -1,4 +1,4 @@
-import { readBinding } from '../change/frontmatter.ts';
+import { extractFrontmatter, readBinding } from '../change/frontmatter.ts';
 import { parseTaskCheckboxes } from '../change/tasks.ts';
 /**
  * Change-domain validation (v1 `commands/validate.rs` change path parity):
@@ -147,8 +147,7 @@ export function validateChange(
     push('ERROR', 'proposal.md', 'Change is missing proposal.md.');
   } else {
     const text = io.readText(proposal);
-    const fmMatch = text.match(/^---\n([\s\S]*?)\n---/u);
-    const fm = fmMatch?.[1] ?? '';
+    const fm = extractFrontmatter(text) ?? '';
     const fmLines = fm.split('\n').map((l) => l.trim());
 
     for (const key of ['depends_on', 'blocks'] as const) {

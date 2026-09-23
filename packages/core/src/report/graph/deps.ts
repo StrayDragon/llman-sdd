@@ -1,10 +1,12 @@
 /** Extract depends_on entries (flow + block styles, r30). */
+import { extractFrontmatter } from '../../change/frontmatter.ts';
+
 export function parseDeps(proposal: string): string[] {
-  const fm = proposal.match(/^---\n([\s\S]*?)\n---/u);
+  const fm = extractFrontmatter(proposal);
   const deps: string[] = [];
-  if (!fm?.[1]) return deps;
+  if (!fm) return deps;
   let inDeps = false;
-  for (const line of fm[1].split('\n')) {
+  for (const line of fm.split('\n')) {
     const flow = line.match(/^depends_on:\s*\[([^\]]*)\]\s*$/u);
     if (flow) {
       for (const item of flow[1]?.split(',') ?? []) {

@@ -177,6 +177,7 @@ export {
   type ChangeSummary,
 } from './report/collect.ts';
 export { graphData, graphMermaid, type GraphDataIr, type GraphFsIo } from './report/graph.ts';
+export { parseDeps } from './report/graph.ts';
 export { renderMachine, type MachineFormat } from './render/machine.ts';
 export { showChangeJson, type ShowDeps, type ShowFsIo } from './report/show.ts';
 export { nextReqId, scaffoldSpec, type SpecHelperIo } from './report/specHelpers.ts';

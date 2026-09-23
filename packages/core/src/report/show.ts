@@ -1,4 +1,4 @@
-import { readBinding } from '../change/frontmatter.ts';
+import { extractFrontmatter, readBinding } from '../change/frontmatter.ts';
 import { CHANGES_DIR } from '../change/lifecycle.ts';
 import { currentBranch, isCleanTree, type GitLike } from '../git/spawnGit.ts';
 import { discoverSpecs } from '../validation/discover.ts';
@@ -64,8 +64,9 @@ export function showChangeJson(
     specsLanded = touched.includes('llmanspec/specs/');
   }
   // needs_specs_change is an explicit frontmatter declaration (default true)
-  const fmMatch = proposal.match(/^---\n([\s\S]*?)\n---/u);
-  const declaredNeeds = fmMatch?.[1]?.match(/^needs_specs_change:\s*(true|false)\s*$/mu)?.[1];
+  const declaredNeeds = extractFrontmatter(proposal)?.match(
+    /^needs_specs_change:\s*(true|false)\s*$/mu,
+  )?.[1];
   const needsSpecsChange = declaredNeeds !== undefined ? declaredNeeds === 'true' : true;
 
   const tasksDone = total > 0 && completed >= total;

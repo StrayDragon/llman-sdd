@@ -21,6 +21,22 @@ function splitFrontmatter(proposal: string): { body: string; frontmatter: string
   };
 }
 
+/**
+ * SSOT for read-side frontmatter block extraction: content between the
+ * opening `---\n` and the first following `\n---`, or null when no block is
+ * present. Byte-equivalent to the inline `/^---\n([\s\S]*?)\n---/u` regex it
+ * replaced at every read-side consume point (parseDeps, show needsSpecsChange,
+ * changeCheck depends_on/blocks gates). `splitFrontmatter` above keeps the
+ * write-side contract (close must be a standalone `\n---\n` line) so
+ * writeBinding output stays byte-stable.
+ */
+export function extractFrontmatter(proposal: string): string | null {
+  if (!proposal.startsWith('---\n')) return null;
+  const end = proposal.indexOf('\n---', 4);
+  if (end === -1) return null;
+  return proposal.slice(4, end);
+}
+
 export function readBinding(proposal: string): ChangeBinding | null {
   const { frontmatter } = splitFrontmatter(proposal);
   if (frontmatter === null) return null;
