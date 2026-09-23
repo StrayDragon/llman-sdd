@@ -9,6 +9,13 @@
   场景: 顶层字段域
     - llmanspec/config.yaml MUST 位于项目根 llmanspec/ 目录;顶层字段 MUST 仅由 schema/locale/extra_skills/archive/bdd/sdd/change_id 组成,未知字段 SHALL 宽松放行(不报错)。schema 字段必填且 MUST 为 "spec-driven"。extra_skills 取值域 MUST 限于 llman-sdd-continue/llman-sdd-ff/llman-sdd-validate/llman-sdd-arch-review/llman-sdd-wayfinder/llman-sdd-research。bdd.bindings MUST 支持 kind:tags(含非空 tags)与 kind:scenario-attrs(含非空 files)两种形态。
 
+  @req:r5 @executable
+  场景: 顶层字段域与未知字段宽松
+    假如 一个含全部顶层字段与未知字段的 config 内容
+    当 加载该 config
+    那么 加载成功且未知字段宽松放行
+    而且 schema 非法值报错
+
   @req:r6 @human
   场景: 校验失败报告与 artifact 漂移门
     - config 校验失败 MUST 报错且错误明细 MUST 截断至前 5 条;locale 缺省 MUST 为 "en"。schema artifact(artifacts/schema/configs/en/llmanspec-config.schema.json)MUST 可由 zod schema 确定性再生成,漂移 MUST 被 gen-schema --check 以非零退出码拒绝。

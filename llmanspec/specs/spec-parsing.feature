@@ -13,6 +13,21 @@
   场景: 头注释契约
     - 每个 capability .feature MUST 以 `# capability:` 头注释开始;`# purpose:` 与 `# scope:` MUST 同样存在;三者构成 CapabilityDoc 头部,缺失项 MUST 被逐项报告。
 
+  @req:r7 @executable
+  场景: 语言兜底链与 locale 映射
+    假如 一个无语言头使用中文关键字的 feature 内容
+    当 依次以 en 与 zh-CN 匹配器解析该内容
+    那么 en 起步失败回退 zh-CN 解析成功
+    而且 纯 en 内容以 en 匹配器起步成功
+    而且 双匹配器均失败才报错
+    而且 locale zh-Hans 映射为 zh-CN 且其余透传
+
+  @req:r8 @executable
+  场景: 头注释缺失逐项报告
+    假如 一个缺失全部头注释的 feature 内容
+    当 解析该 feature
+    那么 错误逐项报告三处缺失头注释
+
   @req:r9 @human
   场景: 标签分层语义
     - 场景标签中的 @req:rN MUST 被提取为需求链接;残留 @manual tag MUST 被报为迁移 ERROR(0.3.0 起移除该 tag,判定语义由 @human 承担,不得静默忽略);@human 与 @executable 互斥,违反 MUST 被报告;@human 规则场景描述 MUST 含 MUST/SHALL 语义词。

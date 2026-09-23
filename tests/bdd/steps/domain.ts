@@ -19,7 +19,10 @@ import {
   discoverSpecs,
   runInit,
   loadConfig,
+  localeToGherkinLang,
   parseCapability,
+  parseFeatureSource,
+  SpecParseError,
   validateAllSpecs,
   type CapabilityDoc,
   type DiscoveryIo,
@@ -1879,5 +1882,443 @@ bdd.thenStep('两次运行的 valid 判定与退出码一致', (ctx) => {
   }
   if (def.code !== full.code) {
     throw new Error(`exit codes diverged: ${def.code} vs ${full.code}`);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// r21 — show json/spec + graph mermaid contract (acceptance)
+// ---------------------------------------------------------------------------
+
+interface ShowGraphResult {
+  showJson: { code: number; stdout: string; stderr: string };
+  showSpec: { code: number; stdout: string };
+  graph: { code: number; stdout: string };
+}
+
+const SHOW_JSON_FIELDS = [
+  'id',
+  'path',
+  'title',
+  'stage',
+  'artifacts',
+  'readyToImplement',
+  'specsLanded',
+  'needsSpecsChange',
+  'attached',
+  'deltaCount',
+  'gateChecks',
+  'matchedViaPrefix',
+] as const;
+
+bdd.given('一个含活跃 change 与归档依赖的临时仓库', (ctx) => {
+  const repo = makeTempRepo();
+  const changes = join(repo.root, 'llmanspec', 'changes');
+  mkdirSync(join(changes, 'archive', '2026-01-01-done-old'), { recursive: true });
+  writeFileSync(
+    join(changes, 'archive', '2026-01-01-done-old', 'proposal.md'),
+    '---\ndepends_on: []\n---\n\n## Why\nx\n',
+  );
+  mkdirSync(join(changes, 'demo-change'), { recursive: true });
+  writeFileSync(
+    join(changes, 'demo-change', 'proposal.md'),
+    '---\ndepends_on: [done-old]\n---\n\n## Why\nx\n\n## What Changes\ny\n',
+  );
+  repo.run('git', ['add', '-A']);
+  repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'deps']);
+  ctx.fixtures['showgraph仓库'] = { repo };
+});
+
+bdd.when('运行 show --output json 与 show spec 原文与 graph --format mermaid', (ctx) => {
+  const repo = (ctx.fixtures['showgraph仓库'] as { repo: TempRepo }).repo;
+  const json = repo.run('bun', [CLI, 'show', 'demo-change', '--output', 'json']);
+  const spec = repo.run('bun', [CLI, 'show', 'sample', '--output', 'human']);
+  const graph = repo.run('bun', [CLI, 'graph', '--format', 'mermaid']);
+  ctx.fixtures['showgraph结果'] = {
+    showJson: { code: json.code, stdout: json.stdout, stderr: json.stderr },
+    showSpec: { code: spec.code, stdout: spec.stdout },
+    graph: { code: graph.code, stdout: graph.stdout },
+  } satisfies ShowGraphResult;
+});
+
+bdd.thenStep('show JSON 字段集完整覆盖 change 合同字段', (ctx) => {
+  const r = ctx.fixtures['showgraph结果'] as ShowGraphResult;
+  if (r.showJson.code !== 0) {
+    throw new Error(`show --output json failed: ${r.showJson.stderr}`);
+  }
+  const parsed = JSON.parse(r.showJson.stdout) as Record<string, unknown>;
+  const missing = SHOW_JSON_FIELDS.filter((f) => !(f in parsed));
+  if (missing.length > 0) {
+    throw new Error(`show json missing contract fields: ${missing.join(', ')}`);
+  }
+});
+
+bdd.thenStep('show spec 直出头注释与 gherkin 原文', (ctx) => {
+  const r = ctx.fixtures['showgraph结果'] as ShowGraphResult;
+  if (r.showSpec.code !== 0) throw new Error(`show sample failed`);
+  for (const marker of ['# language: zh-CN', '# capability: sample', '功能: sample', '场景: ok']) {
+    if (!r.showSpec.stdout.includes(marker)) {
+      throw new Error(`show spec output missing raw marker "${marker}":\n${r.showSpec.stdout}`);
+    }
+  }
+});
+
+bdd.thenStep('graph 以 flowchart TD 开头且节点下划线化并以 classDef archived 收尾', (ctx) => {
+  const r = ctx.fixtures['showgraph结果'] as ShowGraphResult;
+  if (r.graph.code !== 0) throw new Error(`graph failed`);
+  if (r.graph.stdout.split('\n')[0]?.trim() !== 'flowchart TD') {
+    throw new Error(`graph must start with flowchart TD:\n${r.graph.stdout}`);
+  }
+  for (const marker of [
+    'demo_change["demo-change"]',
+    'done_old["done-old ✓ done"]:::archived',
+    'demo_change -->|depends on| done_old',
+  ]) {
+    if (!r.graph.stdout.includes(marker)) {
+      throw new Error(`graph output missing "${marker}":\n${r.graph.stdout}`);
+    }
+  }
+  const last = r.graph.stdout
+    .split('\n')
+    .reverse()
+    .find((l) => l.trim() !== '');
+  if (!last?.trim().startsWith('classDef archived')) {
+    throw new Error(`graph must end with classDef archived, got: ${last}`);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// r22 — spec helpers + project migrate three states (acceptance)
+// ---------------------------------------------------------------------------
+
+interface MigrateResult {
+  skeletonCode: number;
+  skeletonContent: string;
+  nextReqId: string;
+  bareOut: string;
+  toonOut: string;
+  flattenOut: string;
+  unknownCode: number;
+  unknownOut: string;
+}
+
+bdd.given('一个已初始化且含 r1 规则的临时仓库', (ctx) => {
+  ctx.fixtures['migrate仓库'] = { repo: makeTempRepo() };
+});
+
+bdd.when('运行 spec skeleton 与 next-req-id 与 project migrate 三态', (ctx) => {
+  const repo = (ctx.fixtures['migrate仓库'] as { repo: TempRepo }).repo;
+  const skel = repo.run('bun', [CLI, 'spec', 'skeleton', 'capx']);
+  const skeletonContent =
+    skel.code === 0
+      ? readFileSync(join(repo.root, 'llmanspec', 'specs', 'capx.feature'), 'utf8')
+      : '';
+  const next = repo.run('bun', [CLI, 'spec', 'next-req-id', '--json']);
+  const bare = repo.run('bun', [CLI, 'project', 'migrate']);
+  const toon = repo.run('bun', [CLI, 'project', 'migrate', '--kind', 'toon2features']);
+  const flatten = repo.run('bun', [CLI, 'project', 'migrate', '--kind', 'specs-flatten']);
+  const unknown = repo.run('bun', [CLI, 'project', 'migrate', '--kind', 'bogus']);
+  let nextReqId = '';
+  try {
+    nextReqId = String((JSON.parse(next.stdout || '{}') as { reqId?: string }).reqId ?? '');
+  } catch {
+    // then-step reports the failure
+  }
+  ctx.fixtures['migrate结果'] = {
+    skeletonCode: skel.code,
+    skeletonContent,
+    nextReqId,
+    bareOut: bare.stdout,
+    toonOut: toon.stdout,
+    flattenOut: flatten.stdout,
+    unknownCode: unknown.code,
+    unknownOut: `${unknown.stdout}${unknown.stderr}`,
+  } satisfies MigrateResult;
+});
+
+bdd.thenStep('skeleton 产物过单轨校验且 next-req-id 输出下一空闲 id', (ctx) => {
+  const r = ctx.fixtures['migrate结果'] as MigrateResult;
+  if (r.skeletonCode !== 0) throw new Error('spec skeleton failed');
+  const doc = parseCapability(r.skeletonContent, 'capx.feature');
+  if (doc.errors.length !== 0) {
+    throw new Error(`skeleton fails single-track validation: ${JSON.stringify(doc.errors)}`);
+  }
+  // makeTempRepo 的 sample.feature 占 r1:skeleton 领走下一空闲 id r2,
+  // 随后 next-req-id 扫描全局注册表应报再下一个空闲 id r3。
+  if (!r.skeletonContent.includes('@req:r2 @human')) {
+    throw new Error(`skeleton did not claim the next free id r2:\n${r.skeletonContent}`);
+  }
+  if (r.nextReqId !== 'r3') {
+    throw new Error(`expected next free id r3, got "${r.nextReqId}"`);
+  }
+});
+
+bdd.thenStep('migrate 裸调用输出总览且两种 kind 各输出协作说明', (ctx) => {
+  const r = ctx.fixtures['migrate结果'] as MigrateResult;
+  // 总览含两种 --kind 提示(输出文案随 config locale 变化,断言取语言中立标记)
+  for (const marker of ['toon2features', 'specs-flatten']) {
+    if (!r.bareOut.includes(marker)) {
+      throw new Error(`bare migrate overview missing "${marker}":\n${r.bareOut}`);
+    }
+  }
+  if (!r.toonOut.includes('spec.toon')) {
+    throw new Error(`toon2features guidance missing:\n${r.toonOut}`);
+  }
+  if (!r.flattenOut.includes('git mv')) {
+    throw new Error(`specs-flatten guidance missing:\n${r.flattenOut}`);
+  }
+});
+
+bdd.thenStep('未知 --kind 退出码非零', (ctx) => {
+  const r = ctx.fixtures['migrate结果'] as MigrateResult;
+  if (r.unknownCode === 0) throw new Error(`unknown kind must exit non-zero: ${r.unknownOut}`);
+  if (!r.unknownOut.includes('unknown migration kind')) {
+    throw new Error(`unexpected error output: ${r.unknownOut}`);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// r42 — spec add-scenario append success + missing-req zero side effect
+// ---------------------------------------------------------------------------
+
+interface AddScenarioResult {
+  okCode: number;
+  okOut: string;
+  failCode: number;
+  failOut: string;
+  beforeFail: string;
+  afterFail: string;
+}
+
+bdd.when('运行 spec add-scenario 指向存在的 req 与不存在的 req', (ctx) => {
+  const { root } = ctx.fixtures['authoring工作区'] as { root: string };
+  const run = (args: string[]): { code: number; out: string } => {
+    const proc = spawnSync('bun', [CLI, ...args], { cwd: root, encoding: 'utf8' });
+    return { code: proc.status ?? 1, out: `${proc.stdout ?? ''}${proc.stderr ?? ''}` };
+  };
+  const ok = run([
+    'spec',
+    'add-scenario',
+    'auth',
+    'r1',
+    '令牌验收',
+    '--when',
+    '访问受保护资源',
+    '--then',
+    '访问被允许',
+  ]);
+  const specPath = join(root, 'llmanspec', 'specs', 'auth.feature');
+  const beforeFail = readFileSync(specPath, 'utf8');
+  const fail = run([
+    'spec',
+    'add-scenario',
+    'auth',
+    'r99',
+    '幽灵场景',
+    '--when',
+    '触发门',
+    '--then',
+    '门被拦截',
+  ]);
+  const afterFail = readFileSync(specPath, 'utf8');
+  ctx.fixtures['addscenario结果'] = {
+    okCode: ok.code,
+    okOut: ok.out,
+    failCode: fail.code,
+    failOut: fail.out,
+    beforeFail,
+    afterFail,
+  } satisfies AddScenarioResult;
+});
+
+bdd.thenStep('存在的 req 追加 @executable 验收场景且 given 缺省为空', (ctx) => {
+  const r = ctx.fixtures['addscenario结果'] as AddScenarioResult;
+  if (r.okCode !== 0) throw new Error(`add-scenario failed: ${r.okOut}`);
+  if (!r.afterFail.includes('@req:r1 @executable')) {
+    throw new Error(`acceptance scenario tag missing:\n${r.afterFail}`);
+  }
+  const doc = parseCapability(r.afterFail, 'auth.feature');
+  const acc = doc.scenarios.find(
+    (s) => s.classification === 'executable' && s.reqIds.includes('r1'),
+  );
+  if (!acc) throw new Error(`appended scenario not parseable:\n${r.afterFail}`);
+  const kinds = acc.steps.map((s) => s.kind);
+  if (JSON.stringify(kinds) !== JSON.stringify(['when', 'then'])) {
+    throw new Error(`given must default to empty; got steps [${kinds.join(', ')}]`);
+  }
+});
+
+bdd.thenStep('不存在的 req 报错且文件零副作用', (ctx) => {
+  const r = ctx.fixtures['addscenario结果'] as AddScenarioResult;
+  if (r.failCode === 0) throw new Error(`missing req must fail: ${r.failOut}`);
+  if (!r.failOut.includes('r99')) {
+    throw new Error(`error must name the missing req: ${r.failOut}`);
+  }
+  if (r.beforeFail !== r.afterFail) {
+    throw new Error('failed add-scenario must not touch the spec file');
+  }
+});
+
+// ---------------------------------------------------------------------------
+// r7 — parse language fallback chain + locale mapping (acceptance)
+// ---------------------------------------------------------------------------
+
+interface LangParseResult {
+  zhLang: string;
+  zhFeatureName: string;
+  enLang: string;
+  bothFailedMessage: string | null;
+}
+
+const LANG_EN_SAMPLE = `Feature: en capability
+
+  Scenario: rule
+    Then system MUST x
+`;
+
+bdd.given('一个无语言头使用中文关键字的 feature 内容', (ctx) => {
+  const zhOnly = `功能: 中文能力
+
+  @req:r7 @human
+  场景: 规则
+    - 系统 MUST 提供兜底
+`;
+  ctx.fixtures['语言样本'] = {
+    zhOnly,
+    enOnly: LANG_EN_SAMPLE,
+    garbage: 'not a feature at all',
+  };
+  return ctx.fixtures['语言样本'];
+});
+
+bdd.when('依次以 en 与 zh-CN 匹配器解析该内容', (ctx) => {
+  const sample = ctx.fixtures['语言样本'] as { zhOnly: string; enOnly: string; garbage: string };
+  const zh = parseFeatureSource(sample.zhOnly);
+  const en = parseFeatureSource(sample.enOnly);
+  let bothFailedMessage: string | null = null;
+  try {
+    parseFeatureSource(sample.garbage);
+  } catch (error) {
+    bothFailedMessage = error instanceof Error ? error.message : String(error);
+    if (!(error instanceof SpecParseError)) {
+      throw new Error(`expected SpecParseError, got: ${bothFailedMessage}`);
+    }
+  }
+  ctx.fixtures['语言解析'] = {
+    zhLang: zh.language,
+    zhFeatureName: zh.doc.feature?.name ?? '',
+    enLang: en.language,
+    bothFailedMessage,
+  } satisfies LangParseResult;
+});
+
+bdd.thenStep('en 起步失败回退 zh-CN 解析成功', (ctx) => {
+  const r = ctx.fixtures['语言解析'] as LangParseResult;
+  if (r.zhLang !== 'zh-CN') {
+    throw new Error(`zh feature must resolve via zh-CN fallback, got ${r.zhLang}`);
+  }
+  if (r.zhFeatureName !== '中文能力') {
+    throw new Error(`fallback parse produced wrong feature name: ${r.zhFeatureName}`);
+  }
+});
+
+bdd.thenStep('纯 en 内容以 en 匹配器起步成功', (ctx) => {
+  const r = ctx.fixtures['语言解析'] as LangParseResult;
+  if (r.enLang !== 'en') {
+    throw new Error(`en feature must parse under the en matcher, got ${r.enLang}`);
+  }
+});
+
+bdd.thenStep('双匹配器均失败才报错', (ctx) => {
+  const r = ctx.fixtures['语言解析'] as LangParseResult;
+  if (r.bothFailedMessage === null) {
+    throw new Error('garbage input must throw after both matchers fail');
+  }
+  if (!r.bothFailedMessage.includes('tried en, zh-CN')) {
+    throw new Error(`error must report the fallback chain: ${r.bothFailedMessage}`);
+  }
+});
+
+bdd.thenStep('locale zh-Hans 映射为 zh-CN 且其余透传', (ctx) => {
+  if (localeToGherkinLang('zh-Hans') !== 'zh-CN') {
+    throw new Error(`zh-Hans must map to zh-CN, got ${localeToGherkinLang('zh-Hans')}`);
+  }
+  if (localeToGherkinLang('en') !== 'en' || localeToGherkinLang('fr') !== 'fr') {
+    throw new Error('non zh-Hans locales must pass through unchanged');
+  }
+});
+
+// ---------------------------------------------------------------------------
+// r8 — capability header comments reported item by item (acceptance)
+// ---------------------------------------------------------------------------
+
+const NO_HEADER_FEATURE = `功能: 裸能力
+
+  @req:r8 @human
+  场景: 规则
+    - 系统 MUST 报告缺失
+`;
+
+bdd.given('一个缺失全部头注释的 feature 内容', (ctx) => {
+  ctx.fixtures['feature'] = { 源文本: NO_HEADER_FEATURE };
+});
+
+bdd.thenStep('错误逐项报告三处缺失头注释', (ctx) => {
+  const doc = (ctx.fixtures['解析结果'] as ParseResult | undefined)?.doc;
+  const codes = doc?.errors.map((e) => e.code) ?? [];
+  for (const key of ['capability', 'purpose', 'scope']) {
+    if (!codes.includes(`missing-header:${key}`)) {
+      throw new Error(`missing-header:${key} not reported; got [${codes.join(', ')}]`);
+    }
+  }
+});
+
+// ---------------------------------------------------------------------------
+// r5 — config top-level field domain + unknown-key tolerance (acceptance)
+// ---------------------------------------------------------------------------
+
+const FULL_CONFIG = `schema: spec-driven
+locale: zh-Hans
+extra_skills:
+  - llman-sdd-ff
+archive:
+  strict_defer: true
+bdd:
+  run_command: "bun test tests/bdd"
+sdd:
+  merge_method: squash
+change_id:
+  pattern: "^[a-z0-9][a-z0-9-]*$"
+unknown_toplevel: tolerated
+`;
+
+bdd.given('一个含全部顶层字段与未知字段的 config 内容', (ctx) => {
+  ctx.fixtures['config'] = { 源文本: FULL_CONFIG };
+  return ctx.fixtures['config'];
+});
+
+bdd.thenStep('加载成功且未知字段宽松放行', (ctx) => {
+  const result = ctx.fixtures['加载结果'] as { error: string | null } | undefined;
+  if (!result) throw new Error('no 加载结果 — did the 当 step run?');
+  if (result.error !== null) {
+    throw new Error(`unknown fields must be tolerated, got:\n${result.error}`);
+  }
+  const source = String(field(ctx.fixtures['config'], '源文本') ?? '');
+  const parsed = loadConfig(source);
+  if (parsed.schema !== 'spec-driven') throw new Error('schema field must round-trip');
+  if (parsed.locale !== 'zh-Hans') throw new Error('locale field must round-trip');
+  if (parsed.sdd?.merge_method !== 'squash') throw new Error('sdd.merge_method must round-trip');
+  if (parsed.change_id?.pattern === undefined) throw new Error('change_id.pattern must round-trip');
+});
+
+bdd.thenStep('schema 非法值报错', (ctx) => {
+  let message: string | null = null;
+  try {
+    loadConfig('schema: bogus\n');
+  } catch (error) {
+    message = (error as Error).message;
+  }
+  if (message === null) throw new Error('schema: bogus must be rejected');
+  if (!message.includes('schema')) {
+    throw new Error(`error must name the schema field: ${message}`);
   }
 });

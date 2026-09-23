@@ -13,6 +13,13 @@
   场景: spec add-scenario 追加验收场景
     - `spec add-scenario <capability> <req_id> <scenario_id> --when <W> --then <T> [--given <G>]` MUST 在目标 req 存在时追加一条 `@req:<req_id> @executable` 验收场景(given 缺省为空);目标 req 不存在 MUST 报错且零副作用。
 
+  @req:r42 @executable
+  场景: add-scenario 追加与缺失零副作用
+    假如 一个含单一 capability spec 的临时 specs 目录
+    当 运行 spec add-scenario 指向存在的 req 与不存在的 req
+    那么 存在的 req 追加 @executable 验收场景且 given 缺省为空
+    而且 不存在的 req 报错且文件零副作用
+
   @req:r43 @human
   场景: resolve-req 反查与注册表去重
     - `spec resolve-req <req_id>` MUST 输出该 req 的 capability 与 statement,未命中 MUST 报错;`project dedupe-req-ids` MUST 扫描主库(非归档 specs)冲突 rN 并重映射为空闲短 id,`--dry-run` MUST 仅输出映射计划且零副作用。

@@ -20,6 +20,14 @@
   场景: show 与 graph 合同
     - `show <change> --output json` 字段集 MUST 覆盖 id/path/title/stage/artifacts/readyToImplement/specsLanded/needsSpecsChange/attached/deltaCount/gateChecks/matchedViaPrefix;`show <spec>` MUST 直出头注释与 gherkin 原文;`graph --format mermaid` MUST 以 `flowchart TD` 开头,节点名 MUST 将 `-` 转为 `_`,archived change MUST 标注 `✓ done` 与 archived class,依赖边 MUST 来自 frontmatter depends_on 且指向 archived 节点时同样保留,报告 MUST 以 classDef archived 行收尾。
 
+  @req:r21 @executable
+  场景: show 与 graph 输出契约
+    假如 一个含活跃 change 与归档依赖的临时仓库
+    当 运行 show --output json 与 show spec 原文与 graph --format mermaid
+    那么 show JSON 字段集完整覆盖 change 合同字段
+    而且 show spec 直出头注释与 gherkin 原文
+    而且 graph 以 flowchart TD 开头且节点下划线化并以 classDef archived 收尾
+
   @req:r61 @human
   场景: change id 前缀解析
     - `show`、`validate <item>` 与 `change start/attach/diff/finalize/archive` 的 change id 解析 MUST 按 v1 r112 优先级链:exact match 优先于前缀;唯一前缀命中 MUST 解析到该 change,且人读输出 MUST 向 stderr 打 `'input' -> 'resolved' (prefix match)` 提示;多个前缀命中 MUST 报错并列出全部候选,退出码非零;无匹配 MUST 报 change not found;解析 MUST 大小写敏感;JSON 的 matchedViaPrefix MUST 如实上报(exact 为 false,前缀命中为 true);spec id 的精确匹配 MUST 优先于同前缀 change id(不被劫持);共享解析器不含归档兜底(v1 的 archived 回退与 did-you-mean 有意不移植)。`graph` 种子 MUST 支持前缀解析,但走其自有口径:精确 > 活跃唯一前缀 > 归档唯一前缀,多命中/无命中按 graph not found 报错——归档兜底为 graph 特有。
@@ -33,6 +41,14 @@
   @req:r22 @human
   场景: spec 助手与 migrate 引导壳
     - `spec skeleton <cap>` MUST 生成通过单轨校验的骨架(locale 按 config);`spec next-req-id` MUST 扫描全局 rN 注册表输出下一个空闲 id;`project migrate` MUST 输出 legacy 迁移不随本工具提供的说明且不执行任何迁移。
+
+  @req:r22 @executable
+  场景: spec 助手产物与 migrate 三态
+    假如 一个已初始化且含 r1 规则的临时仓库
+    当 运行 spec skeleton 与 next-req-id 与 project migrate 三态
+    那么 skeleton 产物过单轨校验且 next-req-id 输出下一空闲 id
+    而且 migrate 裸调用输出总览且两种 kind 各输出协作说明
+    而且 未知 --kind 退出码非零
 
   @req:r30 @human
   场景: graph 依赖边解析双风格
