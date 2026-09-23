@@ -1,4 +1,4 @@
 {
-  "maxPending": 6,
-  "note": "rulePendingCount 上限;仅剩 HIGH 批(add-bdd-exe-validation-core)6 条,finalize 后归 0"
+  "maxPending": 0,
+  "note": "executable 化三批已全部落地(2026-09-23):新增 MUST 规则必须按 init-generators r66 分流判据配对 @executable 验收或书面记录不可执行理由,否则 pending-gate 失败"
 }
