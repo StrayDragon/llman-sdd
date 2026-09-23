@@ -16,9 +16,9 @@ disable-model-invocation: true
 
 ### 0) 门禁 + 状态
 ```bash
-llman-sdd show <change-id> --json --type change
+llman-sdd show <change-id> --output json --type change
 ```
-> 阶段判定：用 `llman-sdd show <id> --json --type change` 的 `stage` / `readyToImplement` 字段；完整判定表见 llman-sdd-apply。
+> 阶段判定：用 `llman-sdd show <id> --output json --type change` 的 `stage` / `readyToImplement` 字段；完整判定表见 llman-sdd-apply。
 
 - 须在绑定的非默认分支上。
 - `readyToImplement` 不为 true → STOP（先 Specs landing 或 `needs_specs_change: false`）；**不要**直接 finalize。

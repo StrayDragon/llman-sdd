@@ -3,7 +3,7 @@
 用权威 JSON 判定（勿凭「完整工件」口头说法）：
 
 ```bash
-llman-sdd show <id> --json --type change
+llman-sdd show <id> --output json --type change
 ```
 
 解读字段：`stage`、`specsLanded`、`needsSpecsChange`、`readyToImplement`、`gateChecks`（逐项 `pass` + 未过时一行 `hint`）。

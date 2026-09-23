@@ -83,7 +83,7 @@ flowchart LR
    - `tasks.md`：按**垂直切片**拆分（每个 task 打穿 schema→API→UI→tests 一条窄而完整的路径，可独立验证），并带 `[blocked-by: <task-id>]` 依赖标记。**大范围重构例外**（一个机械改动扫全库、单点编辑牵动大量调用处）：按 expand-contract 排序（旧的旁边加新的 → 分批迁移调用处 → 删掉旧的），不强拆垂直切片。
    - **先** `llman-sdd change start <change-id>`（推荐；默认分支上工作树干净时）或手动建分支后 `change attach <change-id>` 到达 Full（bound）。
    - **然后**在绑定的非默认分支上编辑 live `llmanspec/specs/<capability>.feature`（扁平，或目录 `llmanspec/specs/<capability>/` 内主文件）并 commit（Specs landing）。**不要**在 start 之前改 live specs；**不要**为过干净树门禁把 live specs commit 到默认分支。已 attach 时勿重复 `start`（丢失 specs 时用 checkout/重建 + `attach --force` 恢复）。
-   - 无 live 合约编辑的 change，设置 frontmatter `needs_specs_change: false`。仅当 `llman-sdd show <id> --json` 给出 `readyToImplement=true` 才进入 apply。
+   - 无 live 合约编辑的 change，设置 frontmatter `needs_specs_change: false`。仅当 `llman-sdd show <id> --output json` 给出 `readyToImplement=true` 才进入 apply。
    - **破坏性合约变更**（移除/重命名字段、命令、tag 或 stage 值域）MUST 规划升级路径：`migrations/v<from>-v<to>/`（README prompt + 一次性脚本，随仓库发布）——写进提案的 What Changes。
 
 ### 4) 校验

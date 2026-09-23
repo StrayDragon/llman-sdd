@@ -21,7 +21,7 @@ Use this skill to validate change/spec format and staleness.
    - Change lifecycle gates: `change start` / `attach` (Branch binding), `finalize` (close-out; auto commit `archive(sdd): <id>`, `--no-commit` to skip) / `diff` (read-only). `change checkpoint` is removed (no mid-flight archive point; `change finalize` does not require a clean tree).
    - `llman-sdd validate --specs` runs `bdd.run_command` by default.
    - Use `list --specs --json` for `morphology` (includes `dualWriteCount`).
-   - Change JSON status fields: `stage` (draft/designed/planned/full) / `specsLanded` / `needsSpecsChange` / `readyToImplement` (`show --json`).
+   - Change JSON status fields: `stage` (draft/designed/planned/full) / `specsLanded` / `needsSpecsChange` / `readyToImplement` (`show --output json`).
 {% endif %}
 
 > For command details run `llman-sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables.

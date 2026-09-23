@@ -15,7 +15,7 @@ Use this skill to continue an existing change and create the next missing artifa
    - Otherwise run `llman-sdd list --json` and ask which change to continue.
    - Always announce: "Using change: <id>".
 2. Read the change directory: `llmanspec/changes/<id>/`.
-> Stage gate: decide from `stage` / `readyToImplement` in `llman-sdd show <id> --json --type change`; full decision table lives in llman-sdd-apply.
+> Stage gate: decide from `stage` / `readyToImplement` in `llman-sdd show <id> --output json --type change`; full decision table lives in llman-sdd-apply.
 3. Determine the next artifact to create (in order):
    1) `proposal.md`
    2) `design.md` (only if design tradeoffs matter)
@@ -26,7 +26,7 @@ Use this skill to continue an existing change and create the next missing artifa
    - Do NOT implement application code in continue mode.
    - Do NOT create `*.feature.delta.toon`, `spec.toon`, or files under `changes/<id>/specs/`.
    - Do NOT edit shared `llmanspec/specs/**` before start/attach.
-5. If all artifacts already exist, suggest next actions from `llman-sdd show <id> --json`:
+5. If all artifacts already exist, suggest next actions from `llman-sdd show <id> --output json`:
    - `readyToImplement=false` → finish Specs landing (or `needs_specs_change: false`); do **not** suggest apply yet
    - `readyToImplement=true` → Implement: `llman-sdd-apply`
    - After verify → Archive: `llman-sdd-archive`

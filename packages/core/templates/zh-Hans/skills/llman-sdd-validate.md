@@ -21,7 +21,7 @@ metadata:
    - Change 生命周期门禁：`change start` / `attach`（Branch binding）、`finalize`（收口；自动提交 `archive(sdd): <id>`，`--no-commit` 跳过）/ `diff`（只读）。`change checkpoint` 已移除（无存档点概念：中途不必存档，`change finalize` 不要求干净树）。
    - `llman-sdd validate --specs` 默认自动运行 `bdd.run_command`。
    - 可用 `list --specs --json` 查看 `morphology`（含 `dualWriteCount`）。
-   - Change JSON 状态字段：`stage`（draft/designed/planned/full）/ `specsLanded` / `needsSpecsChange` / `readyToImplement`（`show --json`）。
+   - Change JSON 状态字段：`stage`（draft/designed/planned/full）/ `specsLanded` / `needsSpecsChange` / `readyToImplement`（`show --output json`）。
 {% endif %}
 
 > 命令细节用 `llman-sdd <cmd> --help` 查看；命令参考以 CLI 为准，skill 不内嵌命令表。

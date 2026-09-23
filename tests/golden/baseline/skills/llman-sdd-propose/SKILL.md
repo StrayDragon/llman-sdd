@@ -48,7 +48,7 @@ flowchart TB
 
 硬规则：
 1. **先** `change start` / `attach`（Branch binding / 分支绑定）进入 Full；**再**在绑定的非默认分支编辑 `llmanspec/specs/**` 并 commit（Specs landing / 合约落地）。
-2. 无 live 合约变更时可设 frontmatter `needs_specs_change: false`。进入 apply 前 `llman-sdd show <id> --json` 的 `readyToImplement` 须为 true（`Full ∧ gateChecks 全过`；specs-landed 项 = `specsLanded ∨ needs_specs_change=false`；一切范围 = 现算 merge-base，存储 `base_sha` 仅审计）。
+2. 无 live 合约变更时可设 frontmatter `needs_specs_change: false`。进入 apply 前 `llman-sdd show <id> --output json` 的 `readyToImplement` 须为 true（`Full ∧ gateChecks 全过`；specs-landed 项 = `specsLanded ∨ needs_specs_change=false`；一切范围 = 现算 merge-base，存储 `base_sha` 仅审计）。
 3. `change checkpoint` 已移除（无存档点概念：中途不必存档，`change finalize` 不要求干净树）。收口一律 `llman-sdd change finalize <id>`：自动提交 `archive(sdd): <id>`（实现 diff + 改名一次提交）；`--no-commit` 跳过自动提交（CI/手动历史场景）。change 分支上提交自由（分段或 finalize 单次收尾均可）。
 4. **禁止**为过干净树门禁把 live specs commit 到默认分支；已 attach 时不要重复 `start`。
 # 人读摘要（强制）
@@ -127,7 +127,7 @@ flowchart LR
    - `tasks.md`：按**垂直切片**拆分（每个 task 打穿 schema→API→UI→tests 一条窄而完整的路径，可独立验证），并带 `[blocked-by: <task-id>]` 依赖标记。**大范围重构例外**（一个机械改动扫全库、单点编辑牵动大量调用处）：按 expand-contract 排序（旧的旁边加新的 → 分批迁移调用处 → 删掉旧的），不强拆垂直切片。
    - **先** `llman-sdd change start <change-id>`（推荐；默认分支上工作树干净时）或手动建分支后 `change attach <change-id>` 到达 Full（bound）。
    - **然后**在绑定的非默认分支上编辑 live `llmanspec/specs/<capability>.feature`（扁平，或目录 `llmanspec/specs/<capability>/` 内主文件）并 commit（Specs landing）。**不要**在 start 之前改 live specs；**不要**为过干净树门禁把 live specs commit 到默认分支。已 attach 时勿重复 `start`（丢失 specs 时用 checkout/重建 + `attach --force` 恢复）。
-   - 无 live 合约编辑的 change，设置 frontmatter `needs_specs_change: false`。仅当 `llman-sdd show <id> --json` 给出 `readyToImplement=true` 才进入 apply。
+   - 无 live 合约编辑的 change，设置 frontmatter `needs_specs_change: false`。仅当 `llman-sdd show <id> --output json` 给出 `readyToImplement=true` 才进入 apply。
    - **破坏性合约变更**（移除/重命名字段、命令、tag 或 stage 值域）MUST 规划升级路径：`migrations/v<from>-v<to>/`（README prompt + 一次性脚本，随仓库发布）——写进提案的 What Changes。
 
 ### 4) 校验

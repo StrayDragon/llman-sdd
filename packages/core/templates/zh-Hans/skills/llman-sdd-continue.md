@@ -15,7 +15,7 @@ metadata:
    - 否则运行 `llman-sdd list --json` 并询问要继续哪个 change。
    - 始终说明："使用变更：<id>"。
 2. 阅读变更目录：`llmanspec/changes/<id>/`。
-> 阶段判定：用 `llman-sdd show <id> --json --type change` 的 `stage` / `readyToImplement` 字段；完整判定表见 llman-sdd-apply。
+> 阶段判定：用 `llman-sdd show <id> --output json --type change` 的 `stage` / `readyToImplement` 字段；完整判定表见 llman-sdd-apply。
 3. 确定下一个要创建的 artifact（按顺序）：
    1) `proposal.md`
    2) `design.md`（仅当涉及设计权衡时）
@@ -26,7 +26,7 @@ metadata:
    - continue 模式**不要**实现应用代码。
    - **不要**创建 `*.feature.delta.toon` 或 `changes/<id>/specs/` 下的文件。
    - **不要**在未 start/attach 前改公共 `llmanspec/specs/**`。
-5. 若所有 artifact 已齐全，按 `llman-sdd show <id> --json` 建议下一步：
+5. 若所有 artifact 已齐全，按 `llman-sdd show <id> --output json` 建议下一步：
    - `readyToImplement=false` → 先完成 Specs landing（或 `needs_specs_change: false`）；**不要**建议 apply
    - `readyToImplement=true` → 实施：`llman-sdd-apply`
    - verify 之后 → 归档：`llman-sdd-archive`

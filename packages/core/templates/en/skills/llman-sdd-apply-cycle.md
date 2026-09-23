@@ -16,9 +16,9 @@ End-to-end closed loop for one change (manual). Requires Branch binding and `rea
 
 ### 0) Gate + status
 ```bash
-llman-sdd show <change-id> --json --type change
+llman-sdd show <change-id> --output json --type change
 ```
-> Stage gate: decide from `stage` / `readyToImplement` in `llman-sdd show <id> --json --type change`; full decision table lives in llman-sdd-apply.
+> Stage gate: decide from `stage` / `readyToImplement` in `llman-sdd show <id> --output json --type change`; full decision table lives in llman-sdd-apply.
 
 - Must be on the bound non-default branch.
 - If `readyToImplement` is not true → STOP (finish Specs landing or `needs_specs_change: false`); **do not** finalize yet.
