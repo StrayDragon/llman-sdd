@@ -19,7 +19,7 @@ flowchart LR
     style compact fill:#e8f4e8,stroke:#28a745,stroke-width:2px
 ```
 
-> 📎 Maintenance tool, typically run after accumulating many archives. For daily development → `llman-sdd-propose` (Branch binding + Specs landing) / `llman-sdd-apply` (requires `readyToImplement`).
+> 📎 Maintenance tool, typically run after accumulating many archives. For daily development → `llman-sdd-propose` (Branch binding + Specs landing) / `llman-sdd-apply` (after Specs landing).
 
 ## Context
 - Specs grow bloated with duplicate requirements/scenarios as changes accumulate.
@@ -56,7 +56,7 @@ flowchart LR
 - Include: keep/merge/remove decisions with rationale.
 - Include validation commands and expected results.
 
-> 💡 After maintenance, new work goes through the normal pipeline: `llman-sdd-propose` (Branch binding + Specs landing) → `llman-sdd-apply` (requires `readyToImplement`) → `llman-sdd-verify` → `llman-sdd-archive`.
+> 💡 After maintenance, new work goes through the normal pipeline: `llman-sdd-propose` (Branch binding + Specs landing) → `llman-sdd-apply` (after Specs landing) → `llman-sdd-verify` → `llman-sdd-archive`.
 
 > For command details run `llman-sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables.
 > "Spec" here = a `.feature` file under this project's `llmanspec/specs/`; run `llman-sdd list --specs` or `llman-sdd show <capability>`.

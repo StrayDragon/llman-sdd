@@ -67,7 +67,7 @@ flowchart LR
 When the user is ready to implement, choose based on change scale:
 - Behavioral contract change → `llman-sdd-propose` (create proposal artifacts)
 - Small change / no contract change → `llman-sdd-quick` (quick path)
-- `readyToImplement=true` → `llman-sdd-apply` (implement tasks)
+- change already Specs-landed (`stage=full`, specs-landed gate green) → `llman-sdd-apply` (implement tasks)
 If the user asks you to implement while in explore mode, STOP and remind them to exit explore mode first.
 
 > 💡 Explore done → next: `llman-sdd-propose` (propose) or `llman-sdd-quick` (quick path)

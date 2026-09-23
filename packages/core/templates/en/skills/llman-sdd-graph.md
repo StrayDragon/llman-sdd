@@ -20,7 +20,7 @@ flowchart LR
     style graph fill:#e8f4e8,stroke:#28a745,stroke-width:2px
 ```
 
-> 📎 Utility tool, available at any pipeline stage. To propose → `llman-sdd-propose`. To implement → `llman-sdd-apply` only when `readyToImplement=true`.
+> 📎 Utility tool, available at any pipeline stage. To propose → `llman-sdd-propose`. To implement → `llman-sdd-apply` once the change is Specs-landed (specs-landed gate green).
 
 ## Usage
 
@@ -66,7 +66,7 @@ blocks:
 ...
 ```
 
-> 💡 This is just a utility — main flow: `llman-sdd-propose` (Branch binding + Specs landing) → `llman-sdd-apply` (requires `readyToImplement`) → `llman-sdd-verify` → `llman-sdd-archive`.
+> 💡 This is just a utility — main flow: `llman-sdd-propose` (Branch binding + Specs landing) → `llman-sdd-apply` (after Specs landing) → `llman-sdd-verify` → `llman-sdd-archive`.
 
 > For command details run `llman-sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables.
 > "Spec" here = a `.feature` file under this project's `llmanspec/specs/`; run `llman-sdd list --specs` or `llman-sdd show <capability>`.

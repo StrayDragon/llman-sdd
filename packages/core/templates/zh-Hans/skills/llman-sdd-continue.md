@@ -27,8 +27,8 @@ metadata:
    - **不要**创建 `*.feature.delta.toon` 或 `changes/<id>/specs/` 下的文件。
    - **不要**在未 start/attach 前改公共 `llmanspec/specs/**`。
 5. 若所有 artifact 已齐全，按 `llman-sdd show <id> --output json` 建议下一步：
-   - `readyToImplement=false` → 先完成 Specs landing（或 `needs_specs_change: false`）；**不要**建议 apply
-   - `readyToImplement=true` → 实施：`llman-sdd-apply`
+   - specs-landed 门未过 → 先完成 Specs landing（或 `needs_specs_change: false`）；**不要**建议 apply
+   - specs-landed 门已绿（即使实施中期 `readyToImplement=false`、tasks 未完）→ 实施：`llman-sdd-apply`
    - verify 之后 → 归档：`llman-sdd-archive`
    - 校验：`llman-sdd validate <id> --strict --no-interactive`
    - 审查：`llman-sdd change diff <id>`（只读）

@@ -67,7 +67,7 @@ flowchart LR
 当用户准备开始实现时，根据变更规模选择路径：
 - 行为合约变更 → `llman-sdd-propose`（创建提案工件）
 - 小改动 / 不改合约 → `llman-sdd-quick`（快速路径）
-- `readyToImplement=true` → `llman-sdd-apply`（按 tasks 实施）
+- change 已 Specs-landed（`stage=full`、specs-landed 门绿）→ `llman-sdd-apply`（按 tasks 实施）
 若用户在探索模式中要求你开始实现，STOP 并提醒其先退出探索模式。
 
 > 💡 探索完成 → 下一步 `llman-sdd-propose`（提案）或 `llman-sdd-quick`（快速路径）

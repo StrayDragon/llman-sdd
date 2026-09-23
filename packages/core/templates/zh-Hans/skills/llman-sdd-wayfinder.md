@@ -80,7 +80,7 @@ disable-model-invocation: true
 5. 新增 ticket（先建再接线）；把答案让模糊点变清晰、升级成 ticket 的，从尚未清晰区移除。若答案揭示某 ticket 越过目的地，归入范围外而非在路径上解决。
 
 ## 输出
-地图 change + 子决策 change 的依赖图（`llman-sdd graph`）。路径清晰后建议进入 `llman-sdd-propose`（含 Branch binding → Specs landing，至 `readyToImplement=true`）把决策收拢为可实施计划。
+地图 change + 子决策 change 的依赖图（`llman-sdd graph`）。路径清晰后建议进入 `llman-sdd-propose`（含 Branch binding → Specs landing）把决策收拢为可实施计划。
 
 > 命令细节用 `llman-sdd <cmd> --help` 查看；命令参考以 CLI 为准，skill 不内嵌命令表。
 > 文中「规约」= 本项目 `llmanspec/specs/` 下的 `.feature` 文件；用 `llman-sdd list --specs` / `llman-sdd show <capability>` 查全文。

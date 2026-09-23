@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 # LLMAN SDD Apply Cycle
 
-End-to-end closed loop for one change (manual). Requires Branch binding and `readyToImplement=true`.
+End-to-end closed loop for one change (manual). Requires Branch binding and a green specs-landed gate (`specsLanded ∨ needsSpecsChange=false`); `readyToImplement=true` (the completion signal) closes the cycle.
 
 **Manual trigger only**: `/skill:llman-sdd-apply-cycle <change-id>`
 
@@ -21,7 +21,7 @@ llman-sdd show <change-id> --output json --type change
 > Stage gate: decide from `stage` / `readyToImplement` in `llman-sdd show <id> --output json --type change`; full decision table lives in llman-sdd-apply.
 
 - Must be on the bound non-default branch.
-- If `readyToImplement` is not true → STOP (finish Specs landing or `needs_specs_change: false`); **do not** finalize yet.
+- specs-landed gate failing → STOP (finish Specs landing or `needs_specs_change: false`). specs-landed gate green but `readyToImplement=false` → normal: tasks pending, proceed implementing; **finalize only when `readyToImplement=true`**.
 - Track progress via `tasks.md` checkboxes (or `llman-sdd list` task counts); still read `tasks.md`, proposal/design, and live `llmanspec/specs/**` on the bound branch (SSOT).
 
 ### 1) Loop: implement → test
@@ -66,7 +66,7 @@ push / hosting PR only when the user explicitly asks.
 
 ## Ethics Governance
 - `ethics.risk_level`: medium
-- `ethics.prohibited_actions`: implement/archive without `readyToImplement`, switching changes early, writing `changes/<id>/specs/`, commit without validation, default push/PR
+- `ethics.prohibited_actions`: implementing without Branch binding / a green specs-landed gate, archiving without `readyToImplement=true`, switching changes early, writing `changes/<id>/specs/`, commit without validation, default push/PR
 - `ethics.required_evidence`: `readyToImplement=true`, validate --strict pass, all tasks checked, finalize/archive success
 - `ethics.refusal_contract`: after 3 gate/validation failures, report blocker; do not force-archive
 - `ethics.escalation_policy`: if changing SDD workflow specs/templates, pause for user confirm before archive

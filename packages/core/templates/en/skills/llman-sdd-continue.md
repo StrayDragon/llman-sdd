@@ -27,8 +27,8 @@ Use this skill to continue an existing change and create the next missing artifa
    - Do NOT create `*.feature.delta.toon`, `spec.toon`, or files under `changes/<id>/specs/`.
    - Do NOT edit shared `llmanspec/specs/**` before start/attach.
 5. If all artifacts already exist, suggest next actions from `llman-sdd show <id> --output json`:
-   - `readyToImplement=false` → finish Specs landing (or `needs_specs_change: false`); do **not** suggest apply yet
-   - `readyToImplement=true` → Implement: `llman-sdd-apply`
+   - specs-landed gate failing → finish Specs landing (or `needs_specs_change: false`); do **not** suggest apply yet
+   - specs-landed gate green (even mid-implementation with `readyToImplement=false` while tasks remain) → Implement: `llman-sdd-apply`
    - After verify → Archive: `llman-sdd-archive`
    - Validate: `llman-sdd validate <id> --strict --no-interactive`
    - Review: `llman-sdd change diff <id>` (read-only)

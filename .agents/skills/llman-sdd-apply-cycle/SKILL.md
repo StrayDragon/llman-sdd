@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 # LLMAN SDD Apply Cycle
 
-单个变更端到端闭环（手动）。须已 Branch binding 且 `readyToImplement=true`。
+单个变更端到端闭环（手动）。须已 Branch binding 且 specs-landed 门通过（`specsLanded ∨ needsSpecsChange=false`）；`readyToImplement=true`（完成信号）收拢闭环。
 
 **仅手动触发**：`/skill:llman-sdd-apply-cycle <change-id>`
 
@@ -21,7 +21,7 @@ llman-sdd show <change-id> --output json --type change
 > 阶段判定：用 `llman-sdd show <id> --output json --type change` 的 `stage` / `readyToImplement` 字段；完整判定表见 llman-sdd-apply。
 
 - 须在绑定的非默认分支上。
-- `readyToImplement` 不为 true → STOP（先 Specs landing 或 `needs_specs_change: false`）；**不要**直接 finalize。
+- specs-landed 门未过 → STOP（先 Specs landing 或 `needs_specs_change: false`）。specs-landed 门已绿但 `readyToImplement=false` → 正常：tasks 待完成，继续实施；**仅当 `readyToImplement=true` 才 finalize**。
 - 进度以 `tasks.md` checkbox 为准（或 `llman-sdd list` 的任务计数）；实现时仍须阅读 `tasks.md`、proposal/design 与绑定分支上的 live `llmanspec/specs/**`（SSOT）。
 
 ### 1) 循环：实施 → 测试
@@ -66,7 +66,7 @@ push / Hosting PR 仅当用户明确要求。
 
 ## Ethics Governance
 - `ethics.risk_level`: medium
-- `ethics.prohibited_actions`: 未 `readyToImplement` 就实施/归档、切换其他 change、写 `changes/<id>/specs/`、未校验就提交、默认 push/PR
+- `ethics.prohibited_actions`: 未 Branch binding / specs-landed 门未过就实施、未 `readyToImplement=true` 就归档、切换其他 change、写 `changes/<id>/specs/`、未校验就提交、默认 push/PR
 - `ethics.required_evidence`: `readyToImplement=true`、validate --strict 通过、tasks 全勾、finalize/archive 成功
 - `ethics.refusal_contract`: 门禁或校验自修复 8 轮仍失败 → 报告 blocker，禁止强行归档
 - `ethics.escalation_policy`: 若改动 SDD 工作流 spec/模板，归档前暂停请用户确认

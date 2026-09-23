@@ -7,14 +7,14 @@ metadata:
 
 # LLMAN SDD Fast-Forward (FF)
 
-快速走完 propose 等价路径：规划壳 → Branch binding → Specs landing（至 `readyToImplement=true`）。**不是**旧的 `changes/<id>/specs/` delta 模型。
+快速走完 propose 等价路径：规划壳 → Branch binding → Specs landing（至 specs-landed 门通过）。**不是**旧的 `changes/<id>/specs/` delta 模型。
 
 ## 硬约束
 
 - **规划壳**只写在 `llmanspec/changes/<id>/`（proposal/design/tasks）。
 - Live 合约只写在绑定分支的 `llmanspec/specs/**`（Specs landing）。
 - **禁止**创建 `llmanspec/changes/<id>/specs/` 或 `*.feature.delta.toon`。
-- 进入 apply 前须 `readyToImplement=true`。
+- `stage=full` 且 specs-landed 门通过（或 `needs_specs_change: false`）即可进入 apply；verify/finalize 须 `readyToImplement=true`。
 
 ## 步骤
 
@@ -28,7 +28,7 @@ metadata:
 5. **Branch binding**：`llman-sdd change start <id>`（干净树 + 默认分支）或手动建分支后 `change attach <id>`。
 6. **Specs landing**：在绑定分支编辑 live `llmanspec/specs/<capability>.feature`（扁平，或目录主文件）并 commit；无合约变更则 `needs_specs_change: false`。
 7. 校验：`llman-sdd validate <id> --strict --no-interactive`。
-8. 用 `llman-sdd show <id> --output json` 确认 `readyToImplement=true` 后，建议 `llman-sdd-apply`（不要在未就绪时建议 apply）。
+8. 用 `llman-sdd show <id> --output json` 确认 specs-landed 门已绿（`specsLanded`/`needsSpecsChange`）后，建议 `llman-sdd-apply`（未落地前不要建议 apply）。
 
 {{ unit("skills/git-native-flow-brief") }}
 > 命令细节用 `llman-sdd <cmd> --help` 查看；命令参考以 CLI 为准，skill 不内嵌命令表。

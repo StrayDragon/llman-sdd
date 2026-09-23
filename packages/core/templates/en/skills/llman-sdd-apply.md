@@ -20,14 +20,14 @@ Unless there is a clear blocker, **DO NOT stop halfway to ask "should I continue
 ```mermaid
 flowchart LR
     propose["llman-sdd-propose<br/>Propose"] --> apply
-    apply["★ llman-sdd-apply ★<br/>Implement (readyToImplement)"]
+    apply["★ llman-sdd-apply ★<br/>Implement (after specs-landed)"]
     apply --> verify["llman-sdd-verify<br/>Verify"]
     verify --> archive["llman-sdd-archive<br/>Archive"]
 
     style apply fill:#fff3cd,stroke:#ffc107,stroke-width:3px
 ```
 
-> 📍 You are at Git-native **H (apply)** in the full lifecycle diagram: Specs-landed (or `needs_specs_change: false`) and `readyToImplement=true` required first → next: `llman-sdd-verify`
+> 📍 You are at Git-native **H (apply)** in the full lifecycle diagram: specs-landed gate green (or `needs_specs_change: false`) required first; `readyToImplement=true` (all gates green) is the completion signal that closes this loop → next: `llman-sdd-verify`
 
 ## Hard Constraints
 

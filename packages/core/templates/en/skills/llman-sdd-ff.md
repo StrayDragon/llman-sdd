@@ -7,14 +7,14 @@ metadata:
 
 # LLMAN SDD Fast-Forward (FF)
 
-Run the propose-equivalent path quickly: planning shell → Branch binding → Specs landing (through `readyToImplement=true`). This is **not** the old `changes/<id>/specs/` delta model.
+Run the propose-equivalent path quickly: planning shell → Branch binding → Specs landing (through the specs-landed gate). This is **not** the old `changes/<id>/specs/` delta model.
 
 ## Hard constraints
 
 - **Planning shell** only under `llmanspec/changes/<id>/` (proposal/design/tasks).
 - Live contracts only under bound-branch `llmanspec/specs/**` (Specs landing).
 - **Do not** create `llmanspec/changes/<id>/specs/` or `*.feature.delta.toon`.
-- Enter apply only when `readyToImplement=true`.
+- Enter apply when `stage=full` and the specs-landed gate passes (or `needs_specs_change: false`); verify/finalize require `readyToImplement=true`.
 
 ## Steps
 
@@ -28,7 +28,7 @@ Run the propose-equivalent path quickly: planning shell → Branch binding → S
 5. **Branch binding**: `llman-sdd change start <id>` (clean tree on default branch) or create a branch then `change attach <id>`.
 6. **Specs landing**: on the bound branch, edit live `llmanspec/specs/<capability>.feature` (flat, or directory main file) and commit; or set `needs_specs_change: false` when there is no contract edit.
 7. Validate: `llman-sdd validate <id> --strict --no-interactive`.
-8. Confirm `readyToImplement=true` via `llman-sdd show <id> --output json`, then suggest `llman-sdd-apply` (do not suggest apply before ready).
+8. Confirm the specs-landed gate is green via `llman-sdd show <id> --output json` (`specsLanded` / `needsSpecsChange`), then suggest `llman-sdd-apply` (do not suggest apply before landing).
 
 {{ unit("skills/git-native-flow-brief") }}
 > For command details run `llman-sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables.

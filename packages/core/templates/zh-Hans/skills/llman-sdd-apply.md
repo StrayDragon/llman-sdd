@@ -20,14 +20,14 @@ metadata:
 ```mermaid
 flowchart LR
     propose["llman-sdd-propose<br/>提案"] --> apply
-    apply["★ llman-sdd-apply ★<br/>实施（须 readyToImplement）"]
+    apply["★ llman-sdd-apply ★<br/>实施（specs-landed 后）"]
     apply --> verify["llman-sdd-verify<br/>验证"]
     verify --> archive["llman-sdd-archive<br/>归档"]
 
     style apply fill:#fff3cd,stroke:#ffc107,stroke-width:3px
 ```
 
-> 📍 你现在在完整 Git-native 生命周期图中的 **H（apply）**：进入前须 Specs-landed（或 `needs_specs_change: false`）且 `readyToImplement=true` → 下一步 `llman-sdd-verify`
+> 📍 你现在在完整 Git-native 生命周期图中的 **H（apply）**：进入前须 specs-landed 门通过（或 `needs_specs_change: false`）；`readyToImplement=true`（全门绿）是本闭环的完成信号 → 下一步 `llman-sdd-verify`
 
 ## 硬约束
 

@@ -23,7 +23,7 @@ metadata:
 
 硬规则：
 1. **先** Branch binding（`change start` / `attach`）→ Full；**再** Specs landing（绑定分支编辑并 commit `llmanspec/specs/**`）。
-2. 无 live 合约变更 → `needs_specs_change: false`。apply 前须 `readyToImplement=true`。
+2. 无 live 合约变更 → `needs_specs_change: false`。`stage=full` 且 specs-landed 门通过即可进入 apply；`readyToImplement=true`（全门绿）是 verify/finalize 前的完成信号。
 3. 收口用 `change finalize`（自动提交 `archive(sdd): <id>`；`--no-commit` 可跳过）。`change checkpoint` 已移除（调用即以非零退出报错，指向 finalize）。
 4. **禁止**在默认分支 commit live specs；已 attach 勿重复 `start`。
 5. worktree 模式（可选）：`change start --worktree` 在独立 worktree 建分支且不劫持当前检出（`--base <branch>` 记录非默认分叉源）；finalize 目标被其他 worktree 持有时自动原地执行（输出标注位置）。
@@ -76,7 +76,7 @@ flowchart LR
 当用户准备开始实现时，根据变更规模选择路径：
 - 行为合约变更 → `llman-sdd-propose`（创建提案工件）
 - 小改动 / 不改合约 → `llman-sdd-quick`（快速路径）
-- `readyToImplement=true` → `llman-sdd-apply`（按 tasks 实施）
+- change 已 Specs-landed（`stage=full`、specs-landed 门绿）→ `llman-sdd-apply`（按 tasks 实施）
 若用户在探索模式中要求你开始实现，STOP 并提醒其先退出探索模式。
 
 > 💡 探索完成 → 下一步 `llman-sdd-propose`（提案）或 `llman-sdd-quick`（快速路径）
