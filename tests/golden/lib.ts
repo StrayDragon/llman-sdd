@@ -40,6 +40,10 @@ bdd:
       tags: [executable]
 `;
 
+/** Same shape as CONFIG_YAML modulo locale — the en baseline exercises the same
+ * conditional surface (bdd block) so en-only template drift is gated, not just zh. */
+export const CONFIG_YAML_EN = CONFIG_YAML.replace('locale: zh-Hans', 'locale: en');
+
 export interface RenderResult {
   tmpRoot: string;
   skillsDir: string;
@@ -47,10 +51,13 @@ export interface RenderResult {
 }
 
 /** Render skills with v2 (runInit) into a fresh temp project. */
-export function renderV2Skills(): RenderResult {
+export function renderV2Skills(locale: 'zh-Hans' | 'en' = 'zh-Hans'): RenderResult {
   const tmpRoot = mkdtempSync(join(tmpdir(), 'llman-sdd-golden-'));
   mkdirSync(join(tmpRoot, 'llmanspec'), { recursive: true });
-  writeFileSync(join(tmpRoot, 'llmanspec', 'config.yaml'), CONFIG_YAML);
+  writeFileSync(
+    join(tmpRoot, 'llmanspec', 'config.yaml'),
+    locale === 'en' ? CONFIG_YAML_EN : CONFIG_YAML,
+  );
   const version = '0.1.0';
   runInit(makeNodeIo(tmpRoot), templateIo, { update: true, version });
   const skillsDir = join(tmpRoot, '.agents', 'skills');
@@ -60,10 +67,10 @@ export function renderV2Skills(): RenderResult {
   return { tmpRoot, skillsDir, version };
 }
 
-/** Copy rendered skills into the committed baseline. Returns copied entries. */
-export function captureBaseline(skillsDir: string, version: string): string[] {
-  rmSync(BASELINE_DIR, { recursive: true, force: true });
-  cpSync(skillsDir, join(BASELINE_DIR, 'skills'), { recursive: true });
+/** Copy rendered skills into the committed baseline under <subdir>. Returns copied entries. */
+export function captureBaseline(skillsDir: string, version: string, subdir = 'skills'): string[] {
+  rmSync(join(BASELINE_DIR, subdir), { recursive: true, force: true });
+  cpSync(skillsDir, join(BASELINE_DIR, subdir), { recursive: true });
   writeFileSync(join(BASELINE_DIR, 'VERSION'), `${version}\n`);
-  return readdirSync(join(BASELINE_DIR, 'skills'));
+  return readdirSync(join(BASELINE_DIR, subdir));
 }

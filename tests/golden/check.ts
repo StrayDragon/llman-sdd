@@ -45,16 +45,24 @@ function diffTrees(a: Map<string, string>, b: Map<string, string>, label: string
   return same;
 }
 
-const baselineVersion = readFileSync(join(BASELINE_DIR, 'VERSION'), 'utf8').trim();
-const baselineTree = normalizeTree(join(BASELINE_DIR, 'skills'));
-
-const v2 = renderV2Skills();
-try {
-  const freshTree = normalizeTree(v2.skillsDir);
-  if (!diffTrees(baselineTree, freshTree, 'render-vs-baseline')) process.exit(1);
-  console.log(
-    `golden check passed: fresh v2 render matches baseline (${baselineTree.size} files, versions normalized)`,
-  );
-} finally {
-  rmSync(v2.tmpRoot, { recursive: true, force: true });
+// Both locales gate: baseline/skills (zh-Hans) and baseline/skills-en.
+let ok = true;
+const counts: string[] = [];
+for (const [locale, subdir] of [
+  ['zh-Hans', 'skills'],
+  ['en', 'skills-en'],
+] as const) {
+  const baselineTree = normalizeTree(join(BASELINE_DIR, subdir));
+  const v2 = renderV2Skills(locale);
+  try {
+    const freshTree = normalizeTree(v2.skillsDir);
+    if (!diffTrees(baselineTree, freshTree, `render-vs-baseline/${subdir}`)) ok = false;
+    counts.push(`${subdir}: ${baselineTree.size} files`);
+  } finally {
+    rmSync(v2.tmpRoot, { recursive: true, force: true });
+  }
 }
+if (!ok) process.exit(1);
+console.log(
+  `golden check passed: fresh v2 render matches baseline (${counts.join(', ')}, versions normalized)`,
+);
