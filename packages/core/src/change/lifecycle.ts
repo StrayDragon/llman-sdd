@@ -31,10 +31,6 @@ export class LifecycleError extends Error {}
 export const CHANGES_DIR = 'llmanspec/changes';
 const proposalPath = (id: string): string => `${CHANGES_DIR}/${id}/proposal.md`;
 
-export function changeExists(io: FsIo, id: string): boolean {
-  return io.exists(proposalPath(id));
-}
-
 /** `change new [id] --from DESC --force`: derive a legal id and write the draft shell. */
 export function newChange(
   io: FsIo,
@@ -228,10 +224,6 @@ function mergeRenameCommit(
   const commitSubject = `archive(sdd): ${id}`;
   git.run(['commit', '-m', commitSubject]);
   return { target, archiveDir, warnings, commitSubject };
-}
-
-export interface ArchiveChangeResult {
-  result: FinalizeResult;
 }
 
 /** `change archive`: independent seal-off with task + strict git gates (r39/r40). */

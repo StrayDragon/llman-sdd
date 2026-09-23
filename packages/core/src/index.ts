@@ -70,7 +70,6 @@ export {
 export {
   addReq,
   addScenario,
-  allReqIds,
   AuthoringError,
   planDedupe,
   resolveReq,
@@ -112,10 +111,9 @@ export {
   isCleanTree,
   makeSpawnGit,
   currentBranch,
-  revParseHead,
   type GitLike,
 } from './git/spawnGit.ts';
-export { DRAFT_PROPOSAL_TEMPLATE, deriveChangeId, isLegalChangeId } from './change/id.ts';
+export { DRAFT_PROPOSAL_TEMPLATE, deriveChangeId } from './change/id.ts';
 export { extractUniqueNumber, harvestUniqueNumbers } from './change/nextId.ts';
 export { ChangeIdResolveError, resolveChangeId, type ResolvedChangeId } from './change/resolve.ts';
 export {
@@ -135,16 +133,12 @@ export {
 export { normalizeLocale, localeFallbacks } from './templates/locale.ts';
 export {
   MAX_UNIT_NESTING_DEPTH,
-  MissingUnitError,
   renderTemplate,
   renderWithUnits,
   type UnitRegistry,
 } from './templates/engine.ts';
 export {
-  DEFAULT_SKILL_FILES,
   ETHICS_KEYS,
-  OPTIONAL_SKILL_FILES,
-  UNIT_FILES,
   buildTemplateVars,
   effectiveRunCommand,
   enforceEthicsGovernance,
@@ -170,12 +164,10 @@ export {
 } from './init/init.ts';
 export {
   collectChanges,
-  renderChangesList,
   renderChangesJson,
+  renderChangesList,
   statusFor,
   stageFor,
-  relativeTime,
-  statusHuman,
   type ChangeFsIo,
   type ChangeStatus,
   type ChangeSummary,
@@ -183,12 +175,7 @@ export {
 export { graphData, graphMermaid, type GraphDataIr, type GraphFsIo } from './report/graph.ts';
 export { renderMachine, type MachineFormat } from './render/machine.ts';
 export { showChangeJson, type ShowDeps, type ShowFsIo } from './report/show.ts';
-export {
-  nextReqId,
-  scaffoldSpec,
-  skeletonContent,
-  type SpecHelperIo,
-} from './report/specHelpers.ts';
+export { nextReqId, scaffoldSpec, type SpecHelperIo } from './report/specHelpers.ts';
 export {
   collectSpecs,
   morphologyOfScenarios,
@@ -199,7 +186,6 @@ export {
 } from './report/specs.ts';
 export {
   SevenZipError,
-  embeddedWasmBinary,
   makeWasmSevenZip,
   resolveEmbeddedWasmB64,
   type SevenZipPort,
@@ -227,7 +213,6 @@ export {
 } from './review/review.ts';
 export {
   TREE_VERSION,
-  buildDocs,
   buildTreeIndex,
   computeSpecHash,
   type HashIo,
@@ -242,7 +227,6 @@ export {
   REBUILD_LOCK_REL,
   TREE_JSON_REL,
   checkIndexFreshness,
-  loadTree,
   loadTreeWithAutoRebuild,
   parseLock,
   rebuildIndex,
@@ -253,7 +237,6 @@ export {
   type RebuildResult,
 } from './context/indexStore.ts';
 export {
-  MAX_TOOL_ROUNDS,
   resolveChatConfig,
   runContextRetrieval,
   unavailableResult,

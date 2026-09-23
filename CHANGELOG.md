@@ -9,6 +9,14 @@
 机器与 LLM 友好的紧凑编码）。变更链：`add-render-layer`（渲染层地基）→
 `filter-info-issues-by-default`（INFO 级 issue 缺省过滤）→ `toon-default-output`。
 
+其他：core 公共导出面收窄（仅内部使用的导出转私有）——无引用的死导出
+（`changeExists` / `ArchiveChangeResult` / `isLegalChangeId`）删除；CLI/tests 无
+外部引用的 `loadTree` / `buildDocs` / `embeddedWasmBinary` / `statusHuman` /
+`relativeTime` / `skeletonContent` / `allReqIds` / `UNIT_FILES` /
+`DEFAULT_SKILL_FILES` / `OPTIONAL_SKILL_FILES` / `MAX_TOOL_ROUNDS` /
+`MissingUnitError` / `revParseHead` 不再经 `@llman-sdd/core` 入口 re-export
+（源模块内部导出保留）。
+
 ### 迁移说明（详见 `migrations/v0.3-v0.4/README.md`）
 
 - agent/LLM 消费：直接吃 TOON（省 ~40% token，`[N]{fields}` 结构护栏），或加

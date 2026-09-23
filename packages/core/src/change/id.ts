@@ -8,10 +8,6 @@ const ID_CAP = 60;
 
 export class ChangeIdError extends Error {}
 
-export function isLegalChangeId(id: string): boolean {
-  return /^[a-z0-9-]+$/u.test(id) && id.length > 0 && id.length <= ID_CAP;
-}
-
 /** v1 parity: sanitize to lowercase kebab (ASCII alnum only; CJK/punct dropped). */
 export function deriveChangeId(description: string): string {
   const trimmed = description.trim();
