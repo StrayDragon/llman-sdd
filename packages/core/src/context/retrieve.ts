@@ -194,13 +194,11 @@ export interface RetrieveDeps extends TreeToolDeps {
   task: string;
   paths?: string;
   top?: number;
-  maxRounds?: number;
   fetchImpl?: typeof fetch;
 }
 
 export async function runContextRetrieval(deps: RetrieveDeps): Promise<ContextResult> {
   const fetchImpl = deps.fetchImpl ?? fetch;
-  const maxRounds = deps.maxRounds ?? MAX_TOOL_ROUNDS;
   const messages: Record<string, unknown>[] = [
     { role: 'system', content: SYSTEM_PROMPT },
     {
@@ -212,8 +210,8 @@ export async function runContextRetrieval(deps: RetrieveDeps): Promise<ContextRe
   let tiers: { direct: TierEntry[]; related: TierEntry[] } | null = null;
   let toolCalls = 0;
   try {
-    for (let round = 0; round <= maxRounds && tiers === null; round += 1) {
-      const forceFinal = round === maxRounds;
+    for (let round = 0; round <= MAX_TOOL_ROUNDS && tiers === null; round += 1) {
+      const forceFinal = round === MAX_TOOL_ROUNDS;
       const body: Record<string, unknown> = {
         model: deps.config.model,
         messages,
@@ -274,7 +272,7 @@ export async function runContextRetrieval(deps: RetrieveDeps): Promise<ContextRe
       status: {
         ok: true,
         quality: 'agentic',
-        qualityNote: `agentic loop hit the ${maxRounds}-round tool-call limit; result may be incomplete`,
+        qualityNote: `agentic loop hit the ${MAX_TOOL_ROUNDS}-round tool-call limit; result may be incomplete`,
       },
       direct: noTiers,
       related: [],

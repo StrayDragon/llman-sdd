@@ -73,16 +73,12 @@ function parseScope(scope: string): ScopeKind[] {
     else if (t === 'archived') kinds.push('archived');
     else {
       throw new GraphError(
-        `Unknown scope: '${flagClean(t)}'. Supported: active, archived, all (or comma-separated like active,archived)`,
+        `Unknown scope: '${t}'. Supported: active, archived, all (or comma-separated like active,archived)`,
       );
     }
   }
   if (kinds.length === 0) throw new GraphError('Scope cannot be empty');
   return kinds;
-}
-
-function flagClean(v: string): string {
-  return v;
 }
 
 /** Active nodes: dirs (recursively) with a proposal.md (v1 discovery). */
@@ -141,7 +137,7 @@ function collectNodes(io: GraphFsIo, root: string, kinds: ScopeKind[]): GraphNod
 function proposalFor(io: GraphFsIo, root: string, node: GraphNode): string {
   if (node.archived) {
     const archiveDir = `${root}/${CHANGES_DIR}/archive`;
-    // latest matching dirtategy: pick the newest date-prefixed dir
+    // latest matching strategy: pick the newest date-prefixed dir
     let best = '';
     let bestDate = '';
     for (const name of io.listDir(archiveDir)) {
@@ -164,9 +160,9 @@ function proposalFor(io: GraphFsIo, root: string, node: GraphNode): string {
       const child = `${dir}/${name}`;
       if (!io.isDirectory(child)) continue;
       if (io.exists(`${child}/proposal.md`)) {
+        // leaf change dir — do not descend further
         if (name === node.id) found.push(`${child}/proposal.md`);
         continue;
-        // ^ leaf change dir — do not descend further
       }
       visit(child);
     }
@@ -298,7 +294,7 @@ export function graphData(io: GraphFsIo, root: string, opts: GraphOptions = {}):
 
   let nodes: GraphNode[];
   if (opts.seed !== undefined) {
-    nodes = buildSeedNeighborhood(io, root, opts.seed, opts.depth ?? 1, kinds);
+    nodes = buildSeedNeighborhood(io, root, opts.seed, opts.depth ?? 1);
   } else {
     nodes = buildDefaultNodes(io, root, kinds);
   }
@@ -320,7 +316,7 @@ export function graphMermaid(io: GraphFsIo, root: string, opts: GraphOptions = {
 
   let nodes: GraphNode[];
   if (opts.seed !== undefined) {
-    nodes = buildSeedNeighborhood(io, root, opts.seed, opts.depth ?? 1, kinds);
+    nodes = buildSeedNeighborhood(io, root, opts.seed, opts.depth ?? 1);
   } else {
     nodes = buildDefaultNodes(io, root, kinds);
   }
@@ -384,7 +380,6 @@ function buildSeedNeighborhood(
   root: string,
   seedId: string,
   maxDepth: number,
-  _kinds: ScopeKind[],
 ): GraphNode[] {
   const resolved = resolveSeedId(io, root, seedId);
   const allNodes = collectNodes(io, root, ['active', 'archived']);
