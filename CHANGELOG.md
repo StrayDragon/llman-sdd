@@ -46,6 +46,13 @@ wayfinder 补 `disable-model-invocation`。双 locale 同语义；新增语义�
 `tests/unit/template-guidance-parity.test.ts`（禁用模式 + 必含标记，
 init-generators r70/r71 配 @executable 验收）。
 
+**core 模块依赖治理**(change `add-module-dependency-gate` + quick 批次):新增 r72 模块
+依赖对账门禁(`tests/unit/module-dependency-parity.test.ts`:跨模块导入边集 vs 声明允许表,
+违例与表漂移双向报出);collect 域知识(collectChanges/stageFor 等)自 report/ 搬至
+change/collect,断开全部 4 组模块环(允许表收窄:change→[git]、validation 去 report);
+golden 基线扩展双 locale(zh `skills/` 不动,en 平行 `skills-en/`),en 模板漂移不再能
+全绿滑过。行为面零变化(288 测试 + 双 locale golden 钉板)。
+
 ### 迁移说明（详见 `migrations/v0.3-v0.4/README.md`）
 
 - agent/LLM 消费：直接吃 TOON（省 ~40% token，`[N]{fields}` 结构护栏），或加
