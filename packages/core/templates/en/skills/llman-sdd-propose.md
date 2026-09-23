@@ -94,11 +94,11 @@ If the user just wants to **capture an idea** (e.g. "draft a proposal", "note do
 
 ### 4a) Optional BDD runner (`bdd:` block)
 - Read `llmanspec/config.yaml`. Is there a `bdd:` block?
-  - **Yes**: `validate --check` runs the harness; authoring follows 4b regardless.
+  - **Yes**: `bdd.run_command` declares the project's BDD execution entry, carried by the project test suite (e.g. qa); validate never executes the harness (`--check`/`--no-check` are v1-compat no-ops). Authoring follows 4b regardless.
   - **No**: if this change involves executable behavior scenarios (Given/When/Then the user will want to run), ask **once, up front**: "This change looks like it has executable behavior. Enable a `bdd:` runner block so scenarios can be validated as `.feature` files? (adds a `bdd:` block to `config.yaml` — runner only, does not change the lifecycle.)"
     - If **yes**: show the exact `bdd:` block to add (pick a `run_command` matching the project's test framework — `cargo test --features bdd` for rstest-bdd, `pytest {feature_dir} -k {feature_name} -v` for pytest-bdd). Let the user confirm or edit it, write it to `config.yaml`, then proceed with 4b rules.
-    - If **no**: features still validate structurally; only runner execution is skipped.
-- **Do NOT silently add the `bdd:` block** — always ask first. Adding it changes how `validate --check` behaves project-wide.
+    - If **no**: features still validate structurally; BDD execution responsibility always stays with the project test suite.
+- **Do NOT silently add the `bdd:` block** — always ask first. Adding it declares the project-wide BDD execution entry (carried by the project test suite; validate itself never executes the harness).
 
 ### 4b) Single-track feature authoring
 - Planning shell (proposal/design/tasks) may briefly live on the default branch; **do not** edit live `llmanspec/specs/**` on the default branch. After Branch binding, Specs landing and implementation happen on the bound branch.

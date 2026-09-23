@@ -95,8 +95,6 @@ export {
 export {
   checkChangeDoc,
   validateChange,
-  expandRunCommand,
-  hasPlaceholders,
   STAGE_ORDER,
   type ChangeCheckConfig,
   type ChangeCheckInput,

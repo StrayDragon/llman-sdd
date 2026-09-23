@@ -37,7 +37,7 @@ flowchart LR
 1. 确定 change id（不明确时让用户从 `llman-sdd list --json` 选择）。
 2. 先跑一个快速校验门禁：
    - `llman-sdd validate <id> --strict --no-interactive`
-   - **诊断结构问题（Gherkin 解析 / `@req` 链接 / 双写 / 全局 req_id 唯一性）时优先加 `--no-check`**（BDD-on 下跳过可能耗时的 `bdd.run_command`），结构门禁全绿后再跑完整 `--check`（full mode）。失败项在缺省 TOON 输出的 `items[].issues[]` 逐条列出（`--output human` 输出 v1 人读形态：`FAIL <item_type>/<id>` 行，位于 `Totals` 行上方）。
+   - **诊断结构问题（Gherkin 解析 / `@req` 链接 / 双写 / 全局 req_id 唯一性）时先跑结构校验**（validate 不执行任何 harness——`--check`/`--no-check` 为 v1 兼容 no-op），结构门禁全绿后再跑 BDD 场景执行：责任在项目测试套件（qa 内 `bun test tests/bdd` 式命令）。失败项在缺省 TOON 输出的 `items[].issues[]` 逐条列出（`--output human` 输出 v1 人读形态：`FAIL <item_type>/<id>` 行，位于 `Totals` 行上方）。
 3. 阅读：
    - feature 分支上的 live specs：`llmanspec/specs/**`（`<capability>.feature`）——SSOT
    - `proposal.md` 与 `design.md`（如存在）
@@ -69,7 +69,7 @@ flowchart LR
    - 两轴可并行（sub-agent）审查；报告 MUST 分离呈现，MUST NOT 合并或交叉重排（一轴通过不能掩盖另一轴失败）。
 5. **BDD-on 验证（Git-native Partitioned SSOT）**——仅当 `config.yaml` 含 `bdd:` 段时：
    - 确认 change 已 attach，且当前在对应 feature 分支上。
-   - `llman-sdd validate --specs`：Gherkin + `@req`/双写门禁；默认跑 `bdd.run_command`（可用 `--no-check` 跳过）。
+   - `llman-sdd validate --specs`：Gherkin + `@req`/双写门禁；validate 不执行 `bdd.run_command`（`--check`/`--no-check` 为 v1 兼容 no-op），BDD 场景由项目测试套件执行（qa 内 `bun test tests/bdd`）。
    - 可选只读审查：`llman-sdd change diff <id>`（或 `--export-patch <path>`）。diff 仅作审查/导出——绝不当作 apply 步骤。
    - verify 通过后下一步：`llman-sdd-archive`（勿在此 inline finalize）。
 {% if bdd_verify_prompt %}

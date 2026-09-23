@@ -400,8 +400,14 @@ program
   .option('--compact-json', 'single-line --json (requires --json)')
   .option('--include-info', 'keep INFO-level issues (default: WARNING and above)')
   .option('--output <mode>', 'report format: toon (default) | json | compact-json | human')
-  .option('--no-check', 'skip the bdd.run_command check (structural validation only)')
-  .option('--check', 'run the bdd.run_command check (default when configured; accepted alias)')
+  .option(
+    '--no-check',
+    'v1 parity no-op: accepted but validate never executes anything; BDD scenarios run via the project test suite (bdd.run_command)',
+  )
+  .option(
+    '--check',
+    'v1 parity no-op alias: validate never executes bdd.run_command; BDD execution lives in the project test suite',
+  )
   .action(
     (
       item: string | undefined,

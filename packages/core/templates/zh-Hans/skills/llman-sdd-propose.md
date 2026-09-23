@@ -94,11 +94,11 @@ flowchart LR
 
 ### 4a) 可选 BDD runner（`bdd:` 段）
 - 读 `llmanspec/config.yaml`。是否含 `bdd:` 段？
-  - **有**：`validate --check` 会跑 harness；撰写仍按 4b 执行。
+  - **有**：`bdd.run_command` 声明项目的 BDD 执行入口，由项目测试套件（如 qa）承载；validate 不执行 harness（`--check`/`--no-check` 为 v1 兼容 no-op）。撰写仍按 4b 执行。
   - **无**：若本次 change 涉及可执行行为场景（用户会想运行的 Given/When/Then），**一次性、前置**询问：「本次变更看起来有可执行行为。要启用 `bdd:` runner 段以便把场景作为 `.feature` 校验吗？（会向 `config.yaml` 加一个 `bdd:` 段——仅 runner，不改变生命周期。）」
     - **是**：展示要添加的精确 `bdd:` 段（`run_command` 选匹配项目测试框架的——rstest-bdd 用 `cargo test --features bdd`，pytest-bdd 用 `pytest {feature_dir} -k {feature_name} -v`）。让用户确认或修改后写入 `config.yaml`，再按 4b 规则继续。
-    - **否**：feature 仍做结构校验；仅跳过 runner 执行。
-- **MUST NOT 静默添加 `bdd:` 段**——总是先询问。添加它会改变全项目 `validate --check` 的行为。
+    - **否**：feature 仍做结构校验；BDD 执行责任始终在项目测试套件。
+- **MUST NOT 静默添加 `bdd:` 段**——总是先询问。添加它会向全项目声明 BDD 执行入口（由项目测试套件承载；validate 自身不执行 harness）。
 
 ### 4b) 单轨 feature 撰写
 - 规划壳（proposal/design/tasks）可短暂留在默认分支；**不要**在默认分支上编辑 live `llmanspec/specs/**`。Branch binding 之后，Specs landing 与实现都发生在绑定分支上。

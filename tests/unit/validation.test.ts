@@ -3,8 +3,6 @@ import { describe, expect, test } from 'bun:test';
 import {
   checkChangeDoc,
   discoverSpecs,
-  expandRunCommand,
-  hasPlaceholders,
   validateAllSpecs,
   validateChange,
   type DiscoveryIo,
@@ -143,18 +141,6 @@ describe('checkChangeDoc + placeholders (r47/r48)', () => {
     const r = checkChangeDoc({ ...BASE, hasBinding: false }, {});
     expect(r.valid).toBe(true);
     expect(r.issues[0]?.level).toBe('WARNING');
-  });
-
-  test('placeholder detection and expansion (r48)', () => {
-    expect(hasPlaceholders('pytest {feature_dir}')).toBe(true);
-    expect(hasPlaceholders('bun test tests/bdd')).toBe(false);
-    expect(
-      expandRunCommand('pytest {feature_dir} -k {feature_name}', {
-        featureDir: 'llmanspec/specs',
-        featureName: 'auth',
-        featurePath: 'llmanspec/specs/auth.feature',
-      }),
-    ).toBe('pytest llmanspec/specs -k auth');
   });
 });
 

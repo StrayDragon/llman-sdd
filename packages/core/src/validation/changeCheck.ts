@@ -320,22 +320,3 @@ const ALLOWED_FIELDS = [
   'base_sha',
   'needs_specs_change',
 ];
-
-export interface PlaceholderTarget {
-  featureDir: string;
-  featureName: string;
-  featurePath: string;
-}
-
-/** True when run_command carries any r48 placeholder. */
-export function hasPlaceholders(runCommand: string): boolean {
-  return /\{feature_dir\}|\{feature_name\}|\{feature_path\}/u.test(runCommand);
-}
-
-/** Expand {feature_dir}/{feature_name}/{feature_path} for one target (r48). */
-export function expandRunCommand(runCommand: string, target: PlaceholderTarget): string {
-  return runCommand
-    .replaceAll('{feature_dir}', target.featureDir)
-    .replaceAll('{feature_name}', target.featureName)
-    .replaceAll('{feature_path}', target.featurePath);
-}

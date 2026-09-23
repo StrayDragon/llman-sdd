@@ -2322,3 +2322,320 @@ bdd.thenStep('schema 非法值报错', (ctx) => {
     throw new Error(`error must name the schema field: ${message}`);
   }
 });
+
+// r11/r13/r63/r64/r65 — validation executable 化 HIGH 批 (acceptance).
+// 全部走 CLI 子进程;When 步骤把 {code, stdout: stdout+stderr} 写入
+// fixtures['命令结果'] 以复用 smoke 的「退出码为/stdout 符合正则」断言
+// (human 模式的 FAIL/issue 行走 stderr,故合并捕获)。
+// ---------------------------------------------------------------------------
+
+interface ValidateRepoFixture {
+  repo: TempRepo;
+  id: string;
+}
+
+const gitCommit = ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm'];
+
+/** Combined-output CLI run against a temp repo. */
+function runCliCombined(repo: TempRepo, args: string[]): { code: number; stdout: string } {
+  const r = repo.run('bun', [CLI, ...args]);
+  return { code: r.code, stdout: `${r.stdout}${r.stderr}` };
+}
+
+const requireValidateRepo = (ctx: { fixtures: Record<string, unknown> }): ValidateRepoFixture => {
+  const fixture = ctx.fixtures['验证仓库'] as ValidateRepoFixture | undefined;
+  if (!fixture) throw new Error('no temp repo fixture — did the 假如 step run?');
+  return fixture;
+};
+
+// r11 — seeded-defect report aggregation: FAIL/OK lines + Totals + exit code.
+bdd.given('一个含种子缺陷 spec 的临时仓库', (ctx) => {
+  const repo = makeTempRepo();
+  writeFileSync(
+    join(repo.root, 'llmanspec', 'specs', 'broken.feature'),
+    '# language: zh-CN\n# capability: broken\n# purpose: p\n# scope: llmanspec/\n\n功能: broken\n\n  @req:r11 @human @executable\n  场景: 互斥\n    - 系统 MUST x\n',
+  );
+  repo.run('git', ['add', '-A']);
+  repo.run('git', [...gitCommit, 'seed defect']);
+  ctx.fixtures['验证仓库'] = { repo, id: 'broken' } satisfies ValidateRepoFixture;
+});
+
+bdd.when('在该仓库运行 validate --specs --output human', (ctx) => {
+  const { repo } = requireValidateRepo(ctx);
+  ctx.fixtures['命令结果'] = runCliCombined(repo, ['validate', '--specs', '--output', 'human']);
+});
+
+// r13 — redefined contract: --check/--no-check are v1-surface no-ops; the help
+// text must describe the delegation reality instead of claiming harness runs.
+bdd.given('一个含有效 specs 的临时仓库', (ctx) => {
+  const repo = makeTempRepo();
+  ctx.fixtures['验证仓库'] = { repo, id: 'sample' } satisfies ValidateRepoFixture;
+});
+
+bdd.when('分别以缺省、--check、--no-check 运行 validate --specs', (ctx) => {
+  const { repo } = requireValidateRepo(ctx);
+  const runs = [
+    runCliCombined(repo, ['validate', '--specs']),
+    runCliCombined(repo, ['validate', '--specs', '--check']),
+    runCliCombined(repo, ['validate', '--specs', '--no-check']),
+  ];
+  ctx.fixtures['no-op三跑'] = runs;
+  ctx.fixtures['命令结果'] = runs[runs.length - 1];
+});
+
+bdd.thenStep('三次运行的退出码与输出一致', (ctx) => {
+  const runs = ctx.fixtures['no-op三跑'] as { code: number; stdout: string }[];
+  const first = runs[0] as { code: number; stdout: string };
+  for (const [i, r] of runs.entries()) {
+    if (r.code !== first.code || r.stdout !== first.stdout) {
+      throw new Error(
+        `run ${i} diverged (code ${r.code} vs ${first.code}):\n${r.stdout}\n--- vs ---\n${first.stdout}`,
+      );
+    }
+  }
+});
+
+bdd.when('运行 validate --help', (ctx) => {
+  const { repo } = requireValidateRepo(ctx);
+  ctx.fixtures['命令结果'] = runCliCombined(repo, ['validate', '--help']);
+});
+
+bdd.thenStep('help 文案指向委托语义且不含执行 harness 宣称', (ctx) => {
+  const out = (ctx.fixtures['命令结果'] as { stdout: string }).stdout;
+  if (!out.includes('no-op') || !out.includes('project test suite')) {
+    throw new Error(
+      `help text must state the delegation reality (no-op + project test suite):\n${out}`,
+    );
+  }
+  if (/skip the bdd\.run_command check|run the bdd\.run_command check/u.test(out)) {
+    throw new Error(`help text still claims validate executes the harness:\n${out}`);
+  }
+});
+
+// r63 — completeness WARNING (full-not-landed, skill guidance) + workspace-level
+// dirty live specs WARNING on the default branch. JSON mode is the observation
+// seam: single-item human output stays silent for valid items, so the WARNING
+// surface is read from items[].issues.
+bdd.given('一个 stage=full 已绑定但 specs 未 landed 的临时仓库', (ctx) => {
+  const repo = makeTempRepo();
+  const id = 'demo-landed';
+  const dir = join(repo.root, 'llmanspec', 'changes', id);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'proposal.md'), '---\ndepends_on: []\n---\n\n## Why\nx\n');
+  writeFileSync(join(dir, 'design.md'), '# design\n');
+  writeFileSync(join(dir, 'tasks.md'), '# Tasks\n- [x] done\n');
+  repo.run('git', ['add', '-A']);
+  repo.run('git', [...gitCommit, 'draft']);
+  repo.run('bun', [CLI, 'change', 'start', id]);
+  ctx.fixtures['验证仓库'] = { repo, id } satisfies ValidateRepoFixture;
+});
+
+bdd.when('对该 change 运行 validate --json', (ctx) => {
+  const { repo, id } = requireValidateRepo(ctx);
+  ctx.fixtures['命令结果'] = runCliCombined(repo, ['validate', id, '--json']);
+});
+
+const requireIssues = (ctx: {
+  fixtures: Record<string, unknown>;
+}): { level: string; path: string; message: string }[] => {
+  const r = ctx.fixtures['命令结果'] as { stdout: string };
+  const parsed = JSON.parse(r.stdout) as {
+    items: { issues: { level: string; path: string; message: string }[] }[];
+  };
+  return parsed.items.flatMap((i) => i.issues);
+};
+
+bdd.thenStep('输出含 specs not landed WARNING 且带 llman-sdd-propose 引导', (ctx) => {
+  const hit = requireIssues(ctx).find((x) => x.message.includes('specs not landed'));
+  if (!hit) {
+    throw new Error(`specs-not-landed WARNING missing:\n${JSON.stringify(requireIssues(ctx))}`);
+  }
+  if (hit.level !== 'WARNING') throw new Error(`expected WARNING, got ${hit.level}`);
+  if (!hit.message.includes('llman-sdd-propose')) {
+    throw new Error(`propose skill guidance missing:\n${hit.message}`);
+  }
+});
+
+bdd.thenStep('不建议重跑 change start', (ctx) => {
+  const hit = requireIssues(ctx).find((x) => x.message.includes('specs not landed'));
+  if (!hit?.message.includes('do NOT re-run change start')) {
+    throw new Error(`anti-guidance against re-running change start missing:\n${hit?.message}`);
+  }
+});
+
+bdd.when('切回默认分支并弄脏 llmanspec/specs 后再次运行 validate', (ctx) => {
+  const { repo, id } = requireValidateRepo(ctx);
+  repo.run('git', ['switch', 'main']);
+  const specPath = join(repo.root, 'llmanspec', 'specs', 'sample.feature');
+  writeFileSync(specPath, `${readFileSync(specPath, 'utf8')}\n# dirty edit\n`);
+  ctx.fixtures['命令结果'] = runCliCombined(repo, ['validate', id, '--output', 'human']);
+});
+
+bdd.thenStep('输出含工作区级脏 specs WARNING', (ctx) => {
+  const out = (ctx.fixtures['命令结果'] as { stdout: string }).stdout;
+  if (!out.includes('live specs dirty on default branch')) {
+    throw new Error(`workspace-level dirty-specs WARNING missing:\n${out}`);
+  }
+});
+
+// r64 — proposal frontmatter legal-field gate.
+bdd.given('一个 proposal frontmatter 含未知字段 "{field}" 的临时仓库', (ctx, field) => {
+  const repo = makeTempRepo();
+  const id = 'demo-fm';
+  const dir = join(repo.root, 'llmanspec', 'changes', id);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(
+    join(dir, 'proposal.md'),
+    `---\ndepends_on: []\n${field}: draft\n---\n\n## Why\nx\n`,
+  );
+  repo.run('git', ['add', '-A']);
+  repo.run('git', [...gitCommit, 'draft']);
+  ctx.fixtures['验证仓库'] = { repo, id } satisfies ValidateRepoFixture;
+});
+
+bdd.when('对该 change 运行 validate --output human', (ctx) => {
+  const { repo, id } = requireValidateRepo(ctx);
+  ctx.fixtures['命令结果'] = runCliCombined(repo, ['validate', id, '--output', 'human']);
+});
+
+bdd.thenStep('输出含未知字段 "{field}" 与合法字段集提示', (ctx, field) => {
+  const out = (ctx.fixtures['命令结果'] as { stdout: string }).stdout;
+  if (!out.includes(`unknown field '${field}'`)) {
+    throw new Error(`unknown-field message for '${field}' missing:\n${out}`);
+  }
+  if (!out.includes('depends_on, blocks, branch, base_branch, base_sha, needs_specs_change')) {
+    throw new Error(`allowed-field set missing from message:\n${out}`);
+  }
+});
+
+bdd.when('把 frontmatter 改写为六个合法字段后再次运行 validate', (ctx) => {
+  const { repo, id } = requireValidateRepo(ctx);
+  writeFileSync(
+    join(repo.root, 'llmanspec', 'changes', id, 'proposal.md'),
+    '---\ndepends_on: []\nblocks: []\nbranch: sdd/demo-fm\nbase_branch: main\nbase_sha: abc\nneeds_specs_change: false\n---\n\n## Why\nx\n',
+  );
+  ctx.fixtures['命令结果'] = runCliCombined(repo, ['validate', id, '--output', 'human']);
+});
+
+// r65 — orphan acceptance scenario WARNING with `<cap>/acceptance/<name>` path.
+bdd.given('一个含孤儿验收场景的 spec 临时仓库', (ctx) => {
+  const repo = makeTempRepo();
+  // r91: makeTempRepo 的 sample.feature 已占用 r1 — req_id 全局唯一,撞号会误触
+  // 重复 ERROR 使 spec 失真,r65 只观察孤儿 WARNING。
+  writeFileSync(
+    join(repo.root, 'llmanspec', 'specs', 'orph.feature'),
+    '# language: zh-CN\n# capability: orph\n# purpose: p\n# scope: llmanspec/\n\n功能: orph\n\n  @req:r91 @human\n  场景: 规则\n    - 系统 MUST x\n\n  @executable\n  场景: 孤儿验收\n    假如 前置\n    当 动作\n    那么 结果\n',
+  );
+  repo.run('git', ['add', '-A']);
+  repo.run('git', [...gitCommit, 'orphan']);
+  ctx.fixtures['验证仓库'] = { repo, id: 'orph' } satisfies ValidateRepoFixture;
+});
+
+bdd.when('对该 spec 运行 validate --json', (ctx) => {
+  const { repo, id } = requireValidateRepo(ctx);
+  ctx.fixtures['命令结果'] = runCliCombined(repo, ['validate', id, '--json']);
+});
+
+bdd.thenStep('孤儿验收 WARNING 的 path 为 "{path}"', (ctx, path) => {
+  const r = ctx.fixtures['命令结果'] as { code: number; stdout: string };
+  if (r.code !== 0) throw new Error(`validate --json failed: ${r.stdout}`);
+  const parsed = JSON.parse(r.stdout) as {
+    items: { id: string; issues: { level: string; path: string }[] }[];
+  };
+  const hit = parsed.items.flatMap((i) => i.issues).find((x) => x.path === path);
+  if (!hit) throw new Error(`no issue with path '${path}' in:\n${r.stdout}`);
+  if (hit.level !== 'WARNING') throw new Error(`expected WARNING at '${path}', got ${hit.level}`);
+});
+
+// ---------------------------------------------------------------------------
+// r16 — default branch local-first resolution: main → master → origin/HEAD →
+// origin/* matrix via `change start`'s recorded base_branch, plus the
+// all-missing error. Each phase gets a fresh repo (layout cannot be mutated
+// in place: refs are cheap, re-init is honest).
+// ---------------------------------------------------------------------------
+
+interface LayoutRepoFixture {
+  repo: TempRepo;
+  id: string;
+}
+
+const LAYOUT_BRANCH: Record<string, string> = {
+  'main+master': 'main',
+  'master-only': 'master',
+  'origin-head': 'devel',
+  'origin-branch': 'zside',
+  none: 'trunk',
+};
+
+function makeLayoutRepo(layout: string): TempRepo {
+  const branch = LAYOUT_BRANCH[layout];
+  if (branch === undefined) throw new Error(`unknown layout: ${layout}`);
+  const root = mkdtempSync(join(tmpdir(), 'llman-baselayout-'));
+  const gitRun = (args: string[]): { code: number; stdout: string; stderr: string } => {
+    const proc = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+    return { code: proc.status ?? 1, stdout: proc.stdout ?? '', stderr: proc.stderr ?? '' };
+  };
+  gitRun(['init', '-q', '-b', branch]);
+  gitRun(['config', 'user.email', 't@t']);
+  gitRun(['config', 'user.name', 't']);
+  mkdirSync(join(root, 'llmanspec', 'specs'), { recursive: true });
+  writeFileSync(join(root, 'llmanspec', 'config.yaml'), 'schema: spec-driven\n');
+  writeFileSync(
+    join(root, 'llmanspec', 'specs', 'sample.feature'),
+    '# language: zh-CN\n# capability: sample\n# purpose: p\n# scope: llmanspec/\n\n功能: sample\n\n  @req:r1 @human\n  场景: ok\n    - 系统 MUST x\n',
+  );
+  const id = 'demo-base';
+  const dir = join(root, 'llmanspec', 'changes', id);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'proposal.md'), '---\ndepends_on: []\n---\n\n## Why\nx\n');
+  gitRun(['add', '-A']);
+  gitRun(['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'init']);
+  if (layout === 'main+master') gitRun(['branch', 'master']);
+  if (layout === 'origin-head') {
+    gitRun(['update-ref', 'refs/remotes/origin/devel', 'HEAD']);
+    gitRun(['symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/devel']);
+  }
+  if (layout === 'origin-branch') {
+    gitRun(['update-ref', 'refs/remotes/origin/zside', 'HEAD']);
+  }
+  return {
+    root,
+    run: (cmd, args) => {
+      const proc = spawnSync(cmd, args, { cwd: root, encoding: 'utf8' });
+      return { code: proc.status ?? 1, stdout: proc.stdout ?? '', stderr: proc.stderr ?? '' };
+    },
+  };
+}
+
+bdd.given('一个默认分支布局为 {layout} 的临时仓库', (ctx, layout) => {
+  ctx.fixtures['布局仓库'] = { repo: makeLayoutRepo(layout), id: 'demo-base' };
+});
+
+bdd.when('运行 change start', (ctx) => {
+  const { repo, id } = ctx.fixtures['布局仓库'] as LayoutRepoFixture;
+  const result = repo.run('bun', [CLI, 'change', 'start', id]);
+  ctx.fixtures['start结果'] = {
+    code: result.code,
+    stdout: `${result.stdout}${result.stderr}`,
+  };
+});
+
+bdd.thenStep('base_branch 记录为 {branch}', (ctx, branch) => {
+  const { repo, id } = ctx.fixtures['布局仓库'] as LayoutRepoFixture;
+  const r = ctx.fixtures['start结果'] as { code: number; stdout: string };
+  if (r.code !== 0) throw new Error(`change start failed (expected base ${branch}): ${r.stdout}`);
+  const proposal = readFileSync(join(repo.root, 'llmanspec', 'changes', id, 'proposal.md'), 'utf8');
+  if (!proposal.includes(`base_branch: ${branch}`)) {
+    throw new Error(`expected base_branch: ${branch} in:\n${proposal}`);
+  }
+});
+
+bdd.thenStep('报错提示缺少默认分支', (ctx) => {
+  const r = ctx.fixtures['start结果'] as { code: number; stdout: string };
+  if (r.code === 0) {
+    throw new Error(`change start should fail without any default branch: ${r.stdout}`);
+  }
+  if (!r.stdout.includes('no local main/master or origin')) {
+    throw new Error(`default-branch-missing message missing: ${r.stdout}`);
+  }
+});

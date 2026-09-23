@@ -62,7 +62,7 @@ flowchart LR
    - **决策回写**：已解决的决策回写到该 change 的 `proposal.md`「Open Questions」段（规划壳；可短暂在默认分支）。
    - **完成判据**：每个待定决策都已解决或被显式推迟。未触发时保持默认（问 1–3 个问题）行为不变。
 4. 如果某个 change id 相关，阅读 `llmanspec/changes/<id>/` 下的 artifacts。
-   - 诊断校验错误时优先跑 `llman-sdd validate <spec> --strict --no-check`（fast mode，跳过可能耗时的 `bdd.run_command`），先解决结构门禁（Gherkin / `@req` 链接 / 双写 / req_id 唯一性），再跑 full mode（`--check` 或 `cargo test --features bdd`）。失败项在缺省 TOON 输出的 `items[].issues[]` 逐条指明；`--output human` 输出 v1 人读 `FAIL <item_type>/<id>` 行。
+   - 诊断校验错误时先跑 `llman-sdd validate <spec> --strict` 解决结构门禁（Gherkin / `@req` 链接 / 双写 / req_id 唯一性）；validate 不执行任何 harness（`--check`/`--no-check` 为 v1 兼容 no-op），BDD 场景执行由项目测试套件承载（qa 内 `bun test tests/bdd` 式命令）。失败项在缺省 TOON 输出的 `items[].issues[]` 逐条指明；`--output human` 输出 v1 人读 `FAIL <item_type>/<id>` 行。
 5. 探索 2–3 个选项与权衡。
 6. 判断变更规模（triage），确定是否需要走完整 SDD 流程。
 7. 当结论逐渐清晰时，建议用户把它记录下来（不要自动写入）：

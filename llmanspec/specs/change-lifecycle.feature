@@ -136,3 +136,21 @@
     假如 一个配置了 change_id.template 的临时仓库
     当 运行 change new --from 并带 --verb
     那么 派生 id 由模板渲染生成
+
+  @req:r16 @executable
+  场景: 默认分支解析顺序与皆缺报错
+    假如 一个默认分支布局为 main+master 的临时仓库
+    当 运行 change start
+    那么 base_branch 记录为 main
+    假如 一个默认分支布局为 master-only 的临时仓库
+    当 运行 change start
+    那么 base_branch 记录为 master
+    假如 一个默认分支布局为 origin-head 的临时仓库
+    当 运行 change start
+    那么 base_branch 记录为 devel
+    假如 一个默认分支布局为 origin-branch 的临时仓库
+    当 运行 change start
+    那么 base_branch 记录为 zside
+    假如 一个默认分支布局为 none 的临时仓库
+    当 运行 change start
+    那么 报错提示缺少默认分支

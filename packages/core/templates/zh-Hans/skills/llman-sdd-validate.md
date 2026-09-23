@@ -19,7 +19,7 @@ metadata:
    - 在**绑定分支**上验证 live `.feature` Gherkin 与 `@req` / 双写门禁（须已 Branch binding）。
    - `.feature` 是 harness 权威——可执行 GWT 只在 live `.feature` 维护（无 solidify；无 `feature_delta` / `change delta`）。
    - Change 生命周期门禁：`change start` / `attach`（Branch binding）、`finalize`（收口；自动提交 `archive(sdd): <id>`，`--no-commit` 跳过）/ `diff`（只读）。`change checkpoint` 已移除（无存档点概念：中途不必存档，`change finalize` 不要求干净树）。
-   - `llman-sdd validate --specs` 默认自动运行 `bdd.run_command`。
+   - `llman-sdd validate --specs` 只做结构与合约门禁，不执行 `bdd.run_command`（`--check`/`--no-check` 为 v1 兼容 no-op）；BDD 场景由项目测试套件执行（qa 内 `bun test tests/bdd`）。
    - 可用 `list --specs --json` 查看 `morphology`（ruleCount / ruleEnforcedCount / rulePendingCount / acceptanceCount / orphanAcceptanceCount）。
    - Change JSON 状态字段：`stage`（draft/designed/planned/full）/ `specsLanded` / `needsSpecsChange` / `readyToImplement`（`show --output json`）。
 {% endif %}

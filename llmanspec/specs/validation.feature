@@ -37,8 +37,8 @@
     而且 退出码非零
 
   @req:r13 @human
-  场景: BDD 检查退出码
-    - `--check` MUST 按 config `bdd.run_command` batch-once 执行,命令失败 MUST 使退出码非零;`--no-check` MUST 跳过该执行。
+  场景: BDD 执行委托与 check 旗标表面
+    - validate MUST NOT 执行 config `bdd.run_command` harness;BDD 场景的执行责任在项目测试套件(qa 内 `bun test tests/bdd` 式命令,`bdd.run_command` 仅作为该套件的声明入口);`--check`/`--no-check` 旗标 MUST 保持 v1 表面接受且为 no-op——MUST NOT 改变校验判定、退出码与输出字节;CLI help 与模板文案 MUST 指向该委托语义,MUST NOT 宣称 validate 执行 harness。
 
   @req:r47 @human
   场景: validate 目标与模式 flag
@@ -66,3 +66,44 @@
     当 运行 validate --all --json 与 validate --all --json --include-info
     那么 缺省输出不含 INFO 级 issue 且 include-info 输出含 INFO 级 issue
     而且 两次运行的 valid 判定与退出码一致
+
+  @req:r11 @executable
+  场景: 报告行聚合与退出码
+    假如 一个含种子缺陷 spec 的临时仓库
+    当 在该仓库运行 validate --specs --output human
+    那么 stdout 符合正则 "FAIL spec/[a-z-]+"
+    而且 stdout 符合正则 "OK spec/"
+    而且 stdout 符合正则 "Totals: \d+ passed, \d+ failed \(\d+ items\)"
+    而且 退出码为 1
+
+  @req:r13 @executable
+  场景: check 旗标 no-op 与文案委托
+    假如 一个含有效 specs 的临时仓库
+    当 分别以缺省、--check、--no-check 运行 validate --specs
+    那么 三次运行的退出码与输出一致
+    而且 退出码为 0
+    当 运行 validate --help
+    那么 help 文案指向委托语义且不含执行 harness 宣称
+
+  @req:r63 @executable
+  场景: 完整性 WARNING 与脏 specs 警告
+    假如 一个 stage=full 已绑定但 specs 未 landed 的临时仓库
+    当 对该 change 运行 validate --json
+    那么 输出含 specs not landed WARNING 且带 llman-sdd-propose 引导
+    而且 不建议重跑 change start
+    当 切回默认分支并弄脏 llmanspec/specs 后再次运行 validate
+    那么 输出含工作区级脏 specs WARNING
+
+  @req:r64 @executable
+  场景: frontmatter 非法字段被拒
+    假如 一个 proposal frontmatter 含未知字段 "status" 的临时仓库
+    当 对该 change 运行 validate --output human
+    那么 输出含未知字段 "status" 与合法字段集提示
+    当 把 frontmatter 改写为六个合法字段后再次运行 validate
+    那么 退出码为 0
+
+  @req:r65 @executable
+  场景: 孤儿验收场景报 WARNING
+    假如 一个含孤儿验收场景的 spec 临时仓库
+    当 对该 spec 运行 validate --json
+    那么 孤儿验收 WARNING 的 path 为 "orph/acceptance/孤儿验收"
