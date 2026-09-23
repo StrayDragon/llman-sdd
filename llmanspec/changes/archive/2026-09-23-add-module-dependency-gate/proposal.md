@@ -1,5 +1,8 @@
 ---
 depends_on: []
+branch: sdd/add-module-dependency-gate
+base_branch: main
+base_sha: 876b8313192996a60c0ba1f94b58b877b1eceb10
 ---
 
 # 模块依赖方向门禁:冻结 core 模块边集,止住层间腐蚀

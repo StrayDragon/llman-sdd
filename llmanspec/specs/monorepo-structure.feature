@@ -25,6 +25,16 @@
   场景: 模板命令对账
     - 模板 skills 与 units(zh-Hans 与 en 双 locale)中对 CLI 命令与旗标的字面引用 MUST 与 CLI 实际命令面对账:引用的命令路径 MUST 存在,引用的每个旗标 MUST 为该命令已注册旗标;对账 MUST 以自动门禁纳入 bun test 套件(随 qa 运行),违例 MUST 致门禁失败并逐条报出来源模板与违例原因。对账面为 packages/core/templates/** 模板源头;渲染产物与 golden 基线为下游,不重复设门。姊妹语义对齐门禁 tests/unit/template-guidance-parity.test.ts(值域/行为陈述,合约在 init-generators r70)与之同随 qa 运行。
 
+  @req:r72 @human
+  场景: core 模块依赖对账
+    - packages/core/src 顶层模块间的跨模块相对导入 MUST 落在门禁测试内声明的允许边表内(节点为顶层目录与根文件;公共 barrel src/index.ts 豁免;import type 与值导入同权;同模块内部导入不计);新增边 MUST 先在声明表中显式登记并说明理由,收窄(断环/搬移)MUST 同步删表防漂移;对账 MUST 以自动门禁纳入 bun test 套件(随 qa 运行),违例 MUST 逐条报出来源文件与违例边,且声明表中无对应实现的边 MUST 同报(表漂移)。
+
+  @req:r72 @executable
+  场景: 模块依赖对账门禁通过
+    假如 工作目录是仓库根
+    当 执行命令 "bun test tests/unit/module-dependency-parity.test.ts"
+    那么 退出码为 0
+
   @req:r67 @executable
   场景: 模板命令对账门禁通过
     假如 工作目录是仓库根
