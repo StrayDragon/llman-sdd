@@ -1,7 +1,7 @@
 # language: zh-CN
 # capability: spec-parsing
 # purpose: 定义 .feature 单轨解析的语言兜底链、头注释契约、标签分层语义与全局 rN 注册表。
-# scope: llmanspec/specs/, packages/core/src/spec/
+# scope: packages/core/src/spec/
 
 功能: spec-parsing
 

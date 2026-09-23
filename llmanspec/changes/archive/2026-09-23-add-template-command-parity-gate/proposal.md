@@ -1,6 +1,9 @@
 ---
 depends_on: []
 needs_specs_change: true
+branch: sdd/add-template-command-parity-gate
+base_branch: main
+base_sha: 71e992172e5284887461df6649be3d039c450719
 ---
 
 # 模板命令对账门禁:模板引用的 CLI 命令/旗标与实际命令面自动对账
@@ -21,9 +24,11 @@ needs_specs_change: true
 ## Capabilities
 
 - monorepo-structure(r67 条款,Specs landing)
+- spec-parsing(scope 纠偏:`llmanspec/specs/` → 仅 `packages/core/src/spec/`。原 scope 使任何 Specs landing 的兄弟 spec 编辑都触发 spec-parsing 的 STALE,strict 下恒阻断——r67 落地时实测撞上;解析语义的实现面是 `packages/core/src/spec/`,规约内容编辑不应反向标脏解析器规范)
 
 ## Impact
 
-- 代码:仅新增一个测试文件 + spec 一个 rule 对;无运行时逻辑改动,无 CLI 面变更
+- 代码:仅新增一个测试文件 + 两个 spec 的条款/scope 修订;无运行时逻辑改动,无 CLI 面变更
 - 兼容性:无破坏;qa 时长增加一次嵌套 `bun test` 子进程(~1-2s,与 smoke 既有子进程模式同量级)
 - 已知边界:对账只保证「引用的旗标存在」,不校验旗标值域/语义;散文形如 `--json` 无命令前缀的引用不在扫描面(本次审计显示漂移均带命令前缀)
+- 附带登记:孤儿 unit `migrate-prompt.md`(zh/en,通篇已废弃的 v1 迁移协作说明,无任何引用方)按用户指令删除,随本分支 finalize squash 一并落 main——删除会触发 init-generators 的 STALE 信号(scope 含 templates/),已人工复核:golden 字节等价证明渲染面零变化,spec 无需更新;finalize 合约门为 change 级 strict + r40,不以 `validate --all --strict` 为门槛
