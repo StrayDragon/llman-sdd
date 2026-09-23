@@ -61,6 +61,13 @@ export {
 } from './spec/parser.ts';
 export { buildReqRegistry, type ReqRegistry, type RegistryDuplicate } from './spec/reqRegistry.ts';
 export {
+  MIGRATE_KINDS,
+  isMigrateKind,
+  migrateNoteFor,
+  migrateOverviewFor,
+  type MigrateKind,
+} from './project/migrateNotes.ts';
+export {
   addReq,
   addScenario,
   allReqIds,

@@ -16,6 +16,8 @@ import {
   graphMermaid,
   loadTreeWithAutoRebuild,
   makeEmbeddedTemplateIo,
+  migrateNoteFor,
+  migrateOverviewFor,
   morphologyOfScenarios,
   nextReqId,
   changeDiff,
@@ -1204,12 +1206,23 @@ project
 
 project
   .command('migrate')
-  .description('Legacy migration entry (informational only)')
-  .action(() => {
-    console.log('legacy 迁移实现(spec.toon / specs-flatten 等)不随本工具提供;');
-    console.log(
-      '本工具直接读取既有 llmanspec 布局(config.yaml / specs/*.feature / changes/),零迁移可读。',
-    );
+  .description('Legacy migration collaboration notes (prints guidance; performs no migration)')
+  .option('--kind <kind>', 'collaboration notes: toon2features | specs-flatten')
+  .action((options: { kind?: string }) => {
+    const locale = loadCliConfig()?.locale ?? 'en';
+    if (options.kind === undefined) {
+      console.log(migrateOverviewFor(locale));
+      return;
+    }
+    const note = migrateNoteFor(options.kind, locale);
+    if (note === null) {
+      console.error(
+        `unknown migration kind: ${options.kind} (expected: toon2features | specs-flatten)`,
+      );
+      process.exitCode = 1;
+      return;
+    }
+    console.log(note);
   });
 
 const archive = program
