@@ -91,15 +91,31 @@ const templateIo: TemplateIo = embedded
       readText: (p) => readFileSync(p, 'utf8'),
     };
 
+/** CLI io rooted at the launch cwd; call at action time so cwd is read per command. */
+function newIo(): ReturnType<typeof makeIo> {
+  return makeIo(process.cwd());
+}
+
 /** Parse all capability specs under llmanspec/specs via core discovery. */
 function loadSpecEntries(): ReturnType<typeof discoverSpecs> {
-  return discoverSpecs('llmanspec/specs', makeIo(process.cwd()));
+  return discoverSpecs('llmanspec/specs', newIo());
+}
+
+/**
+ * Config read WITHOUT the change_id.pattern compile-check, shared by
+ * `change archive`, `spec skeleton`, and `review`. Those commands never render
+ * change ids, so unlike loadCliConfig() an invalid change_id.pattern must not
+ * abort them (v1 behavior) — do not swap these call sites to loadCliConfig().
+ */
+function loadCliConfigUnchecked(): ReturnType<typeof loadConfig> | null {
+  return existsSync('llmanspec/config.yaml')
+    ? loadConfig(readFileSync('llmanspec/config.yaml', 'utf8'))
+    : null;
 }
 
 function loadCliConfig(): ReturnType<typeof loadConfig> | null {
-  if (!existsSync('llmanspec/config.yaml')) return null;
-  const config = loadConfig(readFileSync('llmanspec/config.yaml', 'utf8'));
-  compileChangeIdPattern(config.change_id?.pattern);
+  const config = loadCliConfigUnchecked();
+  if (config !== null) compileChangeIdPattern(config.change_id?.pattern);
   return config;
 }
 
@@ -123,7 +139,7 @@ function resolveChangeIdOrExit(
   opts: { suppressHint?: boolean } = {},
 ): { id: string; viaPrefix: boolean } | null {
   try {
-    const resolved = resolveChangeId(makeIo(process.cwd()), process.cwd(), input, {
+    const resolved = resolveChangeId(newIo(), process.cwd(), input, {
       maxScanDepth: cliMaxScanDepth(),
     });
     if (resolved.viaPrefix && opts.suppressHint !== true) {
@@ -150,7 +166,7 @@ function warnDirtySpecsOnDefaultBranch(): void {
 }
 
 function runValidateSweep(): boolean {
-  const report = validateAllSpecs(loadSpecEntries(), makeIo(process.cwd()));
+  const report = validateAllSpecs(loadSpecEntries(), newIo());
   return report.verdicts.some((v) => !v.ok);
 }
 
@@ -221,8 +237,13 @@ interface VItem {
   matchedViaPrefix: boolean;
 }
 
+/** v1 validate ordering: id asc, tie-broken by type asc. */
+function compareItems(a: VItem, b: VItem): number {
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : a.type.localeCompare(b.type);
+}
+
 function specV1Items(opts: { strict?: boolean }): VItem[] {
-  const io = makeIo(process.cwd());
+  const io = newIo();
   const git = makeCliGit(process.cwd());
   const entries = discoverSpecs('llmanspec/specs', io);
   const registry = buildReqRegistry(entries);
@@ -263,12 +284,12 @@ function specV1Items(opts: { strict?: boolean }): VItem[] {
       matchedViaPrefix: false,
     });
   }
-  items.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : a.type.localeCompare(b.type)));
+  items.sort(compareItems);
   return items;
 }
 
 function changeV1Items(names: string[], opts: { stage?: string; strict?: boolean }): VItem[] {
-  const io = makeIo(process.cwd());
+  const io = newIo();
   const git = makeCliGit(process.cwd());
   const config = loadCliConfig();
   const items: VItem[] = [];
@@ -294,7 +315,7 @@ function changeV1Items(names: string[], opts: { stage?: string; strict?: boolean
       matchedViaPrefix: false,
     });
   }
-  items.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : a.type.localeCompare(b.type)));
+  items.sort(compareItems);
   return items;
 }
 
@@ -332,6 +353,31 @@ function resolveOutMode(
   if (legacyCompact) return 'compact-json';
   if (legacyJson) return 'json';
   return 'toon';
+}
+
+/** `--method squash|ff` guard shared by `change archive` / `change finalize`. */
+function assertMergeMethod(method: string | undefined): boolean {
+  if (method === undefined || method === 'squash' || method === 'ff') return true;
+  console.error(`invalid --method: ${method}`);
+  process.exitCode = 1;
+  return false;
+}
+
+/**
+ * Legacy `--compact-json` guard (see resolveOutMode): standalone compact is
+ * rejected unless paired with `--json` or an explicit `--output`.
+ */
+function assertCompactJsonPairing(options: {
+  compactJson?: boolean;
+  json?: boolean;
+  output?: string;
+}): boolean {
+  if (options.compactJson === true && options.json !== true && options.output === undefined) {
+    console.error('--compact-json requires --json');
+    process.exitCode = 1;
+    return false;
+  }
+  return true;
 }
 
 function renderValidateText(items: VItem[]): void {
@@ -426,11 +472,7 @@ program
         check?: boolean;
       },
     ) => {
-      if (options.compactJson && !options.json && options.output === undefined) {
-        console.error('--compact-json requires --json');
-        process.exitCode = 1;
-        return;
-      }
+      if (!assertCompactJsonPairing(options)) return;
       const outMode = resolveOutMode(options.output, options.json, options.compactJson);
       if (outMode === null) return;
       // r32: INFO issues are presentation noise — dropped unless opted in.
@@ -455,7 +497,7 @@ program
 
       // ---- single item (auto-disambiguate: spec first, then change) ----
       if (item !== undefined) {
-        const entries = discoverSpecs('llmanspec/specs', makeIo(process.cwd()));
+        const entries = discoverSpecs('llmanspec/specs', newIo());
         const specEntry =
           options.type === 'change'
             ? undefined
@@ -491,7 +533,7 @@ program
           return;
         }
         // change single (r61: v1 r112 prefix resolution on the change id)
-        const io = makeIo(process.cwd());
+        const io = newIo();
         const root = process.cwd();
         const resolved = resolveChangeIdOrExit(item, { suppressHint: options.json === true });
         if (resolved === null) return;
@@ -557,14 +599,14 @@ program
       let items: VItem[] = [];
       if (effectiveSpecs) items = items.concat(specV1Items({ strict: options.strict }));
       if (effectiveChanges) {
-        const names = collectChanges(makeIo(process.cwd()), process.cwd(), new Date(), {
+        const names = collectChanges(newIo(), process.cwd(), new Date(), {
           maxScanDepth: cliMaxScanDepth(),
         }).map((c) => c.name);
         items = items.concat(
           changeV1Items(names, { stage: options.stage, strict: options.strict }),
         );
       }
-      items.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : a.type.localeCompare(b.type)));
+      items.sort(compareItems);
       if (!keepInfo) items = items.map(stripInfo);
 
       if (outMode !== 'human') {
@@ -622,12 +664,12 @@ change
           date: new Date().toISOString().slice(0, 10),
         });
         console.log(`derived change id: ${derived}`);
-        const io = makeIo(process.cwd());
+        const io = newIo();
         const result = newChange(io, { id: derived, force: options.force });
         console.log(`./${result.path}`);
         return;
       }
-      const io = makeIo(process.cwd());
+      const io = newIo();
       const result = newChange(io, { id, from: options.from, force: options.force });
       if (options.from !== undefined) console.log(`derived change id: ${result.id}`);
       console.log(`./${result.path}`);
@@ -647,7 +689,7 @@ change
     if (resolved === null) return;
     const git = makeCliGit(process.cwd());
     const config = loadCliConfig();
-    const result = startChange(git, makeIo(process.cwd()), resolved.id, {
+    const result = startChange(git, newIo(), resolved.id, {
       branchPrefix: options.branchPrefix ?? config?.sdd?.branch_prefix ?? 'sdd/',
     });
     console.log(
@@ -664,7 +706,7 @@ change
   .action((id: string, options: { force?: boolean; base?: string }) => {
     const resolved = resolveChangeIdOrExit(id);
     if (resolved === null) return;
-    const result = attachChange(makeCliGit(process.cwd()), makeIo(process.cwd()), resolved.id, {
+    const result = attachChange(makeCliGit(process.cwd()), newIo(), resolved.id, {
       force: options.force,
       base: options.base,
     });
@@ -709,15 +751,11 @@ change
       id: string,
       options: { into?: string; method?: string; dryRun?: boolean; force?: boolean },
     ) => {
-      if (options.method !== undefined && options.method !== 'squash' && options.method !== 'ff') {
-        console.error(`invalid --method: ${options.method}`);
-        process.exitCode = 1;
-        return;
-      }
+      if (!assertMergeMethod(options.method)) return;
       const resolved = resolveChangeIdOrExit(id);
       if (resolved === null) return;
       id = resolved.id;
-      const io = makeIo(process.cwd());
+      const io = newIo();
       if (options.dryRun) {
         const date = new Date().toISOString().slice(0, 10);
         console.log(
@@ -725,9 +763,7 @@ change
         );
         return;
       }
-      const config = existsSync('llmanspec/config.yaml')
-        ? loadConfig(readFileSync('llmanspec/config.yaml', 'utf8'))
-        : null;
+      const config = loadCliConfigUnchecked();
       // v1 task gate: blocked output + options list before the error.
       if (!options.force) {
         const tasksPath = `llmanspec/changes/${id}/tasks.md`;
@@ -772,11 +808,11 @@ change
     id = resolved.id;
     const git = makeCliGit(process.cwd());
     if (options.json) {
-      const info = changeDiffInfo(git, makeIo(process.cwd()), id);
+      const info = changeDiffInfo(git, newIo(), id);
       console.log(JSON.stringify(info, null, 2));
       return;
     }
-    const diff = changeDiff(git, makeIo(process.cwd()), id);
+    const diff = changeDiff(git, newIo(), id);
     if (options.exportPatch !== undefined) {
       writeFileSync(options.exportPatch, diff);
       console.log(`wrote ${options.exportPatch}`);
@@ -801,11 +837,7 @@ change
       id: string,
       options: { into?: string; method?: string; check?: boolean; commit?: boolean },
     ) => {
-      if (options.method !== undefined && options.method !== 'squash' && options.method !== 'ff') {
-        console.error(`invalid --method: ${options.method}`);
-        process.exitCode = 1;
-        return;
-      }
+      if (!assertMergeMethod(options.method)) return;
       if (options.check !== false) {
         const failed = runValidateSweep();
         if (failed) {
@@ -819,7 +851,7 @@ change
       id = resolved.id;
       const config = loadCliConfig();
       const method = options.method ?? config?.sdd?.merge_method ?? 'squash';
-      const result = finalizeChange(makeCliGit(process.cwd()), makeIo(process.cwd()), id, {
+      const result = finalizeChange(makeCliGit(process.cwd()), newIo(), id, {
         into: options.into,
         method: method as 'squash' | 'ff',
         noCommit: options.commit === false,
@@ -854,11 +886,7 @@ program
       output?: string;
       sort?: string;
     }) => {
-      if (options.compactJson && !options.json && options.output === undefined) {
-        console.error('--compact-json requires --json');
-        process.exitCode = 1;
-        return;
-      }
+      if (!assertCompactJsonPairing(options)) return;
       if (options.sort !== undefined && options.sort !== 'recent' && options.sort !== 'name') {
         console.error(`invalid --sort: ${options.sort}`);
         process.exitCode = 1;
@@ -878,7 +906,7 @@ program
         );
         return;
       }
-      let changes = collectChanges(makeIo(process.cwd()), process.cwd(), new Date(), {
+      let changes = collectChanges(newIo(), process.cwd(), new Date(), {
         maxScanDepth: cliMaxScanDepth(),
       });
       if (options.sort === 'name') {
@@ -994,7 +1022,7 @@ program
       }
       const result = showChangeJson(
         {
-          io: makeIo(process.cwd()),
+          io: newIo(),
           git: makeCliGit(process.cwd()),
           root: process.cwd(),
           specsDir: 'llmanspec/specs',
@@ -1006,7 +1034,7 @@ program
       return;
     }
     // text: Stage / path / content / Gates trailer (no section gates).
-    const changes = collectChanges(makeIo(process.cwd()), process.cwd(), new Date(), {
+    const changes = collectChanges(newIo(), process.cwd(), new Date(), {
       maxScanDepth: cliMaxScanDepth(),
     });
     const change = changes.find((c) => c.name === changeId);
@@ -1016,7 +1044,7 @@ program
     if (!proposal.endsWith('\n')) console.log();
     const gates = showChangeJson(
       {
-        io: makeIo(process.cwd()),
+        io: newIo(),
         git: makeCliGit(process.cwd()),
         root: process.cwd(),
         specsDir: 'llmanspec/specs',
@@ -1130,11 +1158,9 @@ program
         seed: change,
       };
       if (options.format === 'mermaid') {
-        console.log(graphMermaid(makeIo(process.cwd()), process.cwd(), graphOpts).join('\n'));
+        console.log(graphMermaid(newIo(), process.cwd(), graphOpts).join('\n'));
       } else {
-        console.log(
-          renderMachine(graphData(makeIo(process.cwd()), process.cwd(), graphOpts), options.format),
-        );
+        console.log(renderMachine(graphData(newIo(), process.cwd(), graphOpts), options.format));
       }
     },
   );
@@ -1147,16 +1173,14 @@ spec
   .argument('<capability>')
   .option('--force', 'overwrite an existing spec file')
   .action((capability: string, options: { force?: boolean }) => {
-    const locale = existsSync('llmanspec/config.yaml')
-      ? loadConfig(readFileSync('llmanspec/config.yaml', 'utf8')).locale
-      : 'en';
+    const locale = loadCliConfigUnchecked()?.locale ?? 'en';
     const path = join('llmanspec', 'specs', `${capability}.feature`);
     if (!options.force && existsSync(path)) {
       console.error(`spec already exists: ${path} (use --force to overwrite)`);
       process.exitCode = 1;
       return;
     }
-    const written = scaffoldSpec(makeIo(process.cwd()), 'llmanspec/specs', capability, locale, {
+    const written = scaffoldSpec(newIo(), 'llmanspec/specs', capability, locale, {
       force: options.force,
     });
     console.log(`wrote ${written}`);
@@ -1167,7 +1191,7 @@ spec
   .description('Allocate the next free global req id (rN)')
   .option('--json', 'emit {reqId}')
   .action((options: { json?: boolean }) => {
-    const reqId = nextReqId(makeIo(process.cwd()), 'llmanspec/specs');
+    const reqId = nextReqId(newIo(), 'llmanspec/specs');
     if (options.json) console.log(JSON.stringify({ reqId }, null, 2));
     else console.log(reqId);
   });
@@ -1199,7 +1223,7 @@ project
       console.log('No colliding req_id values in llmanspec/specs.');
       return;
     }
-    const io = makeIo(process.cwd());
+    const io = newIo();
     const plan = planDedupe(entries, io, 'llmanspec/specs', duplicates);
     // v1 output: `{cap}: {from} → {to}` per remap (prefix in dry-run) + count line.
     for (const item of plan) {
@@ -1309,11 +1333,9 @@ review
   .option('--export-html <path>', 'write a self-contained HTML report')
   .action(
     (options: { capability?: string; json?: boolean; output?: string; exportHtml?: string }) => {
-      const config = existsSync('llmanspec/config.yaml')
-        ? loadConfig(readFileSync('llmanspec/config.yaml', 'utf8'))
-        : null;
+      const config = loadCliConfigUnchecked();
       const bindings = config?.bdd?.bindings?.filter((b) => b.kind === 'tags') ?? [];
-      const io = makeIo(process.cwd());
+      const io = newIo();
       const entries = loadSpecEntries();
       if (options.capability !== undefined) {
         const known = new Set(
@@ -1364,7 +1386,7 @@ spec
   .requiredOption('--title <title>', 'rule title')
   .requiredOption('--statement <statement>', 'rule statement (must contain MUST/SHALL)')
   .action((capability: string, reqId: string, options: { title: string; statement: string }) => {
-    const io = makeIo(process.cwd());
+    const io = newIo();
     const path = addReq(io, 'llmanspec/specs', loadSpecEntries(), {
       capability,
       reqId,
@@ -1390,7 +1412,7 @@ spec
       scenarioId: string,
       options: { given?: string; when: string; then: string },
     ) => {
-      const io = makeIo(process.cwd());
+      const io = newIo();
       const path = addScenario(io, 'llmanspec/specs', loadSpecEntries(), {
         capability,
         reqId,
@@ -1483,7 +1505,7 @@ indexCmd
   .option('--backend <name>', 'index backend (pageindex only)')
   .action((options: { backend?: string }) => {
     resolveBackend(options.backend);
-    const result = rebuildIndex(makeIo(process.cwd()), 'llmanspec/specs', loadSpecEntries(), {
+    const result = rebuildIndex(newIo(), 'llmanspec/specs', loadSpecEntries(), {
       chatModel: process.env.LLMAN_SDD_INDEX_CHAT_MODEL ?? '',
     });
     for (const line of result.lines.slice(0, -1)) console.error(line);
@@ -1495,7 +1517,7 @@ indexCmd
   .description('Check index freshness without rebuilding')
   .option('--output <mode>', 'report format: toon (default) | json | compact-json | human')
   .action((options: { output?: string }) => {
-    const result = checkIndexFreshness(makeIo(process.cwd()), 'llmanspec/specs');
+    const result = checkIndexFreshness(newIo(), 'llmanspec/specs');
     const mode = resolveOutMode(options.output, undefined, undefined);
     if (mode === null) return;
     if (mode !== 'human') {
@@ -1523,12 +1545,9 @@ program
     const config = resolveChatConfig(process.env as Record<string, string | undefined>);
     // r62: lazy refresh runs BEFORE the chat-model gate (v1 r97 — the index
     // self-heals even when retrieval subsequently fails with api_error).
-    const refresh = loadTreeWithAutoRebuild(
-      makeIo(process.cwd()),
-      'llmanspec/specs',
-      loadSpecEntries(),
-      { chatModel: process.env.LLMAN_SDD_INDEX_CHAT_MODEL ?? '' },
-    );
+    const refresh = loadTreeWithAutoRebuild(newIo(), 'llmanspec/specs', loadSpecEntries(), {
+      chatModel: process.env.LLMAN_SDD_INDEX_CHAT_MODEL ?? '',
+    });
     if (refresh.tree === null || refresh.error !== null) {
       const failed = unavailableResult();
       failed.status.errorKind = 'index_rebuild_failed';
