@@ -7,7 +7,7 @@
 
   @req:r41 @human
   场景: spec add-req 追加规则
-    - `spec add-req <capability> <req_id> --title <T> --statement <S>`(别名 add-requirement)MUST 校验 req_id 全局唯一(重复 MUST 报错)且 statement 含规范语义词(MUST/SHALL/必须/不得/禁止,缺失 MUST 报错),然后向 `llmanspec/specs/<capability>.feature` 追加一条 `@req:<id> @human` 规则场景(title 进场景名,statement 进描述)并写盘。
+    - `spec add-req <capability> <req_id> --title <T> --statement <S>`(别名 add-requirement)MUST 校验 req_id 全局唯一(重复 MUST 报错)且 statement 含规范语义词(MUST/SHALL/必须/不得/禁止,缺失 MUST 报错),然后向目标 spec 追加一条 `@req:<id> @human` 规则场景(title 进场景名,statement 进描述)并写盘。写入目标 MUST 按单一口径解析:扁平 `llmanspec/specs/<capability>.feature` 存在则写之(与目录式并存时扁平优先);否则按 spec id 精确命中的已发现 spec entry(含目录式 `<capability>/<capability>.feature`)写之,不做模糊解析;均未命中 MUST 报错。
 
   @req:r42 @human
   场景: spec add-scenario 追加验收场景
@@ -29,6 +29,19 @@
     假如 一个含单一 capability spec 的临时 specs 目录
     当 运行 spec add-req 与 spec add-scenario
     那么 spec 可被解析且 resolve-req 反查一致
+
+  @req:r41 @executable
+  场景: add-req 目录式布局自动发现
+    假如 一个目录式布局的临时 specs 目录
+    当 运行 spec add-req 指向该 capability 与指向不存在的 capability
+    那么 规则场景追加进目录式主文件且无扁平文件被创建
+    而且 不存在的 capability 报错且零副作用
+
+  @req:r42 @executable
+  场景: add-scenario 目录式布局自动发现
+    假如 一个目录式布局的临时 specs 目录
+    当 运行 spec add-scenario 指向该 capability 存在的 req
+    那么 验收场景追加进目录式主文件且无扁平文件被创建
 
   @req:r43 @executable
   场景: dedupe 重映射冲突

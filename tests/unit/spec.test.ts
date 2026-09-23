@@ -225,6 +225,51 @@ describe('spec authoring helpers (r41-r43)', () => {
     ).toEqual(['a.feature:s1']);
   });
 
+  test('write target resolution: directory-style entry hit, flat-first, miss errors', () => {
+    const dirPath = 'llmanspec/specs/a/a.feature';
+    // 仅目录式:写入 <cap>/<cap>.feature,不落扁平
+    const { io, store } = memIo({ [dirPath]: HEAD });
+    const dirEntries = [{ fileName: dirPath, doc: parseCapability(HEAD, dirPath) }];
+    const p = addReq(io, 'llmanspec/specs', dirEntries, {
+      capability: 'a',
+      reqId: 'r9',
+      title: 't',
+      statement: '系统 MUST x',
+    });
+    expect(p).toBe(dirPath);
+    expect(store[dirPath]).toInclude('@req:r9 @human');
+    expect(store['llmanspec/specs/a.feature']).toBeUndefined();
+    // 均未命中:报错且零副作用
+    const before = store[dirPath];
+    expect(() =>
+      addReq(io, 'llmanspec/specs', dirEntries, {
+        capability: 'zz',
+        reqId: 'r11',
+        title: 't',
+        statement: '系统 MUST x',
+      }),
+    ).toThrow(/not found/u);
+    expect(store[dirPath]).toBe(before);
+    // 两处并存:扁平赢
+    store['llmanspec/specs/a.feature'] = HEAD;
+    const both = [
+      ...dirEntries,
+      {
+        fileName: 'llmanspec/specs/a.feature',
+        doc: parseCapability(HEAD, 'llmanspec/specs/a.feature'),
+      },
+    ];
+    const p2 = addScenario(io, 'llmanspec/specs', both, {
+      capability: 'a',
+      reqId: 'r1',
+      scenarioId: 's1',
+      when: '当条件',
+      thenText: '那么结果',
+    });
+    expect(p2).toBe('llmanspec/specs/a.feature');
+    expect(store['llmanspec/specs/a.feature']).toInclude('@req:r1 @executable');
+  });
+
   test('resolveReq returns null for unknown id; planDedupe remaps conflicts', () => {
     const { io } = memIo({
       'llmanspec/specs/a.feature': HEAD,

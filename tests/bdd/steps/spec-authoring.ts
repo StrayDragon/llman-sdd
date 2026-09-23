@@ -2,7 +2,7 @@
 // add-scenario / resolve-req / project dedupe-req-ids)与 r42(追加验收场景
 // 成功 + 缺失 req 零副作用)。
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -198,5 +198,109 @@ bdd.thenStep('不存在的 req 报错且文件零副作用', (ctx) => {
   }
   if (r.beforeFail !== r.afterFail) {
     throw new Error('failed add-scenario must not touch the spec file');
+  }
+});
+
+// ---------------------------------------------------------------------------
+// r41/r42 — directory-style layout auto-discovery (write-target caliber)
+// ---------------------------------------------------------------------------
+
+interface DirLayoutResult {
+  okCode: number;
+  okOut: string;
+  failCode: number;
+  failOut: string;
+  beforeFail: string;
+}
+
+const dirLayoutRun = (root: string, args: string[]): { code: number; out: string } => {
+  const proc = spawnSync('bun', [CLI, ...args], { cwd: root, encoding: 'utf8' });
+  return { code: proc.status ?? 1, out: `${proc.stdout ?? ''}${proc.stderr ?? ''}` };
+};
+
+bdd.given('一个目录式布局的临时 specs 目录', (ctx) => {
+  const root = mkdtempSync(join(tmpdir(), 'llman-dir-author-'));
+  mkdirSync(join(root, 'llmanspec', 'specs', 'auth'), { recursive: true });
+  writeFileSync(join(root, 'llmanspec', 'specs', 'auth', 'auth.feature'), AUTHORING_HEAD);
+  ctx.fixtures['authoring工作区'] = { root };
+});
+
+bdd.when('运行 spec add-req 指向该 capability 与指向不存在的 capability', (ctx) => {
+  const { root } = ctx.fixtures['authoring工作区'] as { root: string };
+  const ok = dirLayoutRun(root, [
+    'spec',
+    'add-req',
+    'auth',
+    'r5',
+    '--title',
+    '用户规则',
+    '--statement',
+    '系统必须校验令牌',
+  ]);
+  const beforeFail = readFileSync(join(root, 'llmanspec', 'specs', 'auth', 'auth.feature'), 'utf8');
+  const fail = dirLayoutRun(root, [
+    'spec',
+    'add-req',
+    'ghost',
+    'r9',
+    '--title',
+    '幽灵规则',
+    '--statement',
+    '系统必须不存在',
+  ]);
+  ctx.fixtures['dirlayout结果'] = {
+    okCode: ok.code,
+    okOut: ok.out,
+    failCode: fail.code,
+    failOut: fail.out,
+    beforeFail,
+  };
+});
+
+bdd.thenStep('规则场景追加进目录式主文件且无扁平文件被创建', (ctx) => {
+  const r = ctx.fixtures['dirlayout结果'] as DirLayoutResult;
+  const { root } = ctx.fixtures['authoring工作区'] as { root: string };
+  if (r.okCode !== 0) throw new Error(`add-req failed on directory layout: ${r.okOut}`);
+  const content = readFileSync(join(root, 'llmanspec', 'specs', 'auth', 'auth.feature'), 'utf8');
+  if (!content.includes('@req:r5 @human')) throw new Error(`rule scenario missing:\n${content}`);
+  if (existsSync(join(root, 'llmanspec', 'specs', 'auth.feature'))) {
+    throw new Error('flat spec file must not be created');
+  }
+});
+
+bdd.thenStep('不存在的 capability 报错且零副作用', (ctx) => {
+  const r = ctx.fixtures['dirlayout结果'] as DirLayoutResult;
+  const { root } = ctx.fixtures['authoring工作区'] as { root: string };
+  if (r.failCode === 0) throw new Error(`missing capability must fail: ${r.failOut}`);
+  const after = readFileSync(join(root, 'llmanspec', 'specs', 'auth', 'auth.feature'), 'utf8');
+  if (after !== r.beforeFail) throw new Error('failed add-req must not touch the spec file');
+});
+
+bdd.when('运行 spec add-scenario 指向该 capability 存在的 req', (ctx) => {
+  const { root } = ctx.fixtures['authoring工作区'] as { root: string };
+  const r = dirLayoutRun(root, [
+    'spec',
+    'add-scenario',
+    'auth',
+    'r1',
+    '令牌验收',
+    '--when',
+    '访问受保护资源',
+    '--then',
+    '访问被允许',
+  ]);
+  ctx.fixtures['dirscenario结果'] = r;
+});
+
+bdd.thenStep('验收场景追加进目录式主文件且无扁平文件被创建', (ctx) => {
+  const r = ctx.fixtures['dirscenario结果'] as { code: number; out: string };
+  const { root } = ctx.fixtures['authoring工作区'] as { root: string };
+  if (r.code !== 0) throw new Error(`add-scenario failed on directory layout: ${r.out}`);
+  const content = readFileSync(join(root, 'llmanspec', 'specs', 'auth', 'auth.feature'), 'utf8');
+  if (!content.includes('@req:r1 @executable')) {
+    throw new Error(`acceptance scenario missing:\n${content}`);
+  }
+  if (existsSync(join(root, 'llmanspec', 'specs', 'auth.feature'))) {
+    throw new Error('flat spec file must not be created');
   }
 });

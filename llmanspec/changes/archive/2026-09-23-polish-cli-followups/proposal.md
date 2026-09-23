@@ -1,6 +1,9 @@
 ---
 depends_on: []
 needs_specs_change: true
+branch: sdd/polish-cli-followups
+base_branch: main
+base_sha: 256af30bb1c6cdaa569aa24f0ee67cec621344c0
 ---
 
 # CLI 体验收尾杂项(draft 防遗忘)

@@ -86,14 +86,33 @@ export interface AddReqOpts {
   statement: string;
 }
 
-/** Append `@req:<id> @human` rule scenario to `<capability>.feature` (r41). */
+/**
+ * Single write-target caliber (matches the spec show read side): the flat
+ * `specs/<capability>.feature` wins when present, else the discovered entry
+ * whose specId equals the capability exactly (covers directory-style
+ * `<capability>/<capability>.feature`); the flat path is returned unchanged
+ * when neither exists so callers raise their usual not-found error.
+ */
+export function resolveWriteTarget(
+  io: WriteIo,
+  specsRoot: string,
+  capability: string,
+  entries: readonly SpecEntryLike[],
+): string {
+  const flat = `${specsRoot}/${capability}.feature`;
+  if (io.exists(flat)) return flat;
+  const hit = entries.find((entry) => specIdOf(entry) === capability);
+  return hit !== undefined ? hit.fileName : flat;
+}
+
+/** Append `@req:<id> @human` rule scenario to the resolved target spec (r41). */
 export function addReq(
   io: WriteIo,
   specsRoot: string,
   entries: readonly SpecEntryLike[],
   opts: AddReqOpts,
 ): string {
-  const path = `${specsRoot}/${opts.capability}.feature`;
+  const path = resolveWriteTarget(io, specsRoot, opts.capability, entries);
   if (!io.exists(path)) throw new AuthoringError(`spec not found: ${path}`);
   if (allReqIds(entries).has(opts.reqId)) {
     throw new AuthoringError(`req id already in use: ${opts.reqId}`);
@@ -114,14 +133,14 @@ export interface AddScenarioOpts {
   thenText: string;
 }
 
-/** Append `@req:<id> @executable` acceptance scenario (r42). */
+/** Append `@req:<id> @executable` acceptance scenario to the resolved target (r42). */
 export function addScenario(
   io: WriteIo,
   specsRoot: string,
   entries: readonly SpecEntryLike[],
   opts: AddScenarioOpts,
 ): string {
-  const path = `${specsRoot}/${opts.capability}.feature`;
+  const path = resolveWriteTarget(io, specsRoot, opts.capability, entries);
   if (!io.exists(path)) throw new AuthoringError(`spec not found: ${path}`);
   if (findReq(entries, opts.reqId) === null) {
     throw new AuthoringError(`req id not found: ${opts.reqId}`);
