@@ -1,4 +1,4 @@
 {
-  "maxPending": 13,
-  "note": "rulePendingCount 上限;executable 化批次 finalize 时依次下调(HIGH 批后归 0),见 llmanspec/changes/add-bdd-exe-* 提案"
+  "maxPending": 6,
+  "note": "rulePendingCount 上限;仅剩 HIGH 批(add-bdd-exe-validation-core)6 条,finalize 后归 0"
 }
