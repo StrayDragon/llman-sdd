@@ -1,3 +1,4 @@
+import { stageFor } from '../change/collect.ts';
 import { extractFrontmatter, readBinding } from '../change/frontmatter.ts';
 import { parseTaskCheckboxes } from '../change/tasks.ts';
 /**
@@ -6,7 +7,6 @@ import { parseTaskCheckboxes } from '../change/tasks.ts';
  * INFO, pattern gate and task gates. IO + git injected (pure).
  */
 import type { GitLike } from '../git/spawnGit.ts';
-import { stageFor } from '../report/collect.ts';
 
 export type ChangeIssueLevel = 'ERROR' | 'WARNING' | 'INFO';
 
@@ -215,7 +215,7 @@ export function validateChange(
     }
 
     const binding = readBinding(text);
-    // stageFor (report/collect) is the monotonic stage SSOT (r34).
+    // stageFor (change/collect) is the monotonic stage SSOT (r34).
     const stage = stageFor(hasDesign, hasTasks, binding !== null);
 
     if (hasTasks && !hasDesign) {

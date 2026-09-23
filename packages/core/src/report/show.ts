@@ -1,3 +1,4 @@
+import { countTasks, firstH1, stageFor, type ChangeFsIo } from '../change/collect.ts';
 import { extractFrontmatter, readBinding } from '../change/frontmatter.ts';
 import { CHANGES_DIR } from '../change/lifecycle.ts';
 import { currentBranch, isCleanTree, type GitLike } from '../git/spawnGit.ts';
@@ -10,7 +11,6 @@ import { discoverSpecs } from '../validation/discover.ts';
  * FsIo and GitLike ports — this module stays pure.
  */
 import { validateAllSpecs } from '../validation/validate.ts';
-import { countTasks, firstH1, stageFor, type ChangeFsIo } from './collect.ts';
 
 export type ShowFsIo = ChangeFsIo;
 

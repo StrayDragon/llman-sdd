@@ -1,6 +1,6 @@
 /**
  * tasks.md checkbox parsing — single source of truth shared by change
- * collection (report/collect), change validation (validation/changeCheck),
+ * collection (change/collect), change validation (validation/changeCheck),
  * the archive task gate (change/lifecycle) and the CLI archive gate.
  * v1 line shape: `^\s*-\s+\[( |x|X)\]`.
  */

@@ -4,7 +4,7 @@
  * case-sensitive. Candidates are the active change ids discovered via
  * collectChanges (depth-limited, archive-skipping). Pure — IO is injected.
  */
-import { collectChanges, type ChangeFsIo } from '../report/collect.ts';
+import { collectChanges, type ChangeFsIo } from './collect.ts';
 
 export interface ResolvedChangeId {
   id: string;
