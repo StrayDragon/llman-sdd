@@ -462,7 +462,8 @@ export function archiveChange(
     if (current === defaultBranch(git)) {
       throw new LifecycleError(onDefaultBranch('change archive', current));
     }
-    if (!opts.skipCleanTree && !isCleanTree(git)) throw new LifecycleError(dirtyTree('change archive'));
+    if (!opts.skipCleanTree && !isCleanTree(git))
+      throw new LifecycleError(dirtyTree('change archive'));
   } else if (binding === null) {
     throw new LifecycleError(`change \`${id}\` has no branch binding — cannot merge`);
   }
