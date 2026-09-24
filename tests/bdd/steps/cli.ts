@@ -37,7 +37,9 @@ bdd.thenStep('两输出均为单行 JSON 且可被 JSON.parse', (ctx) => {
     try {
       JSON.parse(line);
     } catch (error) {
-      throw new Error(`output is not parseable JSON: ${line}\n${(error as Error).message}`);
+      throw new Error(`output is not parseable JSON: ${line}\n${(error as Error).message}`, {
+        cause: error,
+      });
     }
   }
 });
@@ -110,7 +112,9 @@ bdd.thenStep('两输出均含同载荷 JSON 且 compact-json 为单行', (ctx) =
   try {
     prettyParsed = JSON.parse(pretty);
   } catch (error) {
-    throw new Error(`--json output is not parseable JSON: ${pretty}\n${(error as Error).message}`);
+    throw new Error(`--json output is not parseable JSON: ${pretty}\n${(error as Error).message}`, {
+      cause: error,
+    });
   }
   if (compact.includes('\n')) throw new Error(`compact-json must be single-line: ${compact}`);
   let compactParsed: unknown;
@@ -119,6 +123,7 @@ bdd.thenStep('两输出均含同载荷 JSON 且 compact-json 为单行', (ctx) =
   } catch (error) {
     throw new Error(
       `compact-json output is not parseable JSON: ${compact}\n${(error as Error).message}`,
+      { cause: error },
     );
   }
   if (JSON.stringify(prettyParsed) !== JSON.stringify(compactParsed)) {
@@ -152,6 +157,8 @@ bdd.thenStep('输出恰为单行且可被 JSON.parse', (ctx) => {
   try {
     JSON.parse(trimmed);
   } catch (error) {
-    throw new Error(`output is not parseable JSON: ${trimmed}\n${(error as Error).message}`);
+    throw new Error(`output is not parseable JSON: ${trimmed}\n${(error as Error).message}`, {
+      cause: error,
+    });
   }
 });

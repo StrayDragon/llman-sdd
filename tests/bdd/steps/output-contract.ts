@@ -235,10 +235,7 @@ bdd.thenStep('graph 以 flowchart TD 开头且节点下划线化并以 classDef 
       throw new Error(`graph output missing "${marker}":\n${r.graph.stdout}`);
     }
   }
-  const last = r.graph.stdout
-    .split('\n')
-    .reverse()
-    .find((l) => l.trim() !== '');
+  const last = r.graph.stdout.split('\n').findLast((l) => l.trim() !== '');
   if (!last?.trim().startsWith('classDef archived')) {
     throw new Error(`graph must end with classDef archived, got: ${last}`);
   }

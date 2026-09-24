@@ -166,7 +166,7 @@ bdd.when('运行 change archive 并附加遗留兼容旗标', (ctx) => {
   const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
   const id = (ctx.fixtures['change'] as { id: string }).id;
   // 拼接避免字面 token(removed 面零提及)
-  const legacy = '--skip-' + 'specs';
+  const legacy = ['--skip-', 'specs'].join('');
   const result = repo.run('bun', [CLI, 'change', 'archive', id, legacy]);
   ctx.fixtures['archive结果'] = {
     code: result.code,

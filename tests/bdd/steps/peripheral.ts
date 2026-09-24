@@ -382,7 +382,7 @@ bdd.thenStep('报 unsupported --format 且退出码为 2', (ctx) => {
 // show 拒绝已删除的 v1 修饰 token(Q1)
 bdd.when('运行 show 该 change --output 且附加已删除的 v1 修饰 token', (ctx) => {
   const root = (ctx.fixtures['工作区'] as { root: string }).root;
-  const token = 'delta' + 's';
+  const token = ['delta', 's'].join('');
   ctx.fixtures['removed结果'] = runCliAt(root, ['show', 'live-change', '--output', token]);
 });
 
