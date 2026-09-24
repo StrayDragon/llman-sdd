@@ -71,9 +71,7 @@ export function buildTemplateVars(config: SddConfig, version: string): Record<st
   if (config.bdd) {
     vars['bdd_enabled'] = 'true';
     vars['bdd_framework'] = config.bdd.framework ?? '';
-    if (config.bdd.feature_dir) vars['bdd_feature_dir'] = config.bdd.feature_dir;
     vars['bdd_run_command'] = effectiveRunCommand(config.bdd);
-    if (config.bdd.default_language) vars['bdd_default_language'] = config.bdd.default_language;
     if (config.bdd.verify_prompt) vars['bdd_verify_prompt'] = config.bdd.verify_prompt;
   }
   const extras = new Set<string>(config.extra_skills ?? []);

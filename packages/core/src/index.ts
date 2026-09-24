@@ -1,22 +1,3 @@
-// 版本 SSOT 是包描述文件(发布产物)/git tag(二进制,经 LLMAN_SDD_VERSION 注入)。
-// 运行时从所在包的 package.json 读取,避免双处维护。单文件二进制内
-// import.meta.url 指向 $bunfs 虚拟路径,package.json 不存在——此处必须容错,
-// 版本由构建期 define 注入,回退值不会对外暴露。
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-
-function readPackageVersion(): string {
-  try {
-    const pkg = JSON.parse(
-      readFileSync(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf8'),
-    ) as { version: string };
-    return pkg.version;
-  } catch {
-    return '0.0.0';
-  }
-}
-export const VERSION = readPackageVersion();
-
 export * from './ports.ts';
 
 export {
@@ -25,7 +6,7 @@ export {
   bddSchema,
   bindingSchema,
   changeIdSchema,
-  scenarioAttrsBindingSchema,
+  removedBindingIssues,
   sddConfigSchema,
   sddSchema,
   tagsBindingSchema,
@@ -39,12 +20,7 @@ export {
   nextUniqueNumber,
   renderChangeIdTemplate,
 } from './config/changeId.ts';
-export {
-  ExtraSkillsError,
-  renderConfigOverview,
-  setExtraSkills,
-  skillsJson,
-} from './config/surface.ts';
+export { renderConfigOverview, skillsJson } from './config/surface.ts';
 
 export type {
   CapabilityDoc,
@@ -204,6 +180,7 @@ export {
   makeWasmSevenZip,
   resolveEmbeddedWasmB64,
   type SevenZipPort,
+  type WasmSevenZipDeps,
 } from './archive/sevenzip.ts';
 export {
   ARCHIVE_DIR_REL,
@@ -228,7 +205,6 @@ export {
   type TagBinding,
 } from './review/review.ts';
 export {
-  TREE_VERSION,
   buildTreeIndex,
   computeSpecHash,
   type HashIo,

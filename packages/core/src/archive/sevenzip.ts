@@ -1,5 +1,4 @@
 import { Buffer } from 'node:buffer';
-import { mkdirSync } from 'node:fs';
 import { basename, join } from 'node:path';
 
 /**
@@ -9,12 +8,12 @@ import { basename, join } from 'node:path';
  * (WASM 7z refuses existing -o dirs). Spike-proven on Bun: compress / list /
  * extract keep directory structure.
  *
- * Compiled single-file binaries have no on-disk 7zz.wasm (Emscripten would
- * probe $bunfs and abort), so build-binary.ts additionally injects the wasm
- * base64 via the literal define `process.env.LLMAN_SDD_EMBEDDED_7ZZ_WASM_B64`
- * (define only rewrites literal member access — do not route through a
- * variable). Unset in source/npm/Node runs → glue loads the .wasm from disk
- * as before.
+ * Purity: the wasm payload and the extraction-dir creation are caller-injected
+ * (`wasmB64` / `mkdirp`). Compiled binaries carry no on-disk 7zz.wasm
+ * (Emscripten would probe $bunfs and abort), so the CLI seam passes the
+ * build-time base64 define through `wasmB64`
+ * (see apps/cli/src/commands/archive.ts); unset in source/npm/Node runs →
+ * glue loads the .wasm from disk as before.
  */
 import SevenZip from '7z-wasm';
 
@@ -57,9 +56,12 @@ export function resolveEmbeddedWasmB64(value: unknown): Uint8Array | undefined {
   return new Uint8Array(bytes);
 }
 
-/** Read the build-injected wasm; undefined when absent or malformed. */
-export function embeddedWasmBinary(): Uint8Array | undefined {
-  return resolveEmbeddedWasmB64(process.env.LLMAN_SDD_EMBEDDED_7ZZ_WASM_B64);
+/** Caller-injected side effects for the 7z adapter (see module doc). */
+export interface WasmSevenZipDeps {
+  /** Base64 wasm blob (build-time define at the CLI seam); undefined → disk. */
+  wasmB64?: string;
+  /** Create the extraction target directory recursively. */
+  mkdirp: (dir: string) => void;
 }
 
 async function initModule(
@@ -105,8 +107,8 @@ function parseListNames(lines: string[]): string[] {
   return names;
 }
 
-export async function makeWasmSevenZip(): Promise<SevenZipPort> {
-  const wasmBinary = embeddedWasmBinary();
+export async function makeWasmSevenZip(deps: WasmSevenZipDeps): Promise<SevenZipPort> {
+  const wasmBinary = resolveEmbeddedWasmB64(deps.wasmB64);
   return {
     async add(archivePath: string, baseDir: string, entries: string[]): Promise<void> {
       const mod = await initModule(undefined, wasmBinary);
@@ -129,7 +131,7 @@ export async function makeWasmSevenZip(): Promise<SevenZipPort> {
     async extractAll(archivePath: string, destDir: string): Promise<void> {
       const mod = await initModule(undefined, wasmBinary);
       const archMount = mount(mod, 1, join(archivePath, '..'));
-      mkdirSync(destDir, { recursive: true });
+      deps.mkdirp(destDir);
       const destMount = mount(mod, 2, destDir);
       mod.FS.chdir(destMount);
       const rc = mod.callMain(['x', `${archMount}/${basename(archivePath)}`, '-y']);

@@ -28,6 +28,8 @@ export interface CliIo {
   remove(path: string): void;
   mkdirp(path: string): void;
   processAlive(pid: number): boolean;
+  currentPid(): number;
+  now(): Date;
   mtimeMs(path: string): number;
   removeDir(path: string): void;
   moveDir(from: string, to: string): void;
@@ -60,6 +62,8 @@ export function makeIo(root: string): CliIo {
         return (error as NodeJS.ErrnoException).code !== 'ESRCH';
       }
     },
+    currentPid: () => process.pid,
+    now: () => new Date(),
     mtimeMs: (p) => statSync(full(p)).mtimeMs,
     removeDir: (p) => rmSync(full(p), { recursive: true, force: true }),
     moveDir: (from, to) => renameSync(full(from), full(to)),

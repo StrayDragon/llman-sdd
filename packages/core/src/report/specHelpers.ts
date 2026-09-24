@@ -1,4 +1,5 @@
-import { parseCapability } from '../spec/parser.ts';
+import { localeToGherkinLang, parseCapability } from '../spec/parser.ts';
+import { buildReqRegistry } from '../spec/reqRegistry.ts';
 /**
  * Spec authoring helpers (peripheral-commands capability, r22):
  * skeleton generation + global next req id. Pure, IO injected.
@@ -14,31 +15,44 @@ export interface SpecHelperIo {
   listDir(path: string): string[];
 }
 
-/**
- * v1 parity (`req_registry.rs::next_req_id_from_index`): smallest free rN over
- * the RULE (@human) req ids only; acceptance-only req tags do not occupy ids.
- */
-export function nextReqId(io: SpecHelperIo, specsDir: string): string {
-  const used = new Set<number>();
+interface ParsedEntry {
+  fileName: string;
+  doc: ReturnType<typeof parseCapability>;
+}
+
+function collectSpecEntries(io: SpecHelperIo, specsDir: string): ParsedEntry[] {
+  const entries: ParsedEntry[] = [];
   const walk = (dir: string): void => {
     if (!io.exists(dir)) return;
     for (const name of io.listDir(dir)) {
       const full = `${dir}/${name}`;
       if (name.endsWith('.feature')) {
-        const doc = parseCapability(io.readText(full), full);
-        for (const scenario of doc.scenarios) {
-          if (scenario.classification !== 'human') continue;
-          for (const reqId of scenario.reqIds) {
-            const n = Math.trunc(Number(reqId.replace(/^r/u, '')));
-            if (Number.isFinite(n)) used.add(n);
-          }
-        }
+        entries.push({ fileName: full, doc: parseCapability(io.readText(full), full) });
       } else if (io.isDirectory(full)) {
         walk(full);
       }
     }
   };
   walk(specsDir);
+  return entries;
+}
+
+/**
+ * v1 parity (`req_registry.rs::next_req_id_from_index`): smallest free rN over
+ * the RULE (@human) req ids only; acceptance-only req tags do not occupy ids.
+ * The id set comes from the global req registry (r7 mapping's sibling API in
+ * spec/reqRegistry.ts) fed with the human-scenario view of each spec.
+ */
+export function nextReqId(io: SpecHelperIo, specsDir: string): string {
+  const humanOnly = collectSpecEntries(io, specsDir).map((e) => ({
+    fileName: e.fileName,
+    doc: { ...e.doc, scenarios: e.doc.scenarios.filter((s) => s.classification === 'human') },
+  }));
+  const used = new Set(
+    [...buildReqRegistry(humanOnly).byId.keys()].map((reqId) =>
+      Math.trunc(Number(reqId.replace(/^r/u, ''))),
+    ),
+  );
   let n = 1;
   while (used.has(n)) n += 1;
   return `r${n}`;
@@ -46,12 +60,17 @@ export function nextReqId(io: SpecHelperIo, specsDir: string): string {
 
 export function skeletonContent(capability: string, reqId: string, locale: string): string {
   const zh = localeFallbacks(locale)[0] === 'zh-Hans';
+  // r7: the `# language:` header derives from the locale mapping — never a
+  // second hardcoded caliber.
+  const language = localeToGherkinLang(zh ? 'zh-Hans' : 'en');
   const header = zh
-    ? `# language: zh-CN\n# capability: ${capability}\n# purpose: TODO: 一句话描述该能力与其目的。\n# scope: src/`
-    : `# language: en\n# capability: ${capability}\n# purpose: TODO: Describe this capability and its purpose.\n# scope: src/`;
+    ? `# language: ${language}\n# capability: ${capability}\n# purpose: TODO: 一句话描述该能力与其目的。\n# scope: src/`
+    : `# language: ${language}\n# capability: ${capability}\n# purpose: TODO: Describe this capability and its purpose.\n# scope: src/`;
   const feature = zh ? `功能: ${capability}` : `Feature: ${capability}`;
   const scenario = zh ? '场景: TODO-rule' : 'Scenario: TODO-rule';
-  return `${header}\n\n${feature}\n\n  @req:${reqId} @human\n  ${scenario}\n    System MUST ...\n`;
+  // keep an ASCII MUST keyword so r9's wording check passes in both locales
+  const rule = zh ? '系统 MUST ...' : 'System MUST ...';
+  return `${header}\n\n${feature}\n\n  @req:${reqId} @human\n  ${scenario}\n    ${rule}\n`;
 }
 
 /** `spec skeleton <cap>`: write llmanspec/specs/<cap>.feature + scaffold scope dir. */

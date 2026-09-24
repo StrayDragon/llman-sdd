@@ -2,12 +2,13 @@ import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import {
-  makeWasmSevenZip,
   nonMainCheckoutWarning,
   probeMainCheckout,
   runFreeze,
   runList,
   runThaw,
+  makeWasmSevenZip,
+  type SevenZipPort,
 } from '@llman-sdd/core';
 import type { Command } from 'commander';
 
@@ -20,6 +21,21 @@ import { makeCliGit, makeIo } from '../io.ts';
 function warnIfNotMainCheckout(root: string): void {
   const warning = nonMainCheckoutWarning(probeMainCheckout(makeCliGit(root)));
   if (warning !== null) console.log(warning);
+}
+
+/**
+ * Compiled binaries have no on-disk 7zz.wasm (Emscripten would probe $bunfs
+ * and abort), so scripts/build-binary.ts injects it as base64 through the
+ * literal define `process.env.LLMAN_SDD_EMBEDDED_7ZZ_WASM_B64` (define only
+ * rewrites literal member access — the read must stay here, not in core);
+ * unset in source/npm/Node runs → the 7z-wasm glue loads the .wasm from disk.
+ * Directory creation for extraction is likewise injected (core stays pure).
+ */
+function makeEmbeddedSevenZip(): Promise<SevenZipPort> {
+  return makeWasmSevenZip({
+    wasmB64: process.env.LLMAN_SDD_EMBEDDED_7ZZ_WASM_B64,
+    mkdirp: (dir) => mkdirSync(dir, { recursive: true }),
+  });
 }
 
 export function registerArchive(program: Command): void {
@@ -46,7 +62,7 @@ export function registerArchive(program: Command): void {
         try {
           const root = process.cwd();
           warnIfNotMainCheckout(root);
-          const sz = await makeWasmSevenZip();
+          const sz = await makeEmbeddedSevenZip();
           const io = makeIo(root);
           if (options.list) {
             for (const line of await runList(io, sz, root)) console.log(line);
@@ -86,7 +102,7 @@ export function registerArchive(program: Command): void {
       }
       const root = process.cwd();
       warnIfNotMainCheckout(root);
-      const sz = await makeWasmSevenZip();
+      const sz = await makeEmbeddedSevenZip();
       const io = makeIo(root);
       try {
         const result = await runThaw(io, sz, root, options.change, { dest: options.dest });

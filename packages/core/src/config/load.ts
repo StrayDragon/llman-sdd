@@ -8,7 +8,8 @@
  */
 import { parse } from 'yaml';
 
-import { sddConfigSchema, type SddConfig } from './schema.ts';
+import { compileChangeIdPattern } from './changeId.ts';
+import { removedBindingIssues, sddConfigSchema, type SddConfig } from './schema.ts';
 
 export const MAX_REPORTED_ISSUES = 5;
 
@@ -36,6 +37,10 @@ export function loadConfig(source: string): SddConfig {
       `YAML parse error: ${error instanceof Error ? error.message : String(error)}`,
     ]);
   }
+  // r5: fail fast on removed binding shapes with the dedicated fix-action
+  // message (feeds the standard 5-issue truncation).
+  const removed = removedBindingIssues(data);
+  if (removed.length > 0) throw new ConfigValidationError(removed);
   const result = sddConfigSchema.safeParse(data);
   if (!result.success) {
     const issues = result.error.issues.map((iss) => {
@@ -43,6 +48,19 @@ export function loadConfig(source: string): SddConfig {
       return `${path || '<root>'}: ${iss.message}`;
     });
     throw new ConfigValidationError(issues);
+  }
+  // r59: compile change_id.pattern at load time so EVERY config-reading
+  // command path (archive/skeleton/review included) fails fast on an invalid
+  // regex instead of silently passing it through.
+  const pattern = result.data.change_id?.pattern;
+  if (pattern !== undefined && pattern !== null && pattern !== '') {
+    try {
+      compileChangeIdPattern(pattern);
+    } catch (error) {
+      // ChangeIdError message already carries the change_id.pattern path and
+      // the regex engine's original error.
+      throw new ConfigValidationError([(error as Error).message]);
+    }
   }
   return result.data;
 }

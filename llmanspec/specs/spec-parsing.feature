@@ -7,7 +7,7 @@
 
   @req:r7 @human
   场景: 解析语言兜底链
-    - .feature 解析 MUST 以 en 匹配器起步(`# language:` 头自动生效),失败后 MUST 回退 zh-CN 匹配器再试,仍失败才报错。config locale zh-Hans MUST 映射为 gherkin 语言代码 zh-CN,其余 locale 透传。
+    - .feature 解析 MUST 以 en 匹配器起步(`# language:` 头自动生效),失败后 MUST 回退 zh-CN 匹配器再试,仍失败才报错。config locale zh-Hans MUST 映射为 gherkin 语言代码 zh-CN,其余 locale 透传;`spec skeleton` 生成的 `# language:` 头 MUST 经该映射派生(不得另行硬编码)。
 
   @req:r8 @human
   场景: 头注释契约
@@ -21,6 +21,14 @@
     而且 纯 en 内容以 en 匹配器起步成功
     而且 双匹配器均失败才报错
     而且 locale zh-Hans 映射为 zh-CN 且其余透传
+
+  @req:r7 @executable
+  场景: skeleton 语言头经映射派生
+    假如 一个 locale 为 zh-Hans 的已初始化临时仓库
+    当 运行 spec skeleton demo-cap
+    那么 生成的 spec 首行为 "# language: zh-CN" 且规则体使用中文
+    当 在 locale 为 en 的已初始化临时仓库运行 spec skeleton demo-cap
+    那么 生成的 spec 首行为 "# language: en"
 
   @req:r8 @executable
   场景: 头注释缺失逐项报告
@@ -38,6 +46,14 @@
     当 解析该 feature
     那么 IR 中规则场景分类为 human
     而且 req 链接为 r9
+
+  @req:r9 @executable
+  场景: 标签分层违例逐项报告
+    假如 一组分别含残留 @manual、@human 与 @executable 同用、@human 描述缺语义词的 feature 内容
+    当 逐个解析这些 feature
+    那么 残留 @manual 报迁移错误且信息含 "@manual"
+    而且 同用报互斥错误
+    而且 缺语义词报 MUST/SHALL 缺失错误
 
   @req:r10 @human
   场景: 全局 rN 注册表

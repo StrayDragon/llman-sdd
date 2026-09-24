@@ -7,8 +7,6 @@ import {
   loadConfig,
   renderChangeIdTemplate,
   renderConfigOverview,
-  setExtraSkills,
-  skillsJson,
 } from '@llman-sdd/core';
 
 const MINIMAL = `schema: spec-driven\n`;
@@ -68,6 +66,31 @@ describe('loadConfig', () => {
       expect((err as ConfigValidationError).issues[0]).toStartWith('YAML parse error');
     }
   });
+
+  test('invalid change_id.pattern fails at load time with the field path (r59)', () => {
+    try {
+      loadConfig('schema: spec-driven\nchange_id:\n  pattern: "[unclosed"\n');
+      throw new Error('expected ConfigValidationError');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ConfigValidationError);
+      const issues = (err as ConfigValidationError).issues;
+      expect(issues[0]).toContain('change_id.pattern');
+    }
+  });
+
+  test('scenario-attrs bindings are rejected with the removal fix action (r5)', () => {
+    try {
+      loadConfig(
+        'schema: spec-driven\nbdd:\n  bindings:\n    - kind: scenario-attrs\n      files: [x]\n',
+      );
+      throw new Error('expected ConfigValidationError');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ConfigValidationError);
+      const issues = (err as ConfigValidationError).issues;
+      expect(issues[0]).toContain('has been removed');
+      expect(issues[0]).toContain('bdd.bindings[0]');
+    }
+  });
 });
 
 describe('config command surface (r37/r38)', () => {
@@ -99,25 +122,6 @@ bdd:
       'archive: configured',
     ]);
   });
-
-  test('setExtraSkills preserves comments and header, round-trips', () => {
-    const withComment = `${BASE}# 用户注释别动\nextra_skills:\n  - llman-sdd-ff\n`;
-    const after = setExtraSkills(withComment, {
-      set: ['llman-sdd-validate'],
-      unset: ['llman-sdd-ff'],
-    });
-    expect(after).toInclude('# 用户注释别动');
-    expect(after).toInclude('# yaml-language-server');
-    expect(skillsJson(after).enabled).toEqual(['llman-sdd-validate']);
-    const back = setExtraSkills(after, { unset: ['llman-sdd-validate'] });
-    expect(skillsJson(back).enabled).toEqual([]);
-  });
-
-  test('rejects unknown skill names', () => {
-    expect(() => setExtraSkills(BASE, { set: ['llman-sdd-unknown'] })).toThrow(
-      /unknown extra skill/u,
-    );
-  });
 });
 
 describe('change_id contract (r59/r60)', () => {
@@ -142,6 +146,15 @@ describe('change_id contract (r59/r60)', () => {
         date: '2026-09-18',
       }),
     ).toThrow(/verb/u);
+  });
+
+  test('renderChangeIdTemplate renders special characters verbatim (autoescape off)', () => {
+    const out = renderChangeIdTemplate('{{ subject }}', {
+      llman_sdd_unique_id: 1,
+      subject: 'a&b<c>',
+      date: '2026-09-24',
+    });
+    expect(out).toBe('a&b<c>');
   });
 
   test('checkChangeDoc enforces pattern as ERROR (validate domain, r59)', () => {

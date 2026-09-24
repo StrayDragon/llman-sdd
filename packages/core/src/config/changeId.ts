@@ -50,7 +50,10 @@ export function renderChangeIdTemplate(template: string, vars: ChangeIdVars): st
       );
     }
   }
-  const env = new nunjucks.Environment(undefined, { throwOnUndefined: true });
+  const env = new nunjucks.Environment(undefined, {
+    autoescape: false,
+    throwOnUndefined: true,
+  });
   const rendered = env.renderString(template, vars as unknown as Record<string, unknown>).trim();
   if (rendered === '') throw new ChangeIdError('change_id.template rendered to an empty id');
   return rendered;

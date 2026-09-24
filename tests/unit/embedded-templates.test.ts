@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'bun:test';
 import { join } from 'node:path';
 
 import {
@@ -50,32 +50,20 @@ describe('makeEmbeddedTemplateIo', () => {
 });
 
 describe('embeddedTemplates', () => {
-  const KEY = 'LLMAN_SDD_EMBEDDED_TEMPLATES';
-  const previous = process.env[KEY];
-
-  afterEach(() => {
-    if (previous === undefined) delete process.env[KEY];
-    else process.env[KEY] = previous;
-  });
-
   test('parses the injected JSON table when present', () => {
-    process.env[KEY] = JSON.stringify(TABLE);
-    expect(embeddedTemplates()).toEqual(TABLE);
+    expect(embeddedTemplates(JSON.stringify(TABLE))).toEqual(TABLE);
   });
 
-  test('returns undefined when the define is absent', () => {
-    delete process.env[KEY];
-    expect(embeddedTemplates()).toBeUndefined();
+  test('returns undefined when the define value is absent', () => {
+    expect(embeddedTemplates(undefined)).toBeUndefined();
   });
 
-  test('returns undefined when absent is empty', () => {
-    process.env[KEY] = '';
-    expect(embeddedTemplates()).toBeUndefined();
+  test('returns undefined when the define value is empty', () => {
+    expect(embeddedTemplates('')).toBeUndefined();
   });
 
   test('returns undefined for malformed JSON', () => {
-    process.env[KEY] = 'not json {';
-    expect(embeddedTemplates()).toBeUndefined();
+    expect(embeddedTemplates('not json {')).toBeUndefined();
   });
 });
 

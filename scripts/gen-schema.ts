@@ -1,6 +1,9 @@
 // Generate artifacts/schema/configs/en/llmanspec-config.schema.json from the
-// zod SSOT (packages/core/src/config/schema.ts). `--check` exits non-zero on
-// drift instead of writing (prek/CI gate). Run: bun run gen:schema [-- --check]
+// zod SSOT (packages/core/src/config/schema.ts). `--check [artifactPath]`
+// exits non-zero on drift instead of writing (prek/CI gate); an explicit
+// artifact path compares against that copy only — the repo file is never
+// touched (r6 executable acceptance: copy → check 0 → tamper → check != 0).
+// Run: bun run gen:schema [-- --check [artifactPath]]
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 
@@ -11,7 +14,9 @@ const TARGET = new URL(
   '../artifacts/schema/configs/en/llmanspec-config.schema.json',
   import.meta.url,
 ).pathname;
-const check = process.argv.includes('--check');
+const args = process.argv.slice(2);
+const check = args.includes('--check');
+const artifactPath = args.find((arg) => !arg.startsWith('--'));
 
 const generated: Record<string, unknown> = {
   $schema: 'http://json-schema.org/draft-07/schema#',
@@ -22,9 +27,22 @@ const generated: Record<string, unknown> = {
 const serialized = `${JSON.stringify(generated, null, 2)}\n`;
 
 if (check) {
-  const existing = readFileSync(TARGET, 'utf8');
+  const target = artifactPath ?? TARGET;
+  const existing = readFileSync(target, 'utf8');
   if (existing !== serialized) {
-    console.error(`schema artifact drift at ${TARGET} — run \`bun run gen:schema\` to refresh`);
+    const existingLines = existing.split('\n');
+    const serializedLines = serialized.split('\n');
+    let line = 0;
+    while (
+      line < existingLines.length &&
+      line < serializedLines.length &&
+      existingLines[line] === serializedLines[line]
+    ) {
+      line += 1;
+    }
+    console.error(
+      `schema artifact drift at ${target} (first diff at line ${String(line + 1)}) — run \`bun run gen:schema\` to refresh`,
+    );
     process.exit(1);
   }
   console.log('schema artifact up to date');

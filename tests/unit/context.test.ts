@@ -6,6 +6,8 @@ import {
   loadTreeWithAutoRebuild,
   parseCapability,
   parseLock,
+  rebuildIndex,
+  REBUILD_LOCK_REL,
   resolveChatConfig,
   runContextRetrieval,
   type HashIo,
@@ -312,6 +314,8 @@ describe('loadTreeWithAutoRebuild (r62)', () => {
       },
       mkdirp: () => {},
       processAlive: () => true,
+      currentPid: () => process.pid,
+      now: () => new Date(),
     };
   }
 
@@ -351,5 +355,75 @@ describe('loadTreeWithAutoRebuild (r62)', () => {
     const r = loadTreeWithAutoRebuild(io, 'llmanspec/specs', [entry()], { chatModel: '' });
     expect(r.tree).toBeNull();
     expect(r.error).toContain('auto-rebuild failed');
+  });
+});
+
+describe('rebuildIndex lock pid/clock injection (r3 side-effect seam)', () => {
+  // 与 indexStore.ts 私有常量同值(6h);测试注入「now = startedAt + 常量 + 1ms」
+  // 验证陈旧判定边界。
+  const LOCK_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+  const FIXED_NOW = new Date('2026-09-24T08:00:00.000Z');
+
+  interface ClockIo extends IndexIo {
+    files: Map<string, string>;
+    writes: Map<string, string>;
+  }
+
+  function clockIo(opts: { existingLock?: string } = {}): ClockIo {
+    const files = new Map<string, string>();
+    const writes = new Map<string, string>();
+    if (opts.existingLock !== undefined) files.set(REBUILD_LOCK_REL, opts.existingLock);
+    return {
+      files,
+      writes,
+      exists: (p) => p === 'llmanspec/specs' || files.has(p),
+      isDirectory: (p) => p === 'llmanspec/specs',
+      listDir: (p) => (p === 'llmanspec/specs' ? ['a.feature'] : []),
+      readText: (p) => {
+        if (p === 'llmanspec/specs/a.feature') return SPEC_A;
+        const v = files.get(p);
+        if (v === undefined) throw new Error(`missing ${p}`);
+        return v;
+      },
+      writeText: (p, c) => {
+        files.set(p, c);
+        writes.set(p, c);
+      },
+      remove: (p) => {
+        files.delete(p);
+      },
+      mkdirp: () => {},
+      processAlive: () => true,
+      currentPid: () => 4242,
+      now: () => FIXED_NOW,
+    };
+  }
+
+  test('lock content byte-equals the expected string with pid=4242 and fixed clock', () => {
+    const io = clockIo();
+    rebuildIndex(io, 'llmanspec/specs', [entry()], { chatModel: '' });
+    expect(io.writes.get(REBUILD_LOCK_REL)).toBe(
+      'pid = 4242\nstarted_at = "2026-09-24T08:00:00.000Z"\nchunks_total = 1\nchunks_done = 1\nprogress_pct = 100\n',
+    );
+    const tree = JSON.parse(io.files.get('llmanspec/.context/pageindex/tree.json') ?? '{}') as {
+      build_timestamp?: string;
+    };
+    expect(tree.build_timestamp).toBe('2026-09-24T08:00:00.000Z');
+  });
+
+  test('stale lock (LOCK_MAX_AGE_MS + 1ms old) is cleaned and rebuild proceeds', () => {
+    const startedAt = new Date(FIXED_NOW.getTime() - LOCK_MAX_AGE_MS - 1).toISOString();
+    const io = clockIo({ existingLock: `pid = 99\nstarted_at = "${startedAt}"\n` });
+    const r = rebuildIndex(io, 'llmanspec/specs', [entry()], { chatModel: '' });
+    expect(r.specCount).toBe(1);
+  });
+
+  test('live lock is kept and rebuild refuses to run', () => {
+    const startedAt = new Date(FIXED_NOW.getTime() - 1000).toISOString();
+    const io = clockIo({ existingLock: `pid = 99\nstarted_at = "${startedAt}"\n` });
+    expect(() => rebuildIndex(io, 'llmanspec/specs', [entry()], { chatModel: '' })).toThrow(
+      /already in progress/u,
+    );
+    expect(io.files.get(REBUILD_LOCK_REL)).toBe(`pid = 99\nstarted_at = "${startedAt}"\n`);
   });
 });

@@ -22,20 +22,31 @@ export const tagsBindingSchema = z
   })
   .describe('A scenario is bound when its tags contain ALL listed tags.');
 
-export const scenarioAttrsBindingSchema = z
-  .object({
-    kind: z.literal('scenario-attrs').describe('Per-scenario attribute source kind.'),
-    files: z
-      .array(z.string())
-      .min(1)
-      .describe('Glob patterns of source files to scan for scenario attribute blocks.'),
-  })
-  .describe('Extract path/name literal pairs from scenario attribute blocks in matched files.');
+/**
+ * r5: `kind: scenario-attrs` bindings were removed (the shape passed schema
+ * validation but had no consumer). Pre-checked outside the tags-only binding
+ * schema so the error names the removal and the exact fix action instead of
+ * a generic union mismatch; the message feeds the standard 5-issue report.
+ */
+export function removedBindingIssues(data: unknown): string[] {
+  const bdd = (data as { bdd?: { bindings?: unknown } } | null | undefined)?.bdd;
+  const bindings = Array.isArray(bdd?.bindings) ? bdd.bindings : [];
+  const issues: string[] = [];
+  for (const [i, entry] of bindings.entries()) {
+    if (
+      entry !== null &&
+      typeof entry === 'object' &&
+      (entry as { kind?: unknown }).kind === 'scenario-attrs'
+    ) {
+      issues.push(
+        `bdd.bindings[${i}]: kind "scenario-attrs" has been removed; delete this entry (only kind "tags" is supported)`,
+      );
+    }
+  }
+  return issues;
+}
 
-export const bindingSchema = z.discriminatedUnion('kind', [
-  tagsBindingSchema,
-  scenarioAttrsBindingSchema,
-]);
+export const bindingSchema = tagsBindingSchema;
 
 export const bddSchema = z.object({
   framework: z
@@ -44,19 +55,11 @@ export const bddSchema = z.object({
     .describe(
       'BDD framework identifier (optional). Only used to derive a default run_command when run_command is unset.',
     ),
-  feature_dir: z
-    .string()
-    .nullish()
-    .describe('Root directory for .feature files, relative to project root.'),
-  default_language: z
-    .string()
-    .nullish()
-    .describe("Gherkin parsing language code (e.g. 'en', 'zh-CN'). Default: 'en'."),
   run_command: z
     .string()
     .nullish()
     .describe(
-      'Custom test run command. Placeholders: {feature_dir}, {feature_name}, {feature_path}. Without placeholders, validate --all/--specs runs the command at most once per batch (batch-once).',
+      'Harness command executed by validate for spec targets (skip with --no-check). Placeholders: {feature_path}, {feature_dir}, {feature_name}; without placeholders it runs once per validate invocation (batch-once).',
     ),
   verify_prompt: z.string().nullish().describe('Extra prompt text injected during verify phase.'),
   bindings: z.array(bindingSchema).nullish().describe('Declared harness-binding sources.'),

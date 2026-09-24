@@ -53,7 +53,18 @@ export function specIdOf(entry: { fileName: string; doc: CapabilityDoc }): strin
 
 /**
  * v1 wording: constraint statements must contain one of these tokens.
- * Shared by the parser (structural error) and validation (verdict gate) so
- * the two MUST-word checks cannot drift apart.
+ * Shared by the parser (structural error), validation (verdict gate), and
+ * add-req (authoring gate) so all three MUST-word checks are the same
+ * caliber: ASCII keywords match on word boundaries (MUSTARD must NOT hit),
+ * CJK keywords match literally.
  */
-export const MUST_WORD_RE = /\bMUST\b|\bSHALL\b|必须|不得|禁止/u;
+export const MUST_WORD_TERMS = ['MUST', 'SHALL', '必须', '不得', '禁止'] as const;
+
+const escapeRe = (term: string): string => term.replaceAll(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+
+export const MUST_WORD_RE = new RegExp(
+  MUST_WORD_TERMS.map((term) =>
+    /^[A-Za-z]+$/u.test(term) ? `\\b${escapeRe(term)}\\b` : escapeRe(term),
+  ).join('|'),
+  'u',
+);

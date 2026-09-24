@@ -1,15 +1,23 @@
 // Domain step definitions: config 能力 — 覆盖 r5/r6(顶层字段域与未知键宽容,
-// 含 extra_skills 内联加载步骤)、r37/r38(config 概览与 skills 管理)、
-// r59/r60(change_id pattern 校验与 template 渲染)。
+// 含 extra_skills 内联加载步骤;schema artifact 漂移门可执行验收)、
+// r37/r38(config 概览与 skills 管理)、r59/r60(change_id pattern 校验与
+// template 渲染)。
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { loadConfig } from '@llman-sdd/core';
 
 import { bdd } from '../runner.ts';
-import { CLI, type TempRepo, field, makeTempRepo, seedChange } from './shared.ts';
+import { CLI, REPO_ROOT, type TempRepo, field, makeTempRepo, seedChange } from './shared.ts';
 
 bdd.given('一个 config 内容 extra_skills 含 "{value}"', (ctx, value) => {
   ctx.fixtures['config'] = { 源文本: `schema: spec-driven\nextra_skills:\n  - ${value}\n` };
@@ -139,12 +147,17 @@ bdd.when('创建不匹配的 change 并运行 validate', (ctx) => {
   ctx.fixtures['pattern结果'] = { code: result.code, stdout: result.stdout, stderr: result.stderr };
 });
 
-bdd.thenStep('该 change 判 ERROR 且非法正则加载即报错', (ctx) => {
+bdd.thenStep('该 change 判 ERROR 且报错含 "change_id.pattern"', (ctx) => {
   const r = ctx.fixtures['pattern结果'] as { code: number; stdout: string; stderr: string };
   if (r.code === 0) throw new Error(`pattern violation should fail: ${r.stdout}${r.stderr}`);
   if (!`${r.stdout}${r.stderr}`.includes('change_id.pattern')) {
     throw new Error(`pattern message missing: ${r.stdout}${r.stderr}`);
   }
+});
+
+bdd.given('一个 config 内容 change_id.pattern 为 "{value}"', (ctx, value) => {
+  ctx.fixtures['config'] = { 源文本: `schema: spec-driven\nchange_id:\n  pattern: "${value}"\n` };
+  return ctx.fixtures['config'];
 });
 
 bdd.given('一个配置了 change_id.template 的临时仓库', (ctx) => {
@@ -234,5 +247,114 @@ bdd.thenStep('schema 非法值报错', (ctx) => {
   if (message === null) throw new Error('schema: bogus must be rejected');
   if (!message.includes('schema')) {
     throw new Error(`error must name the schema field: ${message}`);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// r5 — removed bdd fields: scenario-attrs rejected, dead keys tolerated
+// ---------------------------------------------------------------------------
+
+bdd.given('一个 config 内容 bdd.bindings 含 kind "scenario-attrs" 条目', (ctx) => {
+  ctx.fixtures['config'] = {
+    源文本: 'schema: spec-driven\nbdd:\n  bindings:\n    - kind: scenario-attrs\n      files:\n        - "src/**/*.rs"\n',
+  };
+  return ctx.fixtures['config'];
+});
+
+bdd.given('一个 config 内容 bdd 段含 default_language 与 feature_dir', (ctx) => {
+  ctx.fixtures['config'] = {
+    源文本: 'schema: spec-driven\nbdd:\n  default_language: zh-CN\n  feature_dir: tests/features/\n  run_command: "bun test"\n',
+  };
+  return ctx.fixtures['config'];
+});
+
+bdd.thenStep('加载成功且解析结果的 bdd 段不含 default_language 与 feature_dir', (ctx) => {
+  const result = ctx.fixtures['加载结果'] as { error: string | null } | undefined;
+  if (!result) throw new Error('no 加载结果 — did the 当 step run?');
+  if (result.error !== null) {
+    throw new Error(`removed bdd keys must be tolerated, got:\n${result.error}`);
+  }
+  const source = String(field(ctx.fixtures['config'], '源文本') ?? '');
+  const bdd = loadConfig(source).bdd as Record<string, unknown> | undefined;
+  if (bdd !== undefined && ('default_language' in bdd || 'feature_dir' in bdd)) {
+    throw new Error(`parsed bdd section must not carry removed keys: ${JSON.stringify(bdd)}`);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// r6 — schema artifact drift gate against an external copy (acceptance)
+// ---------------------------------------------------------------------------
+
+interface SchemaCopyFixture {
+  copy: string;
+  repoArtifact: string;
+  repoBefore: string;
+}
+
+interface CheckResult {
+  code: number;
+  out: string;
+}
+
+bdd.given('一个复制到临时目录的 schema artifact 副本', (ctx) => {
+  const repoArtifact = join(
+    REPO_ROOT,
+    'artifacts',
+    'schema',
+    'configs',
+    'en',
+    'llmanspec-config.schema.json',
+  );
+  const copy = join(mkdtempSync(join(tmpdir(), 'llman-schema-')), 'llmanspec-config.schema.json');
+  copyFileSync(repoArtifact, copy);
+  ctx.fixtures['schema副本'] = {
+    copy,
+    repoArtifact,
+    repoBefore: readFileSync(repoArtifact, 'utf8'),
+  } satisfies SchemaCopyFixture;
+});
+
+bdd.when('以该副本路径运行 gen-schema --check', (ctx) => {
+  const { copy } = ctx.fixtures['schema副本'] as SchemaCopyFixture;
+  const proc = spawnSync('bun', [join(REPO_ROOT, 'scripts', 'gen-schema.ts'), '--check', copy], {
+    encoding: 'utf8',
+  });
+  ctx.fixtures['check结果'] = {
+    code: proc.status ?? 1,
+    out: `${proc.stdout ?? ''}${proc.stderr ?? ''}`,
+  } satisfies CheckResult;
+});
+
+bdd.thenStep('check 退出码为 0', (ctx) => {
+  const r = ctx.fixtures['check结果'] as CheckResult;
+  if (r.code !== 0) throw new Error(`check on the fresh copy must pass: ${r.out}`);
+});
+
+bdd.when('篡改该副本后再次以其路径运行 gen-schema --check', (ctx) => {
+  const { copy } = ctx.fixtures['schema副本'] as SchemaCopyFixture;
+  const content = readFileSync(copy, 'utf8');
+  if (!content.includes('"title": "SddConfig"')) {
+    throw new Error('tamper anchor missing from the artifact copy');
+  }
+  writeFileSync(copy, content.replace('"title": "SddConfig"', '"title": "SddConfigDrifted"'));
+  const proc = spawnSync('bun', [join(REPO_ROOT, 'scripts', 'gen-schema.ts'), '--check', copy], {
+    encoding: 'utf8',
+  });
+  ctx.fixtures['check结果'] = {
+    code: proc.status ?? 1,
+    out: `${proc.stdout ?? ''}${proc.stderr ?? ''}`,
+  } satisfies CheckResult;
+});
+
+bdd.thenStep('check 退出码非零', (ctx) => {
+  const r = ctx.fixtures['check结果'] as CheckResult;
+  if (r.code === 0) throw new Error('tampered copy must fail the drift check');
+  if (!r.out.includes('drift')) throw new Error(`drift report missing: ${r.out}`);
+});
+
+bdd.thenStep('仓库内 schema artifact 未被修改', (ctx) => {
+  const { repoArtifact, repoBefore } = ctx.fixtures['schema副本'] as SchemaCopyFixture;
+  if (readFileSync(repoArtifact, 'utf8') !== repoBefore) {
+    throw new Error('repo schema artifact must stay untouched by --check runs');
   }
 });

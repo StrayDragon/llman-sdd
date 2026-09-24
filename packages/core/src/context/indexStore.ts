@@ -21,6 +21,10 @@ export interface IndexIo {
   listDir(path: string): string[];
   mkdirp(path: string): void;
   processAlive(pid: number): boolean;
+  /** Current process id for the rebuild lock (side effect injected, r3). */
+  currentPid(): number;
+  /** Wall clock for lock timestamps / staleness (side effect injected, r3). */
+  now(): Date;
 }
 
 export interface RebuildOpts {
@@ -46,14 +50,14 @@ function acquireLock(io: IndexIo, lockPath: string): void {
     const parsed = parseLock(io.readText(lockPath));
     const stale =
       parsed === null ||
-      Date.now() - Date.parse(parsed.startedAt) > LOCK_MAX_AGE_MS ||
+      io.now().getTime() - Date.parse(parsed.startedAt) > LOCK_MAX_AGE_MS ||
       !io.processAlive(parsed.pid);
     if (!stale) throw new Error(`rebuild already in progress (lock: ${lockPath})`);
     io.remove(lockPath);
   }
   io.writeText(
     lockPath,
-    `pid = ${process.pid}\nstarted_at = "${new Date().toISOString()}"\nchunks_total = 1\nchunks_done = 1\nprogress_pct = 100\n`,
+    `pid = ${io.currentPid()}\nstarted_at = "${io.now().toISOString()}"\nchunks_total = 1\nchunks_done = 1\nprogress_pct = 100\n`,
   );
 }
 
@@ -69,7 +73,7 @@ export function rebuildIndex(
     const specHash = computeSpecHash(specsDir, io);
     const tree = buildTreeIndex(entries, {
       specHash,
-      buildTimestamp: opts.buildTimestamp ?? new Date().toISOString(),
+      buildTimestamp: opts.buildTimestamp ?? io.now().toISOString(),
       chatModel: opts.chatModel,
     });
     io.mkdirp(PAGEINDEX_DIR_REL);

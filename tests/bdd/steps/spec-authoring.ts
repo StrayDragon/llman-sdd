@@ -202,6 +202,41 @@ bdd.thenStep('不存在的 req 报错且文件零副作用', (ctx) => {
 });
 
 // ---------------------------------------------------------------------------
+// r41 — rule-keyword caliber: word boundaries (MUSTARD must not pass)
+// ---------------------------------------------------------------------------
+
+interface WordCaliberResult {
+  code: number;
+  out: string;
+  unchanged: boolean;
+}
+
+bdd.when('以 statement "{statement}" 运行 spec add-req', (ctx, statement) => {
+  const { root } = ctx.fixtures['authoring工作区'] as { root: string };
+  const specPath = join(root, 'llmanspec', 'specs', 'auth.feature');
+  const before = readFileSync(specPath, 'utf8');
+  const proc = spawnSync(
+    'bun',
+    [CLI, 'spec', 'add-req', 'auth', 'r5', '--title', '词边界', '--statement', statement],
+    { cwd: root, encoding: 'utf8' },
+  );
+  ctx.fixtures['mustard结果'] = {
+    code: proc.status ?? 1,
+    out: `${proc.stdout ?? ''}${proc.stderr ?? ''}`,
+    unchanged: before === readFileSync(specPath, 'utf8'),
+  } satisfies WordCaliberResult;
+});
+
+bdd.thenStep('报错含 "rule keyword" 且 spec 文件零副作用', (ctx) => {
+  const r = ctx.fixtures['mustard结果'] as WordCaliberResult;
+  if (r.code === 0) throw new Error(`MUSTARD statement must be rejected: ${r.out}`);
+  if (!r.out.includes('rule keyword')) {
+    throw new Error(`error must name the rule keyword: ${r.out}`);
+  }
+  if (!r.unchanged) throw new Error('rejected add-req must not touch the spec file');
+});
+
+// ---------------------------------------------------------------------------
 // r41/r42 — directory-style layout auto-discovery (write-target caliber)
 // ---------------------------------------------------------------------------
 
@@ -303,4 +338,105 @@ bdd.thenStep('验收场景追加进目录式主文件且无扁平文件被创建
   if (existsSync(join(root, 'llmanspec', 'specs', 'auth.feature'))) {
     throw new Error('flat spec file must not be created');
   }
+});
+
+// ---------------------------------------------------------------------------
+// r43 — resolve-req statement output + dedupe --dry-run zero side effect
+// ---------------------------------------------------------------------------
+
+interface ResolveResult {
+  addCode: number;
+  addOut: string;
+  code: number;
+  out: string;
+}
+
+bdd.when('运行 spec add-req 后对该 req 运行 spec resolve-req', (ctx) => {
+  const { root } = ctx.fixtures['authoring工作区'] as { root: string };
+  const run = (args: string[]): { code: number; out: string } => {
+    const proc = spawnSync('bun', [CLI, ...args], { cwd: root, encoding: 'utf8' });
+    return { code: proc.status ?? 1, out: `${proc.stdout ?? ''}${proc.stderr ?? ''}` };
+  };
+  const statement = '系统必须校验令牌有效期';
+  const add = run([
+    'spec',
+    'add-req',
+    'auth',
+    'r5',
+    '--title',
+    '令牌规则',
+    '--statement',
+    statement,
+  ]);
+  const resolve = run(['spec', 'resolve-req', 'r5']);
+  ctx.fixtures['resolve结果'] = {
+    addCode: add.code,
+    addOut: add.out,
+    code: resolve.code,
+    out: resolve.out,
+    statement,
+  } satisfies ResolveResult & { statement: string };
+});
+
+bdd.thenStep('输出含该 capability 与完整 statement', (ctx) => {
+  const r = ctx.fixtures['resolve结果'] as ResolveResult & { statement: string };
+  if (r.addCode !== 0) throw new Error(`add-req failed: ${r.addOut}`);
+  if (r.code !== 0) throw new Error(`resolve-req failed: ${r.out}`);
+  if (!r.out.includes('capability: auth')) {
+    throw new Error(`resolve output must name the capability:\n${r.out}`);
+  }
+  if (!r.out.includes(r.statement)) {
+    throw new Error(`resolve output must carry the full statement:\n${r.out}`);
+  }
+});
+
+bdd.when('对不存在的 req 运行 spec resolve-req', (ctx) => {
+  const { root } = ctx.fixtures['authoring工作区'] as { root: string };
+  const proc = spawnSync('bun', [CLI, 'spec', 'resolve-req', 'r99'], {
+    cwd: root,
+    encoding: 'utf8',
+  });
+  ctx.fixtures['resolve失败'] = {
+    code: proc.status ?? 1,
+    out: `${proc.stdout ?? ''}${proc.stderr ?? ''}`,
+  };
+});
+
+bdd.thenStep('报错且退出码非零', (ctx) => {
+  const r = ctx.fixtures['resolve失败'] as { code: number; out: string };
+  if (r.code === 0) throw new Error(`unknown req must fail: ${r.out}`);
+  if (!r.out.includes('r99')) throw new Error(`error must name the req: ${r.out}`);
+});
+
+interface DedupeDryResult {
+  code: number;
+  out: string;
+  unchanged: boolean;
+}
+
+bdd.when('运行 project dedupe-req-ids --dry-run', (ctx) => {
+  const { root } = ctx.fixtures['authoring工作区'] as { root: string };
+  const specs = ['auth', 'billing'].map((cap) =>
+    join(root, 'llmanspec', 'specs', `${cap}.feature`),
+  );
+  const before = specs.map((p) => readFileSync(p, 'utf8'));
+  const proc = spawnSync('bun', [CLI, 'project', 'dedupe-req-ids', '--dry-run'], {
+    cwd: root,
+    encoding: 'utf8',
+  });
+  const after = specs.map((p) => readFileSync(p, 'utf8'));
+  ctx.fixtures['dedupedry结果'] = {
+    code: proc.status ?? 1,
+    out: `${proc.stdout ?? ''}${proc.stderr ?? ''}`,
+    unchanged: before.every((b, i) => b === after[i]),
+  } satisfies DedupeDryResult;
+});
+
+bdd.thenStep('输出含重映射计划且两个 spec 文件零副作用', (ctx) => {
+  const r = ctx.fixtures['dedupedry结果'] as DedupeDryResult;
+  if (r.code !== 0) throw new Error(`dedupe --dry-run failed: ${r.out}`);
+  if (!r.out.includes('[dry-run]') || !/r1 → r\d+/u.test(r.out)) {
+    throw new Error(`remap plan missing from output:\n${r.out}`);
+  }
+  if (!r.unchanged) throw new Error('--dry-run must not modify either spec file');
 });

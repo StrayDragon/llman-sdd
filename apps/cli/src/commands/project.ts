@@ -32,7 +32,10 @@ export function registerProject(program: Command): void {
         return;
       }
       const io = newIo();
-      const plan = planDedupe(entries, io, 'llmanspec/specs', duplicates);
+      // r43: --dry-run is zero-side-effect — plan only, never write.
+      const plan = planDedupe(entries, io, 'llmanspec/specs', duplicates, {
+        apply: !options.dryRun,
+      });
       // v1 output: `{cap}: {from} → {to}` per remap (prefix in dry-run) + count line.
       for (const item of plan) {
         const cap = item.remapFile.replace(/^.*specs\//u, '').replace(/\.feature$/u, '');

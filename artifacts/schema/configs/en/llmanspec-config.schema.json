@@ -74,22 +74,8 @@
               "description": "BDD framework identifier (optional). Only used to derive a default run_command when run_command is unset.",
               "type": "string"
             },
-            "feature_dir": {
-              "description": "Root directory for .feature files, relative to project root.",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "default_language": {
-              "description": "Gherkin parsing language code (e.g. 'en', 'zh-CN'). Default: 'en'.",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
             "run_command": {
-              "description": "Custom test run command. Placeholders: {feature_dir}, {feature_name}, {feature_path}. Without placeholders, validate --all/--specs runs the command at most once per batch (batch-once).",
+              "description": "Harness command executed by validate for spec targets (skip with --no-check). Placeholders: {feature_path}, {feature_dir}, {feature_name}; without placeholders it runs once per validate invocation (batch-once).",
               "type": [
                 "string",
                 "null"
@@ -108,54 +94,27 @@
                 {
                   "type": "array",
                   "items": {
-                    "oneOf": [
-                      {
-                        "type": "object",
-                        "properties": {
-                          "kind": {
-                            "type": "string",
-                            "const": "tags",
-                            "description": "Tag predicate source kind."
-                          },
-                          "tags": {
-                            "minItems": 1,
-                            "type": "array",
-                            "items": {
-                              "type": "string"
-                            },
-                            "description": "Required tag names (leading `@` optional)."
-                          }
-                        },
-                        "required": [
-                          "kind",
-                          "tags"
-                        ],
-                        "description": "A scenario is bound when its tags contain ALL listed tags."
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "tags",
+                        "description": "Tag predicate source kind."
                       },
-                      {
-                        "type": "object",
-                        "properties": {
-                          "kind": {
-                            "type": "string",
-                            "const": "scenario-attrs",
-                            "description": "Per-scenario attribute source kind."
-                          },
-                          "files": {
-                            "minItems": 1,
-                            "type": "array",
-                            "items": {
-                              "type": "string"
-                            },
-                            "description": "Glob patterns of source files to scan for scenario attribute blocks."
-                          }
+                      "tags": {
+                        "minItems": 1,
+                        "type": "array",
+                        "items": {
+                          "type": "string"
                         },
-                        "required": [
-                          "kind",
-                          "files"
-                        ],
-                        "description": "Extract path/name literal pairs from scenario attribute blocks in matched files."
+                        "description": "Required tag names (leading `@` optional)."
                       }
-                    ]
+                    },
+                    "required": [
+                      "kind",
+                      "tags"
+                    ],
+                    "description": "A scenario is bound when its tags contain ALL listed tags."
                   }
                 },
                 {

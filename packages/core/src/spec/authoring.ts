@@ -6,9 +6,7 @@
  */
 
 import type { CapabilityDoc } from './ir.ts';
-import { specIdOf } from './ir.ts';
-
-const RULE_KEYWORDS = ['MUST', 'SHALL', '必须', '不得', '禁止'] as const;
+import { MUST_WORD_RE, MUST_WORD_TERMS, specIdOf } from './ir.ts';
 
 export class AuthoringError extends Error {}
 
@@ -34,10 +32,14 @@ function keywordsOf(content: string): {
     : { scenario: 'Scenario', given: 'Given', when: 'When', thenText: 'Then' };
 }
 
+/**
+ * r41 caliber = r9 caliber: MUST_WORD_RE (built from MUST_WORD_TERMS) with
+ * word boundaries — `MUSTARD` must NOT count as a hit.
+ */
 function assertRuleWording(statement: string): void {
-  if (!RULE_KEYWORDS.some((k) => statement.includes(k))) {
+  if (!MUST_WORD_RE.test(statement)) {
     throw new AuthoringError(
-      `statement must contain a rule keyword (${RULE_KEYWORDS.join('/')}): ${statement}`,
+      `statement must contain a rule keyword (${MUST_WORD_TERMS.join('/')}): ${statement}`,
     );
   }
 }
@@ -188,13 +190,15 @@ export interface DedupePlanItem {
 
 /**
  * Plan (and optionally apply) a re-map of globally duplicated rN ids: the
- * first file keeps the id, later files get the next free id (r43).
+ * first file keeps the id, later files get the next free id (r43). `apply:
+ * false` (`--dry-run`) returns the plan without writing anything.
  */
 export function planDedupe(
   entries: readonly SpecEntryLike[],
   io: WriteIo,
   specsRoot: string,
   duplicates: readonly { reqId: string; files: string[] }[],
+  opts: { apply?: boolean } = {},
 ): DedupePlanItem[] {
   const used = ruleReqIds(entries);
   let next = 1;
@@ -213,6 +217,7 @@ export function planDedupe(
       }
     }
   }
+  if (opts.apply === false) return plan;
   for (const item of plan) {
     // registry duplicates carry bare file names; accept already-rooted paths too
     const path = item.remapFile.startsWith(`${specsRoot}/`)

@@ -8,11 +8,17 @@ import {
   runFreeze,
   runList,
   type FreezeIo,
+  type WasmSevenZipDeps,
 } from '@llman-sdd/core';
 
 import { makeNodeIo } from '../helpers/nodeIo.ts';
 
 const DIR = '/tmp/llman-sdd-7z-test';
+
+/** Disk-backed deps: wasm unset (glue loads from disk) + recursive mkdir. */
+const deps = (): WasmSevenZipDeps => ({
+  mkdirp: (dir) => mkdirSync(dir, { recursive: true }),
+});
 
 describe('7z adapter roundtrip', () => {
   test('add / list / extract keep structure and content', async () => {
@@ -21,7 +27,7 @@ describe('7z adapter roundtrip', () => {
     mkdirSync(join(src, 'inner'), { recursive: true });
     writeFileSync(join(src, 'a.txt'), 'hello\n');
     writeFileSync(join(src, 'inner', 'b.md'), '# b\n');
-    const sz = await makeWasmSevenZip();
+    const sz = await makeWasmSevenZip(deps());
 
     const archive = join(DIR, 'freezed_changes.7z.archived');
     await sz.add(archive, join(DIR, 'data'), ['2026-01-01-demo']);
@@ -46,7 +52,7 @@ describe('runList against the real adapter', () => {
     mkdirSync(src, { recursive: true });
     writeFileSync(join(src, 'proposal.md'), '# demo\n');
     const io = { ...makeNodeIo(DIR), moveDir: renameSync };
-    const sz = await makeWasmSevenZip();
+    const sz = await makeWasmSevenZip(deps());
     const freeze = await runFreeze(io, sz, DIR, {});
     expect(freeze.candidates).toEqual(['2026-01-01-demo']);
     const lines = await runList(io, sz, DIR);

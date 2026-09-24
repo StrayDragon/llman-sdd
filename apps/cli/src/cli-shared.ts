@@ -6,8 +6,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 
 import {
-  VERSION,
-  compileChangeIdPattern,
   discoverSpecs,
   embeddedTemplates,
   loadConfig,
@@ -17,17 +15,25 @@ import {
 } from '@llman-sdd/core';
 import type { Command } from 'commander';
 
+// Version SSOT is this package's package.json (inlined at compile time — a
+// single-file binary has no on-disk package.json to read); binary builds
+// additionally override it through the LLMAN_SDD_VERSION define injected by
+// scripts/build-binary.ts (git tag > package version).
+import pkg from '../package.json' with { type: 'json' };
 import { makeIo } from './io.ts';
 
 // Injected at binary build time by scripts/build-binary.ts; falls back to the
 // package version when running from source.
-export const version = process.env.LLMAN_SDD_VERSION ?? VERSION;
+export const version = process.env.LLMAN_SDD_VERSION ?? pkg.version;
 
 // Compiled single-file binaries have no on-disk templates and Bun <= 1.4.x has
-// no embedding mechanism, so build-binary.ts injects the template table via
-// define; every non-compiled run keeps reading the real filesystem (npm/source/
-// Node). Both init and `review --export-html` resolve through this one seam.
-const embedded = embeddedTemplates();
+// no embedding mechanism, so scripts/build-binary.ts injects the template
+// table through the literal define `process.env.LLMAN_SDD_EMBEDDED_TEMPLATES`
+// (define only rewrites literal member access — the read must stay here, not
+// in core); every non-compiled run keeps reading the real filesystem (npm/
+// source/Node). Both init and `review --export-html` resolve through this one
+// seam.
+const embedded = embeddedTemplates(process.env.LLMAN_SDD_EMBEDDED_TEMPLATES);
 export const templateIo: TemplateIo = embedded
   ? makeEmbeddedTemplateIo(embedded)
   : {
@@ -45,22 +51,20 @@ export function loadSpecEntries(): ReturnType<typeof discoverSpecs> {
   return discoverSpecs('llmanspec/specs', newIo());
 }
 
-/**
- * Config read WITHOUT the change_id.pattern compile-check, shared by
- * `change archive`, `spec skeleton`, and `review`. Those commands never render
- * change ids, so unlike loadCliConfig() an invalid change_id.pattern must not
- * abort them (v1 behavior) — do not swap these call sites to loadCliConfig().
- */
-export function loadCliConfigUnchecked(): ReturnType<typeof loadConfig> | null {
+export function loadCliConfig(): ReturnType<typeof loadConfig> | null {
   return existsSync('llmanspec/config.yaml')
     ? loadConfig(readFileSync('llmanspec/config.yaml', 'utf8'))
     : null;
 }
 
-export function loadCliConfig(): ReturnType<typeof loadConfig> | null {
-  const config = loadCliConfigUnchecked();
-  if (config !== null) compileChangeIdPattern(config.change_id?.pattern);
-  return config;
+/**
+ * Historical unchecked variant: since core loadConfig compiles
+ * change_id.pattern at load time (r59) the two are behaviorally identical;
+ * kept as a thin alias for the `change archive` / `spec skeleton` / `review`
+ * call sites (removal registered with the second wave).
+ */
+export function loadCliConfigUnchecked(): ReturnType<typeof loadConfig> | null {
+  return loadCliConfig();
 }
 
 export function cliMaxScanDepth(program: Command): number {
