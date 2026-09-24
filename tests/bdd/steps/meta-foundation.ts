@@ -7,7 +7,6 @@
 //     dependency; see the guard note below).
 // This module is imported by run.test.ts AFTER smoke/domain/context so
 // first-match dispatch keeps pre-existing step texts authoritative.
-import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -26,9 +25,7 @@ import {
 
 import { makeNodeIo } from '../../helpers/nodeIo.ts';
 import { bdd } from '../runner.ts';
-
-const REPO_ROOT = join(import.meta.dirname, '..', '..', '..');
-const CLI = join(REPO_ROOT, 'apps', 'cli', 'src', 'main.ts');
+import { runCli } from './shared.ts';
 
 /** Capture an expected throw into a tagged result record. */
 function captureThrow(run: () => unknown): { threw: boolean; message: string } {
@@ -291,7 +288,7 @@ bdd.given('一个含三个带日期归档目录的临时仓库', (ctx) => {
   ctx.fixtures['freeze仓库'] = {
     root,
     run: (args: string[]) => {
-      const proc = spawnSync('bun', [CLI, ...args], { cwd: root, encoding: 'utf8' });
+      const proc = runCli(args, root);
       return { code: proc.status ?? 1, stdout: proc.stdout ?? '', stderr: proc.stderr ?? '' };
     },
   } satisfies FreezeFixture;

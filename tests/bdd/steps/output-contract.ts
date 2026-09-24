@@ -2,7 +2,6 @@
 // 字段集 / show spec 原文 / graph mermaid 合同)、r22(spec skeleton /
 // next-req-id / project migrate 三态)、r51-r53(list compact-json 排序 /
 // show 文本与 JSON 门 / show --output human 变体)。
-import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -10,7 +9,7 @@ import { join } from 'node:path';
 import { parseCapability } from '@llman-sdd/core';
 
 import { bdd } from '../runner.ts';
-import { CLI, makeTempRepo, type TempRepo } from './shared.ts';
+import { CLI, makeTempRepo, type TempRepo, runCli } from './shared.ts';
 
 // ---------------------------------------------------------------------------
 // r51-r53 — list sort / show text & gates / spec inspect (acceptance)
@@ -31,10 +30,7 @@ bdd.given('一个含多个 change 的临时工作区', (ctx) => {
 
 bdd.when('运行 list --json --compact-json --sort name', (ctx) => {
   const { root } = ctx.fixtures['list工作区'] as { root: string };
-  const proc = spawnSync('bun', [CLI, 'list', '--json', '--compact-json', '--sort', 'name'], {
-    cwd: root,
-    encoding: 'utf8',
-  });
+  const proc = runCli(['list', '--json', '--compact-json', '--sort', 'name'], root);
   const lines = (proc.stdout ?? '').trim().split('\n');
   let names: string[] = [];
   try {
@@ -65,10 +61,7 @@ bdd.given('一个缺 What Changes 段的 change 工作区', (ctx) => {
 
 bdd.when('运行 show', (ctx) => {
   const { root } = ctx.fixtures['show工作区'] as { root: string };
-  const proc = spawnSync('bun', [CLI, 'show', 'gated', '--output', 'human'], {
-    cwd: root,
-    encoding: 'utf8',
-  });
+  const proc = runCli(['show', 'gated', '--output', 'human'], root);
   ctx.fixtures['show结果'] = {
     beforeCode: proc.status ?? 0,
     beforeOut: `${proc.stdout ?? ''}${proc.stderr ?? ''}`,
@@ -77,10 +70,7 @@ bdd.when('运行 show', (ctx) => {
 
 bdd.when('运行 show --output json', (ctx) => {
   const { root } = ctx.fixtures['show工作区'] as { root: string };
-  const proc = spawnSync('bun', [CLI, 'show', 'gated', '--output', 'json'], {
-    cwd: root,
-    encoding: 'utf8',
-  });
+  const proc = runCli(['show', 'gated', '--output', 'json'], root);
   ctx.fixtures['showjson结果'] = {
     code: proc.status ?? 0,
     out: `${proc.stdout ?? ''}${proc.stderr ?? ''}`,
@@ -93,10 +83,7 @@ bdd.when('补齐 What Changes 后再运行 show', (ctx) => {
     join(root, 'llmanspec', 'changes', 'gated', 'proposal.md'),
     '---\ndepends_on: []\n---\n\n## Why\nx\n## What Changes\ny\n',
   );
-  const proc = spawnSync('bun', [CLI, 'show', 'gated', '--output', 'human'], {
-    cwd: root,
-    encoding: 'utf8',
-  });
+  const proc = runCli(['show', 'gated', '--output', 'human'], root);
   ctx.fixtures['show后结果'] = { afterCode: proc.status ?? 1, afterOut: proc.stdout ?? '' };
 });
 
@@ -134,14 +121,8 @@ bdd.given('一个含多条规则的 spec 工作区', (ctx) => {
 
 bdd.when('运行 show --output human -r 1 与 show --output human,meta-only', (ctx) => {
   const { root } = ctx.fixtures['showspec工作区'] as { root: string };
-  const req = spawnSync('bun', [CLI, 'show', 'multi', '--output', 'human', '-r', '1'], {
-    cwd: root,
-    encoding: 'utf8',
-  });
-  const meta = spawnSync('bun', [CLI, 'show', 'multi', '--output', 'human,meta-only'], {
-    cwd: root,
-    encoding: 'utf8',
-  });
+  const req = runCli(['show', 'multi', '--output', 'human', '-r', '1'], root);
+  const meta = runCli(['show', 'multi', '--output', 'human,meta-only'], root);
   ctx.fixtures['showspec结果'] = {
     reqOut: req.stdout ?? '',
     reqCode: req.status ?? 1,

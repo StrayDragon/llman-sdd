@@ -2,9 +2,6 @@
 // r28/r29 output-contract chains share the `运行 context --task` step: the
 // Given selects the backend (real CLI subprocess without model env, or the
 // in-process runContextRetrieval seam with an injected fetch mock).
-import { spawnSync } from 'node:child_process';
-import { join } from 'node:path';
-
 import {
   buildTreeIndex,
   parseCapability,
@@ -13,9 +10,7 @@ import {
 } from '@llman-sdd/core';
 
 import { bdd } from '../runner.ts';
-
-const REPO_ROOT = join(import.meta.dirname, '..', '..', '..');
-const CLI = join(REPO_ROOT, 'apps', 'cli', 'src', 'main.ts');
+import { REPO_ROOT, runCli } from './shared.ts';
 
 const MOCK_SPEC = `# language: zh-CN
 # capability: alpha
@@ -112,11 +107,7 @@ bdd.when('运行 context --task', (ctx) => {
   for (const [k, v] of Object.entries(process.env)) {
     if (v !== undefined && !k.startsWith('LLMAN_SDD_INDEX_')) env[k] = v;
   }
-  const proc = spawnSync('bun', [CLI, 'context', '--task', '随便什么任务'], {
-    cwd: REPO_ROOT,
-    encoding: 'utf8',
-    env,
-  });
+  const proc = runCli(['context', '--task', '随便什么任务'], REPO_ROOT, env);
   let parsed: { status?: { quality?: string; errorKind?: string } } | null = null;
   try {
     parsed = JSON.parse(proc.stdout ?? '{}');

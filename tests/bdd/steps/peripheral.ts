@@ -2,13 +2,12 @@
 // 输出形状)、r30(graph 流式 depends_on)、r34(list stage 单调推断)、
 // r54/r55(graph scope 与 spec helper 旗标)、r56/r57/r58(thaw --dest /
 // rag backend 下线 / list 扫描深度)、r61(show change id 前缀解析)。
-import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { bdd } from '../runner.ts';
-import { CLI, REPO_ROOT, type TempRepo, makeTempRepo, seedChange } from './shared.ts';
+import { CLI, REPO_ROOT, type TempRepo, makeTempRepo, seedChange, runCli } from './shared.ts';
 
 // ---------------------------------------------------------------------------
 // peripheral-commands capability — live v1 ↔ v2 comparison
@@ -26,7 +25,7 @@ bdd.given('本仓库的真实 llmanspec 工作区', (ctx) => {
 
 bdd.when('运行 v2 的 list --json 与 graph', (ctx) => {
   const run = (args: string[]): string => {
-    const proc = spawnSync('bun', [CLI, ...args], { cwd: REPO_ROOT, encoding: 'utf8' });
+    const proc = runCli(args);
     return proc.stdout ?? '';
   };
   const listOut = run(['list', '--json']);
@@ -90,10 +89,7 @@ bdd.given('一个含流式 depends_on 指向已归档 change 的临时工作区'
 
 bdd.when('运行 v2 的 graph', (ctx) => {
   const { root } = ctx.fixtures['graph工作区'] as { root: string };
-  const proc = spawnSync('bun', [CLI, 'graph', '--format', 'mermaid'], {
-    cwd: root,
-    encoding: 'utf8',
-  });
+  const proc = runCli(['graph', '--format', 'mermaid'], root);
   ctx.fixtures['graph输出'] = {
     out: proc.stdout ?? '',
     ok: proc.status === 0,
@@ -129,7 +125,7 @@ bdd.given('一个只有 proposal 与 tasks 的 change 工作区', (ctx) => {
 
 bdd.when('运行 list --json', (ctx) => {
   const { root } = ctx.fixtures['stage工作区'] as { root: string };
-  const proc = spawnSync('bun', [CLI, 'list', '--json'], { cwd: root, encoding: 'utf8' });
+  const proc = runCli(['list', '--json'], root);
   const stages: Record<string, string> = {};
   try {
     const parsed = JSON.parse(proc.stdout ?? '{}') as {
@@ -166,10 +162,7 @@ bdd.given('一个含活跃与归档 change 的临时工作区', (ctx) => {
 
 bdd.when('运行 graph --scope archived', (ctx) => {
   const { root } = ctx.fixtures['graph工作区'] as { root: string };
-  const proc = spawnSync('bun', [CLI, 'graph', '--scope', 'archived'], {
-    cwd: root,
-    encoding: 'utf8',
-  });
+  const proc = runCli(['graph', '--scope', 'archived'], root);
   ctx.fixtures['scope结果'] = { out: proc.stdout ?? '' };
 });
 
@@ -188,22 +181,10 @@ bdd.given('一个已存在 spec 的临时工作区', (ctx) => {
 
 bdd.when('运行 spec skeleton --force 与 spec next-req-id --json', (ctx) => {
   const { root } = ctx.fixtures['skel工作区'] as { root: string };
-  const first = spawnSync('bun', [CLI, 'spec', 'skeleton', 'capx'], {
-    cwd: root,
-    encoding: 'utf8',
-  });
-  const again = spawnSync('bun', [CLI, 'spec', 'skeleton', 'capx'], {
-    cwd: root,
-    encoding: 'utf8',
-  });
-  const forced = spawnSync('bun', [CLI, 'spec', 'skeleton', 'capx', '--force'], {
-    cwd: root,
-    encoding: 'utf8',
-  });
-  const json = spawnSync('bun', [CLI, 'spec', 'next-req-id', '--json'], {
-    cwd: root,
-    encoding: 'utf8',
-  });
+  const first = runCli(['spec', 'skeleton', 'capx'], root);
+  const again = runCli(['spec', 'skeleton', 'capx'], root);
+  const forced = runCli(['spec', 'skeleton', 'capx', '--force'], root);
+  const json = runCli(['spec', 'next-req-id', '--json'], root);
   ctx.fixtures['skel结果'] = {
     firstCode: first.status ?? 1,
     againCode: again.status ?? 1,
@@ -328,10 +309,7 @@ bdd.given('一个含 c2805-update-todo 与 c2806-fix-bug 两个 change 的临时
 
 bdd.when('运行 show c2805', (ctx) => {
   const { root } = ctx.fixtures['prefix仓库'] as { root: string };
-  const proc = spawnSync('bun', [CLI, 'show', 'c2805', '--output', 'human'], {
-    cwd: root,
-    encoding: 'utf8',
-  });
+  const proc = runCli(['show', 'c2805', '--output', 'human'], root);
   ctx.fixtures['prefix结果'] = {
     stdout: proc.stdout ?? '',
     stderr: proc.stderr ?? '',
@@ -363,7 +341,7 @@ interface RemovedSurfaceResult {
 }
 
 function runCliAt(root: string, args: string[]): RemovedSurfaceResult {
-  const proc = spawnSync('bun', [CLI, ...args], { cwd: root, encoding: 'utf8' });
+  const proc = runCli(args, root);
   return { code: proc.status ?? 1, stdout: proc.stdout ?? '', stderr: proc.stderr ?? '' };
 }
 

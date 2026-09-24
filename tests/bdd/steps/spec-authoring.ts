@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { parseCapability } from '@llman-sdd/core';
 
 import { bdd } from '../runner.ts';
-import { CLI } from './shared.ts';
+import { CLI, runCli } from './shared.ts';
 
 // ---------------------------------------------------------------------------
 // r41-r43 — spec authoring helpers (acceptance)
@@ -37,7 +37,7 @@ bdd.given('一个含单一 capability spec 的临时 specs 目录', (ctx) => {
 bdd.when('运行 spec add-req 与 spec add-scenario', (ctx) => {
   const { root } = ctx.fixtures['authoring工作区'] as { root: string };
   const run = (args: string[]): { code: number; out: string } => {
-    const proc = spawnSync('bun', [CLI, ...args], { cwd: root, encoding: 'utf8' });
+    const proc = runCli(args, root);
     return { code: proc.status ?? 1, out: `${proc.stdout ?? ''}${proc.stderr ?? ''}` };
   };
   const r1 = run([
@@ -96,10 +96,7 @@ bdd.given('一个两个 spec 含相同 rN 的临时 specs 目录', (ctx) => {
 
 bdd.when('运行 project dedupe-req-ids', (ctx) => {
   const { root } = ctx.fixtures['authoring工作区'] as { root: string };
-  const proc = spawnSync('bun', [CLI, 'project', 'dedupe-req-ids'], {
-    cwd: root,
-    encoding: 'utf8',
-  });
+  const proc = runCli(['project', 'dedupe-req-ids'], root);
   ctx.fixtures['dedupe结果'] = {
     code: proc.status ?? 1,
     out: `${proc.stdout ?? ''}${proc.stderr ?? ''}`,
@@ -135,7 +132,7 @@ interface AddScenarioResult {
 bdd.when('运行 spec add-scenario 指向存在的 req 与不存在的 req', (ctx) => {
   const { root } = ctx.fixtures['authoring工作区'] as { root: string };
   const run = (args: string[]): { code: number; out: string } => {
-    const proc = spawnSync('bun', [CLI, ...args], { cwd: root, encoding: 'utf8' });
+    const proc = runCli(args, root);
     return { code: proc.status ?? 1, out: `${proc.stdout ?? ''}${proc.stderr ?? ''}` };
   };
   const ok = run([
@@ -249,7 +246,7 @@ interface DirLayoutResult {
 }
 
 const dirLayoutRun = (root: string, args: string[]): { code: number; out: string } => {
-  const proc = spawnSync('bun', [CLI, ...args], { cwd: root, encoding: 'utf8' });
+  const proc = runCli(args, root);
   return { code: proc.status ?? 1, out: `${proc.stdout ?? ''}${proc.stderr ?? ''}` };
 };
 
@@ -354,7 +351,7 @@ interface ResolveResult {
 bdd.when('运行 spec add-req 后对该 req 运行 spec resolve-req', (ctx) => {
   const { root } = ctx.fixtures['authoring工作区'] as { root: string };
   const run = (args: string[]): { code: number; out: string } => {
-    const proc = spawnSync('bun', [CLI, ...args], { cwd: root, encoding: 'utf8' });
+    const proc = runCli(args, root);
     return { code: proc.status ?? 1, out: `${proc.stdout ?? ''}${proc.stderr ?? ''}` };
   };
   const statement = '系统必须校验令牌有效期';
@@ -392,10 +389,7 @@ bdd.thenStep('输出含该 capability 与完整 statement', (ctx) => {
 
 bdd.when('对不存在的 req 运行 spec resolve-req', (ctx) => {
   const { root } = ctx.fixtures['authoring工作区'] as { root: string };
-  const proc = spawnSync('bun', [CLI, 'spec', 'resolve-req', 'r99'], {
-    cwd: root,
-    encoding: 'utf8',
-  });
+  const proc = runCli(['spec', 'resolve-req', 'r99'], root);
   ctx.fixtures['resolve失败'] = {
     code: proc.status ?? 1,
     out: `${proc.stdout ?? ''}${proc.stderr ?? ''}`,
@@ -420,10 +414,7 @@ bdd.when('运行 project dedupe-req-ids --dry-run', (ctx) => {
     join(root, 'llmanspec', 'specs', `${cap}.feature`),
   );
   const before = specs.map((p) => readFileSync(p, 'utf8'));
-  const proc = spawnSync('bun', [CLI, 'project', 'dedupe-req-ids', '--dry-run'], {
-    cwd: root,
-    encoding: 'utf8',
-  });
+  const proc = runCli(['project', 'dedupe-req-ids', '--dry-run'], root);
   const after = specs.map((p) => readFileSync(p, 'utf8'));
   ctx.fixtures['dedupedry结果'] = {
     code: proc.status ?? 1,

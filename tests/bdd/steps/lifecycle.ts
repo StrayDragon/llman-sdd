@@ -15,7 +15,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { bdd } from '../runner.ts';
-import { CLI, type CliResult, type TempRepo, makeTempRepo, seedChange } from './shared.ts';
+import { CLI, type CliResult, type TempRepo, makeTempRepo, seedChange, runCli } from './shared.ts';
 
 bdd.given('一个已提交的临时 git 仓库含 change "{id}" 的 proposal', (ctx, id) => {
   const repo = makeTempRepo();
@@ -174,10 +174,7 @@ bdd.given('一个含 c10-active 与嵌套 c2620 目录的 llmanspec 树', (ctx) 
 
 bdd.when('运行 change next-id --json', (ctx) => {
   const { root } = ctx.fixtures['nextid工作区'] as { root: string };
-  const proc = spawnSync('bun', [CLI, 'change', 'next-id', '--json'], {
-    cwd: root,
-    encoding: 'utf8',
-  });
+  const proc = runCli(['change', 'next-id', '--json'], root);
   const parsed = JSON.parse(proc.stdout ?? '{}') as NextIdResult;
   ctx.fixtures['nextid结果'] = parsed;
 });
@@ -197,10 +194,7 @@ bdd.given('一个已初始化的临时 llmanspec 工作区', (ctx) => {
 
 bdd.when('运行 change new --from "{text}" --dry-run', (ctx, text: string) => {
   const { root } = ctx.fixtures['dryrun工作区'] as { root: string };
-  const proc = spawnSync('bun', [CLI, 'change', 'new', '--from', text, '--dry-run'], {
-    cwd: root,
-    encoding: 'utf8',
-  });
+  const proc = runCli(['change', 'new', '--from', text, '--dry-run'], root);
   ctx.fixtures['dryrun结果'] = {
     out: `${proc.stdout ?? ''}${proc.stderr ?? ''}`,
     code: proc.status ?? 1,
@@ -394,41 +388,18 @@ const LAYOUT_BRANCH: Record<string, string> = {
 function makeLayoutRepo(layout: string): TempRepo {
   const branch = LAYOUT_BRANCH[layout];
   if (branch === undefined) throw new Error(`unknown layout: ${layout}`);
-  const root = mkdtempSync(join(tmpdir(), 'llman-baselayout-'));
-  const gitRun = (args: string[]): { code: number; stdout: string; stderr: string } => {
-    const proc = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
-    return { code: proc.status ?? 1, stdout: proc.stdout ?? '', stderr: proc.stderr ?? '' };
-  };
-  gitRun(['init', '-q', '-b', branch]);
-  gitRun(['config', 'user.email', 't@t']);
-  gitRun(['config', 'user.name', 't']);
-  mkdirSync(join(root, 'llmanspec', 'specs'), { recursive: true });
-  writeFileSync(join(root, 'llmanspec', 'config.yaml'), 'schema: spec-driven\n');
-  writeFileSync(
-    join(root, 'llmanspec', 'specs', 'sample.feature'),
-    '# language: zh-CN\n# capability: sample\n# purpose: p\n# scope: llmanspec/\n\n功能: sample\n\n  @req:r1 @human\n  场景: ok\n    - 系统 MUST x\n',
-  );
-  const id = 'demo-base';
-  const dir = join(root, 'llmanspec', 'changes', id);
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, 'proposal.md'), '---\ndepends_on: []\n---\n\n## Why\nx\n');
-  gitRun(['add', '-A']);
-  gitRun(['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'init']);
-  if (layout === 'main+master') gitRun(['branch', 'master']);
+  const repo = makeTempRepo({ branch, prefix: 'llman-baselayout-' });
+  seedChange(repo, 'demo-base', { commit: 'seed' });
+  const git = (args: string[]): void => void repo.run('git', args);
+  if (layout === 'main+master') git(['branch', 'master']);
   if (layout === 'origin-head') {
-    gitRun(['update-ref', 'refs/remotes/origin/devel', 'HEAD']);
-    gitRun(['symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/devel']);
+    git(['update-ref', 'refs/remotes/origin/devel', 'HEAD']);
+    git(['symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/devel']);
   }
   if (layout === 'origin-branch') {
-    gitRun(['update-ref', 'refs/remotes/origin/zside', 'HEAD']);
+    git(['update-ref', 'refs/remotes/origin/zside', 'HEAD']);
   }
-  return {
-    root,
-    run: (cmd, args) => {
-      const proc = spawnSync(cmd, args, { cwd: root, encoding: 'utf8' });
-      return { code: proc.status ?? 1, stdout: proc.stdout ?? '', stderr: proc.stderr ?? '' };
-    },
-  };
+  return repo;
 }
 
 bdd.given('一个默认分支布局为 {layout} 的临时仓库', (ctx, layout) => {
@@ -778,10 +749,7 @@ bdd.given('一个主检出与关联 worktree 均含相同编号目录的临时�
 
 bdd.when('在主检出运行 change next-id --json', (ctx) => {
   const { root } = ctx.fixtures['跨worktree'] as { root: string };
-  const proc = spawnSync('bun', [CLI, 'change', 'next-id', '--json'], {
-    cwd: root,
-    encoding: 'utf8',
-  });
+  const proc = runCli(['change', 'next-id', '--json'], root);
   ctx.fixtures['跨worktree结果'] = {
     code: proc.status ?? 1,
     payload: JSON.parse(proc.stdout ?? '{}'),
@@ -1032,7 +1000,7 @@ bdd.thenStep('maxNumber 为 null 且 nextNumber 为 1', (ctx) => {
 
 bdd.when('运行 change next-id', (ctx) => {
   const { root } = ctx.fixtures['nextid工作区'] as { root: string };
-  const proc = spawnSync('bun', [CLI, 'change', 'next-id'], { cwd: root, encoding: 'utf8' });
+  const proc = runCli(['change', 'next-id'], root);
   ctx.fixtures['nextid人读'] = { code: proc.status ?? 1, stdout: proc.stdout ?? '' };
 });
 
@@ -1154,10 +1122,7 @@ bdd.when('对已存在的 change id 运行 change new', (ctx) => {
     join(root, 'llmanspec', 'changes', 'taken-id', 'proposal.md'),
     '---\ndepends_on: []\n---\n\n## Why\noriginal\n',
   );
-  const proc = spawnSync('bun', [CLI, 'change', 'new', 'taken-id'], {
-    cwd: root,
-    encoding: 'utf8',
-  });
+  const proc = runCli(['change', 'new', 'taken-id'], root);
   ctx.fixtures['new结果'] = {
     code: proc.status ?? 1,
     out: `${proc.stdout ?? ''}${proc.stderr ?? ''}`,
@@ -1180,10 +1145,7 @@ bdd.thenStep('报错含 "{text}" 且原 proposal 未变', (ctx, text) => {
 
 bdd.when('带 --force 再次运行 change new', (ctx) => {
   const { root } = ctx.fixtures['dryrun工作区'] as { root: string };
-  const proc = spawnSync('bun', [CLI, 'change', 'new', 'taken-id', '--force'], {
-    cwd: root,
-    encoding: 'utf8',
-  });
+  const proc = runCli(['change', 'new', 'taken-id', '--force'], root);
   ctx.fixtures['new结果'] = {
     code: proc.status ?? 1,
     out: `${proc.stdout ?? ''}${proc.stderr ?? ''}`,
@@ -1404,10 +1366,7 @@ bdd.when(
       join(root, 'llmanspec', 'config.yaml'),
       `schema: spec-driven\nchange_id:\n  template: "x-${tpl}"\n`,
     );
-    const proc = spawnSync('bun', [CLI, 'change', 'new', '--from', desc, '--dry-run'], {
-      cwd: root,
-      encoding: 'utf8',
-    });
+    const proc = runCli(['change', 'new', '--from', desc, '--dry-run'], root);
     ctx.fixtures['dryrun结果'] = {
       out: `${proc.stdout ?? ''}${proc.stderr ?? ''}`,
       code: proc.status ?? 1,

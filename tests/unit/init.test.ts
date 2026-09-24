@@ -1,12 +1,11 @@
 import { describe, expect, test } from 'bun:test';
-import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { updateFileWithMarkers } from '@llman-sdd/core';
 
-const CLI = join(import.meta.dirname, '..', '..', 'apps', 'cli', 'src', 'main.ts');
+import { runCli } from '../helpers/spawn.ts';
 
 /** Mirrors the real flow: renderTemplate trimEnds, so body has no trailing newline. */
 const BODY = '# Managed Heading\n\nManaged body.';
@@ -70,8 +69,7 @@ describe('updateFileWithMarkers blank-line shape (formatter parity, 0.0.78)', ()
 });
 
 describe('init managed-block output (CLI end-to-end)', () => {
-  const runInit = (root: string, args: string[]) =>
-    spawnSync('bun', [CLI, 'init', ...args], { cwd: root, encoding: 'utf8' });
+  const runInit = (root: string, args: string[]) => runCli(['init', ...args], root);
 
   test('insert: AGENTS.md gets blank lines on both block boundaries', () => {
     const root = mkdtempSync(join(tmpdir(), 'llman-initblank-'));
@@ -100,10 +98,7 @@ describe('init CLI compat (r49/r50)', () => {
   test('init into missing nested subdirectory creates it (via CLI contract)', () => {
     const root = mkdtempSync(join(tmpdir(), 'llman-initpath-'));
     const target = join(root, 'sub', 'proj');
-    const proc = spawnSync('bun', [CLI, 'init', 'sub/proj', '--lang', 'zh-Hans'], {
-      cwd: root,
-      encoding: 'utf8',
-    });
+    const proc = runCli(['init', 'sub/proj', '--lang', 'zh-Hans'], root);
     expect(proc.status).toBe(0);
     expect(existsSync(join(target, 'llmanspec', 'config.yaml'))).toBe(true);
     expect(existsSync(join(target, 'AGENTS.md'))).toBe(true);
@@ -111,15 +106,9 @@ describe('init CLI compat (r49/r50)', () => {
 
   test('--lang and --locale are exclusive aliases', () => {
     const root = mkdtempSync(join(tmpdir(), 'llman-initlang-'));
-    const both = spawnSync('bun', [CLI, 'init', '--locale', 'en', '--lang', 'zh-Hans'], {
-      cwd: root,
-      encoding: 'utf8',
-    });
+    const both = runCli(['init', '--locale', 'en', '--lang', 'zh-Hans'], root);
     expect(both.status).not.toBe(0);
-    const alias = spawnSync('bun', [CLI, 'init', '--lang', 'zh-Hans'], {
-      cwd: root,
-      encoding: 'utf8',
-    });
+    const alias = runCli(['init', '--lang', 'zh-Hans'], root);
     expect(alias.status).toBe(0);
     const config = readFileSync(join(root, 'llmanspec', 'config.yaml'), 'utf8');
     expect(config).toContain('zh-Hans');

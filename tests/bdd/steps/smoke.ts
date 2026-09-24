@@ -5,8 +5,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { bdd, type TestContext } from '../runner.ts';
-
-const REPO_ROOT = join(import.meta.dirname, '..', '..', '..');
+import { REPO_ROOT } from './shared.ts';
 
 interface RunResult {
   code: number;

@@ -17,7 +17,15 @@ import { join } from 'node:path';
 import { loadConfig } from '@llman-sdd/core';
 
 import { bdd } from '../runner.ts';
-import { CLI, REPO_ROOT, type TempRepo, field, makeTempRepo, seedChange } from './shared.ts';
+import {
+  CLI,
+  REPO_ROOT,
+  type TempRepo,
+  field,
+  makeTempRepo,
+  seedChange,
+  runCli,
+} from './shared.ts';
 
 bdd.given('一个 config 内容 extra_skills 含 "{value}"', (ctx, value) => {
   ctx.fixtures['config'] = { 源文本: `schema: spec-driven\nextra_skills:\n  - ${value}\n` };
@@ -74,7 +82,7 @@ bdd.given('一个带注释与 extra_skills 的 llmanspec config', (ctx) => {
 
 bdd.when('运行 v2 的 config 概览', (ctx) => {
   const { root, original } = ctx.fixtures['config工作区'] as ConfigFixture;
-  const proc = spawnSync('bun', [CLI, 'config'], { cwd: root, encoding: 'utf8' });
+  const proc = runCli(['config'], root);
   const after = readFileSync(join(root, 'llmanspec', 'config.yaml'), 'utf8');
   ctx.fixtures['概览结果'] = {
     out: proc.stdout ?? '',
@@ -98,10 +106,7 @@ bdd.thenStep('概览五要素输出且文件未被修改', (ctx) => {
 
 bdd.when('运行 v2 的 config skills --json', (ctx) => {
   const { root } = ctx.fixtures['config工作区'] as ConfigFixture;
-  const proc = spawnSync('bun', [CLI, 'config', 'skills', '--json'], {
-    cwd: root,
-    encoding: 'utf8',
-  });
+  const proc = runCli(['config', 'skills', '--json'], root);
   ctx.fixtures['skillsjson'] = {
     code: proc.status ?? 0,
     out: proc.stdout ?? '',
@@ -117,10 +122,7 @@ bdd.thenStep('JSON 输出 {enabled, available} 且 --set 为未知选项', (ctx)
   if (!Array.isArray(parsed.enabled) || parsed.available.length !== 6)
     throw new Error(`shape wrong: ${r.out}`);
   // v1 parity: --set/--unset are NOT part of the flag surface (clap rc=2).
-  const set = spawnSync('bun', [CLI, 'config', 'skills', '--set', 'llman-sdd-validate'], {
-    cwd: root,
-    encoding: 'utf8',
-  });
+  const set = runCli(['config', 'skills', '--set', 'llman-sdd-validate'], root);
   if (set.status !== 2)
     throw new Error(`--set must be an unknown option (rc=2), got ${set.status}`);
   const after = readFileSync(join(root, 'llmanspec', 'config.yaml'), 'utf8');

@@ -3,14 +3,13 @@
 // 过滤)、r11/r13/r63/r64/r65(executable 化 HIGH 批:报告聚合、--check
 // no-op、completeness/脏 specs WARNING、frontmatter 合法字段门、孤儿验收
 // WARNING,全部走 CLI 子进程)。
-import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { discoverSpecs, validateAllSpecs, type DiscoveryIo } from '@llman-sdd/core';
 
 import { bdd } from '../runner.ts';
-import { CLI, type TempRepo, makeTempRepo } from './shared.ts';
+import { CLI, type TempRepo, makeTempRepo, runCli } from './shared.ts';
 
 // ---------------------------------------------------------------------------
 // validation capability — seeded-defect specs directory
@@ -193,10 +192,9 @@ bdd.when(
   '在设置 LLMAN_SDD_HARNESS_ACTIVE=1 的环境下运行 validate --specs --json --include-info',
   (ctx) => {
     const { repo } = ctx.fixtures['validate仓库'] as { repo: TempRepo };
-    const proc = spawnSync('bun', [CLI, 'validate', '--specs', '--json', '--include-info'], {
-      cwd: repo.root,
-      encoding: 'utf8',
-      env: { ...process.env, LLMAN_SDD_HARNESS_ACTIVE: '1' },
+    const proc = runCli(['validate', '--specs', '--json', '--include-info'], repo.root, {
+      ...process.env,
+      LLMAN_SDD_HARNESS_ACTIVE: '1',
     });
     ctx.fixtures['validate结果'] = {
       code: proc.status ?? 1,

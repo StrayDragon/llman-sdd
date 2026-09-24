@@ -1,15 +1,15 @@
 import { afterAll, describe, expect, test } from 'bun:test';
-import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { decode } from '@toon-format/toon';
 
+import { runCli as spawnCli } from '../helpers/spawn.ts';
+
 // P1 (fix-show-dirstyle-specs): show 的 spec 判定/路径解析必须与
 // collectSpecs/discoverSpecs 同口径——目录式 `specs/<cap>/<cap>.feature`
 // 与扁平 `specs/<cap>.feature` 行为一致;未命中维持单行 `spec not found`。
-const MAIN_TS = join(import.meta.dirname, '..', '..', 'apps', 'cli', 'src', 'main.ts');
 const TMP_ROOTS: string[] = [];
 
 const SPEC_BODY = (cap: string): string => `# language: zh-CN
@@ -44,9 +44,7 @@ function mkRepo(layout: 'flat' | 'dirstyle', cap: string): string {
   return root;
 }
 
-function runCli(root: string, args: string[]) {
-  return spawnSync('bun', [MAIN_TS, ...args], { cwd: root, encoding: 'utf8' });
-}
+const runCli = (root: string, args: string[]) => spawnCli(args, root);
 
 afterAll(() => {
   for (const root of TMP_ROOTS) rmSync(root, { recursive: true, force: true });

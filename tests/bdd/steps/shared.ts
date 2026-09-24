@@ -6,8 +6,9 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-export const REPO_ROOT = join(import.meta.dirname, '..', '..', '..');
-export const CLI = join(REPO_ROOT, 'apps', 'cli', 'src', 'main.ts');
+import { initGitRepo } from '../../helpers/spawn.ts';
+
+export { CLI, REPO_ROOT, runCli } from '../../helpers/spawn.ts';
 
 export interface CliResult {
   exitCode: number;
@@ -21,35 +22,27 @@ export interface TempRepo {
   run: (cmd: string, args: string[]) => { code: number; stdout: string; stderr: string };
 }
 
-export function makeTempRepo(): TempRepo {
-  const root = mkdtempSync(join(tmpdir(), 'llman-sdd-bdd-'));
-  const gitRun = (args: string[]): { code: number; stdout: string; stderr: string } => {
-    const proc = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+/** 已提交 `sample` spec 的临时 git 仓库(`branch` 缺省 main)。 */
+export function makeTempRepo(opts: { branch?: string; prefix?: string } = {}): TempRepo {
+  const root = mkdtempSync(join(tmpdir(), opts.prefix ?? 'llman-sdd-bdd-'));
+  const run: TempRepo['run'] = (cmd, args) => {
+    // A temp repo is a fresh top-level context: when this suite itself runs
+    // as a validate harness, the inherited nested-invocation guard would make
+    // every harness scenario skip execution.
+    const { LLMAN_SDD_HARNESS_ACTIVE: _guard, ...env } = process.env;
+    const proc = spawnSync(cmd, args, { cwd: root, encoding: 'utf8', env });
     return { code: proc.status ?? 1, stdout: proc.stdout ?? '', stderr: proc.stderr ?? '' };
   };
-  gitRun(['init', '-q', '-b', 'main']);
-  // 仓库级身份:CLI 的 finalize 内部也会 commit,CI runner 无全局身份
-  gitRun(['config', 'user.email', 't@t']);
-  gitRun(['config', 'user.name', 't']);
+  initGitRepo(root, opts.branch);
   mkdirSync(join(root, 'llmanspec', 'specs'), { recursive: true });
   writeFileSync(join(root, 'llmanspec', 'config.yaml'), 'schema: spec-driven\n');
   writeFileSync(
     join(root, 'llmanspec', 'specs', 'sample.feature'),
     '# language: zh-CN\n# capability: sample\n# purpose: p\n# scope: llmanspec/\n\n功能: sample\n\n  @req:r1 @human\n  场景: ok\n    - 系统 MUST x\n',
   );
-  gitRun(['add', '-A']);
-  gitRun(['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'init']);
-  return {
-    root,
-    run: (cmd, args) => {
-      // A temp repo is a fresh top-level context: when this suite itself runs
-      // as a validate harness, the inherited nested-invocation guard would make
-      // every harness scenario skip execution.
-      const { LLMAN_SDD_HARNESS_ACTIVE: _guard, ...env } = process.env;
-      const proc = spawnSync(cmd, args, { cwd: root, encoding: 'utf8', env });
-      return { code: proc.status ?? 1, stdout: proc.stdout ?? '', stderr: proc.stderr ?? '' };
-    },
-  };
+  run('git', ['add', '-A']);
+  run('git', ['commit', '-qm', 'init']);
+  return { root, run };
 }
 
 /** Record-style fixture field read (fixtures stored as plain records). */

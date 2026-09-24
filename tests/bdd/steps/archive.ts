@@ -1,14 +1,13 @@
 // Domain step definitions: change archive 能力 — 覆盖 r39/r40(change
 // archive 门禁:未勾任务拦截与 seal-off close-out 提交)与 r24 扩展(freeze
 // 非主检出 WARNING:不阻断且冷备仍产出)。
-import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { FREEZE_ARCHIVE_NAME } from '@llman-sdd/core';
 
 import { bdd } from '../runner.ts';
-import { CLI, type TempRepo, makeTempRepo, seedChange } from './shared.ts';
+import { CLI, type TempRepo, makeTempRepo, seedChange, runCli } from './shared.ts';
 
 // ---------------------------------------------------------------------------
 // r39/r40 — change archive gates & seal-off (acceptance)
@@ -128,7 +127,7 @@ bdd.given('一个次级 worktree 持有非默认分支且含带日期归档目�
 
 bdd.when('在次级 worktree 运行 archive freeze', (ctx) => {
   const { sidePath } = ctx.fixtures['侧检仓库'] as SideWorktreeFreeze;
-  const proc = spawnSync('bun', [CLI, 'archive', 'freeze'], { cwd: sidePath, encoding: 'utf8' });
+  const proc = runCli(['archive', 'freeze'], sidePath);
   ctx.fixtures['侧检冻结'] = {
     code: proc.status ?? 1,
     stdout: proc.stdout ?? '',

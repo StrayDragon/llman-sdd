@@ -1,12 +1,8 @@
 import { describe, expect, test } from 'bun:test';
-import { spawnSync } from 'node:child_process';
 
-function runCli(extra: string[]): { status: number; stdout: string; stderr: string } {
-  const proc = spawnSync('bun', ['apps/cli/src/main.ts', 'graph', '--scope', 'all', ...extra], {
-    encoding: 'utf8',
-  });
-  return { status: proc.status ?? 1, stdout: proc.stdout ?? '', stderr: proc.stderr ?? '' };
-}
+import { runCli as spawnCli } from '../helpers/spawn.ts';
+
+const runCli = (extra: string[]) => spawnCli(['graph', '--scope', 'all', ...extra]);
 
 describe('graph --format (mermaid only)', () => {
   test('mermaid default unchanged', () => {

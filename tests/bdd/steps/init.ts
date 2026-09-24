@@ -1,7 +1,6 @@
 // Domain step definitions: init-generators 能力 — 覆盖 r19/r66(v2 渲染 vs
 // golden 基线、zh-Hans 与 en 双 locale 基线门、双 locale 分流判据、ethics
 // 治理门)与 r49/r50(init 子目录落点与 --lang 别名)。
-import { spawnSync } from 'node:child_process';
 import {
   existsSync,
   mkdirSync,
@@ -19,7 +18,7 @@ import { ETHICS_KEYS, runInit } from '@llman-sdd/core';
 import { BASELINE_DIR } from '../../golden/lib.ts';
 import { makeNodeIo } from '../../helpers/nodeIo.ts';
 import { bdd } from '../runner.ts';
-import { CLI } from './shared.ts';
+import { runCli } from './shared.ts';
 
 // ---------------------------------------------------------------------------
 // init-generators capability — v2 render vs golden baseline (normalized)
@@ -170,7 +169,7 @@ bdd.given('一个空的临时工作区', (ctx) => {
 
 bdd.when('运行 init 指向不存在的子目录', (ctx) => {
   const { root } = ctx.fixtures['init工作区'] as { root: string };
-  const proc = spawnSync('bun', [CLI, 'init', 'deep/nested/proj'], { cwd: root, encoding: 'utf8' });
+  const proc = runCli(['init', 'deep/nested/proj'], root);
   ctx.fixtures['init结果'] = { code: proc.status ?? 1, root };
 });
 
@@ -188,14 +187,8 @@ bdd.thenStep('产物面完整落在该子目录下', (ctx) => {
 
 bdd.when('运行 init --lang zh-Hans', (ctx) => {
   const { root } = ctx.fixtures['init工作区'] as { root: string };
-  const alias = spawnSync('bun', [CLI, 'init', '--lang', 'zh-Hans'], {
-    cwd: root,
-    encoding: 'utf8',
-  });
-  const both = spawnSync('bun', [CLI, 'init', '--lang', 'en', '--locale', 'zh-Hans'], {
-    cwd: root,
-    encoding: 'utf8',
-  });
+  const alias = runCli(['init', '--lang', 'zh-Hans'], root);
+  const both = runCli(['init', '--lang', 'en', '--locale', 'zh-Hans'], root);
   ctx.fixtures['lang结果'] = {
     aliasCode: alias.status ?? 1,
     bothCode: both.status ?? 0,

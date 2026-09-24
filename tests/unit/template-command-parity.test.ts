@@ -11,9 +11,9 @@ import { spawnSync } from 'node:child_process';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
-const REPO_ROOT = join(import.meta.dirname, '..', '..');
+import { CLI, REPO_ROOT } from '../helpers/spawn.ts';
+
 const TEMPLATES_DIR = join(REPO_ROOT, 'packages', 'core', 'templates');
-const CLI_ENTRY = join(REPO_ROOT, 'apps', 'cli', 'src', 'main.ts');
 
 function collectMarkdown(dir: string): string[] {
   const out: string[] = [];
@@ -79,7 +79,7 @@ interface Probe {
 }
 
 function probeHelp(path: string[]): Probe {
-  const run = spawnSync('bun', [CLI_ENTRY, ...path, '--help'], {
+  const run = spawnSync('bun', [CLI, ...path, '--help'], {
     cwd: REPO_ROOT,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],

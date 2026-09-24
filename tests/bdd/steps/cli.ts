@@ -1,13 +1,8 @@
 // Domain step definitions: cli 能力 — 覆盖 r75(错误出口单一前缀/退出码)、
 // r76(报告命令输出旗标共享注册)、r77(全局旗标面,v1 兼容旗标已删)。
 // 断言针对 CLI 输出的真实形状(stderr 前缀、退出码、单行 JSON),不绕道内部 API。
-import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-
 import { bdd } from '../runner.ts';
-import { CLI, REPO_ROOT, makeTempRepo, seedChange } from './shared.ts';
+import { CLI, REPO_ROOT, makeTempRepo, runCli as spawnCli, seedChange } from './shared.ts';
 
 interface CliRun {
   code: number;
@@ -16,7 +11,7 @@ interface CliRun {
 }
 
 function runCli(args: string[], root: string = REPO_ROOT): CliRun {
-  const proc = spawnSync('bun', [CLI, ...args], { cwd: root, encoding: 'utf8' });
+  const proc = spawnCli(args, root);
   return { code: proc.status ?? 1, stdout: proc.stdout ?? '', stderr: proc.stderr ?? '' };
 }
 

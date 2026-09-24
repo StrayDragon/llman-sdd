@@ -16,16 +16,14 @@ import {
 } from '@llman-sdd/core';
 
 import { makeNodeIo } from '../helpers/nodeIo.ts';
+import { initGitRepo } from '../helpers/spawn.ts';
 
 const TMP_ROOTS: string[] = [];
 
 function mkRepo(): { root: string; git: ReturnType<typeof makeSpawnGit>; io: FsIo } {
   const root = mkdtempSync(join(tmpdir(), 'llman-sdd-life-'));
   TMP_ROOTS.push(root);
-  execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: root });
-  // 仓库级身份:CLI 的 finalize 内部也会 commit,CI runner 无全局身份
-  execFileSync('git', ['config', 'user.email', 't@t'], { cwd: root });
-  execFileSync('git', ['config', 'user.name', 't'], { cwd: root });
+  initGitRepo(root);
   const git = makeSpawnGit(root);
   const io: FsIo = makeNodeIo(root);
   io.writeText('llmanspec/config.yaml', 'schema: spec-driven\n');

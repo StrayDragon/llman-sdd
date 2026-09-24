@@ -1,19 +1,18 @@
 // Domain step definitions: review-freeze 能力 — 覆盖 r23/r25(v2 review
 // 五类信号与 criticalCount 退出码一致、v1 freeze → v2 thaw 回置)与 r33
 // (review --capability 过滤:locked/validate 保持全局)。
-import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { bdd } from '../runner.ts';
-import { CLI, type CliResult, REPO_ROOT, type TempRepo, makeTempRepo } from './shared.ts';
+import { CLI, type CliResult, type TempRepo, makeTempRepo, runCli } from './shared.ts';
 
 // ---------------------------------------------------------------------------
 // review-freeze capability — live v1 ↔ v2 review + v1 freeze → v2 thaw
 // ---------------------------------------------------------------------------
 
 bdd.when('v2 运行 review', (ctx) => {
-  const proc = spawnSync('bun', [CLI, 'review', '--json'], { cwd: REPO_ROOT, encoding: 'utf8' });
+  const proc = runCli(['review', '--json']);
   const out = proc.stdout ?? '';
   try {
     const parsed = JSON.parse(out) as {
@@ -111,10 +110,7 @@ interface ReviewFilterResult {
 }
 
 bdd.when('运行 v2 的 review --json 并限定单一 capability', (ctx) => {
-  const proc = spawnSync('bun', [CLI, 'review', '--json', '--capability', 'peripheral-commands'], {
-    cwd: REPO_ROOT,
-    encoding: 'utf8',
-  });
+  const proc = runCli(['review', '--json', '--capability', 'peripheral-commands']);
   let signals: { kind: string; capability: string }[] = [];
   try {
     signals = (JSON.parse(proc.stdout ?? '{}') as ReviewFilterResult).signals ?? [];
