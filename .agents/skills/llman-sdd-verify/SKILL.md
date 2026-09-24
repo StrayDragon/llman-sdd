@@ -2,7 +2,7 @@
 name: "llman-sdd-verify"
 description: "验证已实施的 llman SDD 变更是否与 specs/design/tasks 一致。产出分级报告（CRITICAL / WARNING / SUGGESTION），对比代码与工件。在 apply 完成后运行；全绿则可归档。"
 metadata:
-  version: "0.3.1"
+  version: "0.4.0"
 ---
 
 # LLMAN SDD Verify
@@ -52,8 +52,8 @@ llman-sdd show <id> --output json --type change
 ## 步骤
 1. 确定 change id（不明确时让用户从 `llman-sdd list --json` 选择）。
 2. 先跑一个快速校验门禁：
-   - `llman-sdd validate <id> --strict --no-interactive`
-   - **诊断结构问题（Gherkin 解析 / `@req` 链接 / 双写 / 全局 req_id 唯一性）时先跑结构校验**（validate 不执行任何 harness——`--check`/`--no-check` 为 v1 兼容 no-op），结构门禁全绿后再跑 BDD 场景执行：责任在项目测试套件（qa 内 `bun test tests/bdd` 式命令）。失败项在缺省 TOON 输出的 `items[].issues[]` 逐条列出（`--output human` 输出 v1 人读形态：`FAIL <item_type>/<id>` 行，位于 `Totals` 行上方）。
+   - `llman-sdd validate <id> --strict`
+   - **诊断结构问题（Gherkin 解析 / `@req` 链接 / 双写 / 全局 req_id 唯一性）时先跑结构校验**（配置 `bdd.run_command` 时 validate 缺省会执行该 harness，`--no-check` 跳过；harness 失败会以 ERROR 落在对应 spec 条目）。失败项在缺省 TOON 输出的 `items[].issues[]` 逐条列出（`--output human` 输出 v1 人读形态：`FAIL <item_type>/<id>` 行，位于 `Totals` 行上方）。
 3. 阅读：
    - feature 分支上的 live specs：`llmanspec/specs/**`（`<capability>.feature`）——SSOT
    - `proposal.md` 与 `design.md`（如存在）
@@ -85,7 +85,7 @@ llman-sdd show <id> --output json --type change
    - 两轴可并行（sub-agent）审查；报告 MUST 分离呈现，MUST NOT 合并或交叉重排（一轴通过不能掩盖另一轴失败）。
 5. **BDD-on 验证（Git-native Partitioned SSOT）**——仅当 `config.yaml` 含 `bdd:` 段时：
    - 确认 change 已 attach，且当前在对应 feature 分支上。
-   - `llman-sdd validate --specs`：Gherkin + `@req`/双写门禁；validate 不执行 `bdd.run_command`（`--check`/`--no-check` 为 v1 兼容 no-op），BDD 场景由项目测试套件执行（qa 内 `bun test tests/bdd`）。
+   - `llman-sdd validate --specs`：Gherkin + `@req`/双写门禁；配置了 `bdd.run_command` 时缺省执行该 harness（`--no-check` 跳过），失败映射为对应 spec 条目的 ERROR。
    - 可选只读审查：`llman-sdd change diff <id>`（或 `--export-patch <path>`）。diff 仅作审查/导出——绝不当作 apply 步骤。
    - verify 通过后下一步：`llman-sdd-archive`（勿在此 inline finalize）。
 
@@ -93,7 +93,7 @@ llman-sdd show <id> --output json --type change
    - **CRITICAL**（归档前必须修复）
    - **WARNING**（建议修复）
    - **SUGGESTION**（可选优化）
-7. **人审检查点**：报告无 CRITICAL 后、建议归档前，运行 `llman-sdd review`：
+7. **人审关卡**：报告无 CRITICAL 后、建议归档前，运行 `llman-sdd review`：
    - 退出码为零 → 建议 `llman-sdd-archive` 进行 finalize/archive。
    - 非零退出 = CRITICAL 发现：用 `llman-sdd-apply` 修复后重跑 review；MUST NOT 带着 CRITICAL 进入 finalize/archive。
 
@@ -106,7 +106,7 @@ llman-sdd show <id> --output json --type change
 硬规则：
 1. **先** Branch binding（`change start` / `attach`）→ Full；**再** Specs landing（绑定分支编辑并 commit `llmanspec/specs/**`）。
 2. 无 live 合约变更 → `needs_specs_change: false`。`stage=full` 且 specs-landed 门通过即可进入 apply；`readyToImplement=true`（全门绿）是 verify/finalize 前的完成信号。
-3. 收口用 `change finalize`（自动提交 `archive(sdd): <id>`；`--no-commit` 可跳过）。`change checkpoint` 已移除（调用即以非零退出报错，指向 finalize）。
+3. 收口用 `change finalize`（自动提交 `archive(sdd): <id>`；`--no-commit` 可跳过）。
 4. **禁止**在默认分支 commit live specs；已 attach 勿重复 `start`。
 5. worktree 模式（可选）：`change start --worktree` 在独立 worktree 建分支且不劫持当前检出（`--base <branch>` 记录非默认分叉源）；finalize 目标被其他 worktree 持有时自动原地执行（输出标注位置）。
 # 人读摘要（强制）
@@ -143,7 +143,6 @@ Git-native 护栏：
 - **Branch binding** → **Specs landing**：先 `change start` / `attach`，再在绑定的非默认分支编辑 live `.feature` 并 commit。
 - 锁定规则（报告制）：改/删既有 `@human` 场景只出 WARNING，不阻断 validate / change finalize / change diff；报告按 `@req:<id>` 指明被改的是哪条规则。控制点：git 分支对比 + `llman-sdd review` / `change diff` 的报告浮现。旧的锁定确认元数据（frontmatter `rules_touched` / `agent_acked`、`@agent` tag、`--yes` 的确认语义）已全部删除，无别名、无兼容层。
 - `stage=full` 且 specs-landed 门通过（specsLanded ∨ `needs_specs_change: false`）即可进入 apply；verify/finalize 须 `readyToImplement=true`（完成信号）。收尾优先 `change finalize`。
-- 勿使用 `change delta` / solidify / `*.feature.delta.toon`。
 
 ## Context
 - 先查状态再动手：change/spec 状态以 `llman-sdd show/list/validate` 输出为准。

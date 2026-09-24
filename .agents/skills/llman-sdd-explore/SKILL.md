@@ -2,7 +2,7 @@
 name: "llman-sdd-explore"
 description: "进入 llman SDD 探索模式：理清思路、调查需求、分析问题。仅思考，禁止写代码。用于意图不明确或需要分析后再行动的场景。"
 metadata:
-  version: "0.3.1"
+  version: "0.4.0"
 ---
 
 # LLMAN SDD Explore
@@ -24,7 +24,7 @@ metadata:
 硬规则：
 1. **先** Branch binding（`change start` / `attach`）→ Full；**再** Specs landing（绑定分支编辑并 commit `llmanspec/specs/**`）。
 2. 无 live 合约变更 → `needs_specs_change: false`。`stage=full` 且 specs-landed 门通过即可进入 apply；`readyToImplement=true`（全门绿）是 verify/finalize 前的完成信号。
-3. 收口用 `change finalize`（自动提交 `archive(sdd): <id>`；`--no-commit` 可跳过）。`change checkpoint` 已移除（调用即以非零退出报错，指向 finalize）。
+3. 收口用 `change finalize`（自动提交 `archive(sdd): <id>`；`--no-commit` 可跳过）。
 4. **禁止**在默认分支 commit live specs；已 attach 勿重复 `start`。
 5. worktree 模式（可选）：`change start --worktree` 在独立 worktree 建分支且不劫持当前检出（`--base <branch>` 记录非默认分叉源）；finalize 目标被其他 worktree 持有时自动原地执行（输出标注位置）。
 
@@ -63,14 +63,14 @@ flowchart LR
    - **决策回写**：已解决的决策回写到该 change 的 `proposal.md`「Open Questions」段（规划壳；可短暂在默认分支）。
    - **完成判据**：每个待定决策都已解决或被显式推迟。未触发时保持默认（问 1–3 个问题）行为不变。
 4. 如果某个 change id 相关，阅读 `llmanspec/changes/<id>/` 下的 artifacts。
-   - 诊断校验错误时先跑 `llman-sdd validate <spec> --strict` 解决结构门禁（Gherkin / `@req` 链接 / 双写 / req_id 唯一性）；validate 不执行任何 harness（`--check`/`--no-check` 为 v1 兼容 no-op），BDD 场景执行由项目测试套件承载（qa 内 `bun test tests/bdd` 式命令）。失败项在缺省 TOON 输出的 `items[].issues[]` 逐条指明；`--output human` 输出 v1 人读 `FAIL <item_type>/<id>` 行。
+   - 诊断校验错误时先跑 `llman-sdd validate <spec> --strict` 解决结构门禁（Gherkin / `@req` 链接 / 双写 / req_id 唯一性）；配置了 `bdd.run_command` 时 validate 会缺省执行该 harness（`--no-check` 跳过）。失败项在缺省 TOON 输出的 `items[].issues[]` 逐条指明；`--output human` 输出 v1 人读 `FAIL <item_type>/<id>` 行。
 5. 探索 2–3 个选项与权衡。
 6. 判断变更规模（triage），确定是否需要走完整 SDD 流程。
 7. 当结论逐渐清晰时，建议用户把它记录下来（不要自动写入）：
    - 范围变化 / 设计决策 / 工作项 → 规划壳（`proposal.md` / `design.md` / `tasks.md`）
    - 约束 / 可执行 harness → **仅建议**写入 live `llmanspec/specs/**`（每 capability 一个 `.feature`）；实际编辑须先 Branch binding，再 Specs landing。探索模式未 binding 时只记到 proposal，勿直接改 live specs。
 
-> Git-native：先 `change start`/`attach`（Branch binding）进入 Full，再在绑定分支编辑 live `.feature`（Specs landing）；无 `change delta` / solidify / feature_delta。
+> Git-native：先 `change start`/`attach`（Branch binding）进入 Full，再在绑定分支编辑 live `.feature`（Specs landing）。
 
 ## 退出探索模式
 当用户准备开始实现时，根据变更规模选择路径：
