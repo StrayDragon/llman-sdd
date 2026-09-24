@@ -29,6 +29,8 @@ flowchart LR
 
 - **Must pass apply phase all-green first**: don't skip to verify on changes that haven't been implemented.
 - **CRITICAL issues must be fixed**: CRITICAL problems must be resolved before archive.
+- **Rerun the gates yourself**: MUST rerun `llman-sdd validate <id> --strict` (real harness) and the project gates; MUST NOT trust gate verdicts in the implementer's report — a mismatch is CRITICAL.
+- **`--no-check` is not evidence**: gate evidence obtained with `--no-check` → CRITICAL.
 - **Don't ask "should I continue?"**: run the full verification flow, output a complete report.
 
 {{ unit("skills/stage-guard") }}
@@ -47,6 +49,7 @@ flowchart LR
    - **Spec axis**: does the implementation satisfy the `@human` rule MUST/SHALL and the `@executable` GWT?
      - Missing/partial behaviors, wrong implementations, and scope creep in the diff not asked for by the spec.
      - Suggest minimal fixes or artifact updates.
+     - Check where before/after evidence (counts, baselines) was taken: it MUST be measured on the change branch (against the freshly computed merge-base); a value measured on the default branch is usually trivially the baseline and proves nothing.
    - **Standards axis**: does the code follow `AGENTS.md` coding style + the Fowler smell baseline?
      - **Authority priority**: `AGENTS.md` documented standard > smell baseline (repo overrides); skip anything tooling already enforces.
      - Smells are **judgement heuristics** ("possible Feature Envy"), not hard violations.

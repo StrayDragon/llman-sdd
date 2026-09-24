@@ -106,7 +106,8 @@ Extract hard constraints from proposal.md and design.md decisions. Convert tasks
 For each unchecked task:
 1. **Implement**: strictly per task description + specs requirements, keep changes minimal.
 2. **Update checkbox immediately** after completion: `- [ ]` → `- [x]`. **Close-out is not a task**: `change finalize` / `change archive` are pipeline steps and MUST NOT appear in tasks.md — if one is listed (e.g. "close-out — finalize"), remove it from tasks.md (the finalize/archive task gate requires every task checked).
-3. If task is unclear, you hit a blocker, or specs/design don't match reality → STOP and report the blocker, don't assume.
+3. **Edit, then verify — serially**: verification MUST run after edits land on disk; MUST NOT put edits and tests/validation in the same parallel tool-call batch (the check may read stale files and report a false failure or a false pass).
+4. If task is unclear, you hit a blocker, or specs/design don't match reality → STOP and report the blocker, don't assume.
 
 > 💡 Previous phase `llman-sdd-propose` (generated tasks); after this phase → `llman-sdd-verify` (verify)
 
@@ -116,6 +117,11 @@ Run project gate commands (adapt to the actual project):
 - Format/lint: `just check` or `just lint` + `just fmt`
 - Git-native: stay on the bound feature branch; edit live `llmanspec/specs/<capability>.feature` (flat, or directory `llmanspec/specs/<capability>/` main file; rules `@human`, acceptance `@executable`) as needed; run `llman-sdd validate --specs` after spec edits; commit on the branch freely (segmented or leave dirty for finalize).
 - SDD validation: `llman-sdd validate <id> --strict`
+
+**Gate evidence**:
+- Gate verdicts MUST come from the real harness: MUST NOT obtain a "pass" via `--no-check`; on harness failure, find the root cause first (leaked env vars, nested-invocation guards, wrong cwd …) — MUST NOT label it an "inherent/self-referential property" and bypass it.
+- Before/after completion criteria (counts, baselines) MUST be measured on the change branch (against the freshly computed merge-base); a value measured on the default branch is usually trivially the baseline and proves nothing.
+- Refactors and bulk replacements: MUST compare the test count before and after; all-green gates with fewer tests is a failure.
 
 **On failure → enter self-healing loop (don't ask "should I continue?"):**
 1. Parse failure cause (test failure / lint / format / validation error).

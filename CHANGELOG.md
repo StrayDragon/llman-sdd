@@ -92,6 +92,14 @@ golden 基线扩展双 locale(zh `skills/` 不动,en 平行 `skills-en/`),en 模
 - tasks.md 只列实现与验证任务:收口(`change finalize` / `change archive`)是流水
   线步骤,不要再写成任务(任务门要求全部勾选;validate 会对此报 WARNING)。
 
+**门禁证据约束**(change `codify-gate-evidence-lessons`):apply / verify / propose
+skill 模板(双 locale)新增门禁证据约束——门禁结论须来自真实 harness(不以
+`--no-check` 取得通过,harness 失败先查根因)、编辑与验证串行、前后对比类判据在
+change 分支上测量、重构类 task 对比测试用例数;verify 要求审查者亲自复跑门禁,不采信
+实现者报告(不符或 `--no-check` 证据均为 CRITICAL)。r70 必含标记随之扩展。本仓库
+`golden:check` 追加自带 `.agents/skills`(`llman-sdd-` 前缀)对 golden 基线的新鲜度
+比对(r80),过期时报出文件并提示 `init --update`。下游升级后 `init --update` 即获得新约束。
+
 ## 0.3.1 (2026-09-19)
 
 修复 0.3.0 的发布缺陷：升版本号时未刷新 `bun.lock` 的工作区版本，`bun publish`

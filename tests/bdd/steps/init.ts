@@ -1,13 +1,14 @@
 // Domain step definitions: init-generators 能力 — 覆盖 r19/r66(v2 渲染 vs
 // golden 基线、zh-Hans 与 en 双 locale 基线门、双 locale 分流判据、ethics
 // 治理门)与 r49/r50(init 子目录落点与 --lang 别名)。
+import { spawnSync } from 'node:child_process';
 import {
+  cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
-  statSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -15,10 +16,19 @@ import { join } from 'node:path';
 
 import { ETHICS_KEYS, runInit } from '@llman-sdd/core';
 
-import { BASELINE_DIR } from '../../golden/lib.ts';
+import {
+  BASELINE_DIR,
+  REPO_SKILLS_DIR,
+  type TreeDiff,
+  assertRepoConfigMatchesGolden,
+  diffRepoSkills,
+  diffTrees,
+  formatTreeDiffs,
+  normalizeTree,
+} from '../../golden/lib.ts';
 import { makeNodeIo } from '../../helpers/nodeIo.ts';
 import { bdd } from '../runner.ts';
-import { runCli } from './shared.ts';
+import { REPO_ROOT, runCli } from './shared.ts';
 
 // ---------------------------------------------------------------------------
 // init-generators capability — v2 render vs golden baseline (normalized)
@@ -105,35 +115,14 @@ bdd.when('v2 渲染全部 skills', (ctx) => {
 });
 
 // r19: rendered skills tree vs committed golden baseline, version-normalized.
-// lib.ts exports the baseline root but not its tree-diff helpers, so the walk
-// lives here with the baseline subdir parameterized per locale.
 const assertMatchesGoldenBaseline = (producedSkillsDir: string, locale: 'zh-Hans' | 'en'): void => {
   const subdir = locale === 'en' ? 'skills-en' : 'skills';
-  const versionRe = /\b\d+\.\d+\.\d+\b/gu;
-  const readTree = (dir: string): Map<string, string> => {
-    const out = new Map<string, string>();
-    const walk = (rel: string): void => {
-      for (const name of readdirSync(join(dir, rel)).toSorted()) {
-        const child = rel === '' ? name : `${rel}/${name}`;
-        if (statSync(join(dir, child)).isDirectory()) walk(child);
-        else out.set(child, readFileSync(join(dir, child), 'utf8').replaceAll(versionRe, '<VER>'));
-      }
-    };
-    walk('');
-    return out;
-  };
-  const baseline = readTree(join(BASELINE_DIR, subdir));
-  const produced = readTree(producedSkillsDir);
-  const problems: string[] = [];
-  for (const [file, content] of baseline) {
-    if (!produced.has(file)) problems.push(`missing file: ${file}`);
-    else if (produced.get(file) !== content) problems.push(`content differs: ${file}`);
-  }
-  for (const file of produced.keys()) {
-    if (!baseline.has(file)) problems.push(`extra file: ${file}`);
-  }
-  if (problems.length > 0) {
-    throw new Error(`golden baseline (${subdir}) mismatch:\n${problems.join('\n')}`);
+  const diffs = diffTrees(
+    normalizeTree(join(BASELINE_DIR, subdir)),
+    normalizeTree(producedSkillsDir),
+  );
+  if (diffs.length > 0) {
+    throw new Error(`golden baseline (${subdir}) mismatch:\n${formatTreeDiffs(diffs)}`);
   }
 };
 
@@ -157,6 +146,50 @@ bdd.thenStep('每个 SKILL.md 通过 ethics 治理门', (ctx) => {
     }
   }
 });
+
+// ---------------------------------------------------------------------------
+// r80 — repo's own committed skills stay fresh against the golden baseline
+// ---------------------------------------------------------------------------
+
+bdd.when('比对仓库自带 skills 与 golden 基线', (ctx) => {
+  assertRepoConfigMatchesGolden();
+  ctx.fixtures['自带skills差异'] = diffRepoSkills();
+});
+
+bdd.thenStep('自带 skills 比对无差异', (ctx) => {
+  const diffs = ctx.fixtures['自带skills差异'] as TreeDiff[];
+  if (diffs.length > 0) {
+    throw new Error(`.agents/skills is stale (run init --update):\n${formatTreeDiffs(diffs)}`);
+  }
+});
+
+bdd.given('仓库自带 skills 的临时副本中 "{file}" 被改动', (ctx, file) => {
+  const copy = mkdtempSync(join(tmpdir(), 'llman-sdd-skills-copy-'));
+  cpSync(REPO_SKILLS_DIR, copy, { recursive: true });
+  writeFileSync(join(copy, file), `${readFileSync(join(copy, file), 'utf8')}\nstale line\n`);
+  ctx.fixtures['自带skills副本'] = { dir: copy, statusBefore: gitStatus() };
+});
+
+bdd.when('比对该副本与 golden 基线', (ctx) => {
+  const { dir } = ctx.fixtures['自带skills副本'] as { dir: string };
+  ctx.fixtures['自带skills差异'] = diffRepoSkills(dir);
+});
+
+bdd.thenStep('比对报出 "{file}" 为内容不同', (ctx, file) => {
+  const diffs = ctx.fixtures['自带skills差异'] as TreeDiff[];
+  if (!diffs.some((d) => d.file === file && d.kind === 'changed')) {
+    throw new Error(`expected ${file} reported as changed, got:\n${formatTreeDiffs(diffs)}`);
+  }
+});
+
+bdd.thenStep('仓库工作区未被改动', (ctx) => {
+  const { statusBefore } = ctx.fixtures['自带skills副本'] as { statusBefore: string };
+  if (gitStatus() !== statusBefore) throw new Error('repo working tree changed during the check');
+});
+
+function gitStatus(): string {
+  return spawnSync('git', ['status', '--porcelain'], { cwd: REPO_ROOT, encoding: 'utf8' }).stdout;
+}
 
 // ---------------------------------------------------------------------------
 // r49/r50 — init path & --lang alias (acceptance)

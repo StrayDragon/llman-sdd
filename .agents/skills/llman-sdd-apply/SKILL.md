@@ -106,7 +106,8 @@ llman-sdd show <id> --output json --type change
 对每个未完成 task：
 1. **实现**：严格按 task 描述 + specs 要求，改动保持最小。
 2. **完成后立刻更新 checkbox**：`- [ ]` → `- [x]`。**收口不是 task**：`change finalize` / `change archive` 是流水线步骤，MUST NOT 出现在 tasks.md 里——若已列（如「收口——finalize」），从 tasks.md 删除（finalize/archive 的任务门要求全部任务已勾）。
-3. 若 task 不明确、遇到 blocker、或发现 specs/design 与现实不一致 → STOP 并报告 blocker，不要自行假定。
+3. **编辑与验证串行**：验证 MUST 在编辑落盘后执行；MUST NOT 把编辑与测试/校验放在同一批并行工具调用中（验证可能读到旧文件，产生假失败或假通过）。
+4. 若 task 不明确、遇到 blocker、或发现 specs/design 与现实不一致 → STOP 并报告 blocker，不要自行假定。
 
 > 💡 上一阶段 `llman-sdd-propose`（已生成 tasks）；完成本阶段后 → `llman-sdd-verify`（验证）
 
@@ -116,6 +117,11 @@ llman-sdd show <id> --output json --type change
 - 格式/lint：`just check` 或 `just lint` + `just fmt`
 - Git-native：留在绑定 feature 分支；按需编辑 live `llmanspec/specs/<capability>.feature`（扁平，或目录 `llmanspec/specs/<capability>/` 内主文件；规则 `@human`，验收 `@executable`）；spec 改动后跑 `llman-sdd validate --specs`；分支上可自由提交（分段，或留脏交给 finalize）。
 - SDD 校验：`llman-sdd validate <id> --strict`
+
+**门禁证据**：
+- 门禁结论 MUST 来自真实 harness：MUST NOT 以 `--no-check` 取得「通过」；harness 失败 MUST 先查根因（环境变量泄漏、嵌套调用守卫、工作目录错误等），MUST NOT 以「固有/自指属性」定性后绕过。
+- 前后对比类完成判据（计数、基线）MUST 在 change 分支上测量（相对现算 merge-base）；在默认分支测得的值通常恒为基线，不构成证据。
+- 重构或批量替换类 task：MUST 对比改动前后的测试用例数；门禁全绿但用例数下降视为失败。
 
 **若失败 → 进入自修复循环（不要问要不要继续）：**
 1. 解析失败原因（测试失败 / lint / 格式 / 校验错误）。

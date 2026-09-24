@@ -107,6 +107,8 @@ const REQUIRED_PER_FILE: Readonly<Record<string, readonly string[]>> = {
     // D9: 写 tasks.md 只列实现与验证任务,收口是流水线步骤
     'close-out|收口',
     'pipeline step|流水线步骤',
+    // 前后对比类完成判据注明测量位置
+    'measured on the change branch|在 change 分支上测量',
   ],
   'skills/llman-sdd-apply.md': [
     'LLMAN_SDD_INDEX_CHAT_MODEL',
@@ -114,6 +116,16 @@ const REQUIRED_PER_FILE: Readonly<Record<string, readonly string[]>> = {
     'completion signal|完成信号',
     // D9: 勾选节明确收口不是 task
     'close-out is not a task|收口不是 task',
+    // 门禁证据:真实 harness / 编辑与验证串行 / 基线测量位置 / 用例数不减
+    'real harness|真实 harness',
+    'parallel tool-call batch|同一批并行工具调用',
+    'measured on the change branch|在 change 分支上测量',
+    'test count|用例数',
+  ],
+  'skills/llman-sdd-verify.md': [
+    'real harness|真实 harness',
+    'Rerun the gates yourself|亲自复跑门禁',
+    'measured on the change branch|在 change 分支上测量',
   ],
   'skills/llman-sdd-quick.md': ['LLMAN_SDD_INDEX_CHAT_MODEL'],
   // manual-trigger-only skills back the claim with the frontmatter key

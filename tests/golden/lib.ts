@@ -10,17 +10,22 @@ import {
   readFileSync,
   readdirSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { runInit, type TemplateIo } from '@llman-sdd/core';
+import { loadConfig, runInit, type TemplateIo } from '@llman-sdd/core';
 
 import { makeNodeIo } from '../helpers/nodeIo.ts';
+import { REPO_ROOT } from '../helpers/spawn.ts';
 
 export const GOLDEN_DIR = import.meta.dirname;
 export const BASELINE_DIR = join(GOLDEN_DIR, 'baseline');
+/** The repo's own committed skills (dogfooding agents read these directly). */
+export const REPO_SKILLS_DIR = join(REPO_ROOT, '.agents', 'skills');
+const MANAGED_PREFIX = 'llman-sdd-';
 
 /** Real-filesystem adapter for template resources. */
 const templateIo: TemplateIo = {
@@ -62,6 +67,73 @@ export function renderV2Skills(locale: 'zh-Hans' | 'en' = 'zh-Hans'): RenderResu
     throw new Error(`v2 did not render skills into ${skillsDir}`);
   }
   return { tmpRoot, skillsDir, version };
+}
+
+const VERSION_RE = /\b\d+\.\d+\.\d+\b/gu;
+
+/**
+ * Walk a skills dir into a map of version-normalized file contents (the local
+ * package version may move without touching template contracts). `keepTopDir`
+ * filters first-level entries.
+ */
+export function normalizeTree(
+  root: string,
+  keepTopDir: (name: string) => boolean = () => true,
+): Map<string, string> {
+  const out = new Map<string, string>();
+  const walk = (rel: string): void => {
+    for (const name of readdirSync(join(root, rel)).toSorted()) {
+      if (rel === '' && !keepTopDir(name)) continue;
+      const child = rel === '' ? name : `${rel}/${name}`;
+      if (statSync(join(root, child)).isDirectory()) walk(child);
+      else out.set(child, readFileSync(join(root, child), 'utf8').replaceAll(VERSION_RE, '<VER>'));
+    }
+  };
+  if (existsSync(root)) walk('');
+  return out;
+}
+
+export interface TreeDiff {
+  file: string;
+  kind: 'missing' | 'extra' | 'changed';
+}
+
+/** Files absent from `other` are `missing`, absent from `baseline` are `extra`. */
+export function diffTrees(baseline: Map<string, string>, other: Map<string, string>): TreeDiff[] {
+  const diffs: TreeDiff[] = [];
+  for (const file of [...new Set([...baseline.keys(), ...other.keys()])].toSorted()) {
+    const a = baseline.get(file);
+    const b = other.get(file);
+    if (a === b) continue;
+    diffs.push({ file, kind: b === undefined ? 'missing' : a === undefined ? 'extra' : 'changed' });
+  }
+  return diffs;
+}
+
+export function formatTreeDiffs(diffs: readonly TreeDiff[]): string {
+  return diffs.map((d) => `${d.kind}: ${d.file}`).join('\n');
+}
+
+/**
+ * The freshness diff is only meaningful if the repo renders with the same
+ * config the golden baseline was captured with.
+ */
+export function assertRepoConfigMatchesGolden(): void {
+  const repo = loadConfig(readFileSync(join(REPO_ROOT, 'llmanspec', 'config.yaml'), 'utf8'));
+  const golden = loadConfig(CONFIG_YAML);
+  if (repo.locale !== golden.locale || repo.bdd?.run_command !== golden.bdd?.run_command) {
+    throw new Error(
+      'golden CONFIG_YAML drifted from llmanspec/config.yaml (locale / bdd.run_command)',
+    );
+  }
+}
+
+/** Committed `llman-sdd-*` skills under `skillsDir` vs the zh-Hans baseline. */
+export function diffRepoSkills(skillsDir: string = REPO_SKILLS_DIR): TreeDiff[] {
+  return diffTrees(
+    normalizeTree(join(BASELINE_DIR, 'skills')),
+    normalizeTree(skillsDir, (name) => name.startsWith(MANAGED_PREFIX)),
+  );
 }
 
 /** Copy rendered skills into the committed baseline under <subdir>. Returns copied entries. */

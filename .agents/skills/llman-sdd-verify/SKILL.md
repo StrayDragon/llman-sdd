@@ -29,6 +29,8 @@ flowchart LR
 
 - **必须先通过 apply 阶段全绿**：未完成实现的 change 跳过验证。
 - **CRITICAL 必须修复**：标记为 CRITICAL 的问题归档前必须修复。
+- **亲自复跑门禁**：MUST 亲自重跑 `llman-sdd validate <id> --strict`（真实 harness）与项目门禁，MUST NOT 采信实现者报告中的门禁结论；复跑结果与报告不符 → CRITICAL。
+- **`--no-check` 不是证据**：门禁证据以 `--no-check` 取得 → CRITICAL。
 - **不要问「要不要继续」**：跑完整个验证流程，输出完整报告。
 
 ## 阶段守卫（`stage` / `readyToImplement`）
@@ -63,6 +65,7 @@ llman-sdd show <id> --output json --type change
    - **合约轴（Spec）**：实现是否满足 `@human` 规则的 MUST/SHALL 与 `@executable` 的 GWT。
      - 缺失/部分实现的行为、错误实现、以及 diff 中未被 spec 要求的超范围改动。
      - 给出最小修复建议，或建议更新 artifacts。
+     - 前后对比类证据（计数、基线）须核对测量位置：MUST 在 change 分支上测量（相对现算 merge-base）；在默认分支测得的值通常恒为基线，不构成证据。
    - **标准轴（Standards）**：代码是否符合 `AGENTS.md` 的编码规范 + 常见代码坏味（code smell）清单。
      - **权威优先级**：`AGENTS.md` 文档规范 > 坏味清单（文档说了算）；工具已强制的项跳过。
      - 坏味标记为**判断性提示**（「可能是 Feature Envy」），不是硬性违规。

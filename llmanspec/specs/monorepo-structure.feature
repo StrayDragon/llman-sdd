@@ -23,7 +23,7 @@
 
   @req:r67 @human
   场景: 模板命令对账
-    - 模板 skills 与 units(zh-Hans 与 en 双 locale)中对 CLI 命令与旗标的字面引用 MUST 与 CLI 实际命令面对账:引用的命令路径 MUST 存在,引用的每个旗标 MUST 为该命令已注册旗标;对账 MUST 以自动门禁纳入 bun test 套件(随 qa 运行),违例 MUST 致门禁失败并逐条报出来源模板与违例原因。对账面为 packages/core/templates/** 模板源头;渲染产物与 golden 基线为下游,不重复设门。姊妹语义对齐门禁 tests/unit/template-guidance-parity.test.ts(值域/行为陈述,合约在 init-generators r70)与之同随 qa 运行。
+    - 模板 skills 与 units(zh-Hans 与 en 双 locale)中对 CLI 命令与旗标的字面引用 MUST 与 CLI 实际命令面对账:引用的命令路径 MUST 存在,引用的每个旗标 MUST 为该命令已注册旗标;对账 MUST 以自动门禁纳入 bun test 套件(随 qa 运行),违例 MUST 致门禁失败并逐条报出来源模板与违例原因。对账面为 packages/core/templates/** 模板源头;渲染产物与 golden 基线为下游,模板字面对账不在下游重复设门(仓库自带产物新鲜度比对是独立门禁,合约在 init-generators r80)。姊妹语义对齐门禁 tests/unit/template-guidance-parity.test.ts(值域/行为陈述,合约在 init-generators r70)与之同随 qa 运行。
 
   @req:r72 @human
   场景: core 模块依赖对账
