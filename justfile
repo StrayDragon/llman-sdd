@@ -25,9 +25,12 @@ check:
     @{{BUN_RUN}} lint {{OXLINT_FLAGS}} && echo "[check] lint"
     @{{BUN_RUN}} format:check && echo "[check] format"
 
-# 主门禁:check + test(等价 CI)
+# 主门禁:check + test + golden + pending + schema(等价 CI)
 qa: check
     @{{BUN_RUN}} test {{BUN_TEST_FLAGS}} && echo "[pass] test"
+    @{{BUN_RUN}} golden:check && echo "[pass] golden:check"
+    @{{BUN_RUN}} pending-gate && echo "[pass] pending-gate"
+    @{{BUN_RUN}} check:schema && echo "[pass] check:schema"
 
 # 测试:单元 + BDD runner(tests/bdd)
 test:
@@ -43,7 +46,7 @@ format:
 
 # pending 计量门:无配对 @executable 验收的规则数不得高于基线(阶段 QA,随 executable 化批次下调)
 pending-gate:
-    bun run scripts/pending-gate.ts
+    bun run pending-gate
 
 # 构建 CLI 单二进制(apps/cli/dist/)
 build:

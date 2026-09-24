@@ -1,6 +1,6 @@
 // Domain step definitions: init-generators 能力 — 覆盖 r19/r66(v2 渲染 vs
-// golden 基线、双 locale 分流判据、ethics 治理门)与 r49/r50(init 子目录
-// 落点与 --lang 别名)。
+// golden 基线、zh-Hans 与 en 双 locale 基线门、双 locale 分流判据、ethics
+// 治理门)与 r49/r50(init 子目录落点与 --lang 别名)。
 import { spawnSync } from 'node:child_process';
 import {
   existsSync,
@@ -16,6 +16,7 @@ import { join } from 'node:path';
 
 import { ETHICS_KEYS, runInit } from '@llman-sdd/core';
 
+import { BASELINE_DIR } from '../../golden/lib.ts';
 import { makeNodeIo } from '../../helpers/nodeIo.ts';
 import { bdd } from '../runner.ts';
 import { CLI } from './shared.ts';
@@ -30,6 +31,16 @@ bdd.given('本仓库的等价 config(zh-Hans 与 bdd 配置)', (ctx) => {
   writeFileSync(
     join(root, 'llmanspec', 'config.yaml'),
     'schema: spec-driven\nlocale: zh-Hans\n\nbdd:\n  run_command: "bun test tests/bdd"\n  bindings:\n    - kind: tags\n      tags: [executable]\n',
+  );
+  ctx.fixtures['init'] = { root };
+});
+
+bdd.given('本仓库的等价 config(en 与 bdd 配置)', (ctx) => {
+  const root = mkdtempSync(join(tmpdir(), 'llman-sdd-init-en-'));
+  mkdirSync(join(root, 'llmanspec'), { recursive: true });
+  writeFileSync(
+    join(root, 'llmanspec', 'config.yaml'),
+    'schema: spec-driven\nlocale: en\n\nbdd:\n  run_command: "bun test tests/bdd"\n  bindings:\n    - kind: tags\n      tags: [executable]\n',
   );
   ctx.fixtures['init'] = { root };
 });
@@ -94,18 +105,11 @@ bdd.when('v2 渲染全部 skills', (ctx) => {
   );
 });
 
-bdd.thenStep('与 golden 基线归一化版本号后 diff 为空', (ctx) => {
-  const root = (ctx.fixtures['init'] as { root: string }).root;
-  const baselineDir = join(
-    import.meta.dirname,
-    '..',
-    '..',
-    '..',
-    'tests',
-    'golden',
-    'baseline',
-    'skills',
-  );
+// r19: rendered skills tree vs committed golden baseline, version-normalized.
+// lib.ts exports the baseline root but not its tree-diff helpers, so the walk
+// lives here with the baseline subdir parameterized per locale.
+const assertMatchesGoldenBaseline = (producedSkillsDir: string, locale: 'zh-Hans' | 'en'): void => {
+  const subdir = locale === 'en' ? 'skills-en' : 'skills';
   const versionRe = /\b\d+\.\d+\.\d+\b/gu;
   const readTree = (dir: string): Map<string, string> => {
     const out = new Map<string, string>();
@@ -119,16 +123,29 @@ bdd.thenStep('与 golden 基线归一化版本号后 diff 为空', (ctx) => {
     walk('');
     return out;
   };
-  const baseline = readTree(baselineDir);
-  const produced = readTree(join(root, '.agents', 'skills'));
+  const baseline = readTree(join(BASELINE_DIR, subdir));
+  const produced = readTree(producedSkillsDir);
+  const problems: string[] = [];
   for (const [file, content] of baseline) {
-    if (produced.get(file) !== content) {
-      throw new Error(`rendered product ${file} differs from golden baseline`);
-    }
+    if (!produced.has(file)) problems.push(`missing file: ${file}`);
+    else if (produced.get(file) !== content) problems.push(`content differs: ${file}`);
   }
-  if (produced.size !== baseline.size) {
-    throw new Error(`file count mismatch: baseline ${baseline.size} vs v2 ${produced.size}`);
+  for (const file of produced.keys()) {
+    if (!baseline.has(file)) problems.push(`extra file: ${file}`);
   }
+  if (problems.length > 0) {
+    throw new Error(`golden baseline (${subdir}) mismatch:\n${problems.join('\n')}`);
+  }
+};
+
+bdd.thenStep('与 golden 基线归一化版本号后 diff 为空', (ctx) => {
+  const root = (ctx.fixtures['init'] as { root: string }).root;
+  assertMatchesGoldenBaseline(join(root, '.agents', 'skills'), 'zh-Hans');
+});
+
+bdd.thenStep('与 golden en 基线归一化版本号后 diff 为空', (ctx) => {
+  const root = (ctx.fixtures['init'] as { root: string }).root;
+  assertMatchesGoldenBaseline(join(root, '.agents', 'skills'), 'en');
 });
 
 bdd.thenStep('每个 SKILL.md 通过 ethics 治理门', (ctx) => {

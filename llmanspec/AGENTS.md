@@ -10,13 +10,12 @@
 
 ## 项目定位
 
-llman-sdd:spec 驱动开发(SDD)工作流(TypeScript + Bun),将完全接替 Rust llman 中的 sdd 子系统。
-项目全程用 llman SDD 管理(狗粮模式):SDD 流水线当前由 Rust llman 0.0.x 承载,发布切换后由本工具自身承载。
+llman-sdd:spec 驱动开发(SDD)工作流(TypeScript + Bun),完全接替 Rust llman 中的 sdd 子系统。
+本仓库以 llman-sdd 自托管 SDD 流水线(狗粮模式)。
 
-- v1 契约参考(只读,禁止修改):`../llman/crates/llman-sdd`
+- v1 契约参考(只读):`../llman.old-rs-impl-sdd/crates/llman-sdd`
 - 本工具行为契约:`llmanspec/specs/*.feature`(随各 change 在特性分支上落地)
-- 进度:Phase 0–7(bootstrap + 全部 port-* + refine-slop-qa-release)已归档;
-  活跃 change 以 `llman-sdd list` 为准,发布与切换见 `release-v2-and-cutover` proposal
+- 活跃 change 以 `llman-sdd list` 为准
 
 ## 技术栈(已定案)
 
@@ -35,7 +34,8 @@ llman-sdd:spec 驱动开发(SDD)工作流(TypeScript + Bun),将完全接替 Rust
 
 - 保留:archive freeze/thaw(核心功能;`.7z` 格式必须与 v1 冻结产物双向兼容)
 - `project migrate`:保留子命令入口,内容为指向 v1(Rust llman ≤ 0.0.x)的引导提示,不移植迁移实现
-- 移除:`project import`(OpenSpec 互导)、worktree 并行 change、checkpoint/delta 兼容桩、rust-i18n
+- 移除:`project import`(OpenSpec 互导)、`change checkpoint`/`change delta` 及其兼容桩、rust-i18n;已移除的命令与选项彻底删除,不保留报错 stub(调用得到 CLI 的 unknown command/option 错误)
+- worktree:v1 的并行 change 机制不移植;v2 支持单 change 单 worktree——`change start --worktree`(r68)与 finalize/archive 的目标 worktree 感知(r69)
 - ink 是 TUI 战略方向(v1 不引入):所有交互走 PromptDriver 接口;ink 与 inquirer 禁止同进程混用
 - 测试/构建选型终局,rust 生态工具不迁移:rstest 仅适用 Rust 栈,本仓库以
   bun:test + Gherkin runner 承担同等角色;rsbuild/rspack 属 web 阶段(见技术栈
@@ -44,7 +44,7 @@ llman-sdd:spec 驱动开发(SDD)工作流(TypeScript + Bun),将完全接替 Rust
   Rstack 的 JS 测试框架写作 Rstest(`@rstest/core`),同名不同物,讨论时消歧
 
 - 输出对齐口径(2026-09 定案,toon-default-output 修订):v1→v2 对齐收窄为**兼容别名面**——`--json`/`--compact-json` 的输出结构与退出码保持 v1 字节一致;报告型命令(review/validate/list/show/config skills/index check)的**缺省输出自 0.4.0 起为 TOON**(`--output <toon|json|compact-json|human>`,human 为 v1 人读形态唯一入口),主动 divergence;其余人读文案细节(init 输出行、list 时间戳精度、start/finalize 文案、skeleton 头注释 locale 文案)不做逐字节对齐
-- 不移植(定案维持):`show --output deltas/reqs-only` 与 `change checkpoint/delta` 随 checkpoint/delta 机制移除(相关调用固化为报错+指引,r53);worktree 并行、project import、migrate 实现体维持移除
+- 不移植(定案维持):`project import` 与 migrate 实现体维持移除;`show --output` 修饰符(meta-only/no-scenarios/deltas/reqs-only)以 peripheral-commands r53 为准
 - 锁定哈希门禁(v1 spec-format r135 / sdd-workflow r130)不移植:改/删 `@human` 规则的报告制 WARNING 由 git 分支对比 + `review`/`change diff` 浮现,不经 validate/finalize 报告通道;review 的 `locked` 信号恒 0 系有意(2026-09 定案,close-v1-parity-gaps 核验转正)
 - `llmanspec/AGENTS.md` 托管块:v2 init 写入 LLMANSPEC:START/END 标记(v1 不写),属有意改进,保留
 
@@ -77,7 +77,7 @@ llman-sdd:spec 驱动开发(SDD)工作流(TypeScript + Bun),将完全接替 Rust
 - 模板引擎收敛在 TemplateEngine 适配器后:nunjucks 需 `autoescape: false`,trim/尾换行语义对齐 minijinja
 - 验收基线:行为合约 SSOT 为 `llmanspec/specs/*.feature`;skills 生成物与
   v2 自有快照基线(tests/golden/baseline)在相同 config(locale/bdd)下归一化 diff 为空
-- BDD:Gherkin→bun:test runner(`tests/bdd/`,~200 行,源自 crystalith 移植);
+- BDD:Gherkin→bun:test runner(`tests/bdd/`,源自 crystalith 移植);
   带 `@executable` 标签的场景必须可被 `bun test tests/bdd` 执行
 - specs 写法:zh-CN Gherkin 关键字(功能/场景/规则),与 `locale: zh-Hans` 一致
 - 门禁 verbosity:`just qa` 默认 L0 静默(只用工具原生安静开关:`bun test
@@ -85,6 +85,10 @@ llman-sdd:spec 驱动开发(SDD)工作流(TypeScript + Bun),将完全接替 Rust
   `[check]`/`[pass]` 摘要);`just QA_VERBOSE=2 qa` 全量输出排障。禁止
   grep/sed 过滤管道作门禁主路径;输出噪音先修根因(如泄漏的 logger、
   失效的 disable 注释);任何档位失败详情与 exit code 必须完整
+- tasks.md 只列实现与验证任务:收口(`change finalize`/`change archive`)是流水线步骤,
+  不得列为任务——两者的任务门要求全部任务已勾,收口任务必然自相矛盾(勾选即虚报、
+  不勾则收口被拒,且实施期 `validate --strict` 永红)。归档 change 中的此类写法是
+  已知错误先例,勿沿用
 
 ## 语言约定
 
@@ -95,9 +99,9 @@ llman-sdd:spec 驱动开发(SDD)工作流(TypeScript + Bun),将完全接替 Rust
 
 工具:worktrunk(`wt`)。心智模型:**一个 change 分支 = 一个 worktree = 一个独立 agent 工作区**;项目配置在 `.config/wt.toml`(post-start 自动 `bun install`)。
 
-- 生命周期:main worktree 保持 main → `llman-sdd change start <id>`(干净树建 `sdd/<id>` 绑定)→ `wt switch sdd/<id>` 落 worktree → 在 worktree 内做 Specs landing / 实施 / 门禁 → 回 main worktree `llman-sdd change finalize <id>`(squash 合并 + SSOT 改名 + 归档提交)→ `wt remove`
+- 生命周期:main worktree 保持 main → `llman-sdd change start <id>`(干净树建 `sdd/<id>` 绑定)→ `wt switch sdd/<id>` 落 worktree → 在 change worktree 内完成 Specs landing / 实施 / 门禁 → 在 change worktree 内执行 `llman-sdd change finalize <id>`(squash 合并 + SSOT 改名 + 归档提交;目标分支由 main worktree 持有且干净时,finalize 在该 main worktree 内完成合并与收口,r69)→ `wt remove`
 - 收口一律 `change finalize`,不用 `wt merge`(finalize 负责 specs SSOT 改名与 archive 提交;其合并步骤对目标被 worktree 持有有显式降级)
 - 并行约束:同批并行 change 的 `llmanspec/specs/**` 文件必须两两不相交;触碰同一代码文件(如 main.ts)的改动不得并行——规划时按文件相交性分组
-- 门禁:worktree 内 `just qa` + `just pending-gate` + `just golden`;合并顺序由 main worktree 串行执行(先到先 finalize,后来者 rebase)
+- 门禁:worktree 内 `just qa`(check + test + golden + pending + schema 全集);合并顺序由 main worktree 串行执行(先到先 finalize,后来者 rebase)
 - 多 agent 拉起:`wt switch sdd/<id> -x <agent-cli> -- '<任务提示>'`;监控 `wt list` / `wt step for-each`
 

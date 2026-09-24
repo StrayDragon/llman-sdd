@@ -15,13 +15,20 @@
 
   @req:r19 @human
   场景: init 产物面与命名空间治理
-    - `init` MUST 产出 llmanspec/config.yaml(含 $schema 头行与 locale 缺省)、specs/.gitkeep、changes/archive/.gitkeep,并以托管块方式写根与 llmanspec 的 AGENTS.md(已有内容保留);`init --update` MUST 渲染默认 10 个 skills 加 extra_skills 扩展到 `.agents/skills/<stem>/SKILL.md`,且 MUST 仅清理 `llman-sdd-` 前缀内候选集外的目录;每个渲染产物 MUST 通过 ethics 治理门(5 个 ethics 键齐全)。
+    - `init` MUST 产出 llmanspec/config.yaml(含 $schema 头行与 locale 缺省)、specs/.gitkeep、changes/archive/.gitkeep,并以托管块方式写根与 llmanspec 的 AGENTS.md(已有内容保留);`init --update` MUST 渲染默认 10 个 skills 加 extra_skills 扩展到 `.agents/skills/<stem>/SKILL.md`,且 MUST 仅清理 `llman-sdd-` 前缀内候选集外的目录;每个渲染产物 MUST 通过 ethics 治理门(5 个 ethics 键齐全)。渲染产物与 golden 基线(tests/golden/baseline/)的版本号归一化比对 MUST 同时覆盖 zh-Hans 与 en 两个 locale,且 MUST 随 bun test 套件运行;比对失败 MUST 报出差异文件名并区分缺失、多余与内容不同。
 
   @req:r19 @executable
   场景: 渲染与基线归一化一致
     假如 本仓库的等价 config(zh-Hans 与 bdd 配置)
     当 v2 渲染全部 skills
     那么 与 golden 基线归一化版本号后 diff 为空
+    而且 每个 SKILL.md 通过 ethics 治理门
+
+  @req:r19 @executable
+  场景: en 渲染与 en 基线归一化一致
+    假如 本仓库的等价 config(en 与 bdd 配置)
+    当 v2 渲染全部 skills
+    那么 与 golden en 基线归一化版本号后 diff 为空
     而且 每个 SKILL.md 通过 ethics 治理门
 
   @req:r49 @human

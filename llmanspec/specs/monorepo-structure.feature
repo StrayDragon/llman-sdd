@@ -1,7 +1,7 @@
 # language: zh-CN
 # capability: monorepo-structure
-# purpose: 规范 v2 仓库的 Bun workspaces 布局、oxc 工具链门禁、core 纯域纪律与 BDD runner 就绪要求,作为后续全部 port-* change 的可验证地基。
-# scope: package.json, .bun-version, tsconfig.json, .oxlintrc.json, .oxfmtrc.json, .pre-commit-config.yaml, justfile, packages/, apps/, tests/
+# purpose: 规范 v2 仓库的 Bun workspaces 布局、oxc 工具链门禁、core 纯域纪律与 BDD runner 就绪要求,并以只读对账断言锁定本地门禁与 CI 的一致性。
+# scope: package.json, .bun-version, tsconfig.json, .oxlintrc.json, .oxfmtrc.json, .pre-commit-config.yaml, justfile, .github/workflows/, scripts/, packages/, apps/, tests/
 
 功能: monorepo-structure
 
@@ -11,11 +11,11 @@
 
   @req:r2 @human
   场景: 质量门禁
-    - justfile MUST 提供 check 聚合门禁(typecheck = tsc --noEmit、oxlint、oxfmt --check 三项全过)与 qa 聚合门禁(check + bun test)。pre-commit(prek)MUST 至少包含 oxlint 与 oxfmt --write 两个 local hook,并附带 pre-commit-hooks v5 的 whitespace 系检查。
+    - justfile MUST 提供 check 聚合门禁(typecheck = tsc --noEmit、oxlint、oxfmt --check 三项全过)与 qa 聚合门禁;qa MUST 依次聚合 check、bun test、golden:check(skills 渲染基线)、pending-gate(待决规则门)与 check:schema(config schema 产物漂移)。根 package.json 的 qa 脚本 MUST 聚合同一集合;CI MUST 运行同一集合,不得多于或少于本地 qa。上述三处一致性 MUST 由只读对账断言锁定,缺项 MUST 逐项报出。pre-commit(prek)MUST 至少包含 oxlint 与 oxfmt --write 两个 local hook,并附带 pre-commit-hooks v5 的 whitespace 系检查。
 
   @req:r3 @human
   场景: core 纯域纪律
-    - packages/core MUST 保持纯域逻辑:文件系统、git 子进程、终端副作用 MUST 经接口(ports)注入,不得在域逻辑内直连。模板引擎调用 MUST 收敛在 TemplateEngine 适配器之后;交互提示 MUST 收敛在 PromptDriver 接口之后。oxlint ignorePatterns MUST 忽略生成物与 .agents/skills/。
+    - packages/core MUST 保持纯域逻辑:文件系统、git 子进程、终端副作用 MUST 经接口(ports)注入,不得在域逻辑内直连;对进程环境(process.* 读取,含环境变量与 pid)与墙钟(无参 Date 构造、Date.now)的访问同属副作用,MUST 经注入或参数传入。纯度门禁 MUST 检出上述全部类别;若存在过渡白名单,每项 MUST 注明清零责任方。模板引擎调用 MUST 收敛在 TemplateEngine 适配器之后;交互提示 MUST 收敛在 PromptDriver 接口之后。oxlint ignorePatterns MUST 忽略生成物与 .agents/skills/。
 
   @req:r4 @human
   场景: BDD runner 就绪
