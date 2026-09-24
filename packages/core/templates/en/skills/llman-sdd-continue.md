@@ -24,18 +24,17 @@ Use this skill to continue an existing change and create the next missing artifa
    5) Edit live `llmanspec/specs/<capability>.feature` (flat, or directory main file) on the **bound branch** and commit — Specs landing (or set `needs_specs_change: false` when there is no contract edit)
 4. Create exactly ONE missing artifact (or one live spec/feature edit on the bound branch).
    - Do NOT implement application code in continue mode.
-   - Do NOT create `*.feature.delta.toon`, `spec.toon`, or files under `changes/<id>/specs/`.
+   - Do NOT create files under `changes/<id>/specs/`.
    - Do NOT edit shared `llmanspec/specs/**` before start/attach.
 5. If all artifacts already exist, suggest next actions from `llman-sdd show <id> --output json`:
    - specs-landed gate failing → finish Specs landing (or `needs_specs_change: false`); do **not** suggest apply yet
    - specs-landed gate green (even mid-implementation with `readyToImplement=false` while tasks remain) → Implement: `llman-sdd-apply`
    - After verify → Archive: `llman-sdd-archive`
-   - Validate: `llman-sdd validate <id> --strict --no-interactive`
+   - Validate: `llman-sdd validate <id> --strict`
    - Review: `llman-sdd change diff <id>` (read-only)
 
 {{ unit("skills/git-native-flow") }}
-> For command details run `llman-sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables.
-> "Spec" here = a `.feature` file under this project's `llmanspec/specs/`; run `llman-sdd list --specs` or `llman-sdd show <capability>`.
+{{ unit("skills/cli-footer") }}
 {{ unit("skills/validation-hints") }}
 
 {{ unit("skills/structured-protocol") }}

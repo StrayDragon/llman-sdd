@@ -1,7 +1,7 @@
 # language: zh-CN
 # capability: context-index
 # purpose: 定义 pageindex 索引构建/新鲜度合同与 context agentic 检索的 env、工具、循环上限、输出去重与汇总/降级契约。
-# scope: packages/core/src/context/, apps/cli/src/, llmanspec/.context/
+# scope: packages/core/src/context/, apps/cli/src/commands/context.ts, apps/cli/src/commands/index.ts, llmanspec/.context/
 
 功能: context-index
 

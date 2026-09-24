@@ -11,7 +11,14 @@ import {
 } from '@llman-sdd/core';
 import type { Command } from 'commander';
 
-import { cliMaxScanDepth, loadSpecEntries, newIo, resolveChangeIdOrExit } from '../cli-shared.ts';
+import {
+  addReportOutputOptions,
+  CliError,
+  cliMaxScanDepth,
+  loadSpecEntries,
+  newIo,
+  resolveChangeIdOrExit,
+} from '../cli-shared.ts';
 import { makeCliGit } from '../io.ts';
 
 function hasSection(proposal: string, heading: string): boolean {
@@ -91,29 +98,67 @@ function renderSpecJson(
 }
 
 export function registerShow(program: Command): void {
-  program
+  const show = program
     .command('show')
     .description('Show a change or spec')
     .argument('<item>')
-    .option('--output <format>', 'json | compact | meta-only | no-scenarios | deltas | reqs-only')
     .option('--type <type>', 'force disambiguation: change | spec')
-    .option('-r, --requirement <n>', 'spec only: show a specific requirement by 1-based index')
-    .action((item: string, options: { output?: string; type?: string; requirement?: string }) => {
+    .option('-r, --requirement <n>', 'spec only: show a specific requirement by 1-based index');
+  addReportOutputOptions(show, {
+    outputHint: 'json | compact-json | toon | human | {json,meta-only|no-scenarios|reqs-only}',
+  });
+  show.action(
+    (
+      item: string,
+      options: {
+        output?: string;
+        type?: string;
+        requirement?: string;
+        json?: boolean;
+        compactJson?: boolean;
+      },
+    ) => {
+      // D4 shared surface: the registered --json/--compact-json aliases feed
+      // the same token set as --output so show honors them uniformly.
       const outTokens = new Set(
-        (options.output ?? '')
-          .split(',')
+        [
+          ...(options.output ?? '').split(','),
+          ...(options.json === true ? ['json'] : []),
+          ...(options.compactJson === true ? ['compact-json'] : []),
+        ]
           .map((t) => t.trim())
           .filter((t) => t !== ''),
       );
-      const asCompact = outTokens.has('compact');
+      const VALID_TOKENS = new Set([
+        'json',
+        'toon',
+        'human',
+        'compact-json',
+        'compact',
+        'meta-only',
+        'no-scenarios',
+        'reqs-only',
+      ]);
+      for (const token of outTokens) {
+        if (!VALID_TOKENS.has(token)) {
+          throw new CliError(
+            `invalid --output token: ${token} (json | toon | human | compact-json | compact | meta-only | no-scenarios | reqs-only)`,
+            2,
+          );
+        }
+      }
+      // B10/Q1: `compact-json` is a real machine mode (single-line JSON), not a
+      // text fallback; legacy `compact` token aliases it.
+      const asCompact = outTokens.has('compact') || outTokens.has('compact-json');
       const metaOnly = outTokens.has('meta-only');
       const noScenarios = outTokens.has('no-scenarios');
       const reqsOnly = outTokens.has('reqs-only');
       // toon-default-output: no --output → toon; machine modes share the json
       // gates (Why/What validation) and suppress the prefix hint; `human` is the
       // sole v1 text form. Legacy modifiers (meta-only/no-scenarios/reqs-only/
-      // deltas/-r) belong to the text face — they route to human (v1 no-op
-      // render semantics preserved).
+      // -r) belong to the text face — they route to human (v1 no-op render
+      // semantics preserved). The v1 delta modifier was removed: unknown
+      // tokens are rejected like other report commands.
       const wantsMachine = outTokens.has('json') || outTokens.has('toon') || asCompact;
       // no --output at all → toon; explicit legacy-only modifiers → human text
       const isHuman = options.output !== undefined && (outTokens.has('human') || !wantsMachine);
@@ -145,9 +190,7 @@ export function registerShow(program: Command): void {
         const specPath =
           specEntry !== undefined && !existsSync(flatSpecPath) ? specEntry.fileName : flatSpecPath;
         if (!existsSync(specPath)) {
-          console.error(`spec not found: ${item}`);
-          process.exitCode = 1;
-          return;
+          throw new CliError(`spec not found: ${item}`);
         }
         if (asJson) {
           console.log(
@@ -175,19 +218,16 @@ export function registerShow(program: Command): void {
       // ---- change ----
       // r61: v1 r112 prefix chain — exact > unique prefix > multiple > not found.
       const resolved = resolveChangeIdOrExit(program, item, { suppressHint: asJson });
-      if (resolved === null) return;
       const changeId = resolved.id;
       const viaPrefix = resolved.viaPrefix;
       const proposal = readFileSync(join('llmanspec', 'changes', changeId, 'proposal.md'), 'utf8');
       if (asJson) {
         // v1 parse_change gates: Why first, then What Changes (json only).
         if (!hasSection(proposal, 'Why')) {
-          process.exitCode = 1;
-          throw new Error('Change must have a Why section');
+          throw new CliError('Change must have a Why section');
         }
         if (!hasSection(proposal, 'What Changes')) {
-          process.exitCode = 1;
-          throw new Error('Change must have a What Changes section');
+          throw new CliError('Change must have a What Changes section');
         }
         const result = showChangeJson(
           {
@@ -223,5 +263,6 @@ export function registerShow(program: Command): void {
       const passCount = gates.filter((g) => g.pass).length;
       console.log(`Gates: ${passCount}/${gates.length} pass`);
       for (const g of gates.filter((g) => !g.pass)) console.log(`✗ ${g.name}: ${g.hint}`);
-    });
+    },
+  );
 }

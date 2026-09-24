@@ -36,7 +36,7 @@ flowchart LR
 ## Steps
 1. Select the change id (or ask the user to pick from `llman-sdd list --json`).
 2. Run a fast validation gate:
-   - `llman-sdd validate <id> --strict --no-interactive`
+   - `llman-sdd validate <id> --strict`
    - **When diagnosing structural issues (Gherkin parse / `@req` linkage / dual-write / global req_id uniqueness), run the structural validation first** (when `bdd.run_command` is configured, validate executes that harness by default — `--no-check` skips it; a harness failure lands as an ERROR on its spec item). Failing items are listed one by one in the default TOON output's `items[].issues[]` (`--output human` prints the v1 text form: `FAIL <item_type>/<id>` lines above the `Totals` line).
 3. Read:
    - Live specs on the feature branch: `llmanspec/specs/**` (`<capability>.feature`) — SSOT
@@ -79,7 +79,7 @@ flowchart LR
    - **CRITICAL** (must fix before archive)
    - **WARNING** (should fix)
    - **SUGGESTION** (nice to have)
-7. **Human review checkpoint**: once the report has no CRITICAL findings and before suggesting archive, run `llman-sdd review`:
+7. **Human review gate**: once the report has no CRITICAL findings and before suggesting archive, run `llman-sdd review`:
    - Exit code zero → suggest `llman-sdd-archive` for finalize/archive.
    - Non-zero exit = CRITICAL findings: fix via `llman-sdd-apply`, then re-run review; MUST NOT enter finalize/archive with CRITICAL findings open.
 
@@ -87,8 +87,7 @@ flowchart LR
 
 {{ unit("skills/git-native-flow-brief") }}
 {{ unit("skills/human-readable-summary") }}
-> For command details run `llman-sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables.
-> "Spec" here = a `.feature` file under this project's `llmanspec/specs/`; run `llman-sdd list --specs` or `llman-sdd show <capability>`.
+{{ unit("skills/cli-footer") }}
 
 {{ unit("skills/validation-hints") }}
 

@@ -33,7 +33,7 @@ llman-sdd show <change-id> --output json --type change
 
 ### 2) 校验
 ```bash
-llman-sdd validate <change-id> --strict --no-interactive
+llman-sdd validate <change-id> --strict
 ```
 失败则修复重试（自修复预算与 `llman-sdd-apply` 一致：上限 8 轮）。
 
@@ -46,7 +46,7 @@ llman-sdd change finalize <change-id>
 ```
 （工作区可脏；自动合并（squash 缺省）+ 文档改名 + **自动提交** `archive(sdd): <change-id>` 单进程完成。`--no-commit` 跳过自动提交用于手动/CI 历史——此时自行 `git add -A && git commit -m "archive(sdd): <change-id>"`。）
 
-`change checkpoint` 已移除；普通 `change archive` 命令保留为 fallback（不再要求任何 checkpointed 字段）。
+普通 `change archive` 命令保留为 fallback。
 
 ### 5) 提交（见步骤 4）
 finalize 已自动提交，除非传了 `--no-commit`。
@@ -61,7 +61,7 @@ push / Hosting PR 仅当用户明确要求。
 - **禁止询问**「要不要继续」——除非 blocker，否则一路到底。
 - **禁止切换**其他 change，直到本 change 已归档并提交。
 - **重试上限**：自修复遵循 `llman-sdd-apply` 的 8 轮预算（含 diagnose 升级路径）。
-- **禁止**写 `changes/<id>/specs/` 或 `change delta`。
+- **禁止**写 `changes/<id>/specs/`。
 - **禁止默认 push/PR**。
 
 ## Ethics Governance
@@ -71,5 +71,4 @@ push / Hosting PR 仅当用户明确要求。
 - `ethics.refusal_contract`: 门禁或校验自修复 8 轮仍失败 → 报告 blocker，禁止强行归档
 - `ethics.escalation_policy`: 若改动 SDD 工作流 spec/模板，归档前暂停请用户确认
 
-> 命令细节用 `llman-sdd <cmd> --help` 查看；命令参考以 CLI 为准，skill 不内嵌命令表。
-> 文中「规约」= 本项目 `llmanspec/specs/` 下的 `.feature` 文件；用 `llman-sdd list --specs` / `llman-sdd show <capability>` 查全文。
+{{ unit("skills/cli-footer") }}

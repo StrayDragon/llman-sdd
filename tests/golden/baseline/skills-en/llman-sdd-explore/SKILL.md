@@ -24,7 +24,7 @@ Do not conflate **skill navigation** with the **Git-native lifecycle**. Full dia
 Hard rules:
 1. **First** Branch binding (`change start` / `attach`) → Full; **then** Specs landing (edit and commit `llmanspec/specs/**` on the bound branch).
 2. No live contract edits → `needs_specs_change: false`. Enter apply when `stage=full` and the specs-landed gate passes; `readyToImplement=true` (all gates green) is the completion signal gating verify/finalize.
-3. Close-out: `change finalize` (auto commit `archive(sdd): <id>`; `--no-commit` to skip). `change checkpoint` is removed (calling it exits non-zero and points to finalize).
+3. Close-out: `change finalize` (auto commit `archive(sdd): <id>`; `--no-commit` to skip).
 4. **Do not** commit live specs on the default branch; if already attached, do not re-run `start`.
 5. Worktree mode (optional): `change start --worktree` creates the branch in a dedicated worktree without hijacking the current checkout (`--base <branch>` records a non-default fork source); finalize runs in place when the target is held by another worktree (location annotated in output).
 
@@ -70,7 +70,7 @@ flowchart LR
    - Scope / design / work items → planning shell (`proposal.md` / `design.md` / `tasks.md`)
    - Constraints / executable harness → **suggest** live `llmanspec/specs/**` (one `.feature` per capability); actual edits require Branch binding then Specs landing. If not bound yet in explore, record only in proposal — do not edit live specs.
 
-> Git-native: first `change start`/`attach` (Branch binding) to enter Full, then edit live `.feature` on the bound branch (Specs landing); no `change delta` / solidify / feature_delta.
+> Git-native: first `change start`/`attach` (Branch binding) to enter Full, then edit live `.feature` on the bound branch (Specs landing).
 
 ## Exiting explore mode
 When the user is ready to implement, choose based on change scale:

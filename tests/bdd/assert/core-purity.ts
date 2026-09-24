@@ -1,8 +1,8 @@
 // r3 core 纯域纪律合约对账(只读断言,退出码即判定)。
 // oxlint ignorePatterns 忽略生成物与 .agents/skills/;node:fs /
 // node:child_process 直连仅限白名单适配器文件;process.* 读取与无参墙钟
-// (Date.now / new Date())同属副作用,剥离注释后逐文件检出的过渡白名单
-// 每项注明清零责任方(新增直连必须显式更新白名单——这正是合约锁定的语义)。
+// (Date.now / new Date())同属副作用,剥离注释后逐文件检出(白名单已清零,
+// 全部 core 源码须经参数/接口注入)。
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -30,12 +30,8 @@ const ADAPTER_ALLOWLIST = new Set([
   'packages/core/src/git/spawnGit.ts', // git 子进程适配器
 ]);
 
-// 过渡白名单(仅豁免 process.* / 墙钟检查,不豁免 node:* 直连):
-// 每项 MUST 注明清零责任方;清零落地后同步删条目。
-const TRANSITIONAL_ALLOWLIST = new Set([
-  // 由 align-report-cli-surface(第二波)清零
-  'packages/core/src/review/review.ts',
-]);
+// 过渡白名单已由 align-report-cli-surface 清零:core 全部源码不再豁免
+// process.* / 墙钟检查(新增直连会直接 FAIL)。
 
 /** 剥离 // 行注释与块注释后的源码(注释里的 process./Date 不计违规)。 */
 function stripComments(source: string): string {
@@ -65,7 +61,6 @@ for (const file of files) {
       fail(`${fullPath} 直连 ${moduleName}(MUST 经 ports 注入)`);
     }
   }
-  if (TRANSITIONAL_ALLOWLIST.has(fullPath)) continue;
   const code = stripComments(source);
   if (/\bprocess\./u.test(code)) {
     fail(`${fullPath} 读取 process.*(MUST 经参数/接口注入)`);

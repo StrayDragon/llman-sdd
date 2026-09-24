@@ -36,9 +36,9 @@ export function graphData(io: GraphFsIo, root: string, opts: GraphOptions = {}):
 
   let nodes: GraphNode[];
   if (opts.seed !== undefined) {
-    nodes = buildSeedNeighborhood(io, root, opts.seed, opts.depth ?? 1);
+    nodes = buildSeedNeighborhood(io, root, opts.seed, opts.depth ?? 1, opts.maxScanDepth);
   } else {
-    nodes = buildDefaultNodes(io, root, kinds);
+    nodes = buildDefaultNodes(io, root, kinds, opts.maxScanDepth);
   }
   const irNodes: GraphNodeIr[] = nodes.map((n) => ({
     id: n.id,

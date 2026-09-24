@@ -1,7 +1,7 @@
 import { migrateNoteFor, migrateOverviewFor, planDedupe } from '@llman-sdd/core';
 import type { Command } from 'commander';
 
-import { loadCliConfig, loadSpecEntries, newIo } from '../cli-shared.ts';
+import { CliError, loadCliConfig, loadSpecEntries, newIo } from '../cli-shared.ts';
 
 export function registerProject(program: Command): void {
   const project = program.command('project').description('Project management commands');
@@ -57,11 +57,9 @@ export function registerProject(program: Command): void {
       }
       const note = migrateNoteFor(options.kind, locale);
       if (note === null) {
-        console.error(
+        throw new CliError(
           `unknown migration kind: ${options.kind} (expected: toon2features | specs-flatten)`,
         );
-        process.exitCode = 1;
-        return;
       }
       console.log(note);
     });

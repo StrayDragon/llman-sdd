@@ -44,7 +44,7 @@ llman-sdd:spec 驱动开发(SDD)工作流(TypeScript + Bun),完全接替 Rust ll
   Rstack 的 JS 测试框架写作 Rstest(`@rstest/core`),同名不同物,讨论时消歧
 
 - 输出对齐口径(2026-09 定案,toon-default-output 修订):v1→v2 对齐收窄为**兼容别名面**——`--json`/`--compact-json` 的输出结构与退出码保持 v1 字节一致;报告型命令(review/validate/list/show/config skills/index check)的**缺省输出自 0.4.0 起为 TOON**(`--output <toon|json|compact-json|human>`,human 为 v1 人读形态唯一入口),主动 divergence;其余人读文案细节(init 输出行、list 时间戳精度、start/finalize 文案、skeleton 头注释 locale 文案)不做逐字节对齐
-- 不移植(定案维持):`project import` 与 migrate 实现体维持移除;`show --output` 修饰符(meta-only/no-scenarios/deltas/reqs-only)以 peripheral-commands r53 为准
+- 不移植(定案维持):`project import` 与 migrate 实现体维持移除;`show --output` 修饰符(meta-only/no-scenarios/reqs-only)以 peripheral-commands r53 为准
 - 锁定哈希门禁(v1 spec-format r135 / sdd-workflow r130)不移植:改/删 `@human` 规则的报告制 WARNING 由 git 分支对比 + `review`/`change diff` 浮现,不经 validate/finalize 报告通道;review 的 `locked` 信号恒 0 系有意(2026-09 定案,close-v1-parity-gaps 核验转正)
 - `llmanspec/AGENTS.md` 托管块:v2 init 写入 LLMANSPEC:START/END 标记(v1 不写),属有意改进,保留
 
@@ -74,7 +74,7 @@ llman-sdd:spec 驱动开发(SDD)工作流(TypeScript + Bun),完全接替 Rust ll
 ## 工程规则
 
 - `packages/core` 保持纯域逻辑:文件系统 / git / 终端副作用一律经接口注入,便于 golden 对照测试
-- 模板引擎收敛在 TemplateEngine 适配器后:nunjucks 需 `autoescape: false`,trim/尾换行语义对齐 minijinja
+- nunjucks 调用收敛在 templates/engine.ts,且无 loader、`autoescape: false`,trim/尾换行语义对齐 minijinja
 - 验收基线:行为合约 SSOT 为 `llmanspec/specs/*.feature`;skills 生成物与
   v2 自有快照基线(tests/golden/baseline)在相同 config(locale/bdd)下归一化 diff 为空
 - BDD:Gherkin→bun:test runner(`tests/bdd/`,源自 crystalith 移植);

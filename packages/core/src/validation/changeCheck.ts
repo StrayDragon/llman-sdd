@@ -5,7 +5,7 @@ import {
   readNeedsSpecsChange,
   specsLanded,
 } from '../change/frontmatter.ts';
-import { parseTaskCheckboxes } from '../change/tasks.ts';
+import { CLOSE_OUT_TASK_HINT, closeOutTaskLines, parseTaskCheckboxes } from '../change/tasks.ts';
 /**
  * Change-domain validation (v1 `commands/validate.rs` change path parity):
  * frontmatter/depends_on gates, design/tasks constraints, completeness stage
@@ -239,13 +239,26 @@ export function validateChange(
     }
 
     if (hasTasks) {
-      const { completed, total } = parseTaskCheckboxes(io.readText(`${dir}tasks.md`));
+      const { completed, total, pendingLines } = parseTaskCheckboxes(io.readText(`${dir}tasks.md`));
       if (total > 0 && completed < total) {
         const n = total - completed;
         push(
           config.strict_defer ? 'ERROR' : 'WARNING',
           'tasks.md',
           `${n} unchecked task(s) in tasks.md`,
+        );
+      }
+      // D9/B23 (active changes only — validate domain): an unchecked task whose
+      // title starts with a close-out verb is a pipeline-step pseudo-task; the
+      // task gate requires every task checked, so it can never legitimately
+      // stay as a task. Match on the leading verb only, so "fix finalize task
+      // gate" (a task ABOUT close-out) is not flagged.
+      for (const line of closeOutTaskLines(pendingLines)) {
+        const title = line.replace(/^-\s+\[ \]\s*/u, '').trim();
+        push(
+          'WARNING',
+          'tasks',
+          `task "${title}" looks like a close-out step; ${CLOSE_OUT_TASK_HINT}`,
         );
       }
     }

@@ -82,7 +82,6 @@ The map is **deliberately** incomplete. The test for ticket-vs-fog: **can you st
 ## Output
 Map change + child decision changes' dependency graph (`llman-sdd graph`). When the way is clear, proceed to `llman-sdd-propose` (Branch binding → Specs landing) to collapse decisions into an implementable plan.
 
-> For command details run `llman-sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables.
-> "Spec" here = a `.feature` file under this project's `llmanspec/specs/`; run `llman-sdd list --specs` or `llman-sdd show <capability>`.
+{{ unit("skills/cli-footer") }}
 
 {{ unit("skills/structured-protocol") }}

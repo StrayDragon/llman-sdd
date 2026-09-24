@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { runInit } from '@llman-sdd/core';
 import type { Command } from 'commander';
 
-import { templateIo, version } from '../cli-shared.ts';
+import { CliError, templateIo, version } from '../cli-shared.ts';
 import { makeIo } from '../io.ts';
 
 export function registerInit(program: Command): void {
@@ -18,9 +18,7 @@ export function registerInit(program: Command): void {
     .action(
       (path: string | undefined, options: { update?: boolean; locale?: string; lang?: string }) => {
         if (options.locale !== undefined && options.lang !== undefined) {
-          console.error('--locale and --lang are mutually exclusive (they are aliases)');
-          process.exitCode = 1;
-          return;
+          throw new CliError('--locale and --lang are mutually exclusive (they are aliases)');
         }
         let root = process.cwd();
         if (path !== undefined) {

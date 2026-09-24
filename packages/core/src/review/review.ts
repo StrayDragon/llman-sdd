@@ -16,15 +16,8 @@ export interface ReviewSignal {
   detail: string;
 }
 
-export interface TagBinding {
-  kind: 'tags';
-  tags: string[];
-}
-
 export interface ReviewInput {
   entries: readonly SpecEntry[];
-  /** config bdd.bindings (tags sources); null/empty = every acceptance unbound. */
-  bindings: readonly TagBinding[] | null;
   /** Active changes currently carrying a branch binding. */
   boundChangeCount: number;
   /** Active change summaries for the strict sweep (pending tasks → FAIL). */
@@ -35,6 +28,8 @@ export interface ReviewInput {
   git?: GitLike;
   root?: string;
   specsDir?: string;
+  /** v1 base-ref override env value (LLMANSPEC_BASE_REF), injected by caller. */
+  baseRefEnv?: string;
 }
 
 export interface ReviewResult {
@@ -91,7 +86,7 @@ export function buildReview(input: ReviewInput, io: SpecIo): ReviewResult {
         root: input.root,
         specRel,
         scope: entry.doc.header.scope?.split(',').map((x) => x.trim()) ?? [],
-        baseRefEnv: process.env.LLMANSPEC_BASE_REF,
+        baseRefEnv: input.baseRefEnv,
       });
       staleInfo = evalResult.info;
       staleCount = staleInfo.status === 'OK' || staleInfo.status === 'NOTAPPLICABLE' ? 0 : 1;
@@ -180,6 +175,7 @@ export function renderReviewHtml(
     signals: readonly { kind: string; capability: string; count: number; detail: string }[];
     summary: { criticalCount: number; warningCount: number };
   },
+  now: Date,
 ): string {
   const esc = (input: string): string =>
     input
@@ -201,5 +197,5 @@ export function renderReviewHtml(
     .replaceAll('__WARNING__', String(result.summary.warningCount))
     .replaceAll('__SIGNALS__', JSON.stringify(sigJson))
     .replaceAll('__MERMAID__', mermaid)
-    .replaceAll('__GENERATED__', new Date().toISOString());
+    .replaceAll('__GENERATED__', now.toISOString());
 }

@@ -92,7 +92,8 @@ describe('show resolves specs in both layouts', () => {
     const root = mkRepo('dirstyle', 'agent-hooks');
     const res = runCli(root, ['show', 'no-such-cap', '--type', 'spec']);
     expect(res.status).toBe(1);
-    expect(res.stderr.trim()).toBe('spec not found: no-such-cap');
+    // D5: 统一错误出口——域错误以单一 `Error: ` 前缀渲染
+    expect(res.stderr.trim()).toBe('Error: spec not found: no-such-cap');
   });
 
   test('flat spec: default toon and human text both work', () => {

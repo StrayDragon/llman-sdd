@@ -30,7 +30,7 @@ bdd.given('本仓库的等价 config(zh-Hans 与 bdd 配置)', (ctx) => {
   mkdirSync(join(root, 'llmanspec'), { recursive: true });
   writeFileSync(
     join(root, 'llmanspec', 'config.yaml'),
-    'schema: spec-driven\nlocale: zh-Hans\n\nbdd:\n  run_command: "bun test tests/bdd"\n  bindings:\n    - kind: tags\n      tags: [executable]\n',
+    'schema: spec-driven\nlocale: zh-Hans\n\nbdd:\n  run_command: "bun test tests/bdd"\n',
   );
   ctx.fixtures['init'] = { root };
 });
@@ -40,7 +40,7 @@ bdd.given('本仓库的等价 config(en 与 bdd 配置)', (ctx) => {
   mkdirSync(join(root, 'llmanspec'), { recursive: true });
   writeFileSync(
     join(root, 'llmanspec', 'config.yaml'),
-    'schema: spec-driven\nlocale: en\n\nbdd:\n  run_command: "bun test tests/bdd"\n  bindings:\n    - kind: tags\n      tags: [executable]\n',
+    'schema: spec-driven\nlocale: en\n\nbdd:\n  run_command: "bun test tests/bdd"\n',
   );
   ctx.fixtures['init'] = { root };
 });

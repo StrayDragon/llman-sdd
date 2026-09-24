@@ -20,7 +20,7 @@ metadata:
 硬规则：
 1. **先** Branch binding（`change start` / `attach`）→ Full；**再** Specs landing（绑定分支编辑并 commit `llmanspec/specs/**`）。
 2. 无 live 合约变更 → `needs_specs_change: false`。`stage=full` 且 specs-landed 门通过即可进入 apply；`readyToImplement=true`（全门绿）是 verify/finalize 前的完成信号。
-3. 收口用 `change finalize`（自动提交 `archive(sdd): <id>`；`--no-commit` 可跳过）。`change checkpoint` 已移除（调用即以非零退出报错，指向 finalize）。
+3. 收口用 `change finalize`（自动提交 `archive(sdd): <id>`；`--no-commit` 可跳过）。
 4. **禁止**在默认分支 commit live specs；已 attach 勿重复 `start`。
 5. worktree 模式（可选）：`change start --worktree` 在独立 worktree 建分支且不劫持当前检出（`--base <branch>` 记录非默认分叉源）；finalize 目标被其他 worktree 持有时自动原地执行（输出标注位置）。
 
@@ -50,7 +50,7 @@ flowchart LR
 
 ## Commit 策略
 
-- **change 分支上提交自由**（无存档点概念：`change finalize` 不要求干净树）：可按 task/里程碑分段提交（利于 review），也可保持工作区不提交、交给 finalize 一次收尾——两条路都是一等公民。`change checkpoint` 已不存在（调用它以非零退出报错并指向 finalize），因此没有「中途存档点」要维护；`change finalize` 对两种形态都原生支持（不要求干净树）。
+- **change 分支上提交自由**（无存档点概念：`change finalize` 不要求干净树）：可按 task/里程碑分段提交（利于 review），也可保持工作区不提交、交给 finalize 一次收尾——两条路都是一等公民。因此没有「中途存档点」要维护；`change finalize` 对两种形态都原生支持（不要求干净树）。
 - **默认收尾**：全部 task 过门禁且 verify 全绿后，`llman-sdd change finalize <id>` 自动提交 `archive(sdd): <change-id>`（未提交的实现 diff + frontmatter + archive 改名一次提交）。不要在 apply 循环内 finalize。`--no-commit` 可跳过自动提交（手动/CI 历史、pre-commit hook 冲突场景）。
 - **blocker 中断**：必须因 blocker STOP 时，先做**一次** WIP commit（如 `wip(sdd): <change-id> <摘要>`）保全现场，再报告。
 
@@ -60,7 +60,7 @@ flowchart LR
 - 读取并遵守：`llmanspec/config.yaml`、`AGENTS.md`（若存在）。
 - `git status --porcelain`：
   - 若工作区不干净且改动不属于当前 change：先 `git stash push -u -m "llman-sdd-apply autopilot backup"` 做备份。
-- 运行 `llman-sdd validate --all --strict --no-interactive`：
+- 运行 `llman-sdd validate --all --strict`：
   - 若失败且与当前 change 无关，先停下报告（工件不一致会导致实现无法以 SSOT 驱动）。
 - **检查 spec valid_scope 完整性**：使用 `llman-sdd list --specs --json` 列出所有 spec，然后对每个 spec 验证其 `valid_scope` 中的每个路径是否存在于磁盘上。若存在缺失的文件/目录，停下并建议更新 spec（从 `valid_scope` 中移除已删除的路径）。
 
@@ -105,7 +105,7 @@ llman-sdd show <id> --output json --type change
 ### 4) 逐任务实施（闭环执行）
 对每个未完成 task：
 1. **实现**：严格按 task 描述 + specs 要求，改动保持最小。
-2. **完成后立刻更新 checkbox**：`- [ ]` → `- [x]`。
+2. **完成后立刻更新 checkbox**：`- [ ]` → `- [x]`。**收口不是 task**：`change finalize` / `change archive` 是流水线步骤，MUST NOT 出现在 tasks.md 里——若已列（如「收口——finalize」），从 tasks.md 删除（finalize/archive 的任务门要求全部任务已勾）。
 3. 若 task 不明确、遇到 blocker、或发现 specs/design 与现实不一致 → STOP 并报告 blocker，不要自行假定。
 
 > 💡 上一阶段 `llman-sdd-propose`（已生成 tasks）；完成本阶段后 → `llman-sdd-verify`（验证）
@@ -114,8 +114,8 @@ llman-sdd show <id> --output json --type change
 运行项目门禁命令（根据项目实际选择）：
 - 相关测试集：`just test` 或 `cargo test --all`
 - 格式/lint：`just check` 或 `just lint` + `just fmt`
-- Git-native：留在绑定 feature 分支；按需编辑 live `llmanspec/specs/<capability>.feature`（扁平，或目录 `llmanspec/specs/<capability>/` 内主文件；规则 `@human`，验收 `@executable`）；spec 改动后跑 `llman-sdd validate --specs`；分支上可自由提交（分段，或留脏交给 finalize）。勿使用 `change delta` / solidify / feature_delta；`change checkpoint` 已移除。
-- SDD 校验：`llman-sdd validate <id> --strict --no-interactive`
+- Git-native：留在绑定 feature 分支；按需编辑 live `llmanspec/specs/<capability>.feature`（扁平，或目录 `llmanspec/specs/<capability>/` 内主文件；规则 `@human`，验收 `@executable`）；spec 改动后跑 `llman-sdd validate --specs`；分支上可自由提交（分段，或留脏交给 finalize）。
+- SDD 校验：`llman-sdd validate <id> --strict`
 
 **若失败 → 进入自修复循环（不要问要不要继续）：**
 1. 解析失败原因（测试失败 / lint / 格式 / 校验错误）。
@@ -132,7 +132,7 @@ llman-sdd show <id> --output json --type change
 
 **自修复上限 8 轮**；超过仍不通过视为 blocker：停止并输出 blocker 报告（含最后一次失败命令与输出摘要、你已尝试的修复）。
 
-**人审检查点（每个 task 批次门禁通过后）**：批次全绿后、进入下一批次或输出完成报告前，运行 `llman-sdd review`：
+**人审关卡（每个 task 批次门禁通过后）**：批次全绿后、进入下一批次或输出完成报告前，运行 `llman-sdd review`：
 
 - 退出码为零 → 继续。
 - 非零退出 = 存在 CRITICAL 发现：STOP，修复后重跑 review；MUST NOT 带着 CRITICAL 进入下一批次或输出完成报告。
@@ -167,7 +167,6 @@ Git-native 护栏：
 - **Branch binding** → **Specs landing**：先 `change start` / `attach`，再在绑定的非默认分支编辑 live `.feature` 并 commit。
 - 锁定规则（报告制）：改/删既有 `@human` 场景只出 WARNING，不阻断 validate / change finalize / change diff；报告按 `@req:<id>` 指明被改的是哪条规则。控制点：git 分支对比 + `llman-sdd review` / `change diff` 的报告浮现。旧的锁定确认元数据（frontmatter `rules_touched` / `agent_acked`、`@agent` tag、`--yes` 的确认语义）已全部删除，无别名、无兼容层。
 - `stage=full` 且 specs-landed 门通过（specsLanded ∨ `needs_specs_change: false`）即可进入 apply；verify/finalize 须 `readyToImplement=true`（完成信号）。收尾优先 `change finalize`。
-- 勿使用 `change delta` / solidify / `*.feature.delta.toon`。
 
 ## Context
 - 先查状态再动手：change/spec 状态以 `llman-sdd show/list/validate` 输出为准。

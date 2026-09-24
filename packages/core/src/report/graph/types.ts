@@ -25,6 +25,8 @@ export interface GraphOptions {
   scope?: string;
   depth?: number;
   seed?: string;
+  /** r58: max recursion depth when scanning changes/ for proposals (default 8). */
+  maxScanDepth?: number;
 }
 
 export interface GraphNodeIr {

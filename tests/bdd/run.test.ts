@@ -20,6 +20,7 @@ import './steps/peripheral.ts';
 import './steps/output-contract.ts';
 import './steps/spec-authoring.ts';
 import './steps/context.ts';
+import './steps/cli.ts';
 import { runFeature, type TestContext } from './runner.ts';
 import './steps/meta-foundation.ts';
 

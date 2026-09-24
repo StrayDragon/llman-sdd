@@ -48,13 +48,6 @@
                 "boolean",
                 "null"
               ]
-            },
-            "min_completion_ratio": {
-              "description": "Minimum task completion ratio (0.0-1.0) required for archiving. Default: none (disabled).",
-              "type": [
-                "number",
-                "null"
-              ]
             }
           }
         },
@@ -86,40 +79,6 @@
               "type": [
                 "string",
                 "null"
-              ]
-            },
-            "bindings": {
-              "description": "Declared harness-binding sources.",
-              "anyOf": [
-                {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "kind": {
-                        "type": "string",
-                        "const": "tags",
-                        "description": "Tag predicate source kind."
-                      },
-                      "tags": {
-                        "minItems": 1,
-                        "type": "array",
-                        "items": {
-                          "type": "string"
-                        },
-                        "description": "Required tag names (leading `@` optional)."
-                      }
-                    },
-                    "required": [
-                      "kind",
-                      "tags"
-                    ],
-                    "description": "A scenario is bound when its tags contain ALL listed tags."
-                  }
-                },
-                {
-                  "type": "null"
-                }
               ]
             }
           }

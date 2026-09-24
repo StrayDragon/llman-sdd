@@ -64,8 +64,8 @@ export function skeletonContent(capability: string, reqId: string, locale: strin
   // second hardcoded caliber.
   const language = localeToGherkinLang(zh ? 'zh-Hans' : 'en');
   const header = zh
-    ? `# language: ${language}\n# capability: ${capability}\n# purpose: TODO: 一句话描述该能力与其目的。\n# scope: src/`
-    : `# language: ${language}\n# capability: ${capability}\n# purpose: TODO: Describe this capability and its purpose.\n# scope: src/`;
+    ? `# language: ${language}\n# capability: ${capability}\n# purpose: TODO: 一句话描述该能力与其目的。\n# scope: llmanspec/`
+    : `# language: ${language}\n# capability: ${capability}\n# purpose: TODO: Describe this capability and its purpose.\n# scope: llmanspec/`;
   const feature = zh ? `功能: ${capability}` : `Feature: ${capability}`;
   const scenario = zh ? '场景: TODO-rule' : 'Scenario: TODO-rule';
   // keep an ASCII MUST keyword so r9's wording check passes in both locales
@@ -73,7 +73,7 @@ export function skeletonContent(capability: string, reqId: string, locale: strin
   return `${header}\n\n${feature}\n\n  @req:${reqId} @human\n  ${scenario}\n    ${rule}\n`;
 }
 
-/** `spec skeleton <cap>`: write llmanspec/specs/<cap>.feature + scaffold scope dir. */
+/** `spec skeleton <cap>`: write llmanspec/specs/<cap>.feature (no repo-root src/). */
 export function scaffoldSpec(
   io: SpecHelperIo,
   specsDir: string,
@@ -84,7 +84,6 @@ export function scaffoldSpec(
   const reqId = nextReqId(io, specsDir);
   const path = `${specsDir}/${capability}.feature`;
   if (!opts.force && io.exists(path)) throw new Error(`spec already exists: ${path}`);
-  io.mkdirp('src/');
   io.writeText(path, skeletonContent(capability, reqId, locale));
   return path;
 }

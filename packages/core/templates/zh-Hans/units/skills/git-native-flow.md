@@ -36,7 +36,7 @@ flowchart TB
 硬规则：
 1. **先** `change start` / `attach`（Branch binding / 分支绑定）进入 Full；**再**在绑定的非默认分支编辑 `llmanspec/specs/**` 并 commit（Specs landing / 合约落地）。
 2. 无 live 合约变更时可设 frontmatter `needs_specs_change: false`。`stage=full` 且 specs-landed 门通过（specsLanded ∨ needs_specs_change=false）即可进入 apply；`readyToImplement=true`——gateChecks 全过（含 tasks-done）——是 verify/finalize 前的完成信号（一切范围 = 现算 merge-base，存储 `base_sha` 仅审计）。
-3. `change checkpoint` 已移除（无存档点概念：中途不必存档，`change finalize` 不要求干净树）。收口一律 `llman-sdd change finalize <id>`：自动提交 `archive(sdd): <id>`（实现 diff + 改名一次提交）；`--no-commit` 跳过自动提交（CI/手动历史场景）。change 分支上提交自由（分段或 finalize 单次收尾均可）。
+3. 收口一律 `llman-sdd change finalize <id>`：自动提交 `archive(sdd): <id>`（实现 diff + 改名一次提交）；`--no-commit` 跳过自动提交（CI/手动历史场景）。change 分支上提交自由（分段或 finalize 单次收尾均可）。
 4. **禁止**为过干净树门禁把 live specs commit 到默认分支；已 attach 时不要重复 `start`。
 
 Worktree 模式决策表（多检出工作流）：

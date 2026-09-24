@@ -2,7 +2,7 @@
 
 本项目遵循语义化版本（SemVer）。breaking 变更随大版本/次版本标注迁移说明。
 
-## Unreleased (0.4.0)
+## 0.4.0 (2026-09-24)
 
 **breaking**：报告型命令（`review` / `validate` / `list` / `show` / `config skills` /
 `index check`）的**缺省输出从人读文本变更为 TOON**（Token-Oriented Object Notation，
@@ -61,6 +61,36 @@ golden 基线扩展双 locale(zh `skills/` 不动,en 平行 `skills-en/`),en 模
 - 需要稳定机器面的脚本：`--json` / `--compact-json` 别名保留，输出结构与退出码
   保持 v1 字节不变（v1 parity 收窄为别名面）
 - 生命周期命令（`change *` / `init` / `spec *` / `graph` / `project *`）不受影响
+
+**breaking**（change `align-report-cli-surface`）：报告命令输出面与删除面收口。
+
+- 报告型命令（`list` / `show` / `validate` / `review` / `index check` /
+  `config skills`）输出旗标统一为共享注册的三个旗标 `--output
+<toon|json|compact-json|human>`、`--json`、`--compact-json`（缺省 TOON 见上）。
+  `list --changes`、全局 `--no-interactive`、`--skip-specs`、`show --output`
+  的 `deltas` 修饰 token、`show --json` 的 `deltaCount`/`deltas` 字段全部移除
+  （v1 兼容别名面不再保留已删除项）。
+- 已移除命令面：`change checkpoint` / `change delta` / `project import` 删除；
+  `graph --format` 仅接受 `mermaid`（其他值报错退出 2）。
+- 错误出口统一：所有命令错误 stderr 以单一 `Error: ` 前缀渲染；用法错误退出 2
+  （含未知命令 `Error: unknown command`）、域错误退出 1;`--max-scan-depth` 下限
+  违规退出 2。以 `process.exitCode` 散落写入命令文件的旧模式清零。
+- `--max-scan-depth` 对 review/graph 真实生效(深度 1 不发现 2 层深 change)。
+- config 契约:`bdd.bindings` 键、`archive.min_completion_ratio` 删除(残留键由
+  zod 按未知键宽松剥离);`spec skeleton` 不再创建仓库根 `src/` 目录,骨架
+  `# scope:` 指向 `llmanspec/`。
+- staleness 报告文案修正:报告制 WARNING 不再称「Spec files changed on the base
+  branch」,改为「Code in this spec's scope changed on this branch but the spec
+  was not updated」——语义与判定一致。
+
+### 迁移说明（align-report-cli-surface）
+
+- 已移除旗标/命令直接删除调用即可(commander 报 unknown option/command,退出 2);
+  需要机器 JSON 面用 `--json`/`--compact-json`(兼容别名保留),已删 `deltas`/
+  `deltaCount` 字段不再存在。
+- `graph --format` 非 mermaid 的值改为 `graph`(缺省 mermaid,不再有第二格式)。
+- tasks.md 只列实现与验证任务:收口(`change finalize` / `change archive`)是流水
+  线步骤,不要再写成任务(任务门要求全部勾选;validate 会对此报 WARNING)。
 
 ## 0.3.1 (2026-09-19)
 

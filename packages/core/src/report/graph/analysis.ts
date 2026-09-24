@@ -29,10 +29,15 @@ function buildMaps(io: GraphFsIo, root: string, nodes: GraphNode[]): RelationMap
   return { depends, reverse, nodeSet };
 }
 
-export function buildDefaultNodes(io: GraphFsIo, root: string, kinds: ScopeKind[]): GraphNode[] {
-  const nodes = collectNodes(io, root, kinds);
+export function buildDefaultNodes(
+  io: GraphFsIo,
+  root: string,
+  kinds: ScopeKind[],
+  maxScanDepth?: number,
+): GraphNode[] {
+  const nodes = collectNodes(io, root, kinds, maxScanDepth);
   const nodeIds = new Set(nodes.map((n) => n.id));
-  const all = collectNodes(io, root, ['active', 'archived']);
+  const all = collectNodes(io, root, ['active', 'archived'], maxScanDepth);
   const allMap = new Map(all.map((n) => [n.id, n]));
 
   const missing: string[] = [];
@@ -93,9 +98,10 @@ export function buildSeedNeighborhood(
   root: string,
   seedId: string,
   maxDepth: number,
+  maxScanDepth?: number,
 ): GraphNode[] {
-  const resolved = resolveSeedId(io, root, seedId);
-  const allNodes = collectNodes(io, root, ['active', 'archived']);
+  const resolved = resolveSeedId(io, root, seedId, maxScanDepth);
+  const allNodes = collectNodes(io, root, ['active', 'archived'], maxScanDepth);
   const nodeMap = new Map(allNodes.map((n) => [n.id, n]));
   if (!nodeMap.has(resolved)) {
     const prefix = resolved.split('-')[0] ?? '';
@@ -124,8 +130,8 @@ export function buildSeedNeighborhood(
   return result;
 }
 
-function resolveSeedId(io: GraphFsIo, root: string, seedId: string): string {
-  const active = collectActiveNodes(io, root);
+function resolveSeedId(io: GraphFsIo, root: string, seedId: string, maxScanDepth?: number): string {
+  const active = collectActiveNodes(io, root, maxScanDepth);
   const archived = collectArchivedNodes(io, root);
   const all = [...active.map((n) => n.id), ...archived.map((n) => n.id)];
   if (all.includes(seedId)) return seedId;

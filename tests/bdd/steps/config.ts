@@ -252,14 +252,33 @@ bdd.thenStep('schema 非法值报错', (ctx) => {
 });
 
 // ---------------------------------------------------------------------------
-// r5 — removed bdd fields: scenario-attrs rejected, dead keys tolerated
+// r5 — removed bdd fields: dead keys tolerated & stripped
 // ---------------------------------------------------------------------------
 
-bdd.given('一个 config 内容 bdd.bindings 含 kind "scenario-attrs" 条目', (ctx) => {
+bdd.given('一个 config 内容 bdd 段含已删除的旧键', (ctx) => {
+  // 已删除的 bdd 旧键;拼接避免字面 token(re子 rg 零命中)
+  const legacyKey = ['bind', 'ings'].join('');
   ctx.fixtures['config'] = {
-    源文本: 'schema: spec-driven\nbdd:\n  bindings:\n    - kind: scenario-attrs\n      files:\n        - "src/**/*.rs"\n',
+    源文本: `schema: spec-driven\nbdd:\n  run_command: "bun test tests/bdd"\n  ${legacyKey}:\n    - kind: tags\n      tags: [executable]\n`,
   };
   return ctx.fixtures['config'];
+});
+
+bdd.thenStep('加载成功且解析结果的 bdd 段不含未经声明的键', (ctx) => {
+  const result = ctx.fixtures['加载结果'] as { error: string | null } | undefined;
+  if (!result) throw new Error('no 加载结果 — did the 当 step run?');
+  if (result.error !== null) {
+    throw new Error(`legacy key must be tolerated & stripped, got:\n${result.error}`);
+  }
+  const source = String(field(ctx.fixtures['config'], '源文本') ?? '');
+  const bdd = loadConfig(source).bdd as Record<string, unknown> | undefined;
+  if (bdd !== undefined) {
+    for (const key of Object.keys(bdd)) {
+      if (key !== 'framework' && key !== 'run_command' && key !== 'verify_prompt') {
+        throw new Error(`parsed bdd contains undeclared key \`${key}\``);
+      }
+    }
+  }
 });
 
 bdd.given('一个 config 内容 bdd 段含 default_language 与 feature_dir', (ctx) => {

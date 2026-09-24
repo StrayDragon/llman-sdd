@@ -1,7 +1,7 @@
 # language: zh-CN
 # capability: init-generators
 # purpose: 定义模板渲染语义、locale 兜底链、init 产物面与 skills 命名空间治理,验收基准为渲染基线归一化 diff。
-# scope: packages/core/src/templates/, packages/core/src/init/, packages/core/templates/, apps/cli/src/, tests/golden/
+# scope: packages/core/src/templates/, packages/core/src/init/, packages/core/templates/, apps/cli/src/commands/init.ts, tests/golden/
 
 功能: init-generators
 
@@ -80,7 +80,7 @@
 
   @req:r70 @human
   场景: 模板指引语义对齐
-    - 模板 skills 与 units(zh-Hans 与 en 双 locale)中对 CLI 的行为性指引 MUST 与实际值域与行为一致:review 人审检查点 MUST 用无旗标调用(--capability 值域仅限 spec id)、失效旗标(--skip-specs)MUST NOT 再被推荐、change archive 收口 MUST 表述为与 finalize 同样的自动提交、context unavailable 修复指引 MUST 覆盖 index stale 与 chat model 未设双分支、引用不存在的 JSON 字段 MUST NOT 出现;对账 MUST 以自动门禁纳入 bun test 套件(随 qa 运行),以禁用模式与必含标记声明,违例 MUST 逐条报出来源模板与违例原因;对账面为 packages/core/templates/** 模板源头,渲染产物与 golden 基线为下游,不重复设门。
+    - 模板 skills 与 units(zh-Hans 与 en 双 locale)中对 CLI 的行为性指引 MUST 与实际值域与行为一致:review 人审检查点 MUST 用无旗标调用(--capability 值域仅限 spec id)、已删除的兼容旗标 MUST NOT 再被推荐、change archive 收口 MUST 表述为与 finalize 同样的自动提交、context unavailable 修复指引 MUST 覆盖 index stale 与 chat model 未设双分支、引用不存在的 JSON 字段 MUST NOT 出现;propose「写 tasks.md」一节与 apply「勾选」一节 MUST 含约束句——tasks.md 只列实现与验证任务,收口(change finalize/change archive)是流水线步骤 MUST NOT 列为任务;对账 MUST 以自动门禁纳入 bun test 套件(随 qa 运行),以禁用模式与必含标记声明(模式 MUST 覆盖已移除命令 checkpoint/change delta/feature_delta/solidify/project import 与已删除旗标及修饰符),违例 MUST 逐条报出来源模板与违例原因,缺失必含标记 MUST 同样报出模板与缺失标记;对账面为 packages/core/templates/** 模板源头,渲染产物与 golden 基线为下游,不重复设门。
 
   @req:r71 @human
   场景: authoring helpers 撰写引导

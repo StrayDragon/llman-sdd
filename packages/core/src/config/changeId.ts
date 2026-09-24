@@ -1,12 +1,11 @@
 /**
  * change_id contract (r59/r60): pattern compile-check at load time, validate
  * ERROR for active changes violating the pattern, and `change new --from`
- * template rendering (nunjucks Strict) with the v1 preset variables.
+ * template rendering (Strict via templates/engine.ts) with the v1 preset vars.
  */
 
-import nunjucks from 'nunjucks';
-
 import { harvestUniqueNumbers, type NextIdIo } from '../change/nextId.ts';
+import { renderTemplate } from '../templates/engine.ts';
 
 export class ChangeIdError extends Error {}
 
@@ -34,7 +33,9 @@ export interface ChangeIdVars {
 /**
  * Render a change_id.template with v1 preset vars (r60). Strict semantics:
  * referencing a variable that was not provided errors out (v1 parity —
- * `{{ verb }}` without --verb fails).
+ * `{{ verb }}` without --verb fails). Rendering converges on
+ * templates/engine.ts (Q3): template calls single-point, no loader,
+ * autoescape:false — this file no longer imports the adapter directly.
  */
 export function renderChangeIdTemplate(template: string, vars: ChangeIdVars): string {
   // Named pre-check (v1 parity): referencing an unprovided variable errors with
@@ -50,11 +51,9 @@ export function renderChangeIdTemplate(template: string, vars: ChangeIdVars): st
       );
     }
   }
-  const env = new nunjucks.Environment(undefined, {
-    autoescape: false,
+  const rendered = renderTemplate(template, new Map(), vars as unknown as Record<string, string>, {
     throwOnUndefined: true,
-  });
-  const rendered = env.renderString(template, vars as unknown as Record<string, unknown>).trim();
+  }).trim();
   if (rendered === '') throw new ChangeIdError('change_id.template rendered to an empty id');
   return rendered;
 }

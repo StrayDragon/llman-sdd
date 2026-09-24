@@ -19,7 +19,7 @@ import { readBinding, writeBinding } from './frontmatter.ts';
  * the git cwd binding lives in the GitLike adapter.
  */
 import { DRAFT_PROPOSAL_TEMPLATE, deriveChangeId } from './id.ts';
-import { parseTaskCheckboxes } from './tasks.ts';
+import { CLOSE_OUT_TASK_HINT, closeOutTaskLines, parseTaskCheckboxes } from './tasks.ts';
 
 export interface FsIo {
   exists(path: string): boolean;
@@ -294,6 +294,24 @@ export function finalizeChange(
   if (binding === null) {
     throw new LifecycleError(`change \`${id}\` has no branch binding — run start/attach first`);
   }
+  // r40 task gate before any write (B23: finalize shares the archive task gate).
+  const tasksPath = `${CHANGES_DIR}/${id}/tasks.md`;
+  const gate = archiveTaskGate(io.exists(tasksPath) ? io.readText(tasksPath) : null);
+  if (gate.blocked) {
+    // D9: point at a close-out pseudo-task with the single shared hint.
+    const closeOut = closeOutTaskLines(gate.pendingLines);
+    throw new LifecycleError(
+      [
+        `finalize blocked by unchecked tasks (${gate.pendingLines.length} pending)`,
+        ...gate.pendingLines,
+        ...(closeOut.length > 0
+          ? [
+              `task "${closeOut[0]?.replace(/^-\s+\[ \]\s*/u, '').trim() ?? ''}" looks like a close-out step; ${CLOSE_OUT_TASK_HINT}`,
+            ]
+          : []),
+      ].join('\n'),
+    );
+  }
   // r15 (v1 r94): finalize runs on the bound branch — any other branch must
   // fail before any write (no switch, no merge, no rename).
   const current = currentBranch(git);
@@ -416,10 +434,18 @@ export function archiveChange(
     const tasksPath = `${CHANGES_DIR}/${id}/tasks.md`;
     const gate = archiveTaskGate(io.exists(tasksPath) ? io.readText(tasksPath) : null);
     if (gate.blocked) {
+      // D9: when a pending unchecked task starts with a close-out verb, append
+      // the same remediation hint as the validate WARNING (single constant).
+      const closeOut = closeOutTaskLines(gate.pendingLines);
       throw new LifecycleError(
         [
           `archive blocked by unchecked tasks (${gate.pendingLines.length} pending)`,
           ...gate.pendingLines,
+          ...(closeOut.length > 0
+            ? [
+                `task "${closeOut[0]?.replace(/^-\s+\[ \]\s*/u, '').trim() ?? ''}" looks like a close-out step; ${CLOSE_OUT_TASK_HINT}`,
+              ]
+            : []),
         ].join('\n'),
       );
     }

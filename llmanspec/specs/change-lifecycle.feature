@@ -1,7 +1,7 @@
 # language: zh-CN
 # capability: change-lifecycle
 # purpose: 定义 change 生命周期的 git-native 合同:分支绑定、frontmatter、finalize 合并与归档收口。
-# scope: packages/core/src/git/, packages/core/src/change/, apps/cli/src/
+# scope: packages/core/src/git/, packages/core/src/change/, apps/cli/src/commands/change.ts
 
 功能: change-lifecycle
 
@@ -155,6 +155,12 @@
     那么 目标分支获得 archive(sdd) 提交且目录改名
 
   @req:r39 @executable
+  场景: change archive 遗留兼容旗标为 unknown option
+    假如 一个已 start 且任务全勾的临时仓库
+    当 运行 change archive 并附加遗留兼容旗标
+    那么 报 unknown option 且归档未产生
+
+  @req:r39 @executable
   场景: archive 门禁与 dry-run
     假如 一个已 start 且任务全勾的临时仓库
     当 运行 change archive --dry-run
@@ -171,6 +177,17 @@
     那么 报错列出未勾任务且不产生归档
     当 运行 change archive --force
     那么 目标分支获得 archive(sdd) 提交且目录改名
+
+  @req:r79 @human
+  场景: finalize/archive 任务门收口伪任务点名
+    - `change finalize` 与 `change archive` 的任务门被拒(存在未勾选任务)时,若未勾项中存在去掉 `T<n>[a-z]?:` 编号前缀后以收口动词开头(`/^(收口|归档|finalize\b|archive\b)/` 只匹配开头)的标题,MUST 在报错末尾追加与 validation WARNING 同一文案常量的提示(含 `finalize is a pipeline step`),指明该任务是流水线步骤应从 tasks.md 移除;提示文案 MUST 与 validate 域单一定义、两处复用。
+
+  @req:r79 @executable
+  场景: 任务门拒绝时点名收口伪任务
+    假如 一个已完成 start 且 tasks.md 含未勾选任务「- [ ] T6: 收口——finalize」的临时仓库
+    当 对其运行 change finalize
+    那么 报错列出未勾任务且含 "finalize is a pipeline step"
+    而且 目标分支无新提交且 change 目录未被改名
 
   @req:r44 @human
   场景: change new/attach 兼容 flag

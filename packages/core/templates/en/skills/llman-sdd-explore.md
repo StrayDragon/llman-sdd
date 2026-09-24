@@ -61,7 +61,7 @@ flowchart LR
    - Scope / design / work items → planning shell (`proposal.md` / `design.md` / `tasks.md`)
    - Constraints / executable harness → **suggest** live `llmanspec/specs/**` (one `.feature` per capability); actual edits require Branch binding then Specs landing. If not bound yet in explore, record only in proposal — do not edit live specs.
 
-> Git-native: first `change start`/`attach` (Branch binding) to enter Full, then edit live `.feature` on the bound branch (Specs landing); no `change delta` / solidify / feature_delta.
+> Git-native: first `change start`/`attach` (Branch binding) to enter Full, then edit live `.feature` on the bound branch (Specs landing).
 
 ## Exiting explore mode
 When the user is ready to implement, choose based on change scale:
@@ -72,7 +72,6 @@ If the user asks you to implement while in explore mode, STOP and remind them to
 
 > 💡 Explore done → next: `llman-sdd-propose` (propose) or `llman-sdd-quick` (quick path)
 
-> For command details run `llman-sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables.
-> "Spec" here = a `.feature` file under this project's `llmanspec/specs/`; run `llman-sdd list --specs` or `llman-sdd show <capability>`.
+{{ unit("skills/cli-footer") }}
 
 {{ unit("skills/structured-protocol") }}

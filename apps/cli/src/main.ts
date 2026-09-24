@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import { Command } from 'commander';
 
-import { version } from './cli-shared.ts';
+import { CliError, version } from './cli-shared.ts';
 import { registerArchive } from './commands/archive.ts';
 import { registerChange } from './commands/change.ts';
 import { registerConfig } from './commands/config.ts';
@@ -22,7 +22,6 @@ import { registerValidate } from './commands/validate.ts';
 // top-level command order (help text renders in registration order).
 const program = new Command();
 
-// v1/clap parity for arg-parsing errors: `error: unexpected argument ...` rc=2.
 // Must run before subcommand registration (children copy _exitCallback at
 // creation time); exitOverride turns commander's process.exit into a throw.
 program.exitOverride();
@@ -34,9 +33,6 @@ program.option(
   'max depth when scanning llmanspec/changes/ for proposal.md (min 1, default 8)',
   '8',
 );
-// v1 global flag surface parity: accepted everywhere; v2 has no interactive
-// prompts to disable, so it is a no-op.
-program.option('--no-interactive', 'disable interactive prompts (accepted for v1 parity)');
 
 registerInit(program);
 registerValidate(program);
@@ -86,11 +82,16 @@ async function main(): Promise<void> {
       // version/help already rendered to stdout; exit code stays 0.
       return;
     }
+
+    // commander strips its own `error: ` short prefix — single `Error: ` + rc=2.
+    const commanderMsg = String(comErr?.message ?? '');
+    const stripCommanderPrefix = (text: string): string => text.replace(/^error:\s*/u, '');
+
     if (comErr?.code === 'commander.unknownOption') {
-      const raw = String(comErr.message ?? '');
-      const arg = raw.replace(/^error: unknown option ['"]/u, '').replace(/['"]?\s*$/u, '') ?? '';
+      const raw = stripCommanderPrefix(commanderMsg);
+      const arg = raw.replace(/^unknown option ['"]/u, '').replace(/['"]?\s*$/u, '') ?? '';
       const chain = commandChain(process.argv);
-      console.error(`error: unexpected argument '${arg}' found`);
+      console.error(`Error: unknown option '${arg}'`);
       console.error('');
       console.error(`Usage: llman-sdd${chain} [OPTIONS]`);
       console.error('');
@@ -98,10 +99,24 @@ async function main(): Promise<void> {
       process.exitCode = 2;
       return;
     }
+    if (comErr?.code === 'commander.unknownCommand') {
+      const raw = stripCommanderPrefix(commanderMsg);
+      console.error(
+        `Error: unknown command '${raw.replace(/^unknown command ['"]/u, '').replace(/['"]?\s*$/u, '')}'`,
+      );
+      process.exitCode = 2;
+      return;
+    }
+    if (comErr instanceof CliError) {
+      const message = stripCommanderPrefix(comErr.message);
+      console.error(message.startsWith('Error: ') ? message : `Error: ${message}`);
+      process.exitCode = comErr.exitCode;
+      return;
+    }
 
     // v1 parity: expected domain errors surface as a single `Error: <message>`
     // line on stderr with exit code 1 (no Bun stack trace).
-    const message = error instanceof Error ? error.message : String(error);
+    const message = stripCommanderPrefix(error instanceof Error ? error.message : String(error));
     console.error(message.startsWith('Error: ') ? message : `Error: ${message}`);
     process.exitCode = 1;
   }

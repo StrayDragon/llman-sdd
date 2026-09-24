@@ -28,8 +28,14 @@ const FORBIDDEN_EVERYWHERE: readonly { pattern: RegExp; reason: string }[] = [
   },
   {
     pattern: /--skip-specs/u,
+    reason: '`--skip-specs` was removed (D1): templates must not mention the deleted flag at all',
+  },
+  // D2 残留对账:已移除命令/旗标/修饰符在模板中零提及(不留「已移除」陈述)
+  {
+    pattern:
+      /\bcheckpoint\b|change delta|feature_delta|solidify|\.delta\.toon|project import|\bdeltaCount\b|\bno-interactive\b/u,
     reason:
-      '`--skip-specs` is a v1-compat no-op — templates must not recommend it as a behavior mode',
+      'deleted surface (D1): templates must not name `change checkpoint` / delta toolchain / `--no-interactive` / `deltaCount` — removed command and flag surface has no stub, and guidance must not narrate the removal',
   },
   {
     pattern: /tasks\[\]\.test/u,
@@ -98,11 +104,16 @@ const REQUIRED_PER_FILE: Readonly<Record<string, readonly string[]>> = {
     'spec resolve-req',
     'specs-landed gate|specs-landed 门',
     'completion signal|完成信号',
+    // D9: 写 tasks.md 只列实现与验证任务,收口是流水线步骤
+    'close-out|收口',
+    'pipeline step|流水线步骤',
   ],
   'skills/llman-sdd-apply.md': [
     'LLMAN_SDD_INDEX_CHAT_MODEL',
     'specs-landed gate|specs-landed 门',
     'completion signal|完成信号',
+    // D9: 勾选节明确收口不是 task
+    'close-out is not a task|收口不是 task',
   ],
   'skills/llman-sdd-quick.md': ['LLMAN_SDD_INDEX_CHAT_MODEL'],
   // manual-trigger-only skills back the claim with the frontmatter key

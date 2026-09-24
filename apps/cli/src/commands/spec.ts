@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { addReq, addScenario, nextReqId, resolveReq, scaffoldSpec } from '@llman-sdd/core';
 import type { Command } from 'commander';
 
-import { loadCliConfigUnchecked, loadSpecEntries, newIo } from '../cli-shared.ts';
+import { CliError, loadCliConfig, loadSpecEntries, newIo } from '../cli-shared.ts';
 
 export function registerSpec(program: Command): void {
   const spec = program.command('spec').description('Spec authoring helpers');
@@ -15,12 +15,10 @@ export function registerSpec(program: Command): void {
     .argument('<capability>')
     .option('--force', 'overwrite an existing spec file')
     .action((capability: string, options: { force?: boolean }) => {
-      const locale = loadCliConfigUnchecked()?.locale ?? 'en';
+      const locale = loadCliConfig()?.locale ?? 'en';
       const path = join('llmanspec', 'specs', `${capability}.feature`);
       if (!options.force && existsSync(path)) {
-        console.error(`spec already exists: ${path} (use --force to overwrite)`);
-        process.exitCode = 1;
-        return;
+        throw new CliError(`spec already exists: ${path} (use --force to overwrite)`);
       }
       const written = scaffoldSpec(newIo(), 'llmanspec/specs', capability, locale, {
         force: options.force,
@@ -93,9 +91,7 @@ export function registerSpec(program: Command): void {
     .action((reqId: string) => {
       const resolved = resolveReq(loadSpecEntries(), reqId);
       if (resolved === null) {
-        console.error(`req id not found: ${reqId}`);
-        process.exitCode = 1;
-        return;
+        throw new CliError(`req id not found: ${reqId}`);
       }
       console.log(`reqId: ${resolved.reqId}`);
       console.log(`capability: ${resolved.capability}`);

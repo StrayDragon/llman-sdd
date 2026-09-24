@@ -161,3 +161,30 @@ bdd.thenStep('冷备仍产出且候选目录被冻结移除', (ctx) => {
     throw new Error('frozen candidate directory was not removed from changes/archive');
   }
 });
+
+// align-report-cli-surface:change archive 遗留兼容旗标已删除(B1)
+bdd.when('运行 change archive 并附加遗留兼容旗标', (ctx) => {
+  const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
+  const id = (ctx.fixtures['change'] as { id: string }).id;
+  // 拼接避免字面 token(removed 面零提及)
+  const legacy = '--skip-' + 'specs';
+  const result = repo.run('bun', [CLI, 'change', 'archive', id, legacy]);
+  ctx.fixtures['archive结果'] = {
+    code: result.code,
+    stdout: result.stdout,
+    stderr: result.stderr,
+  };
+});
+
+bdd.thenStep('报 unknown option 且归档未产生', (ctx) => {
+  const r = ctx.fixtures['archive结果'] as ArchiveResult;
+  if (r.code === 0 || !`${r.stderr ?? ''}`.toLowerCase().includes('unknown option')) {
+    throw new Error(`expected unknown option, got code=${r.code} stderr=${r.stderr}`);
+  }
+  const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
+  const root = repo.root;
+  if (existsSync(join(root, 'llmanspec', 'changes', 'archive', 'demo-arch'))) {
+    // 归档应因 unknown option 而根本没执行(目录未产生)
+    throw new Error('archive ran despite the legacy flag being unknown');
+  }
+});

@@ -1428,3 +1428,50 @@ bdd.thenStep('输出不含 "{text}"', (ctx, text) => {
     throw new Error(`output must not contain "${text}": ${r.stdout}`);
   }
 });
+
+// align-report-cli-surface D9/B23: 收口伪任务在任务门被拒时点名(r79)。
+bdd.given(
+  '一个已完成 start 且 tasks.md 含未勾选任务「- [ ] T6: 收口——finalize」的临时仓库',
+  (ctx) => {
+    const repo = makeTempRepo();
+    const id = 'demo-closeout';
+    seedChange(repo, id, {
+      proposal: '---\ndepends_on: []\n---\n\n## Why\n\nTODO\n',
+      files: {
+        'design.md': '# design\n',
+        'tasks.md': '# Tasks\n- [ ] T6: 收口——finalize\n',
+      },
+      commit: 'draft',
+    });
+    repo.run('bun', [CLI, 'change', 'start', id]);
+    ctx.fixtures['仓库'] = { root: repo.root, repo };
+    ctx.fixtures['change'] = { id };
+  },
+);
+
+bdd.thenStep('报错列出未勾任务且含 "finalize is a pipeline step"', (ctx) => {
+  const r = ctx.fixtures['finalize结果'] as CliResult;
+  const out = `${r.stdout}${r.stderr ?? ''}`;
+  if (r.exitCode === 0) throw new Error('finalize should be blocked by the task gate');
+  if (!out.includes('T6: 收口——finalize') && !out.includes('收口——finalize')) {
+    throw new Error(`pending close-out task not listed:\n${out}`);
+  }
+  if (!out.includes('finalize is a pipeline step')) {
+    throw new Error(`pipeline-step hint missing:\n${out}`);
+  }
+});
+
+bdd.thenStep('目标分支无新提交且 change 目录未被改名', (ctx) => {
+  const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
+  const id = (ctx.fixtures['change'] as { id: string }).id;
+  const subjects = repo.run('git', ['log', '--format=%s', 'main']).stdout.trim().split('\n');
+  if ((subjects[0] ?? '').startsWith('archive(sdd):')) {
+    throw new Error(`finalize committed despite gate: ${subjects[0]}`);
+  }
+  if (!existsSync(join(repo.root, 'llmanspec', 'changes', id))) {
+    throw new Error('change dir renamed despite gate');
+  }
+  if (existsSync(join(repo.root, 'llmanspec', 'changes', 'archive', id))) {
+    throw new Error('archive dir created despite gate');
+  }
+});

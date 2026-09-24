@@ -43,7 +43,7 @@ flowchart LR
    - 执行：`llman-sdd archive freeze --before <YYYY-MM-DD> --keep-recent <N>`
 3. 识别跨 capability 的重叠项（跨 specs 重复 req id：`llman-sdd project dedupe-req-ids --dry-run` 报告重映射计划）。
 4. 产出压缩计划（canonical requirements + keep/merge/remove 决策 + 迁移说明）。
-5. 执行并验证（`llman-sdd validate --specs --strict --no-interactive`）。
+5. 执行并验证（`llman-sdd validate --specs --strict`）。
 
 ## Decision Policy
 - 两条 requirement 语义等价时优先合并。
@@ -58,8 +58,7 @@ flowchart LR
 
 > 💡 维护完成后，新需求走正常 pipeline：`llman-sdd-propose`（含 Branch binding + Specs landing）→ `llman-sdd-apply`（Specs landing 后）→ `llman-sdd-verify` → `llman-sdd-archive`。
 
-> 命令细节用 `llman-sdd <cmd> --help` 查看；命令参考以 CLI 为准，skill 不内嵌命令表。
-> 文中「规约」= 本项目 `llmanspec/specs/` 下的 `.feature` 文件；用 `llman-sdd list --specs` / `llman-sdd show <capability>` 查全文。
+{{ unit("skills/cli-footer") }}
 
 {{ unit("skills/validation-hints") }}
 

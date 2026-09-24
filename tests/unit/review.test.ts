@@ -43,10 +43,7 @@ describe('buildReview', () => {
 
   test('fully bound spec: zero pending/unbound, exit 0', () => {
     const entries = [{ fileName: 'a.feature', doc: parseCapability(SPEC('a', 'r1'), 'a.feature') }];
-    const result = buildReview(
-      { entries, bindings: [{ kind: 'tags', tags: ['executable'] }], boundChangeCount: 2 },
-      io,
-    );
+    const result = buildReview({ entries, boundChangeCount: 2 }, io);
     expect(result.exitCode).toBe(0);
     expect(result.summary.criticalCount).toBe(0);
     const pendingA = result.signals.find((s) => s.kind === 'pending' && s.capability === 'a');
@@ -59,11 +56,8 @@ describe('buildReview', () => {
 
   test('unbound acceptance (no matching tag) counts as unbound warning', () => {
     const entries = [{ fileName: 'l.feature', doc: parseCapability(UNBOUND_SPEC, 'l.feature') }];
-    // bindings 要求 @bdd 标签 → 仅带 @executable 的场景不满足判据
-    const result = buildReview(
-      { entries, bindings: [{ kind: 'tags', tags: ['bdd'] }], boundChangeCount: 0 },
-      io,
-    );
+    // unbound = 孤儿验收(无 @req 链接;r23 定案,与 config 绑定配置无关)
+    const result = buildReview({ entries, boundChangeCount: 0 }, io);
     const unbound = result.signals.find((s) => s.kind === 'unbound' && s.capability === 'loose');
     expect(unbound?.count).toBe(1);
     expect(result.summary.warningCount).toBe(2); // pending r9 + unbound 1
@@ -74,10 +68,7 @@ describe('buildReview', () => {
     const entries = [
       { fileName: 'broken.feature', doc: parseCapability(broken, 'broken.feature') },
     ];
-    const result = buildReview(
-      { entries, bindings: [{ kind: 'tags', tags: ['executable'] }], boundChangeCount: 0 },
-      io,
-    );
+    const result = buildReview({ entries, boundChangeCount: 0 }, io);
     expect(result.summary.criticalCount).toBeGreaterThan(0);
     expect(result.exitCode).toBe(1);
   });
@@ -87,10 +78,7 @@ describe('buildReview', () => {
     const entries = [
       { fileName: 'broken.feature', doc: parseCapability(broken, 'broken.feature') },
     ];
-    const result = buildReview(
-      { entries, bindings: [{ kind: 'tags', tags: ['executable'] }], boundChangeCount: 0 },
-      io,
-    );
+    const result = buildReview({ entries, boundChangeCount: 0 }, io);
     const validate = result.signals.find((s) => s.kind === 'validate');
     expect(validate?.detail).toInclude('llman-sdd validate --all');
     expect(validate?.detail).not.toInclude('unchecked');
@@ -101,7 +89,6 @@ describe('buildReview', () => {
     const result = buildReview(
       {
         entries,
-        bindings: [{ kind: 'tags', tags: ['executable'] }],
         boundChangeCount: 0,
         activeChanges: [{ name: 'c1-do-stuff', completedTasks: 2, totalTasks: 5 }],
       },
@@ -123,7 +110,6 @@ describe('buildReview', () => {
     const result = buildReview(
       {
         entries,
-        bindings: [{ kind: 'tags', tags: ['executable'] }],
         boundChangeCount: 0,
         activeChanges: [{ name: 'c2-half-done', completedTasks: 0, totalTasks: 4 }],
       },
@@ -137,20 +123,14 @@ describe('buildReview', () => {
 
   test('locked detail uses the v2 command name', () => {
     const entries = [{ fileName: 'a.feature', doc: parseCapability(SPEC('a', 'r1'), 'a.feature') }];
-    const result = buildReview(
-      { entries, bindings: [{ kind: 'tags', tags: ['executable'] }], boundChangeCount: 1 },
-      io,
-    );
+    const result = buildReview({ entries, boundChangeCount: 1 }, io);
     const locked = result.signals.find((s) => s.kind === 'locked');
     expect(locked?.detail).toInclude('`llman-sdd change diff <id>`');
   });
 
   test('text lines follow the v1 layout', () => {
     const entries = [{ fileName: 'a.feature', doc: parseCapability(SPEC('a', 'r1'), 'a.feature') }];
-    const result = buildReview(
-      { entries, bindings: [{ kind: 'tags', tags: ['executable'] }], boundChangeCount: 0 },
-      io,
-    );
+    const result = buildReview({ entries, boundChangeCount: 0 }, io);
     expect(result.lines[0]).toBe('Review: critical=0 warning=0');
     expect(result.lines).toContain('pending: a (0)');
     expect(result.lines).toContain('stale: a (0)');
@@ -170,7 +150,6 @@ describe('buildReview --capability filter (r33)', () => {
     const result = buildReview(
       {
         entries: twoCaps,
-        bindings: [{ kind: 'tags', tags: ['executable'] }],
         boundChangeCount: 0,
         capability: 'a',
       },
@@ -185,10 +164,7 @@ describe('buildReview --capability filter (r33)', () => {
   });
 
   test('no capability keeps full signals', () => {
-    const result = buildReview(
-      { entries: twoCaps, bindings: [{ kind: 'tags', tags: ['executable'] }], boundChangeCount: 0 },
-      io,
-    );
+    const result = buildReview({ entries: twoCaps, boundChangeCount: 0 }, io);
     const caps = new Set(
       result.signals
         .filter((s) => s.kind !== 'locked' && s.kind !== 'validate')

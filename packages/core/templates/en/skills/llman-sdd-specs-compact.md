@@ -43,7 +43,7 @@ flowchart LR
    - Execute: `llman-sdd archive freeze --before <YYYY-MM-DD> --keep-recent <N>`
 3. Identify overlapping items across capabilities (duplicate req ids across specs: `llman-sdd project dedupe-req-ids --dry-run` reports the remap plan).
 4. Produce a compaction plan (canonical requirements + keep/merge/remove decisions + migration notes).
-5. Execute and validate (`llman-sdd validate --specs --strict --no-interactive`).
+5. Execute and validate (`llman-sdd validate --specs --strict`).
 
 ## Decision Policy
 - Prefer merging when two requirements are semantically equivalent.
@@ -58,8 +58,7 @@ flowchart LR
 
 > 💡 After maintenance, new work goes through the normal pipeline: `llman-sdd-propose` (Branch binding + Specs landing) → `llman-sdd-apply` (after Specs landing) → `llman-sdd-verify` → `llman-sdd-archive`.
 
-> For command details run `llman-sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables.
-> "Spec" here = a `.feature` file under this project's `llmanspec/specs/`; run `llman-sdd list --specs` or `llman-sdd show <capability>`.
+{{ unit("skills/cli-footer") }}
 
 {{ unit("skills/validation-hints") }}
 

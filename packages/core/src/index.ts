@@ -4,12 +4,9 @@ export {
   EXTRA_SKILLS,
   archiveSchema,
   bddSchema,
-  bindingSchema,
   changeIdSchema,
-  removedBindingIssues,
   sddConfigSchema,
   sddSchema,
-  tagsBindingSchema,
   type SddConfig,
   type SddConfigInput,
 } from './config/schema.ts';
@@ -106,6 +103,7 @@ export {
 } from './git/spawnGit.ts';
 export { DRAFT_PROPOSAL_TEMPLATE, deriveChangeId } from './change/id.ts';
 export { parseTaskCheckboxes, type ParsedTaskCheckboxes } from './change/tasks.ts';
+export { CLOSE_OUT_TASK_HINT, closeOutTaskLines, isCloseOutTaskTitle } from './change/tasks.ts';
 export {
   extractUniqueNumber,
   collectNumbers,
@@ -210,7 +208,6 @@ export {
   type ReviewKind,
   type ReviewResult,
   type ReviewSignal,
-  type TagBinding,
 } from './review/review.ts';
 export {
   buildTreeIndex,

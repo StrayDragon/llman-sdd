@@ -12,9 +12,3 @@ export interface PromptDriver {
   multiselect<T extends string>(message: string, choices: readonly T[]): Promise<T[]>;
   confirm(message: string): Promise<boolean>;
 }
-
-/** Template rendering port (nunjucks adapter planned: autoescape off,
- * minijinja-compatible trim semantics, `unit()` registered via addGlobal). */
-export interface TemplateEngine {
-  render(template: string, context: Record<string, unknown>): string;
-}

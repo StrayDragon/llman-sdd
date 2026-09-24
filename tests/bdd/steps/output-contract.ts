@@ -3,7 +3,7 @@
 // next-req-id / project migrate 三态)、r51-r53(list compact-json 排序 /
 // show 文本与 JSON 门 / show --output human 变体)。
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -183,7 +183,6 @@ const SHOW_JSON_FIELDS = [
   'specsLanded',
   'needsSpecsChange',
   'attached',
-  'deltaCount',
   'gateChecks',
   'matchedViaPrefix',
 ] as const;
@@ -352,4 +351,35 @@ bdd.thenStep('未知 --kind 退出码非零', (ctx) => {
   if (!r.unknownOut.includes('unknown migration kind')) {
     throw new Error(`unexpected error output: ${r.unknownOut}`);
   }
+});
+
+// align-report-cli-surface B18:spec skeleton 不再创建仓库根 src/,
+// 骨架 # scope: 指向 llmanspec/(本地化兼容单轨校验)。
+bdd.when('运行 spec skeleton', (ctx) => {
+  const repo = (ctx.fixtures['migrate仓库'] as { repo: TempRepo }).repo;
+  const skel = repo.run('bun', [CLI, 'spec', 'skeleton', 'capx']);
+  const content =
+    skel.code === 0
+      ? readFileSync(join(repo.root, 'llmanspec', 'specs', 'capx.feature'), 'utf8')
+      : '';
+  ctx.fixtures['skeleton结果'] = { code: skel.code, content };
+});
+
+bdd.thenStep('骨架通过单轨校验且 # scope: 指向 llmanspec/ 而非 src/', (ctx) => {
+  const r = ctx.fixtures['skeleton结果'] as { code: number; content: string };
+  if (r.code !== 0) throw new Error('spec skeleton failed');
+  const doc = parseCapability(r.content, 'capx.feature');
+  if (doc.errors.length > 0)
+    throw new Error(`skeleton fails single-track validation: ${JSON.stringify(doc.errors)}`);
+  if (!r.content.includes('# scope: llmanspec/')) {
+    throw new Error(`skeleton does not point scope at llmanspec/:\n${r.content}`);
+  }
+  if (r.content.includes('# scope: src/')) {
+    throw new Error(`skeleton still references src/ scope:\n${r.content}`);
+  }
+});
+
+bdd.thenStep('仓库根无 src/ 目录', (ctx) => {
+  const repo = (ctx.fixtures['migrate仓库'] as { repo: TempRepo }).repo;
+  if (existsSync(join(repo.root, 'src'))) throw new Error('repo-root src/ directory created');
 });

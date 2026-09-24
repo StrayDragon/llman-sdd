@@ -12,6 +12,7 @@ import {
 } from '@llman-sdd/core';
 import type { Command } from 'commander';
 
+import { CliError } from '../cli-shared.ts';
 import { makeCliGit, makeIo } from '../io.ts';
 
 /**
@@ -77,8 +78,7 @@ export function registerArchive(program: Command): void {
         } catch (error) {
           // Emscripten aborts (e.g. wasm load failure) throw raw RuntimeErrors —
           // keep the CLI surface one-line like thaw does.
-          console.error((error as Error).message);
-          process.exitCode = 1;
+          throw new CliError((error as Error).message);
         }
       },
     );
@@ -108,8 +108,7 @@ export function registerArchive(program: Command): void {
         const result = await runThaw(io, sz, root, options.change, { dest: options.dest });
         for (const line of result.lines) console.log(line);
       } catch (error) {
-        console.error(`Error: ${(error as Error).message}`);
-        process.exitCode = 1;
+        throw new CliError((error as Error).message);
       }
     });
 }

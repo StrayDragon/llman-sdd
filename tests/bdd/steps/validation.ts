@@ -791,7 +791,7 @@ bdd.given('一个每类种子缺陷各占一个 capability 的临时仓库', (ct
 interface DefectJsonItem {
   id: string;
   valid: boolean;
-  issues: { level: string; message: string }[];
+  issues: { level: string; path?: string; message: string }[];
 }
 
 const requireDefectItems = (ctx: { fixtures: Record<string, unknown> }): DefectJsonItem[] => {
@@ -1041,4 +1041,62 @@ bdd.thenStep('该 spec 条目 valid 为 false 且含悬空链接 ERROR', (ctx) =
     (x) => x.level === 'ERROR' && x.message.includes('has no matching @human constraint'),
   );
   if (!err) throw new Error(`dangling-link ERROR missing:\n${JSON.stringify(item.issues)}`);
+});
+
+// align-report-cli-surface D9/B23: 收口伪任务 WARNING(r78)。夹具:已绑定 change
+// 且 tasks.md 含一条未勾选、以收口动词开头的任务「- [ ] T6: 收口——finalize」。
+bdd.given('一个已绑定且含未勾选任务「- [ ] T6: 收口——finalize」的临时仓库', (ctx) => {
+  const repo = makeTempRepo();
+  const id = 'demo-closeout';
+  const dir = join(repo.root, 'llmanspec', 'changes', id);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'proposal.md'), '---\ndepends_on: []\n---\n\n## Why\nx\n');
+  writeFileSync(join(dir, 'design.md'), '# design\n');
+  writeFileSync(join(dir, 'tasks.md'), '# Tasks\n- [ ] T6: 收口——finalize\n');
+  repo.run('git', ['add', '-A']);
+  repo.run('git', [...gitCommit, 'draft']);
+  repo.run('bun', [CLI, 'change', 'start', id]);
+  ctx.fixtures['验证仓库'] = { repo, id } satisfies ValidateRepoFixture;
+});
+
+bdd.given('一个已绑定且含未勾选任务「- [ ] T3: 修复 finalize 任务门」的临时仓库', (ctx) => {
+  const repo = makeTempRepo();
+  const id = 'demo-fixgate';
+  const dir = join(repo.root, 'llmanspec', 'changes', id);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'proposal.md'), '---\ndepends_on: []\n---\n\n## Why\nx\n');
+  writeFileSync(join(dir, 'design.md'), '# design\n');
+  writeFileSync(join(dir, 'tasks.md'), '# Tasks\n- [ ] T3: 修复 finalize 任务门\n');
+  repo.run('git', ['add', '-A']);
+  repo.run('git', [...gitCommit, 'draft']);
+  repo.run('bun', [CLI, 'change', 'start', id]);
+  ctx.fixtures['验证仓库'] = { repo, id } satisfies ValidateRepoFixture;
+});
+
+bdd.thenStep('输出含 path 为 tasks 的 WARNING 且含 "finalize is a pipeline step"', (ctx) => {
+  const r = ctx.fixtures['命令结果'] as { stdout: string };
+  const parsed = JSON.parse(r.stdout) as { items?: DefectJsonItem[] };
+  const tasks = (parsed.items ?? [])
+    .flatMap((i) => i.issues ?? [])
+    .filter((x) => x.level === 'WARNING' && x.path === 'tasks');
+  if (tasks.length === 0) throw new Error(`no tasks-path WARNING:\n${r.stdout}`);
+  if (!tasks.some((x) => x.message.includes('finalize is a pipeline step'))) {
+    throw new Error(`missing pipeline-step hint:\n${JSON.stringify(tasks)}`);
+  }
+});
+
+bdd.thenStep('退出码不因该 WARNING 变化(非 strict)', (ctx) => {
+  const r = ctx.fixtures['命令结果'] as { code: number; stdout: string };
+  // 非 strict:单 change 的 WARNING 不改变退出码;exit 0(无 ERROR)
+  if (r.code === 0) return;
+  const parsed = JSON.parse(r.stdout) as { items?: DefectJsonItem[] };
+  const hasError = (parsed.items ?? []).some((i) => !i.valid);
+  if (!hasError) throw new Error(`exit ${r.code} despite no ERROR:\n${r.stdout}`);
+});
+
+bdd.thenStep('输出不含 "finalize is a pipeline step"', (ctx) => {
+  const r = ctx.fixtures['命令结果'] as { stdout: string };
+  if (r.stdout.includes('finalize is a pipeline step')) {
+    throw new Error('close-out hint must not fire for a task ABOUT close-out');
+  }
 });

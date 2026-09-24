@@ -1,7 +1,7 @@
 # language: zh-CN
 # capability: validation
 # purpose: 定义 specs 校验引擎的判定规则域、报告行格式与 BDD 检查退出码语义。
-# scope: packages/core/src/validation/, apps/cli/src/
+# scope: packages/core/src/validation/, apps/cli/src/commands/validate.ts, apps/cli/src/harness.ts
 
 功能: validation
 
@@ -188,6 +188,23 @@
     假如 一个验收场景挂接不存在规则 id 的 spec 临时仓库
     当 对该 spec 运行 validate --json
     那么 该 spec 条目 valid 为 false 且含悬空链接 ERROR
+
+  @req:r78 @human
+  场景: tasks.md 收口伪任务 WARNING
+    - 校验活跃 change(归档不回溯)的 tasks.md 未勾选任务标题时,去掉 `T<n>[a-z]?:` 编号前缀后若以收口动词开头(`/^(收口|归档|finalize\b|archive\b)/` 匹配首 token,只看开头),MUST 报 WARNING(path `tasks`),文案 MUST 含 `finalize is a pipeline step` 且指明收口任务是流水线步骤、应从 tasks.md 移除(finalize/archive 的任务门要求全部任务已勾);仅以收口为对象但非收口步骤的任务标题(如以「修复 finalize 任务门」开头)MUST NOT 触发;`--strict` 下按既有 WARNING 升级语义处理。
+
+  @req:r78 @executable
+  场景: 收口伪任务触发 WARNING 且不改退出码
+    假如 一个已绑定且含未勾选任务「- [ ] T6: 收口——finalize」的临时仓库
+    当 对该 change 运行 validate --json
+    那么 输出含 path 为 tasks 的 WARNING 且含 "finalize is a pipeline step"
+    而且 退出码不因该 WARNING 变化(非 strict)
+
+  @req:r78 @executable
+  场景: 以收口为对象的任务不触发 WARNING
+    假如 一个已绑定且含未勾选任务「- [ ] T3: 修复 finalize 任务门」的临时仓库
+    当 对该 change 运行 validate --json
+    那么 输出不含 "finalize is a pipeline step"
 
   @req:r73 @human
   场景: frontmatter 依赖引用解析与单一解析口径

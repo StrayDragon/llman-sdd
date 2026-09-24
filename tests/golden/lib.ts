@@ -35,9 +35,6 @@ locale: zh-Hans
 
 bdd:
   run_command: "bun test tests/bdd"
-  bindings:
-    - kind: tags
-      tags: [executable]
 `;
 
 /** Same shape as CONFIG_YAML modulo locale — the en baseline exercises the same

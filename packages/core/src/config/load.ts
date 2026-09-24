@@ -9,7 +9,7 @@
 import { parse } from 'yaml';
 
 import { compileChangeIdPattern } from './changeId.ts';
-import { removedBindingIssues, sddConfigSchema, type SddConfig } from './schema.ts';
+import { sddConfigSchema, type SddConfig } from './schema.ts';
 
 export const MAX_REPORTED_ISSUES = 5;
 
@@ -37,10 +37,6 @@ export function loadConfig(source: string): SddConfig {
       `YAML parse error: ${error instanceof Error ? error.message : String(error)}`,
     ]);
   }
-  // r5: fail fast on removed binding shapes with the dedicated fix-action
-  // message (feeds the standard 5-issue truncation).
-  const removed = removedBindingIssues(data);
-  if (removed.length > 0) throw new ConfigValidationError(removed);
   const result = sddConfigSchema.safeParse(data);
   if (!result.success) {
     const issues = result.error.issues.map((iss) => {

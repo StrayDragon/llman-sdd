@@ -8,7 +8,9 @@ import {
 } from '@llman-sdd/core';
 import type { Command } from 'commander';
 
-import { loadSpecEntries, newIo, resolveBackend } from '../cli-shared.ts';
+import { CliError, loadSpecEntries, newIo, resolveBackend } from '../cli-shared.ts';
+
+// (err path below converted to CliError; resolveBackend may also throw CliError)
 
 export function registerContext(program: Command): void {
   program
@@ -21,9 +23,7 @@ export function registerContext(program: Command): void {
     .action(async (options: { task?: string; paths?: string; top?: string; backend?: string }) => {
       resolveBackend(options.backend);
       if (!options.task && !options.paths) {
-        console.error('at least one of --task or --paths is required');
-        process.exitCode = 1;
-        return;
+        throw new CliError('at least one of --task or --paths is required');
       }
       const config = resolveChatConfig(process.env as Record<string, string | undefined>);
       // r62: lazy refresh runs BEFORE the chat-model gate (v1 r97 — the index

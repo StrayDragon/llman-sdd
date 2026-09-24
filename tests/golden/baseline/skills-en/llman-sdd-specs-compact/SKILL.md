@@ -43,7 +43,7 @@ flowchart LR
    - Execute: `llman-sdd archive freeze --before <YYYY-MM-DD> --keep-recent <N>`
 3. Identify overlapping items across capabilities (duplicate req ids across specs: `llman-sdd project dedupe-req-ids --dry-run` reports the remap plan).
 4. Produce a compaction plan (canonical requirements + keep/merge/remove decisions + migration notes).
-5. Execute and validate (`llman-sdd validate --specs --strict --no-interactive`).
+5. Execute and validate (`llman-sdd validate --specs --strict`).
 
 ## Decision Policy
 - Prefer merging when two requirements are semantically equivalent.
@@ -82,7 +82,6 @@ Git-native guardrail:
 - **Branch binding** → **Specs landing**: first `change start` / `attach`, then edit live `.feature` files on the bound non-default branch and commit.
 - Locked rules (report-only): editing/removing an existing `@human` scenario yields a WARNING and never blocks validate / change finalize / change diff; the report names the edited rule by `@req:<id>`. Control points: git branch diff plus `llman-sdd review` / `change diff` output. Legacy lock-ack metadata (frontmatter `rules_touched` / `agent_acked`, the `@agent` tag, the `--yes` ack semantics) is fully removed — no aliases, no compat layer (locked rules are report-only: a warning, never a block).
 - Enter apply when `stage=full` and the specs-landed gate passes (specsLanded ∨ `needs_specs_change: false`); verify/finalize require `readyToImplement=true` (completion signal). Close-out prefers `change finalize`.
-- Do not use `change delta` / solidify / `*.feature.delta.toon`.
 
 ## Ethics Governance
 - `ethics.risk_level`: low — reads/writes this repo and `llmanspec/` only, no outward-facing actions; a skill body may override.

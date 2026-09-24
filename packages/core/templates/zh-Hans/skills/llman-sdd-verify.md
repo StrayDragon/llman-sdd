@@ -36,7 +36,7 @@ flowchart LR
 ## 步骤
 1. 确定 change id（不明确时让用户从 `llman-sdd list --json` 选择）。
 2. 先跑一个快速校验门禁：
-   - `llman-sdd validate <id> --strict --no-interactive`
+   - `llman-sdd validate <id> --strict`
    - **诊断结构问题（Gherkin 解析 / `@req` 链接 / 双写 / 全局 req_id 唯一性）时先跑结构校验**（配置 `bdd.run_command` 时 validate 缺省会执行该 harness，`--no-check` 跳过；harness 失败会以 ERROR 落在对应 spec 条目）。失败项在缺省 TOON 输出的 `items[].issues[]` 逐条列出（`--output human` 输出 v1 人读形态：`FAIL <item_type>/<id>` 行，位于 `Totals` 行上方）。
 3. 阅读：
    - feature 分支上的 live specs：`llmanspec/specs/**`（`<capability>.feature`）——SSOT
@@ -79,7 +79,7 @@ flowchart LR
    - **CRITICAL**（归档前必须修复）
    - **WARNING**（建议修复）
    - **SUGGESTION**（可选优化）
-7. **人审检查点**：报告无 CRITICAL 后、建议归档前，运行 `llman-sdd review`：
+7. **人审关卡**：报告无 CRITICAL 后、建议归档前，运行 `llman-sdd review`：
    - 退出码为零 → 建议 `llman-sdd-archive` 进行 finalize/archive。
    - 非零退出 = CRITICAL 发现：用 `llman-sdd-apply` 修复后重跑 review；MUST NOT 带着 CRITICAL 进入 finalize/archive。
 
@@ -87,8 +87,7 @@ flowchart LR
 
 {{ unit("skills/git-native-flow-brief") }}
 {{ unit("skills/human-readable-summary") }}
-> 命令细节用 `llman-sdd <cmd> --help` 查看；命令参考以 CLI 为准，skill 不内嵌命令表。
-> 文中「规约」= 本项目 `llmanspec/specs/` 下的 `.feature` 文件；用 `llman-sdd list --specs` / `llman-sdd show <capability>` 查全文。
+{{ unit("skills/cli-footer") }}
 
 {{ unit("skills/validation-hints") }}
 

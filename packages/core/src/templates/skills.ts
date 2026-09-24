@@ -37,6 +37,7 @@ export const UNIT_FILES: readonly string[] = [
   'skills/ethics-governance.md',
   'spec/feature-contract.md',
   'skills/structured-protocol.md',
+  'skills/cli-footer.md',
   'workflow/archive-freeze-guidance.md',
 ];
 

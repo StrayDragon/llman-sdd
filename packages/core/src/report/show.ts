@@ -130,8 +130,6 @@ export function showChangeJson(
     specsLanded: landedOnBranch,
     needsSpecsChange,
     attached: binding !== null,
-    deltaCount: 0,
-    deltas: [] as string[],
     gateChecks,
     matchedViaPrefix: opts.matchedViaPrefix === true,
   };

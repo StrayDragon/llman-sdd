@@ -1,7 +1,14 @@
 import { checkIndexFreshness, rebuildIndex, renderMachine } from '@llman-sdd/core';
 import type { Command } from 'commander';
 
-import { loadSpecEntries, newIo, resolveBackend, resolveOutMode } from '../cli-shared.ts';
+import {
+  addReportOutputOptions,
+  exitWith,
+  loadSpecEntries,
+  newIo,
+  resolveBackend,
+  resolveOutMode,
+} from '../cli-shared.ts';
 
 export function registerIndex(program: Command): void {
   const indexCmd = program
@@ -21,19 +28,16 @@ export function registerIndex(program: Command): void {
       if (result.lines.length > 0) console.log(result.lines.at(-1));
     });
 
-  indexCmd
-    .command('check')
-    .description('Check index freshness without rebuilding')
-    .option('--output <mode>', 'report format: toon (default) | json | compact-json | human')
-    .action((options: { output?: string }) => {
-      const result = checkIndexFreshness(newIo(), 'llmanspec/specs');
-      const mode = resolveOutMode(options.output, undefined, undefined);
-      if (mode === null) return;
-      if (mode !== 'human') {
-        console.log(renderMachine({ fresh: result.fresh, notes: result.lines }, mode));
-      } else {
-        for (const line of result.lines) console.log(line);
-      }
-      if (!result.fresh) process.exitCode = 1;
-    });
+  const check = indexCmd.command('check').description('Check index freshness without rebuilding');
+  addReportOutputOptions(check);
+  check.action((options: { output?: string; json?: boolean; compactJson?: boolean }) => {
+    const result = checkIndexFreshness(newIo(), 'llmanspec/specs');
+    const mode = resolveOutMode(options.output, options.json, options.compactJson);
+    if (mode !== 'human') {
+      console.log(renderMachine({ fresh: result.fresh, notes: result.lines }, mode));
+    } else {
+      for (const line of result.lines) console.log(line);
+    }
+    if (!result.fresh) exitWith(1);
+  });
 }

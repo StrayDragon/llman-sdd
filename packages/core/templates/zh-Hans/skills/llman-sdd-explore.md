@@ -61,7 +61,7 @@ flowchart LR
    - 范围变化 / 设计决策 / 工作项 → 规划壳（`proposal.md` / `design.md` / `tasks.md`）
    - 约束 / 可执行 harness → **仅建议**写入 live `llmanspec/specs/**`（每 capability 一个 `.feature`）；实际编辑须先 Branch binding，再 Specs landing。探索模式未 binding 时只记到 proposal，勿直接改 live specs。
 
-> Git-native：先 `change start`/`attach`（Branch binding）进入 Full，再在绑定分支编辑 live `.feature`（Specs landing）；无 `change delta` / solidify / feature_delta。
+> Git-native：先 `change start`/`attach`（Branch binding）进入 Full，再在绑定分支编辑 live `.feature`（Specs landing）。
 
 ## 退出探索模式
 当用户准备开始实现时，根据变更规模选择路径：
@@ -72,7 +72,6 @@ flowchart LR
 
 > 💡 探索完成 → 下一步 `llman-sdd-propose`（提案）或 `llman-sdd-quick`（快速路径）
 
-> 命令细节用 `llman-sdd <cmd> --help` 查看；命令参考以 CLI 为准，skill 不内嵌命令表。
-> 文中「规约」= 本项目 `llmanspec/specs/` 下的 `.feature` 文件；用 `llman-sdd list --specs` / `llman-sdd show <capability>` 查全文。
+{{ unit("skills/cli-footer") }}
 
 {{ unit("skills/structured-protocol") }}

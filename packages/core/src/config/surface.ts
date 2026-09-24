@@ -13,9 +13,7 @@ export function renderConfigOverview(source: string): string[] {
   const enabled = (config.extra_skills ?? []).length;
   const archive = config.archive;
   const archiveConfigured =
-    archive !== null &&
-    archive !== undefined &&
-    (archive.strict_defer || archive.min_completion_ratio !== undefined);
+    archive !== null && archive !== undefined && archive.strict_defer === true;
   return [
     `schema: ${config.schema}`,
     `locale: ${config.locale}`,

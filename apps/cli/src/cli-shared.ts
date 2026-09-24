@@ -15,12 +15,17 @@ import {
 } from '@llman-sdd/core';
 import type { Command } from 'commander';
 
+import pkg from '../package.json' with { type: 'json' };
+import { makeIo } from './io.ts';
+
+// Re-exported so leaf consumers (e.g. regression gates under tests/) can type
+// against the commander surface without resolving 'commander' themselves.
+export type { Command } from 'commander';
+
 // Version SSOT is this package's package.json (inlined at compile time — a
 // single-file binary has no on-disk package.json to read); binary builds
 // additionally override it through the LLMAN_SDD_VERSION define injected by
 // scripts/build-binary.ts (git tag > package version).
-import pkg from '../package.json' with { type: 'json' };
-import { makeIo } from './io.ts';
 
 // Injected at binary build time by scripts/build-binary.ts; falls back to the
 // package version when running from source.
@@ -46,6 +51,24 @@ export function newIo(): ReturnType<typeof makeIo> {
   return makeIo(process.cwd());
 }
 
+/**
+ * D5: unified error export. Domain/usage errors thrown from command actions
+ * surface as a single `Error: <message>` line via main.ts with the carried
+ * exit code — commands must NOT set `process.exitCode` directly.
+ */
+export class CliError extends Error {
+  readonly exitCode: number;
+  constructor(message: string, exitCode = 1) {
+    super(message);
+    this.exitCode = exitCode;
+  }
+}
+
+/** Single exit-code write point for non-error result paths (e.g. sweep verdicts). */
+export function exitWith(code: number): void {
+  process.exitCode = code;
+}
+
 /** Parse all capability specs under llmanspec/specs via core discovery. */
 export function loadSpecEntries(): ReturnType<typeof discoverSpecs> {
   return discoverSpecs('llmanspec/specs', newIo());
@@ -57,69 +80,68 @@ export function loadCliConfig(): ReturnType<typeof loadConfig> | null {
     : null;
 }
 
-/**
- * Historical unchecked variant: since core loadConfig compiles
- * change_id.pattern at load time (r59) the two are behaviorally identical;
- * kept as a thin alias for the `change archive` / `spec skeleton` / `review`
- * call sites (removal registered with the second wave).
- */
-export function loadCliConfigUnchecked(): ReturnType<typeof loadConfig> | null {
-  return loadCliConfig();
-}
-
 export function cliMaxScanDepth(program: Command): number {
   const raw = program.opts().maxScanDepth as string | undefined;
   const n = raw !== undefined ? Number(raw) : 8;
   if (!Number.isInteger(n) || n < 1) {
-    console.error(`Error: --max-scan-depth must be >= 1 (got ${raw})`);
-    process.exit(1);
+    throw new CliError(`--max-scan-depth must be >= 1 (got ${raw})`, 2);
   }
   return n;
 }
 
 /**
  * r61: shared v1-r112 change id resolution for every change-taking command.
- * Emits the `(prefix match)` hint on stderr and exits with the resolver's
- * error message when resolution fails; returns null after reporting.
+ * Emits the `(prefix match)` hint on stderr; fails by throwing CliError (the
+ * unified exit renders the single `Error: <message>` line and exit code 1).
  */
 export function resolveChangeIdOrExit(
   program: Command,
   input: string,
   opts: { suppressHint?: boolean } = {},
-): { id: string; viaPrefix: boolean } | null {
-  try {
-    const resolved = resolveChangeId(newIo(), process.cwd(), input, {
-      maxScanDepth: cliMaxScanDepth(program),
-    });
-    if (resolved.viaPrefix && opts.suppressHint !== true) {
-      console.error(`'${input}' -> '${resolved.id}' (prefix match)`);
-    }
-    return resolved;
-  } catch (error) {
-    console.error((error as Error).message);
-    process.exitCode = 1;
-    return null;
+): { id: string; viaPrefix: boolean } {
+  const resolved = resolveChangeId(newIo(), process.cwd(), input, {
+    maxScanDepth: cliMaxScanDepth(program),
+  });
+  if (resolved.viaPrefix && opts.suppressHint !== true) {
+    console.error(`'${input}' -> '${resolved.id}' (prefix match)`);
   }
+  return resolved;
 }
 
 export type OutMode = 'toon' | 'json' | 'compact-json' | 'human';
 
 /**
+ * D4: shared output-flag surface for every report command. Mounts the unified
+ * `--output <toon|json|compact-json|human>` plus the v1-compatibility alias
+ * flags (`--json` / `--compact-json`), so report commands no longer duplicate
+ * `.option('--output', ...)` registrations. `outputHint` lets a command keep a
+ * richer value-domain description (show's legacy JSON modifiers).
+ */
+export function addReportOutputOptions(cmd: Command, opts: { outputHint?: string } = {}): void {
+  cmd
+    .option(
+      '--output <mode>',
+      opts.outputHint ?? 'report format: toon (default) | json | compact-json | human',
+    )
+    .option('--json', 'emit structured JSON (v1 compatibility alias)')
+    .option('--compact-json', 'emit single-line JSON (v1 compatibility alias)');
+}
+
+/**
  * toon-default-output: explicit `--output` wins, then the v1-parity legacy
  * flags, then the toon default. Legacy `--compact-json` keeps its v1 guard
  * (must pair with `--json`) — standalone compact goes through `--output`.
+ * Invalid `--output` values are usage errors (exit 2) and throw CliError.
  */
 export function resolveOutMode(
   output: string | undefined,
   legacyJson: boolean | undefined,
   legacyCompact: boolean | undefined,
-): OutMode | null {
+): OutMode {
   const modes: readonly string[] = ['toon', 'json', 'compact-json', 'human'];
   if (output !== undefined) {
     if (!modes.includes(output)) {
-      console.error(`invalid --output: ${output} (toon | json | compact-json | human)`);
-      process.exitCode = 1;
-      return null;
+      throw new CliError(`invalid --output: ${output} (toon | json | compact-json | human)`, 2);
     }
     return output as OutMode;
   }
@@ -130,7 +152,8 @@ export function resolveOutMode(
 
 /**
  * Legacy `--compact-json` guard (see resolveOutMode): standalone compact is
- * rejected unless paired with `--json` or an explicit `--output`.
+ * rejected (usage error, exit 2) unless paired with `--json` or an explicit
+ * `--output`.
  */
 export function assertCompactJsonPairing(options: {
   compactJson?: boolean;
@@ -138,9 +161,7 @@ export function assertCompactJsonPairing(options: {
   output?: string;
 }): boolean {
   if (options.compactJson === true && options.json !== true && options.output === undefined) {
-    console.error('--compact-json requires --json');
-    process.exitCode = 1;
-    return false;
+    throw new CliError('--compact-json requires --json', 2);
   }
   return true;
 }

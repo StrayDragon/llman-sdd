@@ -2,6 +2,8 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import {
+  CLOSE_OUT_TASK_HINT,
+  closeOutTaskLines,
   archiveChange,
   attachChange,
   changeDiff,
@@ -19,7 +21,13 @@ import {
 } from '@llman-sdd/core';
 import { Option, type Command } from 'commander';
 
-import { loadCliConfig, loadSpecEntries, newIo, resolveChangeIdOrExit } from '../cli-shared.ts';
+import {
+  CliError,
+  loadCliConfig,
+  loadSpecEntries,
+  newIo,
+  resolveChangeIdOrExit,
+} from '../cli-shared.ts';
 import { makeCliGit } from '../io.ts';
 
 function runValidateSweep(): boolean {
@@ -28,11 +36,10 @@ function runValidateSweep(): boolean {
 }
 
 /** `--method squash|ff` guard shared by `change archive` / `change finalize`. */
-function assertMergeMethod(method: string | undefined): boolean {
-  if (method === undefined || method === 'squash' || method === 'ff') return true;
-  console.error(`invalid --method: ${method}`);
-  process.exitCode = 1;
-  return false;
+function assertMergeMethod(method: string | undefined): void {
+  if (method !== undefined && method !== 'squash' && method !== 'ff') {
+    throw new CliError(`invalid --method: ${method}`);
+  }
 }
 
 /**
@@ -87,9 +94,7 @@ export function registerChange(program: Command): void {
         options: { from?: string; verb?: string; force?: boolean; dryRun?: boolean },
       ) => {
         if ((id === undefined) === (options.from === undefined)) {
-          console.error('<CHANGE> and --from are mutually exclusive; pass one or the other');
-          process.exitCode = 1;
-          return;
+          throw new CliError('<CHANGE> and --from are mutually exclusive; pass one or the other');
         }
         if (options.dryRun) {
           console.log(id ?? deriveNewId(options.from as string, options.verb));
@@ -127,7 +132,6 @@ export function registerChange(program: Command): void {
     )
     .action((id: string, options: { branchPrefix?: string; base?: string; worktree?: boolean }) => {
       const resolved = resolveChangeIdOrExit(program, id);
-      if (resolved === null) return;
       const git = makeCliGit(process.cwd());
       const config = loadCliConfig();
       const result = startChange(git, newIo(), resolved.id, {
@@ -151,7 +155,6 @@ export function registerChange(program: Command): void {
     .option('--base <branch>', 'explicit fork-point branch to record')
     .action((id: string, options: { force?: boolean; base?: string }) => {
       const resolved = resolveChangeIdOrExit(program, id);
-      if (resolved === null) return;
       const result = attachChange(makeCliGit(process.cwd()), newIo(), resolved.id, {
         force: options.force,
         base: options.base,
@@ -193,16 +196,14 @@ export function registerChange(program: Command): void {
     .option('--into <branch>', 'target branch to merge into')
     .option('--method <method>', 'merge method: squash | ff')
     .option('--dry-run', 'print the rename plan only')
-    .option('--skip-specs', 'legacy flag accepted for v1 parity (no longer merges deltas)')
     .addOption(new Option('--force', 'skip task and git gates').hideHelp())
     .action(
       (
         id: string,
         options: { into?: string; method?: string; dryRun?: boolean; force?: boolean },
       ) => {
-        if (!assertMergeMethod(options.method)) return;
+        assertMergeMethod(options.method);
         const resolved = resolveChangeIdOrExit(program, id);
-        if (resolved === null) return;
         id = resolved.id;
         const io = newIo();
         if (options.dryRun) {
@@ -223,6 +224,13 @@ export function registerChange(program: Command): void {
             console.error(`Archive blocked: ${gate.pendingLines.length} unchecked task(s).`);
             for (const line of gate.pendingLines) {
               console.error(`  - [ ] ${line.replace(/^-\s+\[ \]\s*/u, '').trim()}`);
+            }
+            // D9: point at a close-out pseudo-task with the single shared hint.
+            const closeOut = closeOutTaskLines(gate.pendingLines);
+            if (closeOut.length > 0) {
+              console.error(
+                `  task "${closeOut[0]?.replace(/^-\s+\[ \]\s*/u, '').trim() ?? ''}" looks like a close-out step; ${CLOSE_OUT_TASK_HINT}`,
+              );
             }
             console.error(
               'Options:\n  1. Complete the remaining tasks\n  2. Use --force to archive anyway (not recommended)',
@@ -254,7 +262,6 @@ export function registerChange(program: Command): void {
     .option('--export-patch <path>', 'write the diff to a file instead of stdout')
     .action((id: string, options: { json?: boolean; exportPatch?: string }) => {
       const resolved = resolveChangeIdOrExit(program, id);
-      if (resolved === null) return;
       id = resolved.id;
       const git = makeCliGit(process.cwd());
       if (options.json) {
@@ -289,17 +296,16 @@ export function registerChange(program: Command): void {
         id: string,
         options: { into?: string; method?: string; check?: boolean; commit?: boolean },
       ) => {
-        if (!assertMergeMethod(options.method)) return;
+        assertMergeMethod(options.method);
         if (options.check !== false) {
           const failed = runValidateSweep();
           if (failed) {
-            console.error('finalize aborted: validation sweep failed (use --no-check to skip)');
-            process.exitCode = 1;
-            return;
+            throw new CliError(
+              'finalize aborted: validation sweep failed (use --no-check to skip)',
+            );
           }
         }
         const resolved = resolveChangeIdOrExit(program, id);
-        if (resolved === null) return;
         id = resolved.id;
         const config = loadCliConfig();
         const method = options.method ?? config?.sdd?.merge_method ?? 'squash';

@@ -58,7 +58,6 @@ llman-sdd change new --from "<user description>"
 
 > 💡 Draft captured → next: edit `proposal.md`, then `llman-sdd-propose` to formalize.
 
-> For command details run `llman-sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables.
-> "Spec" here = a `.feature` file under this project's `llmanspec/specs/`; run `llman-sdd list --specs` or `llman-sdd show <capability>`.
+{{ unit("skills/cli-footer") }}
 
 {{ unit("skills/ethics-governance") }}

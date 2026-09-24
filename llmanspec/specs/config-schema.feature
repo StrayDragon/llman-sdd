@@ -7,7 +7,7 @@
 
   @req:r5 @human
   场景: 顶层字段域
-    - llmanspec/config.yaml MUST 位于项目根 llmanspec/ 目录;顶层字段 MUST 仅由 schema/locale/extra_skills/archive/bdd/sdd/change_id 组成,未知字段 SHALL 宽松放行(不报错)。schema 字段必填且 MUST 为 "spec-driven"。extra_skills 取值域 MUST 限于 llman-sdd-continue/llman-sdd-ff/llman-sdd-validate/llman-sdd-arch-review/llman-sdd-wayfinder/llman-sdd-research。bdd.bindings MUST 仅支持 kind:tags(含非空 tags);kind:scenario-attrs 已移除,出现 MUST 报错且错误信息 MUST 指明该形态已移除与删除该条目的修复动作。bdd 段 MUST NOT 声明无消费方的字段(default_language、feature_dir 已移除),旧配置残留这两个键 SHALL 被宽松忽略(与未知字段同口径,解析结果不含该键)。
+    - llmanspec/config.yaml MUST 位于项目根 llmanspec/ 目录;顶层字段 MUST 仅由 schema/locale/extra_skills/archive/bdd/sdd/change_id 组成,未知字段 SHALL 宽松放行(不报错)。schema 字段必填且 MUST 为 "spec-driven"。extra_skills 取值域 MUST 限于 llman-sdd-continue/llman-sdd-ff/llman-sdd-validate/llman-sdd-arch-review/llman-sdd-wayfinder/llman-sdd-research。bdd 段 MUST 仅由 framework/run_command/verify_prompt 组成(bindings 键已不消费,旧配置残留该键 SHALL 被宽松剥离,解析结果不含该键)。bdd 段 MUST NOT 声明无消费方的字段(default_language、feature_dir 已移除),旧配置残留这两个键 SHALL 被宽松忽略(与未知字段同口径,解析结果不含该键)。
 
   @req:r5 @executable
   场景: 顶层字段域与未知字段宽松
@@ -17,10 +17,10 @@
     而且 schema 非法值报错
 
   @req:r5 @executable
-  场景: scenario-attrs 绑定被拒绝
-    假如 一个 config 内容 bdd.bindings 含 kind "scenario-attrs" 条目
+  场景: 遗留已删除的 bdd 键被宽松剥离
+    假如 一个 config 内容 bdd 段含已删除的旧键
     当 加载该 config
-    那么 报错信息包含 "has been removed"
+    那么 加载成功且解析结果的 bdd 段不含未经声明的键
 
   @req:r5 @executable
   场景: bdd 段已移除字段被宽松忽略

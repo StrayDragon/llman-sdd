@@ -143,7 +143,8 @@ export function evaluateStaleness(deps: StalenessDeps): {
   }
 }
 
-const STALE_MSG = 'Note: Spec files changed on the base branch; re-review the spec.';
+const STALE_MSG =
+  "Note: Code in this spec's scope changed on this branch but the spec was not updated; re-review the spec.";
 const SPEC_UPDATED_MSG = 'Note: Spec updated on this branch.';
 
 function revParse(git: GitLike, ref: string): string | null {

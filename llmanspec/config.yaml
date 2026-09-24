@@ -8,6 +8,3 @@ locale: zh-Hans
 # list --specs / show 以 @executable tag 拆分已绑定计数。
 bdd:
   run_command: "bun test tests/bdd"
-  bindings:
-    - kind: tags
-      tags: [executable]

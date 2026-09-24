@@ -21,8 +21,11 @@ import {
 import type { Command } from 'commander';
 
 import {
+  addReportOutputOptions,
   assertCompactJsonPairing,
+  CliError,
   cliMaxScanDepth,
+  exitWith,
   loadCliConfig,
   loadSpecEntries,
   newIo,
@@ -243,7 +246,7 @@ function makeHarnessGate(options: { check?: boolean }): HarnessGate {
 }
 
 export function registerValidate(program: Command): void {
-  program
+  const validate = program
     .command('validate')
     .description('Validate specs and changes (structural gates + stage/completion rules)')
     .argument('[item]', 'spec id or change id (auto-disambiguated)')
@@ -253,186 +256,175 @@ export function registerValidate(program: Command): void {
     .option('--type <type>', 'force disambiguation: change | spec')
     .option('--stage <stage>', 'change stage gate: draft | designed | planned | full')
     .option('--strict', 'warnings also make the exit code non-zero')
-    .option('--json', 'emit {items:[{id,type,valid,issues}]}')
-    .option('--compact-json', 'single-line --json (requires --json)')
     .option('--include-info', 'keep INFO-level issues (default: WARNING and above)')
-    .option('--output <mode>', 'report format: toon (default) | json | compact-json | human')
     .option('--no-check', 'skip the bdd harness')
-    .option('--check', 'run the bdd harness (default when bdd.run_command is configured)')
-    .action(
-      (
-        item: string | undefined,
-        options: {
-          all?: boolean;
-          changes?: boolean;
-          specs?: boolean;
-          type?: string;
-          stage?: string;
-          strict?: boolean;
-          json?: boolean;
-          compactJson?: boolean;
-          includeInfo?: boolean;
-          output?: string;
-          check?: boolean;
-        },
-      ) => {
-        if (!assertCompactJsonPairing(options)) return;
-        const outMode = resolveOutMode(options.output, options.json, options.compactJson);
-        if (outMode === null) return;
-        // r32: INFO issues are presentation noise — dropped unless opted in.
-        // Filtering never touches `valid`, summaries, or exit codes.
-        const keepInfo = options.includeInfo === true;
-        const stripInfo = <T extends { issues: { level: string }[] }>(it: T): T =>
-          keepInfo ? it : { ...it, issues: it.issues.filter((x) => x.level !== 'INFO') };
-        warnDirtySpecsOnDefaultBranch();
-        if (options.type !== undefined && options.type !== 'change' && options.type !== 'spec') {
-          console.error(`invalid --type: ${options.type}`);
-          process.exitCode = 1;
-          return;
-        }
-        if (
-          options.stage !== undefined &&
-          !(STAGE_ORDER as readonly string[]).includes(options.stage)
-        ) {
-          console.error(`invalid --stage: ${options.stage}`);
-          process.exitCode = 1;
-          return;
-        }
-        const harness = makeHarnessGate(options);
+    .option('--check', 'run the bdd harness (default when bdd.run_command is configured)');
+  addReportOutputOptions(validate);
+  validate.action(
+    (
+      item: string | undefined,
+      options: {
+        all?: boolean;
+        changes?: boolean;
+        specs?: boolean;
+        type?: string;
+        stage?: string;
+        strict?: boolean;
+        json?: boolean;
+        compactJson?: boolean;
+        includeInfo?: boolean;
+        output?: string;
+        check?: boolean;
+      },
+    ) => {
+      if (!assertCompactJsonPairing(options)) return;
+      const outMode = resolveOutMode(options.output, options.json, options.compactJson);
+      // r32: INFO issues are presentation noise — dropped unless opted in.
+      // Filtering never touches `valid`, summaries, or exit codes.
+      const keepInfo = options.includeInfo === true;
+      const stripInfo = <T extends { issues: { level: string }[] }>(it: T): T =>
+        keepInfo ? it : { ...it, issues: it.issues.filter((x) => x.level !== 'INFO') };
+      warnDirtySpecsOnDefaultBranch();
+      if (options.type !== undefined && options.type !== 'change' && options.type !== 'spec') {
+        throw new CliError(`invalid --type: ${options.type}`);
+      }
+      if (
+        options.stage !== undefined &&
+        !(STAGE_ORDER as readonly string[]).includes(options.stage)
+      ) {
+        throw new CliError(`invalid --stage: ${options.stage}`);
+      }
+      const harness = makeHarnessGate(options);
 
-        // ---- single item (auto-disambiguate: spec first, then change) ----
-        if (item !== undefined) {
-          const entries = loadSpecEntries();
-          const specEntry =
-            options.type === 'change' ? undefined : entries.find((e) => specIdOf(e) === item);
-          if (specEntry !== undefined) {
-            const items = specV1Items(
-              { strict: options.strict, harness, harnessOnlyIds: [item] },
-              entries,
-            );
-            const mine = items.find((i) => i.id === item);
-            if (mine === undefined) {
-              console.error(`no spec or change matches: ${item}`);
-              process.exitCode = 1;
-              return;
-            }
-            const shown = stripInfo(mine);
-            if (outMode !== 'human') {
-              renderValidateReport([shown], outMode);
-              process.exitCode = shown.valid ? 0 : 1;
-              return;
-            }
-            if (shown.valid) {
-              console.log(`Specification '${item}' is valid`);
-            } else {
-              console.error(`Specification '${item}' has issues`);
-              for (const issue of shown.issues)
-                console.error(`  [${issue.level}] ${issue.path}: ${issue.message}`);
-              console.error('Next steps:');
-              for (const s of SPEC_NEXT_STEPS) console.error(s);
-            }
-            if (shown.type === 'spec') printStalenessLines(shown.staleness);
-            if (!shown.valid) console.error('Error: validation failed');
-            process.exitCode = shown.valid ? 0 : 1;
-            return;
-          }
-          // change single (r61: v1 r112 prefix resolution on the change id)
-          const io = newIo();
-          const root = process.cwd();
-          const resolved = resolveChangeIdOrExit(program, item, {
-            suppressHint: options.json === true,
-          });
-          if (resolved === null) return;
-          const changeId = resolved.id;
-          const res = validateChange(
-            io,
-            root,
-            changeId,
-            {
-              strict_defer: loadCliConfig()?.archive?.strict_defer ?? null,
-              change_id_pattern: loadCliConfig()?.change_id?.pattern ?? null,
-            },
-            {
-              stage: options.stage as never,
-              strict: options.strict === true,
-              git: makeCliGit(process.cwd()),
-            },
+      // ---- single item (auto-disambiguate: spec first, then change) ----
+      if (item !== undefined) {
+        const entries = loadSpecEntries();
+        const specEntry =
+          options.type === 'change' ? undefined : entries.find((e) => specIdOf(e) === item);
+        if (specEntry !== undefined) {
+          const items = specV1Items(
+            { strict: options.strict, harness, harnessOnlyIds: [item] },
+            entries,
           );
-          const infos = res.issues.filter((i) => i.level === 'INFO');
+          const mine = items.find((i) => i.id === item);
+          if (mine === undefined) {
+            throw new CliError(`no spec or change matches: ${item}`);
+          }
+          const shown = stripInfo(mine);
           if (outMode !== 'human') {
-            renderValidateReport(
-              [
-                stripInfo({
-                  id: changeId,
-                  type: 'change',
-                  valid: res.valid,
-                  issues: res.issues,
-                  durationMs: 0,
-                  staleness: notApplicableStaleness(),
-                  matchedViaPrefix: resolved.viaPrefix,
-                }),
-              ],
-              outMode,
-            );
-            process.exitCode = res.valid ? 0 : 1;
+            renderValidateReport([shown], outMode);
+            exitWith(shown.valid ? 0 : 1);
             return;
           }
-          if (res.valid) {
-            console.log(`Change '${changeId}' is valid`);
+          if (shown.valid) {
+            console.log(`Specification '${item}' is valid`);
           } else {
-            console.error(`Change '${changeId}' has issues`);
-            for (const issue of res.issues.filter((i) => i.level !== 'INFO'))
+            console.error(`Specification '${item}' has issues`);
+            for (const issue of shown.issues)
               console.error(`  [${issue.level}] ${issue.path}: ${issue.message}`);
             console.error('Next steps:');
-            for (const s of CHANGE_NEXT_STEPS) console.error(s);
+            for (const s of SPEC_NEXT_STEPS) console.error(s);
           }
-          if (keepInfo) {
-            for (const info of infos)
-              console.error(`[${info.level}] ${info.path}: ${info.message}`);
-          }
-          if (!res.valid) console.error('Error: validation failed');
-          process.exitCode = res.valid ? 0 : 1;
+          if (shown.type === 'spec') printStalenessLines(shown.staleness);
+          if (!shown.valid) console.error('Error: validation failed');
+          exitWith(shown.valid ? 0 : 1);
           return;
         }
-
-        // ---- bulk ----
-        const specScope = options.all || !options.changes || options.specs === true;
-        const changeScope = options.all || options.changes === true;
-        const defaultSpecsOnly = !options.all && !options.changes;
-        const effectiveSpecs = defaultSpecsOnly ? true : specScope;
-        const effectiveChanges = defaultSpecsOnly ? false : changeScope;
-
-        let items: VItem[] = [];
-        if (effectiveSpecs) items = items.concat(specV1Items({ strict: options.strict, harness }));
-        if (effectiveChanges) {
-          const names = collectChanges(newIo(), process.cwd(), new Date(), {
-            maxScanDepth: cliMaxScanDepth(program),
-          }).map((c) => c.name);
-          items = items.concat(
-            changeV1Items(names, { stage: options.stage, strict: options.strict }),
-          );
-        }
-        items.sort(compareItems);
-        if (!keepInfo) items = items.map(stripInfo);
-
+        // change single (r61: v1 r112 prefix resolution on the change id)
+        const io = newIo();
+        const root = process.cwd();
+        const resolved = resolveChangeIdOrExit(program, item, {
+          suppressHint: options.json === true,
+        });
+        const changeId = resolved.id;
+        const res = validateChange(
+          io,
+          root,
+          changeId,
+          {
+            strict_defer: loadCliConfig()?.archive?.strict_defer ?? null,
+            change_id_pattern: loadCliConfig()?.change_id?.pattern ?? null,
+          },
+          {
+            stage: options.stage as never,
+            strict: options.strict === true,
+            git: makeCliGit(process.cwd()),
+          },
+        );
+        const infos = res.issues.filter((i) => i.level === 'INFO');
         if (outMode !== 'human') {
-          renderValidateReport(items, outMode);
-          if (items.some((i) => !i.valid)) console.error('Error: validation failed');
-          process.exitCode = items.some((i) => !i.valid) ? 1 : 0;
+          renderValidateReport(
+            [
+              stripInfo({
+                id: changeId,
+                type: 'change',
+                valid: res.valid,
+                issues: res.issues,
+                durationMs: 0,
+                staleness: notApplicableStaleness(),
+                matchedViaPrefix: resolved.viaPrefix,
+              }),
+            ],
+            outMode,
+          );
+          exitWith(res.valid ? 0 : 1);
           return;
         }
-        renderValidateText(items);
-        if (items.some((i) => !i.valid)) {
-          // r47: human mode carries the Next steps guidance for every failing
-          // item kind (bulk path; the single-item path emits per-kind steps).
-          const kinds = new Set(items.filter((i) => !i.valid).map((i) => i.type));
+        if (res.valid) {
+          console.log(`Change '${changeId}' is valid`);
+        } else {
+          console.error(`Change '${changeId}' has issues`);
+          for (const issue of res.issues.filter((i) => i.level !== 'INFO'))
+            console.error(`  [${issue.level}] ${issue.path}: ${issue.message}`);
           console.error('Next steps:');
-          for (const kind of kinds) {
-            for (const s of kind === 'spec' ? SPEC_NEXT_STEPS : CHANGE_NEXT_STEPS) console.error(s);
-          }
-          console.error('Error: validation failed');
+          for (const s of CHANGE_NEXT_STEPS) console.error(s);
         }
-        process.exitCode = items.some((i) => !i.valid) ? 1 : 0;
-      },
-    );
+        if (keepInfo) {
+          for (const info of infos) console.error(`[${info.level}] ${info.path}: ${info.message}`);
+        }
+        if (!res.valid) console.error('Error: validation failed');
+        exitWith(res.valid ? 0 : 1);
+        return;
+      }
+
+      // ---- bulk ----
+      const specScope = options.all || !options.changes || options.specs === true;
+      const changeScope = options.all || options.changes === true;
+      const defaultSpecsOnly = !options.all && !options.changes;
+      const effectiveSpecs = defaultSpecsOnly ? true : specScope;
+      const effectiveChanges = defaultSpecsOnly ? false : changeScope;
+
+      let items: VItem[] = [];
+      if (effectiveSpecs) items = items.concat(specV1Items({ strict: options.strict, harness }));
+      if (effectiveChanges) {
+        const names = collectChanges(newIo(), process.cwd(), new Date(), {
+          maxScanDepth: cliMaxScanDepth(program),
+        }).map((c) => c.name);
+        items = items.concat(
+          changeV1Items(names, { stage: options.stage, strict: options.strict }),
+        );
+      }
+      items.sort(compareItems);
+      if (!keepInfo) items = items.map(stripInfo);
+
+      if (outMode !== 'human') {
+        renderValidateReport(items, outMode);
+        if (items.some((i) => !i.valid)) console.error('Error: validation failed');
+        exitWith(items.some((i) => !i.valid) ? 1 : 0);
+        return;
+      }
+      renderValidateText(items);
+      if (items.some((i) => !i.valid)) {
+        // r47: human mode carries the Next steps guidance for every failing
+        // item kind (bulk path; the single-item path emits per-kind steps).
+        const kinds = new Set(items.filter((i) => !i.valid).map((i) => i.type));
+        console.error('Next steps:');
+        for (const kind of kinds) {
+          for (const s of kind === 'spec' ? SPEC_NEXT_STEPS : CHANGE_NEXT_STEPS) console.error(s);
+        }
+        console.error('Error: validation failed');
+      }
+      exitWith(items.some((i) => !i.valid) ? 1 : 0);
+    },
+  );
 }

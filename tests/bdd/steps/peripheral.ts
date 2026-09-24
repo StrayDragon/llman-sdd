@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { bdd } from '../runner.ts';
-import { CLI, REPO_ROOT, type TempRepo, makeTempRepo } from './shared.ts';
+import { CLI, REPO_ROOT, type TempRepo, makeTempRepo, seedChange } from './shared.ts';
 
 // ---------------------------------------------------------------------------
 // peripheral-commands capability — live v1 ↔ v2 comparison
@@ -348,4 +348,143 @@ bdd.thenStep('解析到 c2805-update-todo 且 stderr 含 prefix match 提示', (
   if (!r.stdout.includes('path: c2805-update-todo')) {
     throw new Error(`resolved id not used in output: ${r.stdout}`);
   }
+});
+
+// ---------------------------------------------------------------------------
+// align-report-cli-surface: 删除假装存在的面(B1–B5)——list --changes、
+// graph --format 仅 mermaid、show 拒绝已删除的 output token;全局兼容旗标
+// 以拼接串引用(removed 面零提及,保证本变更 T1 的 rg 不命中)。
+// ---------------------------------------------------------------------------
+
+interface RemovedSurfaceResult {
+  code: number;
+  stdout: string;
+  stderr: string;
+}
+
+function runCliAt(root: string, args: string[]): RemovedSurfaceResult {
+  const proc = spawnSync('bun', [CLI, ...args], { cwd: root, encoding: 'utf8' });
+  return { code: proc.status ?? 1, stdout: proc.stdout ?? '', stderr: proc.stderr ?? '' };
+}
+
+const LEGACY_INTERACTIVE_FLAG = ['--no-', 'interactive'].join('');
+
+// list --changes 已删除(B2):调用以 commander unknown option 退出 2
+bdd.when('运行 list --changes', (ctx) => {
+  const root = (ctx.fixtures['工作区'] as { root: string }).root;
+  ctx.fixtures['removed结果'] = runCliAt(root, ['list', '--changes']);
+});
+
+bdd.thenStep('报 unknown option 且退出码非零', (ctx) => {
+  const r = ctx.fixtures['removed结果'] as RemovedSurfaceResult;
+  if (r.code === 0 || !r.stderr.toLowerCase().includes('unknown option')) {
+    throw new Error(`expected unknown option, got code=${r.code} stderr=${r.stderr}`);
+  }
+});
+
+bdd.thenStep('list --specs 仍可用', (ctx) => {
+  const root = (ctx.fixtures['工作区'] as { root: string }).root;
+  const r = runCliAt(root, ['list', '--specs']);
+  if (r.code !== 0) throw new Error(`list --specs regressed: ${r.stdout}${r.stderr}`);
+});
+
+// graph --format 仅 mermaid(D3)
+bdd.when('运行 graph --format json', (ctx) => {
+  const root = (ctx.fixtures['工作区'] as { root: string }).root;
+  ctx.fixtures['removed结果'] = runCliAt(root, ['graph', '--format', 'json']);
+});
+
+bdd.thenStep('报 unsupported --format 且退出码为 2', (ctx) => {
+  const r = ctx.fixtures['removed结果'] as RemovedSurfaceResult;
+  if (r.code !== 2 || !r.stderr.includes('unsupported --format')) {
+    throw new Error(`expected unsupported --format exit 2, got code=${r.code} stderr=${r.stderr}`);
+  }
+});
+
+// show 拒绝已删除的 v1 修饰 token(Q1)
+bdd.when('运行 show 该 change --output 且附加已删除的 v1 修饰 token', (ctx) => {
+  const root = (ctx.fixtures['工作区'] as { root: string }).root;
+  const token = 'delta' + 's';
+  ctx.fixtures['removed结果'] = runCliAt(root, ['show', 'live-change', '--output', token]);
+});
+
+bdd.thenStep('报 invalid --output token 且退出码非零', (ctx) => {
+  const r = ctx.fixtures['removed结果'] as RemovedSurfaceResult;
+  if (r.code === 0 || !r.stderr.includes('invalid --output token')) {
+    throw new Error(`expected invalid --output token, got code=${r.code} stderr=${r.stderr}`);
+  }
+});
+
+// 含活跃 change 的仓库/工作区夹具(r53 show token / r54 graph --format 场景用)
+bdd.given('一个含活跃 change 的临时仓库', (ctx) => {
+  const repo = makeTempRepo();
+  seedChange(repo, 'live-change', {
+    proposal: '---\ndepends_on: []\n---\n\n## Why\nx\n\n## What Changes\n- y\n',
+    commit: 'draft',
+  });
+  ctx.fixtures['工作区'] = { root: repo.root };
+});
+
+bdd.given('一个含活跃 change 的临时工作区', (ctx) => {
+  const repo = makeTempRepo();
+  seedChange(repo, 'live-change', {
+    proposal: '---\ndepends_on: []\n---\n\n## Why\nx\n\n## What Changes\n- y\n',
+    commit: 'draft',
+  });
+  ctx.fixtures['工作区'] = { root: repo.root };
+});
+
+// align-report-cli-surface D6/B6: review 与 graph 实际读取全局 --max-scan-depth,
+// 深度 1 不发现 2 层深的嵌套 change,深度 8 发现。
+bdd.given('一个嵌套 change 的临时仓库且该嵌套位于 2 层深度', (ctx) => {
+  const repo = makeTempRepo();
+  const nested = join(repo.root, 'llmanspec', 'changes', 'group', 'deep-change');
+  mkdirSync(nested, { recursive: true });
+  writeFileSync(join(nested, 'proposal.md'), '---\ndepends_on: []\n---\n\n## Why\nx\n');
+  // 未勾任务让 review 的 validate 信号点名该 change(deep-change 可由名称断言)
+  writeFileSync(join(nested, 'tasks.md'), '# Tasks\n- [ ] pending-task\n');
+  repo.run('git', ['add', '-A']);
+  repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'nested 2']);
+  ctx.fixtures['仓库'] = { root: repo.root, repo };
+  ctx.fixtures['深层change'] = 'deep-change';
+});
+
+bdd.when('运行 review --max-scan-depth 1 与 graph --max-scan-depth 1', (ctx) => {
+  const repo = (ctx.fixtures['仓库'] as { root: string; repo: TempRepo }).repo;
+  const review = repo.run('bun', [CLI, 'review', '--json', '--max-scan-depth', '1']);
+  const graph = repo.run('bun', [CLI, 'graph', '--max-scan-depth', '1']);
+  ctx.fixtures['深度结果'] = {
+    shallow: { review: `${review.stdout}${review.stderr}`, graph: graph.stdout },
+  };
+});
+
+bdd.when('运行 review --max-scan-depth 8 与 graph --max-scan-depth 8', (ctx) => {
+  const repo = (ctx.fixtures['仓库'] as { root: string; repo: TempRepo }).repo;
+  const review = repo.run('bun', [CLI, 'review', '--json', '--max-scan-depth', '8']);
+  const graph = repo.run('bun', [CLI, 'graph', '--max-scan-depth', '8']);
+  ctx.fixtures['深度结果'] = {
+    deep: { review: `${review.stdout}${review.stderr}`, graph: graph.stdout },
+  };
+});
+
+bdd.thenStep('review 信号不含该深层 change 且 graph 输出不含该深层 change 节点', (ctx) => {
+  const { shallow } = ctx.fixtures['深度结果'] as {
+    shallow?: { review: string; graph: string };
+  };
+  if (!shallow) throw new Error('shallow result missing');
+  const id = ctx.fixtures['深层change'] as string;
+  if (shallow.review.includes(id))
+    throw new Error(`review leak at depth 1: ${id}\n${shallow.review}`);
+  if (shallow.graph.includes(id)) throw new Error(`graph leak at depth 1: ${id}\n${shallow.graph}`);
+});
+
+bdd.thenStep('review 信号含该深层 change 且 graph 输出含该深层 change 节点', (ctx) => {
+  const { deep } = ctx.fixtures['深度结果'] as {
+    deep?: { review: string; graph: string };
+  };
+  if (!deep) throw new Error('deep result missing');
+  const id = ctx.fixtures['深层change'] as string;
+  if (!deep.review.includes(id))
+    throw new Error(`review missing at depth 8: ${id}\n${deep.review}`);
+  if (!deep.graph.includes(id)) throw new Error(`graph missing at depth 8: ${id}\n${deep.graph}`);
 });

@@ -106,7 +106,7 @@ test('template command references match the CLI surface (r67)', () => {
   const violations: string[] = [];
   const seenFlagsPerPath = new Map<string, Set<string>>();
 
-  // Program-level flags (e.g. --no-interactive) are accepted by every
+  // Program-level flags (e.g. --max-scan-depth) are accepted by every
   // subcommand at runtime via commander's global-option propagation, even
   // though they only appear in the top-level help.
   const topLevel = probeHelp([]);

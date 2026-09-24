@@ -43,7 +43,7 @@ flowchart LR
    - 执行：`llman-sdd archive freeze --before <YYYY-MM-DD> --keep-recent <N>`
 3. 识别跨 capability 的重叠项（跨 specs 重复 req id：`llman-sdd project dedupe-req-ids --dry-run` 报告重映射计划）。
 4. 产出压缩计划（canonical requirements + keep/merge/remove 决策 + 迁移说明）。
-5. 执行并验证（`llman-sdd validate --specs --strict --no-interactive`）。
+5. 执行并验证（`llman-sdd validate --specs --strict`）。
 
 ## Decision Policy
 - 两条 requirement 语义等价时优先合并。
@@ -82,7 +82,6 @@ Git-native 护栏：
 - **Branch binding** → **Specs landing**：先 `change start` / `attach`，再在绑定的非默认分支编辑 live `.feature` 并 commit。
 - 锁定规则（报告制）：改/删既有 `@human` 场景只出 WARNING，不阻断 validate / change finalize / change diff；报告按 `@req:<id>` 指明被改的是哪条规则。控制点：git 分支对比 + `llman-sdd review` / `change diff` 的报告浮现。旧的锁定确认元数据（frontmatter `rules_touched` / `agent_acked`、`@agent` tag、`--yes` 的确认语义）已全部删除，无别名、无兼容层。
 - `stage=full` 且 specs-landed 门通过（specsLanded ∨ `needs_specs_change: false`）即可进入 apply；verify/finalize 须 `readyToImplement=true`（完成信号）。收尾优先 `change finalize`。
-- 勿使用 `change delta` / solidify / `*.feature.delta.toon`。
 
 ## Ethics Governance
 - `ethics.risk_level`：low——仅读写本仓库与 `llmanspec/`，无外发动作；正文另有声明时从其声明。

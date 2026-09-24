@@ -52,7 +52,7 @@ Read: `stage`, `specsLanded`, `needsSpecsChange`, `readyToImplement`, `gateCheck
 ## Steps
 1. Select the change id (or ask the user to pick from `llman-sdd list --json`).
 2. Run a fast validation gate:
-   - `llman-sdd validate <id> --strict --no-interactive`
+   - `llman-sdd validate <id> --strict`
    - **When diagnosing structural issues (Gherkin parse / `@req` linkage / dual-write / global req_id uniqueness), run the structural validation first** (when `bdd.run_command` is configured, validate executes that harness by default — `--no-check` skips it; a harness failure lands as an ERROR on its spec item). Failing items are listed one by one in the default TOON output's `items[].issues[]` (`--output human` prints the v1 text form: `FAIL <item_type>/<id>` lines above the `Totals` line).
 3. Read:
    - Live specs on the feature branch: `llmanspec/specs/**` (`<capability>.feature`) — SSOT
@@ -93,7 +93,7 @@ Read: `stage`, `specsLanded`, `needsSpecsChange`, `readyToImplement`, `gateCheck
    - **CRITICAL** (must fix before archive)
    - **WARNING** (should fix)
    - **SUGGESTION** (nice to have)
-7. **Human review checkpoint**: once the report has no CRITICAL findings and before suggesting archive, run `llman-sdd review`:
+7. **Human review gate**: once the report has no CRITICAL findings and before suggesting archive, run `llman-sdd review`:
    - Exit code zero → suggest `llman-sdd-archive` for finalize/archive.
    - Non-zero exit = CRITICAL findings: fix via `llman-sdd-apply`, then re-run review; MUST NOT enter finalize/archive with CRITICAL findings open.
 
@@ -106,7 +106,7 @@ Do not conflate **skill navigation** with the **Git-native lifecycle**. Full dia
 Hard rules:
 1. **First** Branch binding (`change start` / `attach`) → Full; **then** Specs landing (edit and commit `llmanspec/specs/**` on the bound branch).
 2. No live contract edits → `needs_specs_change: false`. Enter apply when `stage=full` and the specs-landed gate passes; `readyToImplement=true` (all gates green) is the completion signal gating verify/finalize.
-3. Close-out: `change finalize` (auto commit `archive(sdd): <id>`; `--no-commit` to skip). `change checkpoint` is removed (calling it exits non-zero and points to finalize).
+3. Close-out: `change finalize` (auto commit `archive(sdd): <id>`; `--no-commit` to skip).
 4. **Do not** commit live specs on the default branch; if already attached, do not re-run `start`.
 5. Worktree mode (optional): `change start --worktree` creates the branch in a dedicated worktree without hijacking the current checkout (`--base <branch>` records a non-default fork source); finalize runs in place when the target is held by another worktree (location annotated in output).
 # Human-Readable Summary (mandatory)
@@ -143,7 +143,6 @@ Git-native guardrail:
 - **Branch binding** → **Specs landing**: first `change start` / `attach`, then edit live `.feature` files on the bound non-default branch and commit.
 - Locked rules (report-only): editing/removing an existing `@human` scenario yields a WARNING and never blocks validate / change finalize / change diff; the report names the edited rule by `@req:<id>`. Control points: git branch diff plus `llman-sdd review` / `change diff` output. Legacy lock-ack metadata (frontmatter `rules_touched` / `agent_acked`, the `@agent` tag, the `--yes` ack semantics) is fully removed — no aliases, no compat layer (locked rules are report-only: a warning, never a block).
 - Enter apply when `stage=full` and the specs-landed gate passes (specsLanded ∨ `needs_specs_change: false`); verify/finalize require `readyToImplement=true` (completion signal). Close-out prefers `change finalize`.
-- Do not use `change delta` / solidify / `*.feature.delta.toon`.
 
 ## Context
 - Check state before acting: change/spec status comes from `llman-sdd show/list/validate` output.

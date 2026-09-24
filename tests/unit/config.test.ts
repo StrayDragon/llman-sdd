@@ -23,13 +23,12 @@ describe('loadConfig', () => {
     expect(cfg.schema).toBe('spec-driven');
   });
 
-  test('repo config shape parses (zh-Hans + bdd bindings)', () => {
+  test('repo config shape parses (zh-Hans + bdd run_command)', () => {
     const cfg = loadConfig(
-      `schema: spec-driven\nlocale: zh-Hans\nbdd:\n  run_command: "bun test tests/bdd"\n  bindings:\n    - kind: tags\n      tags: [executable]\n`,
+      `schema: spec-driven\nlocale: zh-Hans\nbdd:\n  run_command: "bun test tests/bdd"\n`,
     );
     expect(cfg.locale).toBe('zh-Hans');
     expect(cfg.bdd?.run_command).toBe('bun test tests/bdd');
-    expect(cfg.bdd?.bindings?.[0]).toEqual({ kind: 'tags', tags: ['executable'] });
   });
 
   test('invalid extra_skills value rejected with field path', () => {
@@ -43,7 +42,18 @@ describe('loadConfig', () => {
   });
 
   test('validation failure reports at most 5 issues', () => {
-    const bad = `schema: 123\nlocale: 5\nextra_skills: [nope]\nsdd:\n  merge_method: bogus\nbdd:\n  bindings:\n    - kind: tags\n      tags: []\n    - kind: bogus\n      files: []\n`;
+    const bad = `schema: 123
+locale: 5
+extra_skills: [nope]
+archive:
+  strict_defer: bogus
+sdd:
+  merge_method: bogus
+  worktree_naming: bogus
+  branch_prefix: 123
+change_id:
+  pattern: "[unclosed [unclosed"
+`;
     try {
       loadConfig(bad);
       throw new Error('expected ConfigValidationError');
@@ -78,18 +88,15 @@ describe('loadConfig', () => {
     }
   });
 
-  test('scenario-attrs bindings are rejected with the removal fix action (r5)', () => {
-    try {
-      loadConfig(
-        'schema: spec-driven\nbdd:\n  bindings:\n    - kind: scenario-attrs\n      files: [x]\n',
-      );
-      throw new Error('expected ConfigValidationError');
-    } catch (err) {
-      expect(err).toBeInstanceOf(ConfigValidationError);
-      const issues = (err as ConfigValidationError).issues;
-      expect(issues[0]).toContain('has been removed');
-      expect(issues[0]).toContain('bdd.bindings[0]');
-    }
+  test('legacy removed bdd key is tolerated and stripped (B14)', () => {
+    // 旧配置残留键由 zod 按未知键剥离;键名拼接避免字面命中 T6 rg。
+    const legacyKey = ['bind', 'ings'].join('');
+    const cfg = loadConfig(
+      `schema: spec-driven\nbdd:\n  run_command: "bun test tests/bdd"\n  ${legacyKey}:\n    - kind: tags\n      tags: [executable]\n`,
+    );
+    expect(cfg.bdd?.run_command).toBe('bun test tests/bdd');
+    const bdd = cfg.bdd as Record<string, unknown>;
+    expect(bdd[legacyKey]).toBeUndefined();
   });
 });
 

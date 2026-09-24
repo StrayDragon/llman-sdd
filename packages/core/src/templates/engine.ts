@@ -22,6 +22,7 @@ export function renderWithUnits(
   units: UnitRegistry,
   vars: Record<string, string>,
   depth = 0,
+  opts: { throwOnUndefined?: boolean } = {},
 ): string {
   if (depth > MAX_UNIT_NESTING_DEPTH) {
     throw new Error(`unit nesting exceeded ${MAX_UNIT_NESTING_DEPTH}`);
@@ -30,14 +31,17 @@ export function renderWithUnits(
   // template SOURCE is stripped before rendering (v1 parity). \r? first —
   // stripping \n alone would strand a trailing \r for CRLF sources.
   const source = raw.replace(/\r?\n$/u, '');
-  const env = new nunjucks.Environment(null, { autoescape: false });
+  const env = new nunjucks.Environment(null, {
+    autoescape: false,
+    throwOnUndefined: opts.throwOnUndefined === true,
+  });
   for (const [key, value] of Object.entries(vars)) {
     env.addGlobal(key, value);
   }
   env.addGlobal('unit', (id: string): string => {
     const content = units.get(id);
     if (content === undefined) throw new MissingUnitError(id);
-    return renderWithUnits(content, units, vars, depth + 1);
+    return renderWithUnits(content, units, vars, depth + 1, opts);
   });
   return env.renderString(source, {});
 }
@@ -47,6 +51,7 @@ export function renderTemplate(
   raw: string,
   units: UnitRegistry,
   vars: Record<string, string>,
+  opts: { throwOnUndefined?: boolean } = {},
 ): string {
-  return renderWithUnits(raw, units, vars, 0).trimEnd();
+  return renderWithUnits(raw, units, vars, 0, opts).trimEnd();
 }

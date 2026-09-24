@@ -1,7 +1,7 @@
 # language: zh-CN
 # capability: review-freeze
 # purpose: 定义 review 五信号聚合审查的合同与 archive freeze/thaw 冷备合同(7z 格式自洽双向回置)。
-# scope: packages/core/src/review/, packages/core/src/archive/, apps/cli/src/, packages/core/templates/shared/
+# scope: packages/core/src/review/, packages/core/src/archive/, apps/cli/src/commands/review.ts, apps/cli/src/commands/archive.ts, packages/core/templates/shared/
 
 功能: review-freeze
 
@@ -17,6 +17,12 @@
     那么 signals 覆盖五种 kind
     而且 summary 含 criticalCount 与 warningCount
     而且 退出码与 criticalCount 一致
+
+  @req:r23 @executable
+  场景: review 兼容输出别名可用
+    假如 本仓库的真实 llmanspec 工作区
+    当 运行 review --compact-json 与 review --output compact-json
+    那么 两输出均为单行 JSON 且可被 JSON.parse
 
   @req:r24 @human
   场景: freeze 冷备合同

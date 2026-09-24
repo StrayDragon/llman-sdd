@@ -33,7 +33,7 @@ flowchart LR
 ## Hard Constraints
 
 - **Non-blocking change id**: if the user supplied an id, use it; otherwise derive a valid kebab-case id from the task description (verb prefix, passes the CLI id check, follows the naming convention declared in `llmanspec/AGENTS.md`), announce the chosen id and how to override, and continue — MUST NOT wait for confirmation (ids are cheap to change before Branch binding). Only route to `llman-sdd-draft` when the user wants to capture an idea (draft, no id).
-- **Live specs are SSOT**: edit `llmanspec/specs/**` only **after** Branch binding, on the **bound non-default branch** (Specs landing). **Do not** edit live specs on the default branch; **do not** author under `changes/<id>/specs/` or use `change delta` (removed). The planning shell may briefly live on the default branch.
+- **Live specs are SSOT**: edit `llmanspec/specs/**` only **after** Branch binding, on the **bound non-default branch** (Specs landing). **Do not** edit live specs on the default branch. The planning shell may briefly live on the default branch.
 - **Don't ask "should I continue?"**: execute the full propose phase in one pass, generate artifacts and validate.
 {% if extra_skill_continue %}
 - **If change already exists**: STOP. If the specs-landed gate is green, suggest `llman-sdd-apply`; otherwise use `llman-sdd-continue` to finish Branch binding / Specs landing, or fill the planning shell.
@@ -50,7 +50,7 @@ If the user just wants to **capture an idea** (e.g. "draft a proposal", "note do
 
 ### 0) Preflight
 - Read `llmanspec/config.yaml` for project context, rules, locale.
-- `llman-sdd validate --all --strict --no-interactive`: ensure current artifacts are clean.
+- `bun apps/cli/src/main.ts validate --all --strict` (equivalent to `llman-sdd validate --all --strict` once the global CLI is installed): ensure current artifacts are clean.
   - If pre-existing errors, stop and report (stacking new changes on dirty artifacts causes cascading errors).
 - **Check spec valid_scope integrity**: use `llman-sdd list --specs --json` to list all specs, then for each spec verify every path in its `valid_scope` exists on disk. If any scope file/directory is missing, stop and suggest updating the spec (remove the deleted path from `valid_scope`).
 
@@ -80,15 +80,15 @@ If the user just wants to **capture an idea** (e.g. "draft a proposal", "note do
    - Flesh out `proposal.md` (Why / What Changes / Capabilities / Impact)
    - `design.md` only when tradeoffs/migrations matter
    - **Confirm seams before writing tasks.md**: list the seams to be tested and confirm with the user. A seam = the public boundary driven by `*.feature` GWT steps (CLI subprocess or public interface) — MUST reuse existing harness seams, MUST NOT invent seams detached from `.feature`. Without `.feature`, seam = the CLI subcommand or public function boundary under test.
-   - `tasks.md`: split into **vertical slices** (each task cuts a narrow but complete path through schema→API→UI→tests, independently verifiable), with `[blocked-by: <task-id>]` dependency markers. **Wide-refactor exception** (one mechanical change sweeping the codebase, single edit breaks many call sites): sequence as expand-contract (add new beside old → migrate call sites in batches → delete old), don't force into a vertical slice.
+   - `tasks.md`: split into **vertical slices** (each task cuts a narrow but complete path through schema→API→UI→tests, independently verifiable), with `[blocked-by: <task-id>]` dependency markers. **Wide-refactor exception** (one mechanical change sweeping the codebase, single edit breaks many call sites): sequence as expand-contract (add new beside old → migrate call sites in batches → delete old), don't force into a vertical slice. **tasks.md lists implementation and verification tasks only**: close-out (`change finalize` / `change archive`) is a pipeline step and MUST NOT be listed as a task — its task gate requires every task checked, so a close-out task is self-contradictory (checking it lies, leaving it blocks finalize, and `validate --strict` stays red during implementation).
    - **First** `llman-sdd change start <change-id>` (recommended; clean tree on the default branch; use `--worktree` to keep the current checkout, `--base <branch>` for a non-default fork source) or manually create a branch then `change attach <change-id>` to reach Full (bound).
    - **Then** edit live `llmanspec/specs/<capability>.feature` (flat, or directory `llmanspec/specs/<capability>/` main file) on the bound non-default branch and commit (Specs landing). **Do not** edit live specs before start; **do not** commit live specs to the default branch just to satisfy the clean-tree gate. If already attached, do not re-run `start` (recover lost specs by checkout/recreate + `attach --force` if needed).
    - For changes with no live contract edits, set frontmatter `needs_specs_change: false`. Enter apply when `llman-sdd show <id> --output json` shows `stage=full` with the specs-landed gate green; `readyToImplement=true` (all gates) is the completion signal gating verify/finalize.
-   - **Breaking contract changes** (removed/renamed fields, commands, tags, or stage values) MUST plan the upgrade path: `migrations/v<from>-v<to>/` with README prompt + one-shot script (ship the upgrade dir + one-shot script in the same repo) — include it in the proposal's What Changes.
+   - **Breaking contract changes** (removed/renamed fields, commands, tags, or stage values) MUST plan the upgrade path: write a `migrations/v<from>-v<to>/README` (upgrade guidance; a one-shot script SHALL ship with the repo when feasible) — include it in the proposal's What Changes.
 
 ### 4) Validate
    ```bash
-   llman-sdd validate <change-id> --strict --no-interactive
+   bun apps/cli/src/main.ts validate <change-id> --strict   # once the global CLI is installed: llman-sdd validate <change-id> --strict
    ```
    This MUST pass before proceeding; failing items are listed one by one in the validate output's `items[].issues[]` — fix each and re-run.
 
@@ -106,7 +106,7 @@ If the user just wants to **capture an idea** (e.g. "draft a proposal", "note do
 - **Structured adds preferred**: to append rules/acceptances to an existing capability, prefer `llman-sdd spec next-req-id` (global rN allocation) + `spec add-req` / `spec add-scenario` (pairing tag syntax built in; write path auto-resolves flat vs directory layout). New capability → `spec skeleton <capability>`; id lookup → `spec resolve-req <rN>`. Hand-editing the `.feature` stays the escape hatch (best suited to editing existing clauses).
 - **@human/@executable triage** (decide before writing any new clause): any behavior expressible as GWT (Given/When/Then) MUST land as an `@executable` acceptance scenario linked back to its rule — prose-only rules guard nothing; `@human` is only for human judgment that cannot be automated (process rulings, aesthetics, external facts). A new `@human` clause without a paired `@executable` MUST record the justification in proposal/design.
 - Change shell: `llman-sdd change new <change-id>` → fill proposal/design/tasks → `llman-sdd change start <change-id>` (or `change attach`) → **then** edit live specs on the bound branch and commit (Specs landing).
-- Do **not** use `change delta` / solidify / `*.feature.delta.toon`.
+
 
 ### 5) Summarize and suggest next step
    - Enter implementation phase: `llman-sdd-apply`.
@@ -114,8 +114,7 @@ If the user just wants to **capture an idea** (e.g. "draft a proposal", "note do
 
 > 💡 Proposal done → next: `llman-sdd-apply` (implement)
 
-> For command details run `llman-sdd <cmd> --help`; the CLI is the command reference — skills embed no command tables.
-> "Spec" here = a `.feature` file under this project's `llmanspec/specs/`; run `llman-sdd list --specs` or `llman-sdd show <capability>`.
+{{ unit("skills/cli-footer") }}
 {{ unit("skills/validation-hints") }}
 
 {{ unit("skills/structured-protocol") }}

@@ -33,7 +33,7 @@ For each incomplete task:
 
 ### 2) Validate
 ```bash
-llman-sdd validate <change-id> --strict --no-interactive
+llman-sdd validate <change-id> --strict
 ```
 On failure, fix and retry (same self-repair budget as `llman-sdd-apply`: cap 8 rounds).
 
@@ -46,7 +46,7 @@ llman-sdd change finalize <change-id>
 ```
 (dirty tree OK; auto merge (squash default) + docs rename + **auto commit** `archive(sdd): <change-id>` in one process. `--no-commit` skips the auto commit for manual/CI histories — then commit with `git add -A && git commit -m "archive(sdd): <change-id>"`.)
 
-`change checkpoint` is removed; the plain `change archive` command stays as a fallback (no checkpointed field required).
+The plain `change archive` command stays as a fallback.
 
 ### 5) Commit (see step 4)
 Finalize already auto-committed unless `--no-commit` was passed.
@@ -61,7 +61,7 @@ push / hosting PR only when the user explicitly asks.
 - **Never ask** "should I continue" unless blocked.
 - **Never switch** changes until this one is archived and committed.
 - **Retry cap**: self-repair follows `llman-sdd-apply`'s 8-round budget (including the diagnose escalation path).
-- **Do not** author `changes/<id>/specs/` or use `change delta`.
+- **Do not** author `changes/<id>/specs/`.
 - **No default push/PR**.
 
 ## Ethics Governance

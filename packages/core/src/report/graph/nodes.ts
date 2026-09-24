@@ -6,24 +6,30 @@ function extractArchivedId(name: string): string | null {
   return m ? (m[1] ?? null) : null;
 }
 
-/** Active nodes: dirs (recursively) with a proposal.md (v1 discovery). */
-export function collectActiveNodes(io: GraphFsIo, root: string): GraphNode[] {
+/** Active nodes: dirs (recursively, depth-limited) with a proposal.md (r58). */
+export function collectActiveNodes(
+  io: GraphFsIo,
+  root: string,
+  maxScanDepth?: number,
+): GraphNode[] {
   const out: GraphNode[] = [];
   const changesDir = `${root}/${CHANGES_DIR}`;
   if (!io.exists(changesDir) || !io.isDirectory(changesDir)) return out;
-  const visit = (dir: string): void => {
+  const maxDepth = maxScanDepth ?? 8;
+  const visit = (dir: string, depth: number): void => {
+    if (depth > maxDepth) return;
     for (const name of io.listDir(dir).toSorted()) {
       if (name === 'archive' || name.startsWith('.')) continue;
       const child = `${dir}/${name}`;
       if (!io.isDirectory(child)) continue;
       if (io.exists(`${child}/proposal.md`)) {
         out.push({ id: name, archived: false, present: true });
-      } else {
-        visit(child);
+      } else if (depth < maxDepth) {
+        visit(child, depth + 1);
       }
     }
   };
-  visit(changesDir);
+  visit(changesDir, 1);
   return out;
 }
 
@@ -44,11 +50,19 @@ export function collectArchivedNodes(io: GraphFsIo, root: string): GraphNode[] {
   return out;
 }
 
-export function collectNodes(io: GraphFsIo, root: string, kinds: ScopeKind[]): GraphNode[] {
+export function collectNodes(
+  io: GraphFsIo,
+  root: string,
+  kinds: ScopeKind[],
+  maxScanDepth?: number,
+): GraphNode[] {
   const combined: GraphNode[] = [];
   const seen = new Set<string>();
   for (const kind of kinds) {
-    const nodes = kind === 'active' ? collectActiveNodes(io, root) : collectArchivedNodes(io, root);
+    const nodes =
+      kind === 'active'
+        ? collectActiveNodes(io, root, maxScanDepth)
+        : collectArchivedNodes(io, root);
     for (const node of nodes) {
       if (!seen.has(node.id)) {
         seen.add(node.id);
