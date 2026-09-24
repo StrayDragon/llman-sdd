@@ -75,9 +75,14 @@ bdd.given('一个含 specs 但无 .context 索引的临时仓库', (ctx) => {
 
 bdd.when('运行 context 查询', (ctx) => {
   const { root } = ctx.fixtures['ctx仓库'] as { root: string };
+  // 以显式空 chat model 使查询恒走「零 LLM」路径(不依赖可达 API):r62 的
+  // 合同仅是懒重建(缺索引 → 自愈重建),检索质量不在本场景断言面;不清空时
+  // 会按环境 LLMAN_SDD_INDEX_CHAT_MODEL 打真实 API(可达性/时延不确定,
+  // 实测 ~7s 会被 bun:test 5s 超时杀掉),测试即 flake。
   const proc = spawnSync('bun', [CLI, 'context', '--paths', 'llmanspec/specs'], {
     cwd: root,
     encoding: 'utf8',
+    env: { ...process.env, LLMAN_SDD_INDEX_CHAT_MODEL: '' },
   });
   ctx.fixtures['ctx结果'] = { stdout: proc.stdout ?? '', status: proc.status ?? 1 };
 });

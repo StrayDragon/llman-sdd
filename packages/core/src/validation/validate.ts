@@ -63,23 +63,19 @@ export function validateCapability(
   // header as a parse-level failure: only `file` + registry-scan issues are
   // emitted and all single-track gates are skipped.
   if (doc.header.capability === null) {
-    const msg = `spec \`${cap}\`: missing \`# capability:\` header comment (spec-format r133)`;
+    const msg = `spec \`${cap}\`: missing \`# capability:\` header comment`;
     push('ERROR', 'file', msg);
     push('ERROR', 'llmanspec/specs', `Failed to scan req_id index: ${msg}`);
     return { fileName: entry.fileName, capability: cap, ok: false, items };
   }
   if (doc.header.purpose === null || doc.header.purpose.trim() === '') {
-    push(
-      'ERROR',
-      `${cap}/purpose`,
-      '`# purpose:` header comment must not be empty (spec-format r133)',
-    );
+    push('ERROR', `${cap}/purpose`, '`# purpose:` header comment must not be empty');
   }
   if (doc.header.scope === null) {
     push(
       'ERROR',
       `${cap}/valid_scope`,
-      'Spec valid_scope must not be empty (add it inside the .toon document).',
+      'Spec valid_scope must not be empty (declare it in the "# scope:" header comment).',
     );
   } else {
     // r42: missing valid_scope paths are independent failures —
@@ -204,15 +200,17 @@ export function validateCapability(
 
 /**
  * Shared req_id duplicate gate — single source of truth for the CLI
- * (`validate <spec>` path) and the full sweep. v1 parity: a structural error
- * anywhere aborts the req_id index scan, so the duplicate gate only fires
- * when every spec parses cleanly.
+ * (`validate <spec>` path) and the full sweep. The registry is built from the
+ * already-parsed docs, so a duplicate is reported for every involved
+ * capability regardless of unrelated parse errors elsewhere (r12 acceptance:
+ * 重复 req_id MUST 对每个涉事 capability 判 ERROR — the v1 "structural error
+ * aborts the index scan" guard is intentionally dropped; a parse-failed spec
+ * merely omits the scenarios it could not decode, never invents ids).
  */
 export function buildDuplicatesFor(entries: readonly SpecEntry[]): (reqId: string) => boolean {
   const registry = buildReqRegistry(entries);
   const duplicateIds = new Set(registry.duplicates.flatMap((d) => d.reqId));
-  const structurallyClean = entries.every((e) => e.doc.errors.length === 0);
-  return (reqId: string): boolean => structurallyClean && duplicateIds.has(reqId);
+  return (reqId: string): boolean => duplicateIds.has(reqId);
 }
 
 /** `Totals:` report line — single wording source for the engine and the CLI. */

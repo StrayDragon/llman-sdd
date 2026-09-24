@@ -11,6 +11,12 @@ import {
   type GitLike,
 } from '@llman-sdd/core';
 
+import {
+  extractFrontmatter,
+  readNeedsSpecsChange,
+  specsLanded,
+} from '../../packages/core/src/change/frontmatter.ts';
+
 /**
  * B2 characterization: pin the CURRENT observable behavior of the four
  * proposal-frontmatter extraction points (report/graph/deps.ts parseDeps,
@@ -57,7 +63,7 @@ const changeCheckIo = (proposal: string): ChangeFsIoLite => {
 
 const noopGit: GitLike = { run: () => '', runOpt: () => null };
 
-const CHANGE_CONFIG = { strict_defer: null, min_completion_ratio: null, change_id_pattern: null };
+const CHANGE_CONFIG = { strict_defer: null, change_id_pattern: null };
 
 const unknownDepErrors = (proposal: string): string[] =>
   validateChange(changeCheckIo(proposal), '.', 'demo', CHANGE_CONFIG, {})
@@ -69,6 +75,46 @@ const needsSpecsChangeOf = (proposal: string): boolean =>
     { io: changeFsIo(proposal), git: noopGit, root: '.', specsDir: 'llmanspec/specs' },
     'demo',
   ).needsSpecsChange as boolean;
+
+describe('T1: single splitter + readNeedsSpecsChange + specsLanded (r73/D2)', () => {
+  test('EOF-closed block without trailing newline: extractFrontmatter and readBinding agree', () => {
+    const proposal = '---\nbranch: sdd/x\nbase_branch: main\nbase_sha: abc\n---';
+    expect(extractFrontmatter(proposal)).toBe('branch: sdd/x\nbase_branch: main\nbase_sha: abc');
+    expect(readBinding(proposal)).toEqual({ branch: 'sdd/x', baseBranch: 'main', baseSha: 'abc' });
+  });
+
+  test('body text with needs_specs_change: false does not flip the frontmatter verdict', () => {
+    const proposal = '---\ndepends_on: []\n---\n\nneeds_specs_change: false\n';
+    expect(readNeedsSpecsChange(extractFrontmatter(proposal))).toBe(true);
+  });
+
+  test('specsLanded: docs/llmanspec/specs/x without an llmanspec/specs/ line is false', () => {
+    const git: GitLike = {
+      run: (): string => '',
+      runOpt: (): string | null => 'docs/llmanspec/specs/x\nsrc/a.ts\n',
+    };
+    expect(specsLanded(git, { branch: 'sdd/x', baseBranch: 'main', baseSha: 'abc' })).toBe(false);
+  });
+
+  test('specsLanded: a real llmanspec/specs/ line is true', () => {
+    const git: GitLike = {
+      run: (): string => '',
+      runOpt: (): string | null => 'src/a.ts\nllmanspec/specs/x.feature\n',
+    };
+    expect(specsLanded(git, { branch: 'sdd/x', baseBranch: 'main', baseSha: 'abc' })).toBe(true);
+  });
+
+  test('writeBinding round-trip closes the block with \\n---\\n', () => {
+    const eofClosed = '---\nbranch: sdd/old\nbase_branch: main\nbase_sha: abc\n---';
+    const written = writeBinding(eofClosed, {
+      branch: 'sdd/new',
+      baseBranch: 'main',
+      baseSha: 'def',
+    });
+    expect(written.endsWith('\n---\n')).toBe(true);
+    expect(readBinding(written)).toEqual({ branch: 'sdd/new', baseBranch: 'main', baseSha: 'def' });
+  });
+});
 
 describe('B2 characterization: frontmatter extraction per consume point', () => {
   describe('consume point: parseDeps (report/graph/deps.ts regex)', () => {

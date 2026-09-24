@@ -42,7 +42,11 @@ export function makeTempRepo(): TempRepo {
   return {
     root,
     run: (cmd, args) => {
-      const proc = spawnSync(cmd, args, { cwd: root, encoding: 'utf8' });
+      // A temp repo is a fresh top-level context: when this suite itself runs
+      // as a validate harness, the inherited nested-invocation guard would make
+      // every harness scenario skip execution.
+      const { LLMAN_SDD_HARNESS_ACTIVE: _guard, ...env } = process.env;
+      const proc = spawnSync(cmd, args, { cwd: root, encoding: 'utf8', env });
       return { code: proc.status ?? 1, stdout: proc.stdout ?? '', stderr: proc.stderr ?? '' };
     },
   };

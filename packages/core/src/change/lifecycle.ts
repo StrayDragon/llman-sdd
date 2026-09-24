@@ -32,6 +32,16 @@ export interface FsIo {
 
 export class LifecycleError extends Error {}
 
+// r74: single git-gate message family shared by start/attach/finalize/archive
+// (stable substrings for matching; no internal requirement ids in output).
+const detachedHead = (cmd: string): string =>
+  `\`${cmd}\` refuses a detached HEAD; check out a branch first`;
+const notOnBoundBranch = (cmd: string, bound: string, current: string | null): string =>
+  `\`${cmd}\` must run on the bound branch \`${bound}\` (current: \`${current ?? 'detached HEAD'}\`)`;
+const onDefaultBranch = (cmd: string, def: string): string =>
+  `\`${cmd}\` must not run on the default branch \`${def}\``;
+const dirtyTree = (cmd: string): string => `\`${cmd}\` requires a clean working tree`;
+
 export const CHANGES_DIR = 'llmanspec/changes';
 const proposalPath = (id: string): string => `${CHANGES_DIR}/${id}/proposal.md`;
 
@@ -128,12 +138,9 @@ export function startChange(
   const path = proposalPath(id);
   if (!io.exists(path)) throw new LifecycleError(`proposal not found: ${path}`);
   const dirty = dirtyCount(git);
-  if (dirty > 0)
-    throw new LifecycleError(
-      `dirty tree: ${dirty} uncommitted files; commit/stash before \`change start\``,
-    );
+  if (dirty > 0) throw new LifecycleError(dirtyTree('change start'));
   const here = currentBranch(git);
-  if (here === null) throw new LifecycleError('detached HEAD is not allowed for change binding');
+  if (here === null) throw new LifecycleError(detachedHead('change start'));
   const branchPrefix = opts.branchPrefix ?? 'sdd/';
   const branch = `${branchPrefix}${id}`;
 
@@ -178,15 +185,27 @@ export function startChange(
       throw new LifecycleError(`worktree path already exists: ${worktreePath}`);
     }
     git.run(['worktree', 'add', '-b', branch, worktreePath]);
-  } else {
-    git.run(['switch', '-c', branch]);
+    // r68: the binding lands in the NEW worktree's proposal — the initiating
+    // checkout stays byte-identical (zero writes through the original io).
+    // The clean-tree gate guaranteed the proposal is committed at HEAD, so it
+    // is present in the fresh worktree; a missing one rolls everything back.
+    const wtIo = ioAt(io, worktreePath);
+    if (!wtIo.exists(path)) {
+      git.run(['worktree', 'remove', '--force', worktreePath]);
+      git.run(['branch', '-D', branch]);
+      throw new LifecycleError(
+        `proposal not found in the new worktree: ${worktreePath}/${path} — commit the change docs before \`change start --worktree\``,
+      );
+    }
+    const baseSha = mergeBase(gitAt(git, worktreePath), 'HEAD', baseBranch);
+    wtIo.writeText(path, writeBinding(wtIo.readText(path), { branch, baseBranch, baseSha }));
+    return { branch, baseBranch, baseSha, worktreePath };
   }
+  git.run(['switch', '-c', branch]);
   const baseSha =
     currentBranch(git) !== null ? mergeBase(git, 'HEAD', baseBranch) : revParseHead(git);
   io.writeText(path, writeBinding(io.readText(path), { branch, baseBranch, baseSha }));
-  return worktreePath !== undefined
-    ? { branch, baseBranch, baseSha, worktreePath }
-    : { branch, baseBranch, baseSha };
+  return { branch, baseBranch, baseSha };
 }
 
 /** `change attach`: bind the current branch — same branch gate family as start (r31). */
@@ -207,7 +226,7 @@ export function attachChange(
   const configuredBase = opts.base ?? defaultBranch(git);
   const branch = currentBranch(git);
   if (branch === null || branch === '') {
-    throw new LifecycleError('detached HEAD is not allowed for change binding');
+    throw new LifecycleError(detachedHead('change attach'));
   }
   if (opts.base !== undefined) {
     if (
@@ -215,7 +234,7 @@ export function attachChange(
       git.runOpt(['show-ref', '--verify', '--quiet', `refs/remotes/${opts.base}`]) === null
     ) {
       throw new LifecycleError(
-        `base branch \`${opts.base}\` does not exist; --base records the fork source branch for merge-target resolution (r111)`,
+        `base branch \`${opts.base}\` does not exist; --base records the fork source branch for merge-target resolution`,
       );
     }
     if (opts.base === branch) {
@@ -224,8 +243,7 @@ export function attachChange(
   }
   if (branch === configuredBase) {
     throw new LifecycleError(
-      `changes must not attach on the default branch (\`${branch}\`); ` +
-        'create/switch to a feature branch first (or use `change start`)',
+      `${onDefaultBranch('change attach', branch)}; create or switch to a feature branch, or use \`change start\``,
     );
   }
   const baseSha = mergeBase(git, branch, configuredBase);
@@ -247,28 +265,21 @@ export interface FinalizeResult {
 
 export interface ArchiveTaskGate {
   blocked: boolean;
-  reasons: string[];
+  /** Trimmed unchecked-task lines (empty when not blocked). */
+  pendingLines: string[];
 }
 
-/** r40 task gate: unchecked tasks always block; ratio gate when configured. */
-export function archiveTaskGate(
-  tasksMd: string | null,
-  minCompletionRatio: number | undefined,
-): ArchiveTaskGate {
-  const reasons: string[] = [];
-  if (tasksMd !== null) {
-    const { completed, total, pendingLines } = parseTaskCheckboxes(tasksMd);
-    if (total > 0 && completed < total) {
-      reasons.push(`archive blocked by unchecked tasks (${total - completed}/${total} pending)`);
-      for (const line of pendingLines) reasons.push(line);
-    }
-    if (minCompletionRatio !== undefined && total > 0 && completed / total < minCompletionRatio) {
-      reasons.push(
-        `completion ${((completed / total) * 100).toFixed(0)}% below archive.min_completion_ratio ${(minCompletionRatio * 100).toFixed(0)}%`,
-      );
-    }
-  }
-  return { blocked: reasons.length > 0, reasons };
+/**
+ * r40 task gate (single implementation): unchecked tasks block
+ * unconditionally — a completion ratio below 1 implies unchecked tasks, so a
+ * separate ratio threshold is unreachable and stays out of the contract. The
+ * CLI renders the list; core never formats output.
+ */
+export function archiveTaskGate(tasksMd: string | null): ArchiveTaskGate {
+  if (tasksMd === null) return { blocked: false, pendingLines: [] };
+  const { completed, total, pendingLines } = parseTaskCheckboxes(tasksMd);
+  if (total > 0 && completed < total) return { blocked: true, pendingLines };
+  return { blocked: false, pendingLines: [] };
 }
 
 /** `change finalize`: merge (squash default) + archive rename + close-out commit. */
@@ -276,7 +287,7 @@ export function finalizeChange(
   git: GitLike,
   io: FsIo,
   id: string,
-  opts: { into?: string; method?: 'squash' | 'ff'; today?: string; noCommit?: boolean } = {},
+  opts: { into?: string; method?: 'squash' | 'ff'; today: string; noCommit?: boolean },
 ): FinalizeResult {
   const path = proposalPath(id);
   const binding = readBinding(io.readText(path));
@@ -287,9 +298,7 @@ export function finalizeChange(
   // fail before any write (no switch, no merge, no rename).
   const current = currentBranch(git);
   if (current !== binding.branch) {
-    throw new LifecycleError(
-      `finalize must run on the bound branch \`${binding.branch}\` (current: ${current ?? 'detached HEAD'})`,
-    );
+    throw new LifecycleError(notOnBoundBranch('change finalize', binding.branch, current));
   }
   const method = opts.method ?? 'squash';
   const target = opts.into ?? binding.baseBranch ?? defaultBranch(git);
@@ -332,7 +341,7 @@ function mergeRenameCommit(
   featureBranch: string,
   target: string,
   method: 'squash' | 'ff',
-  today?: string,
+  today: string,
   noCommit?: boolean,
 ): FinalizeResult {
   const warnings: string[] = [];
@@ -370,7 +379,7 @@ function mergeRenameCommit(
     );
   }
 
-  const date = today ?? new Date().toISOString().slice(0, 10);
+  const date = today;
   const archiveDir = `${CHANGES_DIR}/archive/${date}-${id}`;
   execIo.rename(`${CHANGES_DIR}/${id}`, archiveDir);
 
@@ -395,9 +404,8 @@ export function archiveChange(
     into?: string;
     method?: 'squash' | 'ff';
     force?: boolean;
-    minCompletionRatio?: number;
-    today?: string;
-  } = {},
+    today: string;
+  },
 ): FinalizeResult {
   const path = proposalPath(id);
   const binding = readBinding(io.readText(path));
@@ -406,23 +414,27 @@ export function archiveChange(
   }
   if (!opts.force) {
     const tasksPath = `${CHANGES_DIR}/${id}/tasks.md`;
-    const gate = archiveTaskGate(
-      io.exists(tasksPath) ? io.readText(tasksPath) : null,
-      opts.minCompletionRatio,
-    );
-    if (gate.blocked) throw new LifecycleError(gate.reasons.join('\n'));
+    const gate = archiveTaskGate(io.exists(tasksPath) ? io.readText(tasksPath) : null);
+    if (gate.blocked) {
+      throw new LifecycleError(
+        [
+          `archive blocked by unchecked tasks (${gate.pendingLines.length} pending)`,
+          ...gate.pendingLines,
+        ].join('\n'),
+      );
+    }
     const current = currentBranch(git);
     if (current === null || current === '')
-      throw new LifecycleError('detached HEAD — cannot archive');
+      throw new LifecycleError(detachedHead('change archive'));
     if (current !== binding?.branch) {
       throw new LifecycleError(
-        `archive must run on attached branch \`${binding?.branch}\` (current: \`${current}\`)`,
+        notOnBoundBranch('change archive', (binding?.branch ?? '') as string, current),
       );
     }
     if (current === defaultBranch(git)) {
-      throw new LifecycleError('archive must not run on the default branch');
+      throw new LifecycleError(onDefaultBranch('change archive', current));
     }
-    if (!isCleanTree(git)) throw new LifecycleError('working tree must be clean to archive');
+    if (!isCleanTree(git)) throw new LifecycleError(dirtyTree('change archive'));
   } else if (binding === null) {
     throw new LifecycleError(`change \`${id}\` has no branch binding — cannot merge`);
   }
@@ -446,11 +458,17 @@ export interface ChangeDiffInfo {
   commitCount: number;
 }
 
-/** `change diff --json` (r46): structured bound-branch summary. */
+/**
+ * `change diff --json` (r46): structured bound-branch summary. commitCount =
+ * `merge-base(base_branch, branch)..branch` commit count — the stored
+ * `base_sha` is audit-only and never participates in the range; the `base`
+ * field echoes it for the v1 JSON shape.
+ */
 export function changeDiffInfo(git: GitLike, io: FsIo, id: string): ChangeDiffInfo {
   const binding = readBinding(io.readText(proposalPath(id)));
   if (binding === null) throw new LifecycleError(`change \`${id}\` has no branch binding`);
-  const count =
-    git.runOpt(['rev-list', '--count', `${binding.baseSha}...${binding.branch}`]) ?? '0';
+  const baseBranch = binding.baseBranch ?? defaultBranch(git);
+  const mb = mergeBase(git, binding.branch, baseBranch);
+  const count = git.runOpt(['rev-list', '--count', `${mb}..${binding.branch}`]) ?? '0';
   return { change: id, branch: binding.branch, base: binding.baseSha, commitCount: Number(count) };
 }

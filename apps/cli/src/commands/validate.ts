@@ -8,12 +8,14 @@ import {
   formatTotals,
   notApplicableStaleness,
   renderMachine,
+  runHarnessForSpecs,
   specRelFor,
   specIdOf,
   STAGE_ORDER,
   validateCapability,
   validateChange,
   type ChangeIssue,
+  type HarnessGate,
   type StalenessInfo,
 } from '@llman-sdd/core';
 import type { Command } from 'commander';
@@ -27,6 +29,7 @@ import {
   resolveChangeIdOrExit,
   resolveOutMode,
 } from '../cli-shared.ts';
+import { makeCliHarnessRunner } from '../harness.ts';
 import { makeCliGit } from '../io.ts';
 
 interface VItem {
@@ -45,7 +48,7 @@ function compareItems(a: VItem, b: VItem): number {
 }
 
 function specV1Items(
-  opts: { strict?: boolean },
+  opts: { strict?: boolean; harness?: HarnessGate; harnessOnlyIds?: string[] },
   entries: ReturnType<typeof loadSpecEntries> = loadSpecEntries(),
 ): VItem[] {
   const io = newIo();
@@ -83,6 +86,28 @@ function specV1Items(
       matchedViaPrefix: false,
     });
   }
+  // r13/r48: harness issues attach to their spec item after the structural
+  // verdict (execution runs only for the entries actually being validated —
+  // a single-item validate scopes the harness to that one spec).
+  if (opts.harness !== undefined) {
+    const scoped =
+      opts.harnessOnlyIds === undefined
+        ? entries
+        : entries.filter((entry) => opts.harnessOnlyIds?.includes(specIdOf(entry)));
+    const outcome = runHarnessForSpecs(
+      scoped.map((entry) => ({ capability: specIdOf(entry), featurePath: entry.fileName })),
+      opts.harness,
+    );
+    for (const item of items) {
+      const extra = outcome.issuesByCapability.get(item.id);
+      if (extra === undefined || extra.length === 0) continue;
+      item.issues = [
+        ...item.issues,
+        ...extra.map((i) => ({ level: i.level, path: i.id, message: i.message })),
+      ];
+      item.valid = item.issues.every((i) => i.level !== 'ERROR');
+    }
+  }
   items.sort(compareItems);
   return items;
 }
@@ -99,7 +124,6 @@ function changeV1Items(names: string[], opts: { stage?: string; strict?: boolean
       name,
       {
         strict_defer: config?.archive?.strict_defer ?? null,
-        min_completion_ratio: config?.archive?.min_completion_ratio ?? null,
         change_id_pattern: config?.change_id?.pattern ?? null,
       },
       { stage: opts.stage as never, strict: opts.strict === true, git },
@@ -170,7 +194,7 @@ function renderValidateReport(items: VItem[], mode: 'json' | 'compact-json' | 't
 }
 
 const SPEC_NEXT_STEPS = [
-  '- Ensure spec ISON includes `purpose` and `requirements`',
+  '- Ensure each .feature starts with "# capability:", "# purpose:" and "# scope:" header comments',
   '- Each requirement MUST include at least one scenario object',
   '- Re-run with --json to see structured report',
 ];
@@ -192,6 +216,32 @@ function warnDirtySpecsOnDefaultBranch(): void {
   );
 }
 
+/** r13: stderr banner before the first harness execution — once per process. */
+let harnessBannerShown = false;
+
+/**
+ * r13/r48 trigger state: the nested guard env and the check flags are read
+ * here (CLI boundary) and injected into core as parameters — core harness
+ * logic never touches process.env. Commander tri-state (both flags declared):
+ * --check → check=true, --no-check → check=false, absent → undefined.
+ */
+function makeHarnessGate(options: { check?: boolean }): HarnessGate {
+  const runCommand = loadCliConfig()?.bdd?.run_command ?? null;
+  const configured = runCommand !== null && runCommand !== '';
+  return {
+    nested: process.env.LLMAN_SDD_HARNESS_ACTIVE === '1',
+    check: options.check === false ? 'off' : options.check === true ? 'on' : 'default',
+    runner: configured ? makeCliHarnessRunner() : undefined,
+    runCommand,
+    cwd: process.cwd(),
+    onBeforeFirstRun: (expanded: string): void => {
+      if (harnessBannerShown) return;
+      harnessBannerShown = true;
+      console.error(`running bdd harness: ${expanded} (use --no-check to skip)`);
+    },
+  };
+}
+
 export function registerValidate(program: Command): void {
   program
     .command('validate')
@@ -207,14 +257,8 @@ export function registerValidate(program: Command): void {
     .option('--compact-json', 'single-line --json (requires --json)')
     .option('--include-info', 'keep INFO-level issues (default: WARNING and above)')
     .option('--output <mode>', 'report format: toon (default) | json | compact-json | human')
-    .option(
-      '--no-check',
-      'v1 parity no-op: accepted but validate never executes anything; BDD scenarios run via the project test suite (bdd.run_command)',
-    )
-    .option(
-      '--check',
-      'v1 parity no-op alias: validate never executes bdd.run_command; BDD execution lives in the project test suite',
-    )
+    .option('--no-check', 'skip the bdd harness')
+    .option('--check', 'run the bdd harness (default when bdd.run_command is configured)')
     .action(
       (
         item: string | undefined,
@@ -229,7 +273,6 @@ export function registerValidate(program: Command): void {
           compactJson?: boolean;
           includeInfo?: boolean;
           output?: string;
-          noCheck?: boolean;
           check?: boolean;
         },
       ) => {
@@ -255,6 +298,7 @@ export function registerValidate(program: Command): void {
           process.exitCode = 1;
           return;
         }
+        const harness = makeHarnessGate(options);
 
         // ---- single item (auto-disambiguate: spec first, then change) ----
         if (item !== undefined) {
@@ -262,7 +306,10 @@ export function registerValidate(program: Command): void {
           const specEntry =
             options.type === 'change' ? undefined : entries.find((e) => specIdOf(e) === item);
           if (specEntry !== undefined) {
-            const items = specV1Items({ strict: options.strict }, entries);
+            const items = specV1Items(
+              { strict: options.strict, harness, harnessOnlyIds: [item] },
+              entries,
+            );
             const mine = items.find((i) => i.id === item);
             if (mine === undefined) {
               console.error(`no spec or change matches: ${item}`);
@@ -303,7 +350,6 @@ export function registerValidate(program: Command): void {
             changeId,
             {
               strict_defer: loadCliConfig()?.archive?.strict_defer ?? null,
-              min_completion_ratio: loadCliConfig()?.archive?.min_completion_ratio ?? null,
               change_id_pattern: loadCliConfig()?.change_id?.pattern ?? null,
             },
             {
@@ -357,7 +403,7 @@ export function registerValidate(program: Command): void {
         const effectiveChanges = defaultSpecsOnly ? false : changeScope;
 
         let items: VItem[] = [];
-        if (effectiveSpecs) items = items.concat(specV1Items({ strict: options.strict }));
+        if (effectiveSpecs) items = items.concat(specV1Items({ strict: options.strict, harness }));
         if (effectiveChanges) {
           const names = collectChanges(newIo(), process.cwd(), new Date(), {
             maxScanDepth: cliMaxScanDepth(program),
@@ -376,7 +422,16 @@ export function registerValidate(program: Command): void {
           return;
         }
         renderValidateText(items);
-        if (items.some((i) => !i.valid)) console.error('Error: validation failed');
+        if (items.some((i) => !i.valid)) {
+          // r47: human mode carries the Next steps guidance for every failing
+          // item kind (bulk path; the single-item path emits per-kind steps).
+          const kinds = new Set(items.filter((i) => !i.valid).map((i) => i.type));
+          console.error('Next steps:');
+          for (const kind of kinds) {
+            for (const s of kind === 'spec' ? SPEC_NEXT_STEPS : CHANGE_NEXT_STEPS) console.error(s);
+          }
+          console.error('Error: validation failed');
+        }
         process.exitCode = items.some((i) => !i.valid) ? 1 : 0;
       },
     );

@@ -35,8 +35,6 @@ const ADAPTER_ALLOWLIST = new Set([
 const TRANSITIONAL_ALLOWLIST = new Set([
   // 由 align-report-cli-surface(第二波)清零
   'packages/core/src/review/review.ts',
-  // 由 fix-lifecycle-validation-defects T9 清零后由第二波移除该条目
-  'packages/core/src/change/lifecycle.ts',
 ]);
 
 /** 剥离 // 行注释与块注释后的源码(注释里的 process./Date 不计违规)。 */

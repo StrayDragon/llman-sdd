@@ -54,7 +54,7 @@ flowchart LR
    - **Write decisions back**: resolved decisions go into the change's `proposal.md` "Open Questions" section (planning shell; OK briefly on the default branch).
    - **Completion criterion**: every pending decision is resolved or explicitly deferred. When not triggered, the default (ask 1–3 questions) behavior is unchanged.
 4. If a change id is relevant, read its artifacts under `llmanspec/changes/<id>/`.
-   - When diagnosing validation errors, run `llman-sdd validate <spec> --strict` first to resolve the structural gates (Gherkin / `@req` linkage / dual-write / req_id uniqueness); validate never executes a harness (`--check`/`--no-check` are v1-compat no-ops) — BDD scenarios run via the project test suite (e.g. `bun test tests/bdd`). Failing items are pinned down in the default TOON output's `items[].issues[]`; `--output human` prints v1 human-readable `FAIL <item_type>/<id>` lines.
+   - When diagnosing validation errors, run `llman-sdd validate <spec> --strict` first to resolve the structural gates (Gherkin / `@req` linkage / dual-write / req_id uniqueness); when `bdd.run_command` is configured, validate executes that harness by default (`--no-check` skips it). Failing items are pinned down in the default TOON output's `items[].issues[]`; `--output human` prints v1 human-readable `FAIL <item_type>/<id>` lines.
 5. Explore options and tradeoffs (2–3 options).
 6. Assess change scale (triage) to determine if full SDD is needed.
 7. When something crystallizes, offer to capture it (don't auto-write):

@@ -37,7 +37,7 @@ flowchart LR
 1. Select the change id (or ask the user to pick from `llman-sdd list --json`).
 2. Run a fast validation gate:
    - `llman-sdd validate <id> --strict --no-interactive`
-   - **When diagnosing structural issues (Gherkin parse / `@req` linkage / dual-write / global req_id uniqueness), run the structural validation first** (validate never executes a harness — `--check`/`--no-check` are v1-compat no-ops); once structural gates are green, BDD scenarios execute via the project test suite (e.g. `bun test tests/bdd` in qa). Failing items are listed one by one in the default TOON output's `items[].issues[]` (`--output human` prints the v1 text form: `FAIL <item_type>/<id>` lines above the `Totals` line).
+   - **When diagnosing structural issues (Gherkin parse / `@req` linkage / dual-write / global req_id uniqueness), run the structural validation first** (when `bdd.run_command` is configured, validate executes that harness by default — `--no-check` skips it; a harness failure lands as an ERROR on its spec item). Failing items are listed one by one in the default TOON output's `items[].issues[]` (`--output human` prints the v1 text form: `FAIL <item_type>/<id>` lines above the `Totals` line).
 3. Read:
    - Live specs on the feature branch: `llmanspec/specs/**` (`<capability>.feature`) — SSOT
    - `proposal.md` and `design.md` if present
@@ -69,7 +69,7 @@ flowchart LR
    - The two axes may be reviewed in parallel (sub-agents); the report MUST present them separately, MUST NOT merge or cross-rerank (one axis passing must not mask the other failing).
 5. **BDD-on verification (Git-native Partitioned SSOT)** — only when `config.yaml` has a `bdd:` block:
    - Confirm the change is attached and you are on that feature branch.
-   - `llman-sdd validate --specs`: Gherkin + `@req`/dual-write gates; validate never executes `bdd.run_command` (`--check`/`--no-check` are v1-compat no-ops) — BDD scenarios run via the project test suite (e.g. `bun test tests/bdd`).
+   - `llman-sdd validate --specs`: Gherkin + `@req`/dual-write gates; when `bdd.run_command` is configured the harness runs by default (`--no-check` skips it) and a failure maps to an ERROR on the matching spec item.
    - Optional read-only review: `llman-sdd change diff <id>` (or `--export-patch <path>`). Diff is review/export only — never treat it as an apply step.
    - Next step after verify passes: `llman-sdd-archive` (not inline finalize here).
 {% if bdd_verify_prompt %}

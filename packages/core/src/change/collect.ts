@@ -16,6 +16,40 @@ export interface ChangeFsIo {
   mtimeMs(path: string): number;
 }
 
+/** Minimal structural io for the active-change walk (r58/r73 shared caliber). */
+export interface ChangeScanIo {
+  exists(path: string): boolean;
+  listDir(path: string): string[];
+  isDirectory(path: string): boolean;
+}
+
+/**
+ * r58/r73 shared walk: visits every active change dir (a dir directly holding
+ * proposal.md) under changesRoot — nested groups allowed, leaf name = change
+ * id, `archive/` and dot-dirs skipped, depth-limited. The CLI change scan and
+ * the dependency-reference resolver share this one traversal.
+ */
+export function walkActiveChangeDirs(
+  io: ChangeScanIo,
+  changesRoot: string,
+  visit: (dir: string, name: string) => void,
+  opts: { maxScanDepth?: number } = {},
+): void {
+  if (!io.exists(changesRoot) || !io.isDirectory(changesRoot)) return;
+  const maxDepth = opts.maxScanDepth ?? 8;
+  const walk = (dir: string, depth: number): void => {
+    if (depth > maxDepth) return;
+    for (const name of io.listDir(dir).toSorted()) {
+      if (name === 'archive' || name.startsWith('.')) continue;
+      const child = `${dir}/${name}`;
+      if (!io.isDirectory(child)) continue;
+      if (io.exists(`${child}/proposal.md`)) visit(child, name);
+      else walk(child, depth + 1);
+    }
+  };
+  walk(changesRoot, 1);
+}
+
 export interface ChangeSummary {
   name: string;
   path: string;
@@ -69,22 +103,7 @@ export function collectChanges(
 ): ChangeSummary[] {
   const changesDir = `${root}/${CHANGES_DIR}`;
   if (!io.exists(changesDir) || !io.isDirectory(changesDir)) return [];
-  const maxDepth = opts.maxScanDepth ?? 8;
   const out: ChangeSummary[] = [];
-  // r58: recursive, depth-limited proposal discovery (v1 --max-scan-depth parity)
-  const visit = (dir: string, depth: number): void => {
-    if (depth > maxDepth) return;
-    for (const name of io.listDir(dir).toSorted()) {
-      if (name === 'archive' || name.startsWith('.')) continue;
-      const child = `${dir}/${name}`;
-      if (!io.isDirectory(child)) continue;
-      if (io.exists(`${child}/proposal.md`)) {
-        readChangeDir(child, name);
-      } else {
-        visit(child, depth + 1);
-      }
-    }
-  };
   const readChangeDir = (dir: string, name: string): void => {
     const proposal = `${dir}/proposal.md`;
     const hasDesign = io.exists(`${dir}/design.md`);
@@ -114,7 +133,8 @@ export function collectChanges(
       idleDays,
     });
   };
-  visit(changesDir, 1);
+  // r58: recursive, depth-limited proposal discovery (v1 --max-scan-depth parity)
+  walkActiveChangeDirs(io, changesDir, readChangeDir, { maxScanDepth: opts.maxScanDepth });
   // v1 lists newest-first
   return out.toSorted((a, b) => b.lastModified.getTime() - a.lastModified.getTime());
 }

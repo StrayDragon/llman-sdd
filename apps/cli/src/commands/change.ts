@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import {
@@ -9,9 +9,9 @@ import {
   deriveChangeId,
   finalizeChange,
   harvestAcrossWorktrees,
+  archiveTaskGate,
   newChange,
   nextUniqueNumber,
-  parseTaskCheckboxes,
   renderChangeIdTemplate,
   splitVerb,
   startChange,
@@ -19,13 +19,7 @@ import {
 } from '@llman-sdd/core';
 import { Option, type Command } from 'commander';
 
-import {
-  loadCliConfig,
-  loadCliConfigUnchecked,
-  loadSpecEntries,
-  newIo,
-  resolveChangeIdOrExit,
-} from '../cli-shared.ts';
+import { loadCliConfig, loadSpecEntries, newIo, resolveChangeIdOrExit } from '../cli-shared.ts';
 import { makeCliGit } from '../io.ts';
 
 function runValidateSweep(): boolean {
@@ -39,6 +33,39 @@ function assertMergeMethod(method: string | undefined): boolean {
   console.error(`invalid --method: ${method}`);
   process.exitCode = 1;
   return false;
+}
+
+/**
+ * Unified `change new --from` id derivation (r44/r60). With a configured
+ * `change_id.template` the id is rendered through it (Strict: referencing an
+ * unprovided variable throws, surfacing in both dry-run and real paths); the
+ * heuristic slug is otherwise returned unchanged unless an explicit `--verb`
+ * is given, in which case the override is applied as `{verb}-{subject}` (r44).
+ */
+function deriveNewId(description: string, verb: string | undefined): string {
+  const slug = deriveChangeId(description);
+  const cliConfig = loadCliConfig();
+  const template = cliConfig?.change_id?.template;
+  if (template) {
+    const { verb: v, subject } = splitVerb(slug, verb);
+    return renderChangeIdTemplate(template, {
+      llman_sdd_unique_id: nextUniqueNumber(
+        {
+          listDir: (p) => readdirSync(resolve(p)),
+          isDirectory: (p) => statSync(resolve(p)).isDirectory(),
+        },
+        'llmanspec',
+      ),
+      verb: v,
+      subject,
+      date: new Date().toISOString().slice(0, 10),
+    });
+  }
+  if (verb !== undefined) {
+    const { verb: v, subject } = splitVerb(slug, verb);
+    return `${v}-${subject}`;
+  }
+  return slug;
 }
 
 export function registerChange(program: Command): void {
@@ -65,26 +92,11 @@ export function registerChange(program: Command): void {
           return;
         }
         if (options.dryRun) {
-          console.log(id ?? deriveChangeId(options.from as string));
+          console.log(id ?? deriveNewId(options.from as string, options.verb));
           return;
         }
-        const cliConfig = loadCliConfig();
-        const template = cliConfig?.change_id?.template;
-        if (options.from !== undefined && template) {
-          const slug = deriveChangeId(options.from);
-          const { verb, subject } = splitVerb(slug, (options as { verb?: string }).verb);
-          const derived = renderChangeIdTemplate(template, {
-            llman_sdd_unique_id: nextUniqueNumber(
-              {
-                listDir: (p) => readdirSync(resolve(p)),
-                isDirectory: (p) => statSync(resolve(p)).isDirectory(),
-              },
-              'llmanspec',
-            ),
-            verb,
-            subject,
-            date: new Date().toISOString().slice(0, 10),
-          });
+        if (options.from !== undefined) {
+          const derived = deriveNewId(options.from, options.verb);
           console.log(`derived change id: ${derived}`);
           const io = newIo();
           const result = newChange(io, { id: derived, force: options.force });
@@ -92,8 +104,7 @@ export function registerChange(program: Command): void {
           return;
         }
         const io = newIo();
-        const result = newChange(io, { id, from: options.from, force: options.force });
-        if (options.from !== undefined) console.log(`derived change id: ${result.id}`);
+        const result = newChange(io, { id, force: options.force });
         console.log(`./${result.path}`);
       },
     );
@@ -201,32 +212,29 @@ export function registerChange(program: Command): void {
           );
           return;
         }
-        const config = loadCliConfigUnchecked();
-        // v1 task gate: blocked output + options list before the error.
+        // r40 task gate: single core implementation (archiveTaskGate); the
+        // CLI only renders the blocked output + options list, byte-identical.
         if (!options.force) {
           const tasksPath = `llmanspec/changes/${id}/tasks.md`;
-          if (existsSync(tasksPath)) {
-            const { pendingLines } = parseTaskCheckboxes(readFileSync(tasksPath, 'utf8'));
-            if (pendingLines.length > 0) {
-              console.error(`Archive blocked: ${pendingLines.length} unchecked task(s).`);
-              // pendingLines are trimmed `- [ ] text` lines; re-derive the bare
-              // task text after the checkbox (byte-identical to the former
-              // inline `[ ]` regex extraction).
-              for (const line of pendingLines) {
-                console.error(`  - [ ] ${line.replace(/^-\s+\[ \]\s*/u, '').trim()}`);
-              }
-              console.error(
-                'Options:\n  1. Complete the remaining tasks\n  2. Use --force to archive anyway (not recommended)',
-              );
-              throw new Error('archive blocked by unchecked tasks');
+          const gate = archiveTaskGate(
+            existsSync(tasksPath) ? readFileSync(tasksPath, 'utf8') : null,
+          );
+          if (gate.blocked) {
+            console.error(`Archive blocked: ${gate.pendingLines.length} unchecked task(s).`);
+            for (const line of gate.pendingLines) {
+              console.error(`  - [ ] ${line.replace(/^-\s+\[ \]\s*/u, '').trim()}`);
             }
+            console.error(
+              'Options:\n  1. Complete the remaining tasks\n  2. Use --force to archive anyway (not recommended)',
+            );
+            throw new Error('archive blocked by unchecked tasks');
           }
         }
         const result = archiveChange(makeCliGit(process.cwd()), io, id, {
           into: options.into,
           method: options.method as 'squash' | 'ff' | undefined,
           force: options.force,
-          minCompletionRatio: config?.archive?.min_completion_ratio ?? undefined,
+          today: new Date().toISOString().slice(0, 10),
         });
         const archiveName = (result.archiveDir ?? '').slice(
           (result.archiveDir ?? '').lastIndexOf('/') + 1,
@@ -256,7 +264,9 @@ export function registerChange(program: Command): void {
       }
       const diff = changeDiff(git, newIo(), id);
       if (options.exportPatch !== undefined) {
-        writeFileSync(options.exportPatch, diff);
+        // writeText creates parent dirs — exporting into a fresh path like
+        // out/change.patch must not ENOENT.
+        newIo().writeText(options.exportPatch, diff);
         console.log(`wrote ${options.exportPatch}`);
         return;
       }
@@ -296,6 +306,7 @@ export function registerChange(program: Command): void {
         const result = finalizeChange(makeCliGit(process.cwd()), newIo(), id, {
           into: options.into,
           method: method as 'squash' | 'ff',
+          today: new Date().toISOString().slice(0, 10),
           noCommit: options.commit === false,
         });
         for (const w of result.warnings) console.error(`[WARNING] ${w}`);

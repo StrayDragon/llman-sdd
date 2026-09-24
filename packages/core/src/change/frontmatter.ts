@@ -5,36 +5,62 @@
  */
 import { parseDocument } from 'yaml';
 
+import type { GitLike } from '../git/spawnGit.ts';
+
 export interface ChangeBinding {
   branch: string;
   baseBranch: string;
   baseSha: string;
 }
 
+/**
+ * Single frontmatter splitter (r73): the block starts with `---\n` at offset 0
+ * and closes at the first standalone `---` line (followed by `\n` or EOF).
+ * Every read path (extractFrontmatter / readBinding / parseDeps /
+ * needs_specs_change) and the write path share this one contract.
+ */
 function splitFrontmatter(proposal: string): { body: string; frontmatter: string | null } {
   if (!proposal.startsWith('---\n')) return { body: proposal, frontmatter: null };
-  const end = proposal.indexOf('\n---\n', 4);
-  if (end === -1) return { body: proposal, frontmatter: null };
-  return {
-    frontmatter: proposal.slice(4, end + 1),
-    body: proposal.slice(end + 5),
-  };
+  const rest = proposal.slice(4);
+  let pos = 0;
+  while (pos <= rest.length) {
+    const nl = rest.indexOf('\n', pos);
+    const lineEnd = nl === -1 ? rest.length : nl;
+    if (rest.slice(pos, lineEnd) === '---') {
+      return {
+        frontmatter: pos === 0 ? '' : rest.slice(0, pos - 1),
+        body: nl === -1 ? '' : rest.slice(nl + 1),
+      };
+    }
+    if (nl === -1) return { body: proposal, frontmatter: null };
+    pos = nl + 1;
+  }
+  return { body: proposal, frontmatter: null };
+}
+
+/** Frontmatter block content (between the delimiters), or null without a block. */
+export function extractFrontmatter(proposal: string): string | null {
+  return splitFrontmatter(proposal).frontmatter;
 }
 
 /**
- * SSOT for read-side frontmatter block extraction: content between the
- * opening `---\n` and the first following `\n---`, or null when no block is
- * present. Byte-equivalent to the inline `/^---\n([\s\S]*?)\n---/u` regex it
- * replaced at every read-side consume point (parseDeps, show needsSpecsChange,
- * changeCheck depends_on/blocks gates). `splitFrontmatter` above keeps the
- * write-side contract (close must be a standalone `\n---\n` line) so
- * writeBinding output stays byte-stable.
+ * r73: `needs_specs_change` is read from the frontmatter block only — a
+ * body line with the same text must not flip the verdict. Default true.
  */
-export function extractFrontmatter(proposal: string): string | null {
-  if (!proposal.startsWith('---\n')) return null;
-  const end = proposal.indexOf('\n---', 4);
-  if (end === -1) return null;
-  return proposal.slice(4, end);
+export function readNeedsSpecsChange(frontmatter: string | null): boolean {
+  const m = frontmatter?.match(/^needs_specs_change:\s*(true|false)\s*$/mu)?.[1];
+  return m === undefined ? true : m === 'true';
+}
+
+/**
+ * r73: live specs landed on the bound branch — per-line prefix match on
+ * `diff --name-only <base_branch>...<branch>` (a path like
+ * `docs/llmanspec/specs/x` must not count as landed).
+ */
+export function specsLanded(git: GitLike, binding: ChangeBinding): boolean {
+  const touched =
+    git.runOpt(['diff', '--name-only', `${binding.baseBranch}...${binding.branch}`]) ?? '';
+  return touched.split('\n').some((line) => line.startsWith('llmanspec/specs/'));
 }
 
 export function readBinding(proposal: string): ChangeBinding | null {

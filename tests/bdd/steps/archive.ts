@@ -47,8 +47,9 @@ bdd.thenStep('目标分支获得 archive(sdd) 提交且目录改名', (ctx) => {
   const { code, stdout } = ctx.fixtures['archive结果'] as ArchiveResult;
   if (code !== 0) throw new Error(`archive failed: ${stdout}`);
   const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
+  const id = (ctx.fixtures['change'] as { id: string }).id;
   const log = repo.run('git', ['log', '--oneline', '-1']).stdout;
-  if (!log.includes('archive(sdd): demo-arch')) throw new Error(`close-out commit missing: ${log}`);
+  if (!log.includes(`archive(sdd): ${id}`)) throw new Error(`close-out commit missing: ${log}`);
   if (!existsSync(join(repo.root, 'llmanspec', 'changes', 'archive'))) {
     throw new Error('archive dir missing');
   }

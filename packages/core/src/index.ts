@@ -81,6 +81,14 @@ export {
   type StageGate,
 } from './validation/changeCheck.ts';
 export { discoverSpecs, type DiscoveryIo } from './validation/discover.ts';
+export {
+  expandRunCommand,
+  runHarnessForSpecs,
+  type HarnessGate,
+  type HarnessRunner,
+  type HarnessRunOutcome,
+  type HarnessTarget,
+} from './validation/harness.ts';
 export type { ChangeBinding } from './change/frontmatter.ts';
 export { readBinding, writeBinding } from './change/frontmatter.ts';
 export {

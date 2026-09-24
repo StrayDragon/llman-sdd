@@ -187,14 +187,12 @@ describe('harvestUniqueNumbers (r35, v1 c-token parity)', () => {
 });
 
 describe('archiveChange gates (r39/r40)', () => {
-  test('archiveTaskGate: pending blocks with item list; ratio gate fires', () => {
-    const gate = archiveTaskGate('# Tasks\n- [ ] a\n- [x] b\n', undefined);
+  test('archiveTaskGate: pending blocks with the item list (ratio gate removed, D8b)', () => {
+    const gate = archiveTaskGate('# Tasks\n- [ ] a\n- [x] b\n');
     expect(gate.blocked).toBe(true);
-    expect(gate.reasons.some((r) => r.includes('- [ ] a'))).toBe(true);
-    expect(archiveTaskGate('# Tasks\n- [x] a\n', undefined).blocked).toBe(false);
-    const ratio = archiveTaskGate('# Tasks\n- [x] a\n- [ ] b\n', 1);
-    expect(ratio.blocked).toBe(true);
-    expect(ratio.reasons.some((r) => r.includes('min_completion_ratio'))).toBe(true);
+    expect(gate.pendingLines).toEqual(['- [ ] a']);
+    expect(archiveTaskGate('# Tasks\n- [x] a\n').blocked).toBe(false);
+    expect(archiveTaskGate(null).blocked).toBe(false);
   });
 });
 
@@ -223,7 +221,7 @@ describe('r44/r45/r46 — change family flags', () => {
     writeFileSync(join(root, 'feat.txt'), 'x\n');
     run(['add', '-A']);
     run(['commit', '-qm', 'work']);
-    const result = finalizeChange(git, io, 'fam', { noCommit: true });
+    const result = finalizeChange(git, io, 'fam', { today: '2026-09-24', noCommit: true });
     expect(result.commitSubject).toBe('');
     const status = run(['status', '--porcelain']);
     expect(status.stdout).not.toBe('');
@@ -253,7 +251,7 @@ describe('finalize branch gate (r15 / v1 r94)', () => {
     startChange(git, io, 'fam');
     run(['switch', 'main']);
     const before = run(['rev-parse', 'HEAD']).stdout;
-    expect(() => finalizeChange(git, io, 'fam')).toThrow(/bound branch/u);
+    expect(() => finalizeChange(git, io, 'fam', { today: '2026-09-24' })).toThrow(/bound branch/u);
     const after = run(['rev-parse', 'HEAD']).stdout;
     expect(after).toBe(before);
     expect(existsSync(join(root, 'llmanspec', 'changes', 'fam'))).toBe(true);

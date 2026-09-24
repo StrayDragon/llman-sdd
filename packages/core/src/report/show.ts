@@ -1,5 +1,10 @@
 import { countTasks, firstH1, stageFor, type ChangeFsIo } from '../change/collect.ts';
-import { extractFrontmatter, readBinding } from '../change/frontmatter.ts';
+import {
+  extractFrontmatter,
+  readBinding,
+  readNeedsSpecsChange,
+  specsLanded as specsLandedOf,
+} from '../change/frontmatter.ts';
 import { CHANGES_DIR } from '../change/lifecycle.ts';
 import { currentBranch, isCleanTree, type GitLike } from '../git/spawnGit.ts';
 import { discoverSpecs } from '../validation/discover.ts';
@@ -57,17 +62,11 @@ export function showChangeJson(
   const onBoundBranch = binding !== null && current === binding.branch;
 
   // specs landing: bound changes must have touched llmanspec/specs/ since base
-  let specsLanded = false;
+  let landedOnBranch = false;
   if (binding !== null) {
-    const touched =
-      git.runOpt(['diff', '--name-only', `${binding.baseBranch}...${binding.branch}`]) ?? '';
-    specsLanded = touched.includes('llmanspec/specs/');
+    landedOnBranch = specsLandedOf(git, binding);
   }
-  // needs_specs_change is an explicit frontmatter declaration (default true)
-  const declaredNeeds = extractFrontmatter(proposal)?.match(
-    /^needs_specs_change:\s*(true|false)\s*$/mu,
-  )?.[1];
-  const needsSpecsChange = declaredNeeds !== undefined ? declaredNeeds === 'true' : true;
+  const needsSpecsChange = readNeedsSpecsChange(extractFrontmatter(proposal));
 
   const tasksDone = total > 0 && completed >= total;
   const specReport = validateAllSpecs(discoverSpecs(deps.specsDir, io), io);
@@ -103,11 +102,11 @@ export function showChangeJson(
     },
     {
       name: 'specs-landed',
-      pass: specsLanded || !needsSpecsChange,
+      pass: landedOnBranch || !needsSpecsChange,
       hint:
-        specsLanded || !needsSpecsChange
+        landedOnBranch || !needsSpecsChange
           ? ''
-          : 'edit live specs on the bound branch and commit (or needs_specs_change: false)',
+          : 'edit live specs on the bound branch and commit (or set needs_specs_change to false)',
     },
     {
       name: 'tasks-done',
@@ -128,7 +127,7 @@ export function showChangeJson(
     stage,
     artifacts,
     readyToImplement: gateChecks.every((g) => g.pass),
-    specsLanded,
+    specsLanded: landedOnBranch,
     needsSpecsChange,
     attached: binding !== null,
     deltaCount: 0,

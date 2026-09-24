@@ -143,6 +143,7 @@ bdd.given('一个配置了纯数字前缀 pattern 的临时仓库', (ctx) => {
 
 bdd.when('创建不匹配的 change 并运行 validate', (ctx) => {
   const { repo } = ctx.fixtures['pattern仓库'] as { repo: TempRepo };
+  // 审计:非 harness 测试对象,已显式 --no-check(夹具亦无 bdd 配置)
   const result = repo.run('bun', [CLI, 'validate', 'bad-id', '--no-check']);
   ctx.fixtures['pattern结果'] = { code: result.code, stdout: result.stdout, stderr: result.stderr };
 });

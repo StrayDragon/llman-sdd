@@ -1,5 +1,10 @@
-import { stageFor } from '../change/collect.ts';
-import { extractFrontmatter, readBinding } from '../change/frontmatter.ts';
+import { stageFor, walkActiveChangeDirs } from '../change/collect.ts';
+import {
+  extractFrontmatter,
+  readBinding,
+  readNeedsSpecsChange,
+  specsLanded,
+} from '../change/frontmatter.ts';
 import { parseTaskCheckboxes } from '../change/tasks.ts';
 /**
  * Change-domain validation (v1 `commands/validate.rs` change path parity):
@@ -27,7 +32,6 @@ export interface ChangeCheckInput {
 
 export interface ChangeCheckConfig {
   strict_defer?: boolean | null;
-  min_completion_ratio?: number | null;
   change_id_pattern?: string | null;
 }
 
@@ -40,6 +44,32 @@ export interface ChangeFsIoLite {
 
 export const STAGE_ORDER = ['draft', 'designed', 'planned', 'full'] as const;
 
+/**
+ * r73 dependency-reference resolution: `active` matches a leaf change dir by
+ * name (nested groups included — same caliber as the CLI change scan),
+ * `archived` matches an `archive/<YYYY-MM-DD>-<id>` entry exactly (a suffix
+ * like `2026-01-01-the-other` must NOT satisfy id `other`). A missing
+ * `archive/` dir reads as empty and never throws.
+ */
+function resolveChangeRef(
+  io: ChangeFsIoLite,
+  changesRoot: string,
+  id: string,
+): 'active' | 'archived' | 'unknown' {
+  let active = false;
+  walkActiveChangeDirs(io, changesRoot, (_dir, name) => {
+    if (name === id) active = true;
+  });
+  if (active) return 'active';
+  const archive = `${changesRoot}/archive`;
+  const entries = io.exists(archive) && io.isDirectory(archive) ? io.listDir(archive) : [];
+  // `YYYY-MM-DD-` is 11 chars; the remainder must equal the id exactly.
+  const archived = entries.some(
+    (name) => /^\d{4}-\d{2}-\d{2}-/u.test(name) && name.slice(11) === id,
+  );
+  return archived ? 'archived' : 'unknown';
+}
+
 export type StageGate = (typeof STAGE_ORDER)[number];
 
 export interface ChangeCheckResult {
@@ -48,11 +78,14 @@ export interface ChangeCheckResult {
   issues: ChangeIssue[];
 }
 
-/** Legacy pure gate (r47 surface) — kept for existing callers/tests. */
+/**
+ * Legacy pure gate (r47 surface) — structural checks only (tasks, binding,
+ * pattern); the stage-ordinal branch was removed with the dual-caliber gate
+ * (the artifact-presence `--stage` gate lives in validateChange).
+ */
 export function checkChangeDoc(
   input: ChangeCheckInput,
   config: ChangeCheckConfig,
-  opts: { stage?: StageGate } = {},
 ): ChangeCheckResult {
   const issues: ChangeIssue[] = [];
   if (input.totalTasks > 0 && input.completedTasks < input.totalTasks) {
@@ -63,18 +96,6 @@ export function checkChangeDoc(
       message: `${pending} unchecked task(s) in tasks.md`,
     });
   }
-  if (
-    config.min_completion_ratio !== undefined &&
-    config.min_completion_ratio !== null &&
-    input.totalTasks > 0 &&
-    input.completedTasks / input.totalTasks < config.min_completion_ratio
-  ) {
-    issues.push({
-      level: 'ERROR',
-      path: 'tasks.md',
-      message: `completion ratio below archive.min_completion_ratio (${config.min_completion_ratio})`,
-    });
-  }
   if (!input.hasBinding) {
     issues.push({
       level: 'WARNING',
@@ -83,23 +104,20 @@ export function checkChangeDoc(
     });
   }
   if (config.change_id_pattern) {
-    const re = new RegExp(config.change_id_pattern, 'u');
-    if (!re.test(input.name)) {
+    try {
+      const re = new RegExp(config.change_id_pattern, 'u');
+      if (!re.test(input.name)) {
+        issues.push({
+          level: 'ERROR',
+          path: 'change-id',
+          message: `Change id '${input.name}' does not match change_id.pattern '${config.change_id_pattern}' (active changes only; archived changes are not re-checked).`,
+        });
+      }
+    } catch (error) {
       issues.push({
         level: 'ERROR',
         path: 'change-id',
-        message: `Change id '${input.name}' does not match change_id.pattern '${config.change_id_pattern}' (sdd-workflow r29; scope: active changes only, archive/legacy shapes are not back-checked).`,
-      });
-    }
-  }
-  if (opts.stage !== undefined) {
-    const currentIdx = STAGE_ORDER.indexOf(input.stage);
-    const requiredIdx = STAGE_ORDER.indexOf(opts.stage);
-    if (currentIdx < requiredIdx) {
-      issues.push({
-        level: 'ERROR',
-        path: 'stage',
-        message: `stage \`${input.stage}\` is below the required \`${opts.stage}\``,
+        message: `change_id.pattern is not a valid regular expression: ${(error as Error).message}`,
       });
     }
   }
@@ -185,13 +203,7 @@ export function validateChange(
           );
           continue;
         }
-        const depDir = `${baseDir}/${item}`;
-        const archived = `${baseDir}/archive`;
-        if (
-          !io.exists(`${depDir}/proposal.md`) &&
-          !io.exists(dir.replace(/\/[^/]+\/$/u, '/archive/')) &&
-          !io.listDir(archived).some((n) => n.endsWith(`-${item}`))
-        ) {
+        if (resolveChangeRef(io, baseDir, item) === 'unknown') {
           push(
             'ERROR',
             `proposal.md/frontmatter.${key}`,
@@ -243,24 +255,21 @@ export function validateChange(
 
     // r63: Full-but-not-ready WARNING with skill guidance (v1 r1 surface).
     if (opts.git !== undefined && binding !== null && stage === 'full') {
-      const needs =
-        text.match(/^needs_specs_change:\s*(true|false)\s*$/mu)?.[1] !== undefined
-          ? text.match(/^needs_specs_change:\s*(true|false)\s*$/mu)?.[1] === 'true'
-          : true;
-      const touched =
-        opts.git.runOpt(['diff', '--name-only', `${binding.baseBranch}...${binding.branch}`]) ?? '';
-      const landed = touched.includes('llmanspec/specs/');
+      const needs = readNeedsSpecsChange(fm);
+      const landed = specsLanded(opts.git, binding);
       if (!landed && needs) {
         push(
           'WARNING',
           'proposal.md',
-          `specs not landed: change bound to \`${binding.branch}\` but no changes under \`llmanspec/specs/\` on its bound branch. Edit live specs there and commit (or set \`needs_specs_change: false\` if this change has no live contract edits). Skill: llman-sdd-propose — do NOT re-run change start when already attached; apply only when \`llman-sdd show <id> --json\` reports readyToImplement=true (llman-sdd-apply).`,
+          `specs not landed: change bound to \`${binding.branch}\` but no changes under \`llmanspec/specs/\` on its bound branch. Edit live specs there and commit (or set \`needs_specs_change\` to false in the frontmatter if this change has no live contract edits). Skill: llman-sdd-propose — do NOT re-run change start when already attached; start llman-sdd-apply once the specs-landed gate passes (see \`llman-sdd show <id>\` gateChecks).`,
         );
       }
     }
   }
 
-  // pattern gate (v1 change-id path).
+  // pattern gate (v1 change-id path). loadConfig compiles the pattern first
+  // on the CLI path; this branch defends direct core callers that build a
+  // ChangeCheckConfig without going through loadConfig.
   if (config.change_id_pattern) {
     try {
       const re = new RegExp(config.change_id_pattern, 'u');
@@ -268,11 +277,15 @@ export function validateChange(
         push(
           'ERROR',
           'change-id',
-          `Change id '${id}' does not match change_id.pattern '${config.change_id_pattern}' (sdd-workflow r29; scope: active changes only, archive/legacy shapes are not back-checked).`,
+          `Change id '${id}' does not match change_id.pattern '${config.change_id_pattern}' (active changes only; archived changes are not re-checked).`,
         );
       }
-    } catch {
-      /* compile already validated at load; ignore */
+    } catch (error) {
+      push(
+        'ERROR',
+        'change-id',
+        `change_id.pattern is not a valid regular expression: ${(error as Error).message}`,
+      );
     }
   }
 

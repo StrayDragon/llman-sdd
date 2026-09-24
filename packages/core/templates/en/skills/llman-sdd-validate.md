@@ -19,7 +19,7 @@ Use this skill to validate change/spec format and staleness.
    - Validate live `.feature` Gherkin and `@req` / dual-write gates on the **bound branch** (Branch binding required).
    - `.feature` is the harness authority — executable GWT lives only in live `.feature` (no solidify; no `feature_delta` / `change delta`).
    - Change lifecycle gates: `change start` / `attach` (Branch binding), `finalize` (close-out; auto commit `archive(sdd): <id>`, `--no-commit` to skip) / `diff` (read-only). `change checkpoint` is removed (no mid-flight archive point; `change finalize` does not require a clean tree).
-   - `llman-sdd validate --specs` only enforces structural and contract gates and never executes `bdd.run_command` (`--check`/`--no-check` are v1-compat no-ops); BDD scenarios run via the project test suite (e.g. `bun test tests/bdd`).
+   - `llman-sdd validate --specs` enforces structural and contract gates; when `bdd.run_command` is configured it also executes that harness by default (`--no-check` skips it, `--check` is a compat alias) and a placeholder-free command runs at most once per invocation (batch-once).
    - Use `list --specs --json` for `morphology` (ruleCount / ruleEnforcedCount / rulePendingCount / acceptanceCount / orphanAcceptanceCount).
    - Change JSON status fields: `stage` (draft/designed/planned/full) / `specsLanded` / `needsSpecsChange` / `readyToImplement` (`show --output json`).
 {% endif %}
