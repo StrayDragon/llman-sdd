@@ -1,40 +1,30 @@
 ---
 name: "llman-sdd-research"
-description: "Delegate external research to a background agent. Use when the user needs official docs/API/source facts gathered, or wants the reading legwork delegated so they can keep working."
+description: "Delegate fact-finding to a background agent: primary sources only (official docs/API/source), cited findings."
 metadata:
   version: "{{ llman_version }}"
 ---
 
 # LLMAN SDD Research
 
-Spin up a **background agent** to do the research, so you keep working while it reads.
+Spin up a **background agent** to do the research while you keep working. Auxiliary tool, usable at any stage (common in explore/wayfinder); output is written back to the change's proposal "Further Notes" section.
 
-## Pipeline position
+## The background agent's job
 
-Auxiliary tool, usable at any stage. Common in explore/wayfinder to provide factual input for decisions. Output is written back to the change's proposal "Further Notes" section for later stages to consume.
-
-> 📍 Standalone optional skill; research output feeds the main flow's explore/propose.
-
-## Responsibilities
-
-The background agent's job:
-
-1. Investigate the question against **primary sources** — official docs, source code, specs, first-party APIs — not secondary write-ups. Follow every claim back to the source that owns it.
+1. Investigate against **primary sources** — official docs, source code, specs, first-party APIs, not secondary write-ups; trace every claim back to the source that owns it.
 2. Write findings to a single Markdown file, citing each claim's source.
-3. Save location (follow the repo's own convention if it has one): **default** to `llmanspec/changes/<current-change>/research/<topic>.md` (change docs, **not** live specs). Write to `docs/research/` only when the topic spans multiple changes and will still be referenced after archiving; **never** put single-change decisions or decaying deep-dives into `docs/research/`.
-4. **MUST NOT** edit `llmanspec/specs/**` in this skill. If research shows MUST/SHALL must change → suggest `llman-sdd-propose` (Branch binding → Specs landing).
+3. Save location (repo convention wins if it has one): **default** `llmanspec/changes/<current-change>/research/<topic>.md` (change docs, **not** specs). Write to `docs/research/` only when the topic spans multiple changes and will still be referenced after archiving; **never** put single-change decisions or decaying deep-dives into `docs/research/`.
+4. **MUST NOT** edit `llmanspec/specs/**` in this skill. If research shows MUST/SHALL must change → suggest `llman-sdd-propose` (bind branch → land specs).
 
 ## Steps
 
-1. Clarify the research question (confirm with the user; if fuzzy, sharpen to a falsifiable one).
-2. Use the Agent tool `subagent_type=general-purpose` + `run_in_background: true` to launch the background research, with a prompt containing:
-   - The question statement.
-   - A requirement to cite only primary sources, with source URL/path per claim.
-   - The output file path (default `llmanspec/changes/<id>/research/<topic>.md`).
+1. Clarify the research question (confirm with the user; sharpen a fuzzy one into a falsifiable one).
+2. Launch via the Agent tool with `subagent_type=general-purpose` + `run_in_background: true`, prompt containing:
+   - The question statement; a requirement to cite only primary sources, with source URL/path per claim;
+   - The output file path (default `llmanspec/changes/<id>/research/<topic>.md`);
    - A word limit (suggested: focus on facts, prose narrative < 1500 words).
-3. Continue main-flow work while it runs in the background; receive a notification when done.
-4. Read the output, summarize key conclusions back into the current change's `proposal.md` "Further Notes" section (with a file pointer).
-5. If the research reveals a decision is needed, suggest entering `llman-sdd-explore`'s grilling branch.
+3. Continue main-flow work while it runs; when done, read the output and summarize key conclusions into the current change's `proposal.md` "Further Notes" section (with a file pointer).
+4. If the research reveals a decision is needed, suggest entering `llman-sdd-explore`'s deep-dive Q&A branch.
 
 ## Cooperation with wayfinder
 

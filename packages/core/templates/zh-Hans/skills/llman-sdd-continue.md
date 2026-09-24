@@ -1,37 +1,31 @@
 ---
 name: "llman-sdd-continue"
-description: "继续已有 llman SDD 变更，创建下一个缺失工件。"
+description: "继续已有 change：补建下一个缺失工件。"
 metadata:
   version: "{{ llman_version }}"
 ---
 
 # LLMAN SDD Continue
 
-使用此 skill 继续已有变更，创建下一个缺失的 artifact。
+继续已有 change，创建下一个缺失工件。
 
 ## 步骤
-1. 确定 change id：
-   - 若用户已提供，直接使用。
-   - 否则运行 `llman-sdd list --json` 并询问要继续哪个 change。
-   - 始终说明："使用变更：<id>"。
-2. 阅读变更目录：`llmanspec/changes/<id>/`。
-> 阶段判定：用 `llman-sdd show <id> --output json --type change` 的 `stage` / `readyToImplement` 字段；完整判定表见 llman-sdd-apply。
-3. 确定下一个要创建的 artifact（按顺序）：
+1. 确定 change id：用户给了就用；否则跑 `llman-sdd list --json` 让用户选。始终说明「使用变更：<id>」。
+2. 读 `llmanspec/changes/<id>/`。
+> 阶段判定：用 `llman-sdd show <id> --output json --type change` 的 `stage` / `readyToImplement`；完整判定表见 llman-sdd-apply。
+3. 按顺序确定下一个缺失工件：
    1) `proposal.md`
-   2) `design.md`（仅当涉及设计权衡时）
+   2) `design.md`（仅有设计权衡时）
    3) `tasks.md`
-   4) `llman-sdd change start <id>`（或分支已存在时用 `change attach <id>`）——Branch binding
-   5) 在**绑定分支**上编辑 live `llmanspec/specs/<capability>.feature`（扁平，或目录主文件）并 commit——Specs landing（无合约变更可设 `needs_specs_change: false`）
-4. 只创建**一个**缺失 artifact（或在绑定分支上做一次 live spec/feature 编辑）。
-   - continue 模式**不要**实现应用代码。
-   - **不要**创建 `changes/<id>/specs/` 下的文件。
-   - **不要**在未 start/attach 前改公共 `llmanspec/specs/**`。
-5. 若所有 artifact 已齐全，按 `llman-sdd show <id> --output json` 建议下一步：
-   - specs-landed 门未过 → 先完成 Specs landing（或 `needs_specs_change: false`）；**不要**建议 apply
-   - specs-landed 门已绿（即使实施中期 `readyToImplement=false`、tasks 未完）→ 实施：`llman-sdd-apply`
-   - verify 之后 → 归档：`llman-sdd-archive`
-   - 校验：`llman-sdd validate <id> --strict`
-   - 审查：`llman-sdd change diff <id>`（只读）
+   4) `llman-sdd change start <id>`（分支已存在用 `change attach <id>`）——绑定分支
+   5) 在**绑定分支**编辑 `llmanspec/specs/<capability>.feature`（扁平，或目录主文件）并 commit——落地 specs（无合约变更设 `needs_specs_change: false`）
+4. 只创建**一个**缺失工件（或一次绑定分支上的 spec 编辑）。
+   - 不写应用代码；**不要**建 `changes/<id>/specs/`；**不要**在 start/attach 前改 `llmanspec/specs/**`。
+5. 工件已齐全时，按 `llman-sdd show <id> --output json` 建议下一步：
+   - specs-landed 门未过 → 先落地 specs（或 `needs_specs_change: false`）；**不要**建议 apply
+   - specs-landed 门已绿（即使实施中期 `readyToImplement=false`、tasks 未完）→ `llman-sdd-apply`
+   - verify 之后 → `llman-sdd-archive`
+   - 校验：`llman-sdd validate <id> --strict`；审查：`llman-sdd change diff <id>`（只读）
 
 {{ unit("skills/git-native-flow") }}
 {{ unit("skills/cli-footer") }}

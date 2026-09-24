@@ -1,7 +1,6 @@
 ## 单轨 Feature 合约规范
 
-每个 capability 只有一个 Gherkin 文件：扁平 `llmanspec/specs/<capability>.feature`（新默认）或目录 `llmanspec/specs/<capability>/` 内同名主文件（两种布局二选一，同 id 并存算冲突）。
-它是唯一的 spec 工件——不存在 `spec.toon`。
+每个 capability 只有一个 Gherkin 文件：扁平 `llmanspec/specs/<capability>.feature`（默认）或目录 `llmanspec/specs/<capability>/` 内同名主文件——二选一，同 id 两布局并存算冲突。它是唯一的 spec 工件（不存在 `spec.toon`）。
 
 ```gherkin
 # language: zh-CN
@@ -22,8 +21,8 @@
     那么 the outcome is observed
 ```
 
-- 头注释（`# capability:` / `# purpose:` / `# scope:`）必填；`scope` 驱动 staleness 检查。
-- `@human` 场景是人拥有的约束场景；规则 statement 全文放在场景描述里。改/删它只出 WARNING（报告制，不阻断门禁），用 git 分支对比审视；旧的锁定确认元数据 `rules_touched` / `agent_acked` / `@agent` 已删除，无别名也无兼容层。
-- `@executable` 场景是 runner 绑定的验收场景；用 `@req:<req_id>` 挂回规则。
-- 覆盖两态分级：enforced（有验收）/ pending——`list --specs` 逐项输出。
-- 场景 MUST 保持顶层：`Rule:` 块会被拒绝（runner 会静默跳过其中场景）。
+- 头注释（`# capability:` / `# purpose:` / `# scope:`）必填；`scope` 驱动过期检查。
+- `@human` 场景是人拥有的约束：statement 全文放场景描述。改/删只出 WARNING（报告制，不阻断门禁），用 git 分支对比审视；旧锁定确认元数据 `rules_touched` / `agent_acked` / `@agent` 已删除，无别名无兼容层。
+- `@executable` 场景是 runner 验收：用 `@req:<req_id>` 挂回规则。
+- 覆盖分级：enforced（有验收）/ pending——`list --specs` 逐项输出。
+- 场景 MUST 保持顶层：`Rule:` 块会被拒绝（runner 静默跳过其中场景）。

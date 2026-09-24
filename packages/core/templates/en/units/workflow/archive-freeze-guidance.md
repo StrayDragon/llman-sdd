@@ -1,7 +1,7 @@
 ## Archive Cold Backup Guidance
-- If archived directories are growing too large, use cold backup maintenance:
+- When archived directories grow too large, use cold backup maintenance:
   - Preview freeze candidates: `llman-sdd archive freeze --dry-run`
   - Freeze old archives: `llman-sdd archive freeze --before <YYYY-MM-DD> --keep-recent <N>`
   - Restore when needed: `llman-sdd archive thaw --change <YYYY-MM-DD-id>`
-- Apply freeze/thaw only to dated archive directories (`YYYY-MM-DD-*`) and keep a small recent window unfrozen when possible.
-- freeze/thaw print a warning (never block) when run outside the main checkout (a worktree not holding the default branch) — continue there only intentionally.
+- Apply freeze/thaw only to dated archive directories (`YYYY-MM-DD-*`); keep a small recent window unfrozen.
+- Running outside the main checkout (a worktree not holding the default branch) prints a warning (never blocks) — continue there only intentionally.
