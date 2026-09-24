@@ -89,6 +89,20 @@ llman-sdd:spec 驱动开发(SDD)工作流(TypeScript + Bun),完全接替 Rust ll
   不得列为任务——两者的任务门要求全部任务已勾,收口任务必然自相矛盾(勾选即虚报、
   不勾则收口被拒,且实施期 `validate --strict` 永红)。归档 change 中的此类写法是
   已知错误先例,勿沿用
+- 门禁证据必须来自真实 harness:报告中的 `validate --strict` 结果不得以 `--no-check`
+  取得,harness 失败不得以「自指/固有属性」定性后绕过——先查根因(先例:临时仓库
+  子进程继承 `LLMAN_SDD_HARNESS_ACTIVE` 嵌套守卫导致场景全跳过,属环境泄漏而非设计属性)
+- 测试子进程与临时目录:起 CLI 用 `tests/helpers/spawn.ts` 的 `runCli`;需以全新顶层
+  上下文运行(如在临时仓库跑 validate harness)时用 `makeTempRepo().run`,它剥离嵌套守卫。
+  临时目录一律 `mkdtempSync(join(tmpdir(), …))`,禁止硬编码 `/tmp`——`bunfig.toml`
+  preload 把 `TMPDIR` 指向每次运行的沙箱并统一回收(先例:未回收目录耗尽 tmpfs inode 致 ENOSPC)
+- 前后对比类验收(如 STALE 计数)的基线必须在 change 分支上相对 merge-base 测量;
+  在默认分支上测得的 0 恒真,不构成证据
+- 改动 `packages/core/templates/**` 或 CLI 命令/旗标面的 change,须在绑定分支运行
+  `init --update` 并提交刷新后的 `.agents/skills`——本仓库狗粮 agent 直接读取它们,
+  过期 skill 会教授已删除的表面
+- agent 执行纪律:编辑与验证不得放在同一批并行工具调用中(验证可能读到旧文件,产生
+  假失败/假通过);验证须在编辑落盘后串行执行
 
 ## 语言约定
 
