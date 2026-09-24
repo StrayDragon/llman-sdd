@@ -357,3 +357,55 @@
     当 对其运行 change finalize
     那么 输出不含 "executed in target worktree"
     而且 目标分支获得单条 archive(sdd) 提交
+
+  @req:r81 @human
+  场景: 收口合并前执行验收命令
+    - 当 change 的 `needs_specs_change` 不为 false,且活规格含至少一个 `@executable` 场景时,`change finalize` 与 `change archive` 在任何合并或改名之前 MUST 处理验收命令:`bdd.run_command` 非空时 MUST 在项目根执行该命令(与 validate 同一条);退出码非 0 或无法启动 MUST 以退出码 1 中止,输出含 `bdd harness failed`,且 MUST 不产生合并与改名。`bdd.run_command` 为空或未配置时 MUST 以退出码 1 中止,输出含 `executable scenarios have no bdd.run_command`,且零写入。环境变量 `LLMAN_SDD_HARNESS_ACTIVE=1` 导致未执行时 MUST 以退出码 1 中止,输出含 `nested invocation`,且零写入;该跳过 MUST NOT 视为通过。`needs_specs_change: false` 时 MUST NOT 要求执行验收命令,也 MUST NOT 因缺少命令而失败。`--no-check` MUST 跳过结构检查与验收命令,且标准错误 MUST 含 `bdd harness skipped: --no-check`。`archive --force` MUST NOT 跳过上述验收判定。没有 `@executable` 场景时 MUST NOT 执行验收命令。
+
+  @req:r81 @executable
+  场景: finalize 在合并前跑通验收命令
+    假如 一个已完成 start、活规格含 @executable 且 run_command 写标记文件并成功的临时仓库
+    当 对其运行 change finalize
+    那么 标记文件恰有 1 行
+    而且 目标分支获得单条 archive(sdd) 提交
+
+  @req:r81 @executable
+  场景: 验收命令失败则不合并不改名
+    假如 一个已完成 start、活规格含 @executable 且 run_command 以退出码 1 失败的临时仓库
+    当 对其运行 change finalize
+    那么 报错含 "bdd harness failed" 且目标分支无新提交
+    而且 change 目录未被改名
+
+  @req:r81 @executable
+  场景: 有可执行场景但没有验收命令时中止
+    假如 一个已完成 start、活规格含 @executable 且未配置 run_command 的临时仓库
+    当 对其运行 change finalize
+    那么 报错含 "executable scenarios have no bdd.run_command" 且目标分支无新提交
+    而且 change 目录未被改名
+
+  @req:r81 @executable
+  场景: 声明不改规格时不要求验收命令
+    假如 一个已完成 start、needs_specs_change 为 false、活规格含 @executable 且未配置 run_command 的临时仓库
+    当 对其运行 change finalize
+    那么 目标分支获得单条 archive(sdd) 提交
+
+  @req:r81 @executable
+  场景: no-check 写明跳过验收并仍可收口
+    假如 一个已完成 start、活规格含 @executable 且 run_command 以退出码 1 失败的临时仓库
+    当 运行 change finalize --no-check
+    那么 标准错误含 "bdd harness skipped: --no-check"
+    而且 目标分支获得单条 archive(sdd) 提交
+
+  @req:r81 @executable
+  场景: 嵌套跳过不得当成通过
+    假如 一个已完成 start、活规格含 @executable 且 run_command 写标记文件并成功的临时仓库
+    当 在设置 LLMAN_SDD_HARNESS_ACTIVE=1 的环境下运行 change finalize
+    那么 报错含 "nested invocation" 且目标分支无新提交
+    而且 标记文件不存在
+
+  @req:r81 @executable
+  场景: archive 同样在合并前执行验收命令
+    假如 一个已完成 start、活规格含 @executable 且 run_command 写标记文件并成功的临时仓库
+    当 对其运行 change archive
+    那么 标记文件恰有 1 行
+    而且 目标分支获得单条 archive(sdd) 提交

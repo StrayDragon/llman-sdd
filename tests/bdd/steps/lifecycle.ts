@@ -1434,3 +1434,109 @@ bdd.thenStep('目标分支无新提交且 change 目录未被改名', (ctx) => {
     throw new Error('archive dir created despite gate');
   }
 });
+
+const EXEC_SPEC = `# language: zh-CN
+# capability: tip
+# purpose: p
+# scope: llmanspec/
+
+功能: tip
+
+  @req:r9 @human
+  场景: 规则
+    - 计算 MUST 给出整数
+
+  @req:r9 @executable
+  场景: 跑一下
+    假如 有账单
+    当 计算
+    那么 得到整数
+`;
+
+function seedCloseOutHarness(
+  ctx: { fixtures: Record<string, unknown> },
+  opts: { command: string | null; needsSpecsChange: boolean },
+): void {
+  const repo = makeTempRepo();
+  if (opts.command !== null) {
+    writeFileSync(
+      join(repo.root, 'llmanspec', 'config.yaml'),
+      `schema: spec-driven\nbdd:\n  run_command: "${opts.command}"\n`,
+    );
+  }
+  writeFileSync(join(repo.root, 'llmanspec', 'specs', 'tip.feature'), EXEC_SPEC);
+  repo.run('git', ['add', '-A']);
+  repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'spec']);
+  const id = 'demo-harness';
+  const needs = opts.needsSpecsChange ? '' : 'needs_specs_change: false\n';
+  seedChange(repo, id, {
+    proposal: `---\ndepends_on: []\n${needs}---\n\n## Why\n\nTODO\n`,
+    commit: 'draft',
+  });
+  repo.run('bun', [CLI, 'change', 'start', id]);
+  repo.run('git', ['add', '-A']);
+  repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'bind']);
+  ctx.fixtures['仓库'] = { root: repo.root, repo };
+  ctx.fixtures['change'] = { id };
+  ctx.fixtures['validate仓库'] = { repo, id };
+}
+
+bdd.given(
+  '一个已完成 start、活规格含 @executable 且 run_command 写标记文件并成功的临时仓库',
+  (ctx) => {
+    seedCloseOutHarness(ctx, { command: 'echo ran >> .harness.log', needsSpecsChange: true });
+  },
+);
+
+bdd.given(
+  '一个已完成 start、活规格含 @executable 且 run_command 以退出码 1 失败的临时仓库',
+  (ctx) => {
+    seedCloseOutHarness(ctx, { command: 'exit 1', needsSpecsChange: true });
+  },
+);
+
+bdd.given('一个已完成 start、活规格含 @executable 且未配置 run_command 的临时仓库', (ctx) => {
+  seedCloseOutHarness(ctx, { command: null, needsSpecsChange: true });
+});
+
+bdd.given(
+  '一个已完成 start、needs_specs_change 为 false、活规格含 @executable 且未配置 run_command 的临时仓库',
+  (ctx) => {
+    seedCloseOutHarness(ctx, { command: null, needsSpecsChange: false });
+  },
+);
+
+bdd.when('对其运行 change archive', (ctx) => {
+  const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
+  const id = (ctx.fixtures['change'] as { id: string }).id;
+  const result = repo.run('bun', [CLI, 'change', 'archive', id]);
+  ctx.fixtures['finalize结果'] = {
+    exitCode: result.code,
+    stdout: result.stdout,
+    stderr: result.stderr,
+  } satisfies CliResult;
+});
+
+bdd.when('在设置 LLMAN_SDD_HARNESS_ACTIVE=1 的环境下运行 change finalize', (ctx) => {
+  const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
+  const id = (ctx.fixtures['change'] as { id: string }).id;
+  const proc = runCli(['change', 'finalize', id], repo.root, {
+    ...process.env,
+    LLMAN_SDD_HARNESS_ACTIVE: '1',
+  });
+  ctx.fixtures['finalize结果'] = {
+    exitCode: proc.status ?? 1,
+    stdout: proc.stdout ?? '',
+    stderr: proc.stderr ?? '',
+  } satisfies CliResult;
+});
+
+bdd.thenStep('标准错误含 "{text}"', (ctx, text: string) => {
+  const r = ctx.fixtures['finalize结果'] as CliResult;
+  if (r.exitCode !== 0) {
+    throw new Error(`expected success, got ${r.exitCode}: ${r.stdout}${r.stderr ?? ''}`);
+  }
+  if (!(r.stderr ?? '').includes(text)) {
+    throw new Error(`stderr must contain "${text}": ${r.stderr ?? ''}`);
+  }
+});

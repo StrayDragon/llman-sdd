@@ -1,5 +1,8 @@
 ---
 depends_on: []
+branch: sdd/fix-finalize-runs-harness
+base_branch: main
+base_sha: 97f46deea6217c8c051182ff0fcb60f862017f61
 ---
 
 # 收口时真跑验收命令

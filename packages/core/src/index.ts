@@ -87,7 +87,12 @@ export {
   type HarnessTarget,
 } from './validation/harness.ts';
 export type { ChangeBinding } from './change/frontmatter.ts';
-export { readBinding, writeBinding } from './change/frontmatter.ts';
+export {
+  readBinding,
+  writeBinding,
+  extractFrontmatter,
+  readNeedsSpecsChange,
+} from './change/frontmatter.ts';
 export {
   GitError,
   defaultBranch,
@@ -104,6 +109,7 @@ export {
 export { DRAFT_PROPOSAL_TEMPLATE, deriveChangeId } from './change/id.ts';
 export { parseTaskCheckboxes, type ParsedTaskCheckboxes } from './change/tasks.ts';
 export { CLOSE_OUT_TASK_HINT, closeOutTaskLines, isCloseOutTaskTitle } from './change/tasks.ts';
+export { decideCloseOutHarness, type CloseOutHarnessDecision } from './change/closeOutHarness.ts';
 export {
   extractUniqueNumber,
   collectNumbers,

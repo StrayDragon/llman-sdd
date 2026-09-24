@@ -422,6 +422,8 @@ export function archiveChange(
     into?: string;
     method?: 'squash' | 'ff';
     force?: boolean;
+    /** CLI already enforced a clean tree before the acceptance command ran. */
+    skipCleanTree?: boolean;
     today: string;
   },
 ): FinalizeResult {
@@ -460,7 +462,7 @@ export function archiveChange(
     if (current === defaultBranch(git)) {
       throw new LifecycleError(onDefaultBranch('change archive', current));
     }
-    if (!isCleanTree(git)) throw new LifecycleError(dirtyTree('change archive'));
+    if (!opts.skipCleanTree && !isCleanTree(git)) throw new LifecycleError(dirtyTree('change archive'));
   } else if (binding === null) {
     throw new LifecycleError(`change \`${id}\` has no branch binding — cannot merge`);
   }

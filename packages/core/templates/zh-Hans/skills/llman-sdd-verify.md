@@ -30,7 +30,7 @@ flowchart LR
 - **必须先通过 apply 阶段全绿**：未完成实现的 change 跳过验证。
 - **CRITICAL 必须修复**：标记为 CRITICAL 的问题归档前必须修复。
 - **亲自复跑门禁**：MUST 亲自重跑 `llman-sdd validate <id> --strict`（真实 harness）与项目门禁，MUST NOT 采信实现者报告中的门禁结论；复跑结果与报告不符 → CRITICAL。
-- **`--no-check` 不是证据**：门禁证据以 `--no-check` 取得 → CRITICAL。
+- **`--no-check` 不是证据**：门禁证据以 `--no-check` 取得 → CRITICAL。收口会执行已配置的 `bdd.run_command`，因此收口前不必再跑一遍该命令；`--no-check` 打出的跳过说明不是通过。
 - **不要问「要不要继续」**：跑完整个验证流程，输出完整报告。
 
 {{ unit("skills/stage-guard") }}

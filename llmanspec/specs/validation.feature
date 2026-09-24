@@ -47,7 +47,7 @@
 
   @req:r13 @human
   场景: BDD harness 执行与 check 旗标
-    - 配置了非空 `bdd.run_command` 时,`validate` 的目标集含 spec 即 MUST 缺省执行该 harness,`--no-check` MUST 跳过执行,`--check` MUST 作为兼容别名(给与不给等价);未配置时显式 `--check` MUST 追加 INFO 提示其无效且 MUST NOT 执行任何命令;环境变量 `LLMAN_SDD_HARNESS_ACTIVE=1` 存在时 MUST NOT 执行并 MUST 为每个 spec 条目追加 INFO(嵌套调用守卫),harness 子进程 MUST 继承该变量;review 的校验 sweep、finalize/archive 预合并 sweep 与 show 的 validate 门 MUST NOT 执行 harness;`bdd.framework` 派生的缺省命令 MUST NOT 被执行;CLI help 与模板文案 MUST 与该语义一致。
+    - 配置了非空 `bdd.run_command` 时,`validate` 的目标集含 spec 即 MUST 缺省执行该 harness,`--no-check` MUST 跳过执行,`--check` MUST 作为兼容别名(给与不给等价);未配置时显式 `--check` MUST 追加 INFO 提示其无效且 MUST NOT 执行任何命令;环境变量 `LLMAN_SDD_HARNESS_ACTIVE=1` 存在时 MUST NOT 执行并 MUST 为每个 spec 条目追加 INFO(嵌套调用守卫),harness 子进程 MUST 继承该变量;review 的校验 sweep 与 show 的 validate 门 MUST NOT 执行 harness;finalize/archive 的预合并验收由 change-lifecycle r81 规定,本条不再禁止收口执行;`bdd.framework` 派生的缺省命令 MUST NOT 被执行;CLI help 与模板文案 MUST 与该语义一致。
 
   @req:r47 @human
   场景: validate 目标与模式 flag

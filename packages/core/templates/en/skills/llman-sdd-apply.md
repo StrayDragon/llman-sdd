@@ -94,6 +94,7 @@ Run project gate commands (adapt to the actual project):
 - SDD validation: `llman-sdd validate <id> --strict`
 
 **Gate evidence**:
+- Close-out runs the configured `bdd.run_command`, so do not run that command again just before close-out. The skip line printed by `--no-check` is not a pass.
 - Gate verdicts MUST come from the real harness: MUST NOT obtain a "pass" via `--no-check`; on harness failure, find the root cause first (leaked env vars, nested-invocation guards, wrong cwd …) — MUST NOT label it an "inherent/self-referential property" and bypass it.
 - Before/after completion criteria (counts, baselines) MUST be measured on the change branch (against the freshly computed merge-base); a value measured on the default branch is usually trivially the baseline and proves nothing.
 - Refactors and bulk replacements: MUST compare the test count before and after; all-green gates with fewer tests is a failure.

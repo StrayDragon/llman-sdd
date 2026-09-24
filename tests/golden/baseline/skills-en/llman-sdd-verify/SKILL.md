@@ -30,7 +30,7 @@ flowchart LR
 - **Must pass apply phase all-green first**: don't skip to verify on changes that haven't been implemented.
 - **CRITICAL issues must be fixed**: CRITICAL problems must be resolved before archive.
 - **Rerun the gates yourself**: MUST rerun `llman-sdd validate <id> --strict` (real harness) and the project gates; MUST NOT trust gate verdicts in the implementer's report — a mismatch is CRITICAL.
-- **`--no-check` is not evidence**: gate evidence obtained with `--no-check` → CRITICAL.
+- **`--no-check` is not evidence**: gate evidence obtained with `--no-check` → CRITICAL. Close-out runs the configured `bdd.run_command`, so do not run that command again just before close-out; the skip line printed by `--no-check` is not a pass.
 - **Don't ask "should I continue?"**: run the full verification flow, output a complete report.
 
 ## Stage guard (`stage` / `readyToImplement`)

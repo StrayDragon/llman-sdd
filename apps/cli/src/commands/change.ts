@@ -12,12 +12,16 @@ import {
   finalizeChange,
   harvestAcrossWorktrees,
   archiveTaskGate,
+  isCleanTree,
   newChange,
   nextUniqueNumber,
   renderChangeIdTemplate,
   splitVerb,
   startChange,
   validateAllSpecs,
+  decideCloseOutHarness,
+  extractFrontmatter,
+  readNeedsSpecsChange,
 } from '@llman-sdd/core';
 import { Option, type Command } from 'commander';
 
@@ -28,11 +32,42 @@ import {
   newIo,
   resolveChangeIdOrExit,
 } from '../cli-shared.ts';
+import { makeCliHarnessRunner } from '../harness.ts';
 import { makeCliGit } from '../io.ts';
 
 function runValidateSweep(): boolean {
   const report = validateAllSpecs(loadSpecEntries(), newIo());
   return report.verdicts.some((v) => !v.ok);
+}
+
+/** r81: run or refuse the acceptance command before any merge or rename. */
+function enforceCloseOutHarness(id: string, noCheck: boolean): void {
+  const proposalPath = `llmanspec/changes/${id}/proposal.md`;
+  const proposal = existsSync(proposalPath) ? readFileSync(proposalPath, 'utf8') : '';
+  const needsSpecsChange = readNeedsSpecsChange(extractFrontmatter(proposal));
+  const hasExecutable = loadSpecEntries().some((entry) =>
+    entry.doc.scenarios.some((scenario) => scenario.classification === 'executable'),
+  );
+  const runCommand = loadCliConfig()?.bdd?.run_command ?? null;
+  const decision = decideCloseOutHarness({
+    noCheck,
+    needsSpecsChange,
+    hasExecutable,
+    runCommand,
+    nested: process.env.LLMAN_SDD_HARNESS_ACTIVE === '1',
+  });
+  if (decision.kind === 'abort') {
+    throw new CliError(`close-out aborted: ${decision.message}`);
+  }
+  if (decision.kind === 'skip') {
+    if (decision.announce) console.error('bdd harness skipped: --no-check');
+    return;
+  }
+  const result = makeCliHarnessRunner().run(decision.command, process.cwd());
+  if (result.spawnError !== undefined || result.exitCode !== 0) {
+    const why = result.spawnError ?? `exit ${result.exitCode}`;
+    throw new CliError(`close-out aborted: bdd harness failed (${why})`);
+  }
 }
 
 /** `--method squash|ff` guard shared by `change archive` / `change finalize`. */
@@ -237,11 +272,16 @@ export function registerChange(program: Command): void {
             );
             throw new Error('archive blocked by unchecked tasks');
           }
+          if (!isCleanTree(makeCliGit(process.cwd()))) {
+            throw new CliError('`change archive` requires a clean working tree');
+          }
         }
+        enforceCloseOutHarness(id, false);
         const result = archiveChange(makeCliGit(process.cwd()), io, id, {
           into: options.into,
           method: options.method as 'squash' | 'ff' | undefined,
           force: options.force,
+          skipCleanTree: true,
           today: new Date().toISOString().slice(0, 10),
         });
         const archiveName = (result.archiveDir ?? '').slice(
@@ -307,6 +347,7 @@ export function registerChange(program: Command): void {
         }
         const resolved = resolveChangeIdOrExit(program, id);
         id = resolved.id;
+        enforceCloseOutHarness(id, options.check === false);
         const config = loadCliConfig();
         const method = options.method ?? config?.sdd?.merge_method ?? 'squash';
         const result = finalizeChange(makeCliGit(process.cwd()), newIo(), id, {

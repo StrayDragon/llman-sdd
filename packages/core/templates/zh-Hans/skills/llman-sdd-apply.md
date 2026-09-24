@@ -94,6 +94,7 @@ flowchart LR
 - SDD 校验：`llman-sdd validate <id> --strict`
 
 **门禁证据**：
+- 收口会执行已配置的 `bdd.run_command`，因此收口前不必再跑一遍该命令。`--no-check` 打出的跳过说明不是通过。
 - 门禁结论 MUST 来自真实 harness：MUST NOT 以 `--no-check` 取得「通过」；harness 失败 MUST 先查根因（环境变量泄漏、嵌套调用守卫、工作目录错误等），MUST NOT 以「固有/自指属性」定性后绕过。
 - 前后对比类完成判据（计数、基线）MUST 在 change 分支上测量（相对现算 merge-base）；在默认分支测得的值通常恒为基线，不构成证据。
 - 重构或批量替换类 task：MUST 对比改动前后的测试用例数；门禁全绿但用例数下降视为失败。
