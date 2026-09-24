@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
@@ -13,7 +14,7 @@ import {
 
 import { makeNodeIo } from '../helpers/nodeIo.ts';
 
-const DIR = '/tmp/llman-sdd-7z-test';
+const DIR = join(tmpdir(), 'llman-sdd-7z-test');
 
 /** Disk-backed deps: wasm unset (glue loads from disk) + recursive mkdir. */
 const deps = (): WasmSevenZipDeps => ({
