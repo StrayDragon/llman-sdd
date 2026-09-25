@@ -100,7 +100,7 @@
 
   @req:r80 @human
   场景: 仓库自带 skills 新鲜度
-    - 本仓库已提交的 `.agents/skills` 中 `llman-sdd-` 前缀产物 MUST 与 golden 基线 zh-Hans 集(tests/golden/baseline/skills)版本号归一化后一致,非该前缀的目录 MUST NOT 参与比对;比对 MUST 随 golden:check(qa)运行,比对前 MUST 断言仓库 llmanspec/config.yaml 的 locale 与 bdd.run_command 与 golden 等价 config 一致;失败 MUST 报出差异文件名并区分缺失、多余与内容不同,且 MUST 提示运行 `init --update`。
+    - 本仓库已提交的 `.agents/skills` 中 `llman-sdd-` 前缀产物 MUST 与 golden 基线 zh-Hans 集(tests/golden/baseline/skills)版本号归一化后一致,非该前缀的目录 MUST NOT 参与比对;比对 MUST 随 check:skills-template-render(qa)运行,比对前 MUST 断言仓库 llmanspec/config.yaml 的 locale 与 bdd.run_command 与 golden 等价 config 一致;失败 MUST 报出差异文件名并区分缺失、多余与内容不同,且 MUST 提示运行 `init --update`。
 
   @req:r80 @executable
   场景: 仓库自带 skills 与基线一致

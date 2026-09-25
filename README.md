@@ -18,23 +18,23 @@ llman-sdd:spec 驱动开发(SDD)工作流 CLI(monorepo:`packages/core` 纯域逻
 ## 常用命令
 
 ```bash
-just qa            # 静态门禁 + 全部测试 + golden + pending + schema(等价 CI)
-just golden        # skills 渲染基线门,zh-Hans + en 双 locale(版本号归一化)
+just qa            # 静态门禁 + 全部测试 + skills 模板渲染门 + pending + schema(等价 CI)
+just check-skills-template-render  # 仅跑 skills 模板渲染基线门(zh-Hans + en,版本号归一化)
 just smoke-context # 真实 LLM 检索冒烟(未配置模型时干净跳过)
 bun run build      # CLI 单二进制(apps/cli/dist/)
 ```
 
 ## QA 门禁一览
 
-`just qa` = CI,聚合下列全部门禁(check → test → golden → pending → schema)。
+`just qa` = CI,聚合下列全部门禁(check → test → skills 模板渲染 → pending → schema)。
 
-| 门禁         | 命令                   | 说明                                                      |
-| ------------ | ---------------------- | --------------------------------------------------------- |
-| 静态         | `just check`           | tsc + oxlint + oxfmt                                      |
-| 测试         | `bun test tests/`      | unit + BDD(@executable 驱动真实核心/CLI) + integration    |
-| golden:check | `bun run golden:check` | skills 渲染 vs v2 自有快照基线(zh-Hans + en,版本号归一化) |
-| pending-gate | `bun run pending-gate` | 无配对 @executable 验收的规则数不高于基线                 |
-| check:schema | `bun run check:schema` | config schema 产物无漂移                                  |
+| 门禁            | 命令                                | 说明                                                                               |
+| --------------- | ----------------------------------- | ---------------------------------------------------------------------------------- |
+| 静态            | `just check`                        | tsc + oxlint + oxfmt                                                               |
+| 测试            | `bun test tests/`                   | unit + BDD(@executable 驱动真实核心/CLI) + integration                             |
+| skills 模板渲染 | `just check-skills-template-render` | runInit 产物 vs 快照基线 + 本仓 `.agents/skills` 新鲜度(zh-Hans + en,版本号归一化) |
+| pending-gate    | `bun run pending-gate`              | 无配对 @executable 验收的规则数不高于基线                                          |
+| check:schema    | `bun run check:schema`              | config schema 产物无漂移                                                           |
 
 行为合约的 SSOT 是 `llmanspec/specs/*.feature`:`@human` 规则定义 MUST 条款,`@executable` 场景经 `bun test tests/bdd` 驱动真实实现作为验收。
 

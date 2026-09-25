@@ -3,7 +3,7 @@
 // tests/golden/baseline/ (version-normalized — the local package version may
 // move without touching template contracts). Also gates the repo's own
 // committed .agents/skills against the zh-Hans baseline (init-generators r80).
-// Exit code 1 on drift. Run: bun run golden:check
+// Exit code 1 on drift. Run: bun run check:skills-template-render
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 

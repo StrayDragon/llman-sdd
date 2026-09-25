@@ -17,5 +17,5 @@ llman-sdd:spec 驱动开发(SDD)工作流 CLI(Bun + TypeScript monorepo)。上�
 
 - 目录:`packages/core`(纯域逻辑,副作用经接口注入)/ `apps/cli`(commander 入口)/ `tests`(unit·bdd·golden·integration)/ `llmanspec/`(规范·change·规则)
 - 项目规则与技术选型定案:`llmanspec/AGENTS.md`(必读)
-- 常用命令:`just qa`(静态门禁 + 全部测试 + golden + pending + schema;等价 CI,默认 L0 静默输出,`just QA_VERBOSE=2 qa` 全量排障)/ `just golden`(skills 渲染基线门,zh-Hans + en 双 locale)/ `just smoke-context`(真实 LLM 冒烟)/ `bun run build`(单二进制)
+- 常用命令:`just qa`(静态门禁 + 全部测试 + skills 模板渲染门 + pending + schema;等价 CI,默认 L0 静默输出,`just QA_VERBOSE=2 qa` 全量排障;单独跑渲染门:`just check-skills-template-render`)/ `just smoke-context`(真实 LLM 冒烟)/ `bun run build`(单二进制)
 - QA 门禁与 capture 契约:`README.md`;过程性结论不落独立文档,强约束一律收敛至 `llmanspec/AGENTS.md`

@@ -1,7 +1,7 @@
 // r2 质量门禁合约对账(只读断言,退出码即判定)。
 // justfile check/qa 聚合门面 + 聚合门指向的 oxlint/oxfmt 脚本 + prek
 // pre-commit hook 面(oxlint、oxfmt --write、whitespace 系)在此锁定;
-// qa 门禁集合(check/test/golden/pending/schema)在 justfile、package.json、
+// qa 门禁集合(check/test/skills 模板渲染/pending/schema)在 justfile、package.json、
 // ci.yml 三处的接线一致性亦在此锁定(缺项逐项报出)。
 import { readFileSync } from 'node:fs';
 
@@ -27,7 +27,7 @@ for (const line of justLines.slice(qaStart + 1)) {
   else break;
 }
 const qaBodyText = qaBody.join('\n');
-for (const gate of ['test', 'golden:check', 'pending-gate', 'check:schema']) {
+for (const gate of ['test', 'check-skills-template-render', 'pending-gate', 'check:schema']) {
   if (!qaBodyText.includes(gate)) fail(`justfile qa 门缺 ${gate}`);
 }
 
@@ -40,10 +40,10 @@ if (scripts['format:check'] !== 'oxfmt --check') {
   fail(`format:check script 漂移: ${String(scripts['format:check'])}`);
 }
 const QA_SCRIPT =
-  'bun run check && bun run test && bun run golden:check && bun run pending-gate && bun run check:schema';
+  'bun run check && bun run test && bun run check:skills-template-render && bun run pending-gate && bun run check:schema';
 if (scripts['qa'] !== QA_SCRIPT) {
   fail(
-    `qa script 未聚合 check + test + golden:check + pending-gate + check:schema: ${String(scripts['qa'])}`,
+    `qa script 未聚合 check + test + check:skills-template-render + pending-gate + check:schema: ${String(scripts['qa'])}`,
   );
 }
 if (scripts['pending-gate'] !== 'bun scripts/pending-gate.ts') {
@@ -60,7 +60,7 @@ for (const step of [
   'bun run lint',
   'bun run format:check',
   'bun test tests/',
-  'bun run golden:check',
+  'bun run check:skills-template-render',
   'bun run pending-gate',
   'bun run check:schema',
 ]) {

@@ -25,10 +25,10 @@ check:
     @{{BUN_RUN}} lint {{OXLINT_FLAGS}} && echo "[check] lint"
     @{{BUN_RUN}} format:check && echo "[check] format"
 
-# 主门禁:check + test + golden + pending + schema(等价 CI)
+# 主门禁:check + test + skills 模板渲染门 + pending + schema(等价 CI)
 qa: check
     @{{BUN_RUN}} test {{BUN_TEST_FLAGS}} && echo "[pass] test"
-    @{{BUN_RUN}} golden:check && echo "[pass] golden:check"
+    @just check-skills-template-render && echo "[pass] check-skills-template-render"
     @{{BUN_RUN}} pending-gate && echo "[pass] pending-gate"
     @{{BUN_RUN}} check:schema && echo "[pass] check:schema"
 
@@ -52,15 +52,12 @@ pending-gate:
 build:
     bun run build
 
-# golden 门:skills 渲染 vs v2 自有快照基线(版本号归一化)
-golden-generate:
-    bun run golden:generate
+# skills 模板渲染门:runInit 产物 vs tests/golden/baseline(版本号归一化)+ 本仓 .agents/skills 新鲜度
+generate-skills-template-baseline:
+    bun run generate:skills-template-baseline
 
-golden-check:
-    bun run golden:check
-
-golden:
-    bun run golden:check
+check-skills-template-render:
+    bun run check:skills-template-render
 
 # 真实 LLM 链路冒烟(env 守卫,未配置模型时干净跳过)
 smoke-context:

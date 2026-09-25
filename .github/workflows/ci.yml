@@ -34,8 +34,8 @@ jobs:
           bun-version-file: .bun-version
       - run: bun install --frozen-lockfile
       - run: bun test tests/
-      # golden 门(skills 渲染 vs v2 自有快照基线,版本号归一化)
-      - run: bun run golden:check
+      # skills 模板渲染门(runInit vs 快照基线 + .agents/skills 新鲜度,版本号归一化)
+      - run: bun run check:skills-template-render
       # pending 计量门 + config schema 产物漂移门(与 just qa 同集合)
       - run: bun run pending-gate
       - run: bun run check:schema

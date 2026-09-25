@@ -116,6 +116,6 @@ llman-sdd:spec 驱动开发(SDD)工作流(TypeScript + Bun),完全接替 Rust ll
 - 生命周期:main worktree 保持 main → `llman-sdd change start <id>`(干净树建 `sdd/<id>` 绑定)→ `wt switch sdd/<id>` 落 worktree → 在 change worktree 内完成 Specs landing / 实施 / 门禁 → 在 change worktree 内执行 `llman-sdd change finalize <id>`(squash 合并 + SSOT 改名 + 归档提交;目标分支由 main worktree 持有且干净时,finalize 在该 main worktree 内完成合并与收口,r69)→ `wt remove`
 - 收口一律 `change finalize`,不用 `wt merge`(finalize 负责 specs SSOT 改名与 archive 提交;其合并步骤对目标被 worktree 持有有显式降级)
 - 并行约束:同批并行 change 的 `llmanspec/specs/**` 文件必须两两不相交;触碰同一代码文件(如 main.ts)的改动不得并行——规划时按文件相交性分组
-- 门禁:worktree 内 `just qa`(check + test + golden + pending + schema 全集);合并顺序由 main worktree 串行执行(先到先 finalize,后来者 rebase)
+- 门禁:worktree 内 `just qa`(check + test + skills 模板渲染门 + pending + schema 全集);合并顺序由 main worktree 串行执行(先到先 finalize,后来者 rebase)
 - 多 agent 拉起:`wt switch sdd/<id> -x <agent-cli> -- '<任务提示>'`;监控 `wt list` / `wt step for-each`
 
