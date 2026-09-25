@@ -3,7 +3,11 @@ WORKDIR /app
 ENV PATH="/root/.bun/bin:${PATH}"
 ENV PI_CODING_AGENT_DIR=/tmp/pi-config
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates curl python3 \
-  && rm -rf /var/lib/apt/lists/*
+  && rm -rf /var/lib/apt/lists/* \
+  && curl -LsSf https://astral.sh/uv/install.sh | sh \
+  && /root/.local/bin/uv tool install 'harbor-rewardkit==0.2.*'
+ENV PATH="/root/.local/bin:${PATH}"
+ENV LITELLM_LOCAL_MODEL_COST_MAP=True
 # Pi is preinstalled so trials do not nvm+npm (allowlist would fail).
 # bun --global may not link ~/.bun/bin/pi; wrap dist/bundle/cli.js instead.
 RUN bun add --global --trust @earendil-works/pi-coding-agent@0.85.1 \

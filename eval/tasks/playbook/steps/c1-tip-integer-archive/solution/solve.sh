@@ -44,7 +44,7 @@ cat > llmanspec/specs/tip-output.feature <<'FEAT'
 # language: zh-CN
 # capability: tip-output
 # purpose: 小费 CLI 打印整数分。
-# scope: src/main.ts, tests/tip.test.ts
+# scope: src/main.ts, unit/tip.test.ts
 功能: tip-output
   @req:r1 @human
   场景: 整数分

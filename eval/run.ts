@@ -250,6 +250,10 @@ function harborInfraFailure(jobsDir: string, jobName: string): string | undefine
   return undefined;
 }
 
+function rewardValueGreen(value: unknown): boolean {
+  return value === true || value === 1 || (typeof value === 'number' && value === 1);
+}
+
 function harborRewardFailures(jobsDir: string, jobName: string): string | undefined {
   const jobDir = join(jobsDir, jobName);
   if (!existsSync(jobDir)) return `missing job dir ${jobDir}`;
@@ -268,7 +272,7 @@ function harborRewardFailures(jobsDir: string, jobName: string): string | undefi
   for (const rewardPath of rewardPaths) {
     try {
       const reward = JSON.parse(readFileSync(rewardPath, 'utf8')) as Record<string, unknown>;
-      const bad = Object.entries(reward).filter(([, v]) => v !== 1);
+      const bad = Object.entries(reward).filter(([, v]) => !rewardValueGreen(v));
       if (bad.length > 0) {
         return `${rewardPath}: ${bad.map(([k, v]) => `${k}=${String(v)}`).join(', ')}`;
       }
@@ -461,6 +465,8 @@ function main(): void {
     }
     codes[name] = code;
   }
+  const viewDir = join(runDir, 'groups', baseline);
+  const allGreen = Object.values(codes).every((c) => c === 0);
   const rollup = {
     runId,
     agent,
@@ -470,16 +476,19 @@ function main(): void {
     harborModel: pi?.harborModel ?? null,
     insufficient: insufficient ? 'n<3 (insufficient)' : null,
     exitByGroup: codes,
-    view: `harbor view ${runDir}`,
+    view: `harbor view ${viewDir}`,
   };
   writeFileSync(join(runDir, 'rollup.json'), `${JSON.stringify(rollup, null, 2)}\n`);
   const summary = [
-    `结论: ${Object.values(codes).every((c) => c === 0) ? 'Harbor jobs exited 0' : 'one or more groups failed'}`,
-    `风险: concurrency capped at 2 trials; Pi internals may still burst`,
-    `待决策: fill eval/groups.yaml then rerun if this was a dry config check`,
+    `结论: ${allGreen ? 'all groups all-1 rewards' : 'one or more groups failed'}`,
+    `agent: ${agent}`,
+    `n_attempts: ${nAttempts}${insufficient ? ' — n<3 (insufficient)' : ''}`,
+    pi === undefined ? 'model: oracle' : `model: ${pi.harborModel} thinking=${pi.thinking}`,
+    `风险: Harbor n_concurrent_trials=2; a single Pi trial may still burst chat`,
     '',
     `run: ${runDir}`,
-    `view: harbor view ${runDir}`,
+    `view: harbor view ${viewDir}`,
+    'view 说明: 本地 127.0.0.1:8080-8089，无需注册/登录；保持命令运行即可浏览轨迹与 reward。',
   ].join('\n');
   writeFileSync(join(runDir, 'SUMMARY.md'), `${summary}\n`);
   console.log(summary);

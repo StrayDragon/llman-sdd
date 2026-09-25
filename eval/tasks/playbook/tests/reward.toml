@@ -1,0 +1,5 @@
+# Named subdirs are Harbor Reward Kit dimensions (one scorecard row each).
+# all-pass so Harbor min_reward looks up key "reward".
+[[reward]]
+name = "reward"
+aggregation = "all-pass"
