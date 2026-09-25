@@ -11,7 +11,7 @@
 
   @req:r2 @human
   场景: 质量门禁
-    - justfile MUST 提供 check 聚合门禁(typecheck = tsc --noEmit、oxlint、oxfmt --check 三项全过)与 qa 聚合门禁;qa MUST 依次聚合 check、bun test、golden:check(skills 渲染基线)、pending-gate(待决规则门)与 check:schema(config schema 产物漂移)。根 package.json 的 qa 脚本 MUST 聚合同一集合;CI MUST 运行同一集合,不得多于或少于本地 qa。上述三处一致性 MUST 由只读对账断言锁定,缺项 MUST 逐项报出。pre-commit(prek)MUST 至少包含 oxlint 与 oxfmt --write 两个 local hook,并附带 pre-commit-hooks v5 的 whitespace 系检查。
+    - justfile MUST 提供 check 聚合门禁(typecheck = tsc --noEmit、oxlint、oxfmt --check 三项全过)与 qa 聚合门禁;qa MUST 依次聚合 check、bun test、golden:check(skills 渲染基线)、pending-gate(待决规则门)与 check:schema(config schema 产物漂移)。根 package.json 的 qa 脚本 MUST 聚合同一集合;CI MUST 运行同一集合,不得多于或少于本地 qa。上述三处一致性 MUST 由只读对账断言锁定,缺项 MUST 逐项报出。pre-commit(prek)MUST 至少包含 oxlint 与 oxfmt --write 两个 local hook,并附带 pre-commit-hooks v5 的 whitespace 系检查。justfile MAY 另含不进入 qa 聚合的配方(如外部剧本 `eval`);该配方 MUST NOT 被 qa 调用。
 
   @req:r3 @human
   场景: core 纯域纪律

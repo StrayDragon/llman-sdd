@@ -1,0 +1,45 @@
+# schema_version 1.4 for multi-step (shared container).
+schema_version = "1.4"
+
+[task]
+name = "llman-sdd/eval-playbook"
+version = "0.1.0"
+description = "Two-round SDD on a tip CLI: integer tip archive, then zero-amount archive."
+keywords = ["llman-sdd", "sdd", "playbook", "rewardkit", "multi-step"]
+
+multi_step_reward_strategy = "final"
+
+[metadata]
+difficulty = "hard"
+category = "programming"
+tags = ["sdd", "eval"]
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0
+
+[environment]
+network_mode = "allowlist"
+allowed_hosts = ["host.docker.internal", "localhost"]
+cpus = 2
+memory_mb = 4096
+storage_mb = 20480
+workdir = "/app"
+
+# Directory names under steps/ MUST equal [[steps]].name.
+[[steps]]
+name = "c1-tip-integer-archive"
+min_reward = 1.0
+[steps.agent]
+timeout_sec = 1800.0
+[steps.verifier]
+timeout_sec = 300.0
+
+[[steps]]
+name = "c2-zero-amount-archive"
+[steps.agent]
+timeout_sec = 1800.0
+[steps.verifier]
+timeout_sec = 300.0

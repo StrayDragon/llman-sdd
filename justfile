@@ -77,6 +77,14 @@ gen-schema:
 check-schema:
     bun run check:schema
 
+# 外部影响面剧本 eval（默认 Pi）。不进 qa。先 `cp eval/groups.yaml.example eval/groups.yaml` 并替换 FILL。
+eval *args:
+    bun eval/run.ts {{args}}
+
+# 从 eval/groups-schema.ts 重生 groups.yaml.example（勿手改 example）
+eval-example:
+    bun eval/render-groups-example.ts
+
 # 清理构建产物
 clean:
     rm -rf apps/cli/dist

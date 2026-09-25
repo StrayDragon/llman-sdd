@@ -197,6 +197,10 @@ sketch
 
 coverage/
 
-
 ### llman sdd derived cache
 llmanspec/.context/
+
+# Playbook eval local results and user-filled group locators
+.local/eval/
+eval/groups.yaml
+

@@ -1,5 +1,8 @@
 ---
 depends_on: []
+branch: sdd/eval-playbook-base-new-version-docker-agent
+base_branch: main
+base_sha: 0247c520a5b12b0648ab01a0c03f6bb0199a26ab
 ---
 
 # 外部影响面 Eval 剧本流水线
@@ -12,11 +15,11 @@ depends_on: []
 
 ## What Changes
 
-- 套件目录：`eval/tasks/playbook/`（Harbor multi-step 任务）、`eval/demo_projects/`（小费小 CLI 种子）、`eval/groups.yaml`（`groups` 映射 **≥2** 个名字自定的 group，各含 `worktree`；`baseline` 指出 delta 零点的 group 名，缺省为映射中的第一项）。结果只进 `.local/eval/`，按 run 结构化保留（见 design）。
+- 套件目录：`eval/tasks/playbook/`（Harbor multi-step 任务）、`eval/demo_projects/`（小费小 CLI 种子）、`eval/groups.yaml`（`groups` 映射 **≥1** 个名字自定的 group；第二组可选；空 `worktree` = 当前仓；`baseline` 指出 delta 零点）。结果只进 `.local/eval/`，按 run 结构化保留（见 design）。
 - 唯一入口：`just eval` → 按 group **串行** `harbor run`（尽量全局 vLLM in-flight ≤ 2：`n_concurrent_trials: 2`，group 之间不并行）。不引入 promptfoo；人审用 `harbor view .local/eval/jobs`。
-- 一条 trial = 同容器 C1→C2。C1 `min_reward = 1.0` 未达则中止，C2 不跑。init 在 `steps/c1/workdir/setup.sh`，不是 Pi 被评阶段。
+- 一条 trial = 同容器 `c1-tip-integer-archive` → `c2-zero-amount-archive`。第一轮 `min_reward = 1.0` 未达则中止，第二轮不跑。init 在 `steps/c1-tip-integer-archive/workdir/setup.sh`，不是 Pi 被评阶段。
 - `n_attempts: 3`（YAML 必填，CLI 不给缺省）；`<3` 时结论标 `n<3 (insufficient)`。
-- 裁判：Reward Kit 程序化准则（git / frontmatter / `validate --specs --strict` / 恰好一次 `archive(sdd):`）。MVP **不用** LLM judge。Oracle（`solve.sh`）校准断言集，不进 `just qa`。
+- 真 Pi 是本 change 的完成条件，不是后续 change。Oracle 只校准断言集（无模型），不能代替 Pi 剧本。缺 Pi 或 vLLM 端点时 `just eval` MUST 硬失败。
 - 镜像与被测物分离：eval 镜像只含 bun/git/Node/Pi。`--mounts-json` 只读挂 worktree→`/opt/llman-sdd` 与 seed→`/opt/seed`；`setup.sh` `cp` 到 `/app` 后读写。`--skill` 取该 group worktree 的渲染 `.agents/skills`。
 - MUST NOT 改 `just qa` 语义；MUST NOT 把剧本基线写入 golden；Python/Harbor **不进** `packages/`。
 
@@ -37,12 +40,12 @@ depends_on: []
 
 - **只 Harbor**：multi-step = C1/C2（同容器，文件延续，符合「第二轮开发」）；Reward Kit = 机械记分卡；`harbor view` = 看逐步 reward + 轨迹。
 - **独立镜像 + 只读挂载 + 容器内拷贝**：eval 镜像不含 llman-sdd、不因 group/种子变化而 rebuild。`groups.*.worktree` 与 `eval/demo_projects/` 经 `--mounts-json` 只读挂入；`setup.sh` `cp` 到 `/app` 后再 git/init。agent 只读写拷贝。仅 `-e docker`。
-- **groups ≥ 2、名字自定**：比较实验至少两组；`base`/`new_version` 只是常用名，不是 schema 必填键。`baseline` 标明 delta 零点。
+- **groups ≥ 1、第二组可选**：空 `worktree` = 当前仓；`experiment` 不是必填。`baseline` 仅在 ≥2 组时做 delta。
 - **n_attempts: 3**（写在 YAML）。
 - **LLM 并发尽量 ≤ 2**：Harbor `n_concurrent_trials: 2`；group 串行；单 trial 内 Pi 仍可能连发请求，无法硬闸模型内部并行。
 - **打标之后**：改 skill 模板或改 `checks.py`，再跑非 baseline group。不把 👍 喂进第二个评测 UI。
 - **C1/C2 不换容器**：冷启动是 **trial 之间**，不是 C1 与 C2 之间。
-- **promptfoo 不进 v1**。需要 👍 矩阵时另开 change。
+- **真 Pi 必须在本 change 交付**：评的是 agent 跟 skill，不是 Oracle 脚本。Oracle 仅证明断言能分真假。缺端点禁止把 skip 写成绿。
 
 ## Open Questions
 

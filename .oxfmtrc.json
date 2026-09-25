@@ -25,6 +25,7 @@
     "packages/core/templates/",
     "llmanspec/",
     "AGENTS.md",
-    "artifacts/"
+    "artifacts/",
+    "docs/research/**"
   ]
 }

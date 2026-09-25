@@ -19,6 +19,7 @@
     "apps/*/src/**/*.ts",
     "apps/*/scripts/**/*.ts",
     "tests/**/*.ts",
-    "scripts/**/*.ts"
+    "scripts/**/*.ts",
+    "eval/**/*.ts"
   ]
 }

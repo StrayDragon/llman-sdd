@@ -6,10 +6,10 @@
 
 | 层 | 职责 | 不做什么 |
 |---|---|---|
-| `eval/groups.yaml` | `groups` 映射（≥2 名字自定）、`baseline`、`n_attempts: 3`、vLLM model | 不写 Docker 生命周期 |
+| `eval/groups.yaml` | `groups` 映射（≥1，第二组可选）、空 worktree=当前仓、`baseline`、`n_attempts`、vLLM model | 不写 Docker 生命周期 |
 | eval 镜像（一次构建） | bun + git + Node 24 + 预装 Pi；**零 llman-sdd 源码** | 不为每个 group 重建 |
 | `eval/tasks/playbook/` | Harbor 任务：Dockerfile/预构建 tag、multi-step C1/C2、Reward Kit、Oracle | 不 COPY 某一版 CLI |
-| `eval/demo_projects/` | C1 boot（小费小 CLI）拷进 `steps/c1/workdir/` | 不是给开发者日常开发的 app |
+| `eval/demo_projects/` | 种子（小费小 CLI）拷进 `steps/c1-tip-integer-archive/workdir/` | 不是给开发者日常开发的 app |
 | `just eval` | 按 group **串行** `harbor run --mounts-json`；`-o .local/eval/runs/<id>/` | 不并行两个 group（尽量守 vLLM 顶 2） |
 | `harbor view .local/eval/runs/<id>` | 人审：逐步 reward、轨迹、verifier 文件 | 不是 promptfoo 👍 库 |
 
@@ -25,13 +25,13 @@ eval/
     task.toml                      # schema_version 1.4, multi_step_reward_strategy
     environment/Dockerfile         # 独立基座；不含 llman-sdd
     # n_attempts: 3 写在 groups.yaml / job config，不在 CLI 缺省
-    steps/c1/
-      instruction.md               # 老板原话 C1
+    steps/c1-tip-integer-archive/   # 第一轮：整数小费 → 归档
+      instruction.md
       workdir/                     # tiny-cli + setup.sh
-      tests/                       # 本步 Reward Kit
+      tests/
       solution/solve.sh            # Oracle：脚本走完 SDD，无 Pi
-    steps/c2/
-      instruction.md               # 老板原话 C2
+    steps/c2-zero-amount-archive/   # 第二轮：金额 0 → 再归档
+      instruction.md
       tests/
       solution/solve.sh
     tests/                         # 共享 @criterion helpers，每步先上传再被 step tests 覆盖
@@ -45,7 +45,7 @@ eval/
 新容器（冷）= 独立镜像 + 只读 bind（worktree→/opt/llman-sdd，seed→/opt/seed）
   Harbor 上传 job --skill（该 group worktree 的 .agents/skills）
   Pi setup：cp skills → $HOME/.agents/skills（失败静默 → 后面准则打红）
-steps/c1:
+steps/c1-tip-integer-archive:
   setup.sh（agent 用户、cwd=/app）：
     cp -a /opt/seed/. /app/
     git init + 首提
@@ -54,14 +54,14 @@ steps/c1:
     断言 .agents/skills/llman-sdd-explore/SKILL.md 存在
     unset LLMAN_SDD_HARNESS_ACTIVE
     rm -- "$0"
-  Pi 跑 C1 instruction（--approve，信任项目 skill）
+  Pi 跑 c1-tip-integer-archive instruction（--approve，信任项目 skill）
   Reward Kit @ /app：本步记分卡
-  reward < min_reward(1.0) → 中止 trial，C2 不跑
-steps/c2: 同容器，仓库已含 C1 产物
-  Pi 跑 C2
-  Reward Kit：第二轮归档 + 未改写 C1 archive
+  reward < min_reward(1.0) → 中止 trial，c2-zero-amount-archive 不跑
+steps/c2-zero-amount-archive: 同容器，仓库已含上一轮产物
+  Pi 跑本步 instruction
+  Reward Kit：第二轮归档 + 未改写上一轮 archive
 聚合：multi_step_reward_strategy = "final"
-  （末步已含「两轮都在」；若 C1 早停，final = C1 结果，不是假绿 C2）
+  （末步已含「两轮都在」；若第一轮早停，final = 该步结果，不是假绿第二轮）
 ```
 
 **同容器不是泄漏。** C2 要在 C1 的 git 历史上继续。隔离边界是 **(group × attempt)** 各一新容器。
@@ -78,6 +78,7 @@ separate verifier **不继承** runtime mounts。机械准则要调挂载的 `ll
 |---|---|---|
 | `groups.<id>.worktree` | `/opt/llman-sdd` | 被测 CLI + 该版本已渲染 skills |
 | 本仓 `eval/demo_projects/tiny-cli` | `/opt/seed` | 初始化项目；改种子不 rebuild |
+| run 目录 `pi-config/` | `/opt/pi-seed` | 自动生成的 Pi `models.json`（Responses API + thinking max）；wrapper 拷到可写 `/tmp/pi-config` 供 Pi 写 `auth.json` |
 
 `just eval` 每个 group：
 
@@ -86,7 +87,7 @@ separate verifier **不继承** runtime mounts。机械准则要调挂载的 `ll
 3. `--skill <worktree>/.agents/skills`。
 4. `--job-name playbook-<group>`，`-o .local/eval/runs/<run-id>/groups/<group>`。
 
-`steps/c1/workdir/setup.sh`（Harbor 在 agent 前、WORKDIR=/app 执行）：
+`steps/c1-tip-integer-archive/workdir/setup.sh`（Harbor 在 agent 前、WORKDIR=/app 执行）：
 
 ```bash
 cp -a /opt/seed/. /app/
@@ -104,7 +105,7 @@ rm -- "$0"
 
 ## groups.yaml 与结果留存
 
-名字自定，比较实验 **至少 2** 个 group；少于 2 硬失败。`baseline` 是 delta 零点的 group 名，缺省为映射第一项。`base`/`new_version` 只是示例名。
+名字自定，**至少 1** 个 group；第二组（如 experiment）可选。少于 1 硬失败。空/`null`/缺省 `worktree` = 当前 llman-sdd 仓库根。`baseline` 是 delta 零点（仅当 ≥2 group 时有意义），缺省映射第一项。
 
 ```yaml
 n_attempts: 3
@@ -172,7 +173,7 @@ harbor view .local/eval/runs/<run-id>
 
 `just eval` 只是上述顺序的别名 + 写 `config.snapshot.yaml` / `rollup.json`。人读一屏在 `SUMMARY.md`；主审仍在 viewer。
 
-vLLM：OpenAI 兼容；temperature 钉 0；attempt 种子 = `base_seed + attempt_index`（在线 batch 不保证 bit 级可复现，报告须写明）。Pi 与准则共用同一端点时仍占并发预算——MVP 无 LLM judge，准则不占。
+vLLM：OpenAI **Responses** API（Pi `api: openai-responses` + chat-template thinking kwargs），不是 chat completions。temperature 钉 0；0731 `--thinking max`。attempt 种子 = `base_seed + attempt_index`（在线 batch 不保证 bit 级可复现，报告须写明）。Pi 与准则共用同一端点时仍占并发预算——MVP 无 LLM judge，准则不占。
 
 ## 打标反馈环（不是叙事）
 
@@ -186,16 +187,18 @@ vLLM：OpenAI 兼容；temperature 钉 0；attempt 种子 = `base_seed + attempt
 
 ## Agent 可插拔
 
-默认 `-a pi`。换 Cursor CLI 是另一次 `harbor run -a cursor-cli`，任务目录不动。Pi 必须 `--approve`（或 Harbor `build_cli_flags`）否则不信任项目 `.agents/skills`。镜像预装 Pi，禁止 trial 时 nvm+npm（allowlist 会挂）。
+默认 `-a pi`。换 Cursor CLI 是另一次 `harbor run -a cursor-cli`，任务目录不动。Pi 必须 `--approve`（镜像把 `pi` 包成 `pi.real --approve`）否则不信任项目 `.agents/skills`。镜像预装 Pi，禁止 trial 时 nvm+npm（allowlist 会挂；nvm/curl 在镜像里是 stub）。
 
-网络：`[environment].network_mode` 对 vLLM 用 allowlist（宿主机/内网端点），禁止缺省 `public`。Docker 无 `dynamic_network_policy`：agent 与 verifier 网络基线必须相同，或接受 shared + 同一 allowlist。
+Pi 端点 **不要** 走 Harbor `--ak model_api` + `OPENAI_BASE_URL`：那会写成精简 `harbor-endpoint`，丢掉 `compat` / `chatTemplateKwargs` / `thinkingLevelMap`。`just eval` 生成完整 `models.json`（缺省 provider `fusionsparks`，`api: openai-responses`），只读挂到 `/opt/pi-seed`（Harbor 0.23 mounts 强制 `read_only: true`），wrapper 拷到 `/tmp/pi-config` 并设 `PI_CODING_AGENT_DIR`（Pi 要写 `auth.json`），Harbor `-m fusionsparks/<id>`。`--thinking` 缺省 `max`（0731 用户默认强度；Harbor 0.23 PiOptions 无 `max`，走 wrapper `PI_THINKING`；YAML `pi.thinking` 可覆盖）。url 只写进 `models.json`，不导出给 Harbor 进程。
+
+网络：`[environment].network_mode` 对 vLLM 用 allowlist（宿主机/内网端点），禁止缺省 `public`。Docker bridge 到不了 Tailscale `100.x`，`just eval` 在宿主起 TCP 代理，`models.json` 写成 `http://host.docker.internal:<port>/v1`，extra_hosts 打在 **sidecar**（main 与 sidecar 共享 netns，打在 main 会和 `network_mode` 冲突）。Docker 无 `dynamic_network_policy`：agent 与 verifier 网络基线必须相同，或接受 shared + 同一 allowlist。
 
 ## 与 qa 的边界
 
-`just qa` / `bun test tests/` 不调用 `harbor run`、不 docker、不 Pi。新 capability 的 `@executable` 只覆盖：`groups.yaml` 映射 ≥2、`baseline` 必须是其中一键、`n_attempts` 存在性（若用 TS 读文件）。真 Oracle/Pi 只经 `just eval`。禁止 `makeTempRepo` 当剧本 boot。
+`just qa` / `bun test tests/` 不调用 `harbor run`、不 docker、不 Pi。新 capability 的 `@executable` 只覆盖：`groups.yaml` 映射 ≥1、空 worktree、`baseline` 若出现则属于 keys、`n_attempts` 存在性。真 Oracle/Pi 只经 `just eval`。禁止 `makeTempRepo` 当剧本 boot。
 
 ## 测试接缝
 
 1. **Harbor 任务形态**：`harbor run -a oracle` 退出 0 且 reward 1.0（人/实现阶段；非 qa）。
 2. **负例 Oracle**：`--no-check` 假绿路径 `validate_specs_strict=0`。
-3. **wrapper**：`groups` 少于 2 个、`baseline` 不是其中一键、或缺端点 → 硬失败。
+3. **wrapper**：`groups` 少于 1 个、`baseline` 不是其中一键、或缺端点 → 硬失败。
