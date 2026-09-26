@@ -1,13 +1,4 @@
 ---
+title: "Bootstrap:Bun/TS 重写地基与工程契约(Phase 0+1)"
 depends_on: []
-branch: sdd/bootstrap-monorepo-scaffold
-base_sha: 4b84edf1c6944d1007f6e835db66aea5cc2be02a
-base_branch: main
-frozen:
-  at: "2026-09-26T11:29:55.347Z"
-  archive: "freezed_changes.7z.archived"
-  files:
-    "design.md": 1784f388d01676a1223d9080c3988e84d983c528d1d3f1d30627dd4b0214af2c
-    "proposal.md": e5ccbf8ba73027b807fe38dac1ce7d8af468e43539f94753a0f5c0d7db6cdac5
-    "tasks.md": 25268df000b419fc09be83508e5abfd25ecdcf86457bd86a5525a75f312c84ba
 ---

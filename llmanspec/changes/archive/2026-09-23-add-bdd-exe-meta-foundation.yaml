@@ -1,14 +1,4 @@
 ---
+title: "BDD executable 化·LOWER 批:init + monorepo + review-freeze 元基座配对验收"
 depends_on: []
-needs_specs_change: true
-branch: sdd/add-bdd-exe-meta-foundation
-base_branch: main
-base_sha: 0588ead04e6ad8f8ef58bed753c0177a16948f58
-frozen:
-  at: "2026-09-26T11:29:55.347Z"
-  archive: "freezed_changes.7z.archived"
-  files:
-    "design.md": 4bd53b7c40562dc284a14a73e863119156396e14b78718389c22015f452d1b60
-    "proposal.md": 4c16d9e3f0387e8c9f05a0d2bf799e4681bc2de1e18f865df2f7d7857e30501e
-    "tasks.md": e007563d2b89aa88c68f9b6e764377fceed7197582389de1d27d2cf21900b6bd
 ---

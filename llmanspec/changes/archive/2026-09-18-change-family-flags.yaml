@@ -1,13 +1,4 @@
 ---
-depends_on:
-  - align-next-id-numeric
-branch: sdd/change-family-flags
-base_branch: main
-base_sha: 00a60ec93f800dc454ec849c24330f3172887058
-frozen:
-  at: "2026-09-26T11:29:55.347Z"
-  archive: "freezed_changes.7z.archived"
-  files:
-    "proposal.md": 8321e154bf9f85223c53cf7639d5af7fdc387a7e81b64d0e1bd57bf2ef663632
-    "tasks.md": fa606c436cf40eb5b1af7c57277e8bee46888e678db94691fcfb8b941eb6ce78
+title: "change 族 flag 对齐:new/attach/start/finalize/diff"
+depends_on: [align-next-id-numeric]
 ---

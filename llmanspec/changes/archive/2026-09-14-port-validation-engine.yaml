@@ -1,14 +1,4 @@
 ---
-depends_on:
-- port-config-and-parsing
-branch: sdd/port-validation-engine
-base_sha: 453740cdfa3ff501c216691ca73d0cf95879e66b
-base_branch: main
-frozen:
-  at: "2026-09-26T11:29:55.347Z"
-  archive: "freezed_changes.7z.archived"
-  files:
-    "design.md": f36ba32157056e2f171caab9076a57b1f8eed0343ea5d772855338a21e9f7f18
-    "proposal.md": 524428de38e0ade8aebea6e0045b8c975fdb2ae60f844f2714eb6e76cfbfbbdd
-    "tasks.md": e38a5568b6a28be21009fe64a7c1208254f678ebc3f057cc5684e8c5ba8d6760
+title: "Port:校验引擎(Phase 3)"
+depends_on: [port-config-and-parsing]
 ---

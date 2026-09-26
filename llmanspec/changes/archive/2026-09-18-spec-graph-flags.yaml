@@ -1,13 +1,4 @@
 ---
-depends_on:
-  - fix-graph-flow-deps
-branch: sdd/spec-graph-flags
-base_branch: main
-base_sha: cf33fa7591d32debf7766b636f8c8f7c718bc707
-frozen:
-  at: "2026-09-26T11:29:55.347Z"
-  archive: "freezed_changes.7z.archived"
-  files:
-    "proposal.md": 356be6a46e5f7e9f37e822a0d51f6e1309637d323ab8e144bc4e0913238e3a7e
-    "tasks.md": 0a58a5d1675c47f6a1c2742ab70653b860c5c5b2678cc7c9a994126f94609292
+title: "graph 范围/深度与 spec 助手兼容 flag"
+depends_on: [fix-graph-flow-deps]
 ---

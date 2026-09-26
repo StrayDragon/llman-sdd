@@ -1,13 +1,4 @@
 ---
+title: "change next-id 回归 v1 数字编号计数语义"
 depends_on: []
-branch: sdd/align-next-id-numeric
-base_branch: main
-base_sha: 1f7a1edd74efb6de4ff7a08a5222c79618df965a
-frozen:
-  at: "2026-09-26T11:29:55.347Z"
-  archive: "freezed_changes.7z.archived"
-  files:
-    "design.md": 77df4ad121a6c5f54ecc1c9095bdbf0a6c8e8a41445d5aa94a5635fd79aecc13
-    "proposal.md": 561ca5e10e50e87e5b1e91ad1f0baf1cc084b075f60eb1a20bcf322a33ba03fa
-    "tasks.md": 57deb29dd7b6a7fefb66f6fe474ed4b47ade89d93ac7ef41689a88ece9010e22
 ---

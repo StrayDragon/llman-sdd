@@ -1,12 +1,4 @@
 ---
+title: "init CLI 面兼容:目标路径位置参数与 --lang 别名"
 depends_on: []
-branch: sdd/init-cli-compat
-base_branch: main
-base_sha: 73dd795cb76f7e4ee8c8eb0dffafa17d65b58ed3
-frozen:
-  at: "2026-09-26T11:29:55.347Z"
-  archive: "freezed_changes.7z.archived"
-  files:
-    "proposal.md": 7177281b6e985a3b001bf56e20ab10c6a22573e9cc2d83df21c9d62311fb54bc
-    "tasks.md": cd081a25e945f042de7927dddb9ccfc5bcf7feceb852ecbe3e978c33bb856eed
 ---

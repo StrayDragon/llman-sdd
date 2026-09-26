@@ -1,14 +1,4 @@
 ---
+title: "文档事实纠偏与 QA 门禁接线统一"
 depends_on: []
-needs_specs_change: true
-branch: sdd/align-docs-and-gates
-base_branch: main
-base_sha: e16d51b928c1ccb837ddbc7373650456cad41067
-frozen:
-  at: "2026-09-26T11:29:55.347Z"
-  archive: "freezed_changes.7z.archived"
-  files:
-    "design.md": 80b22f05e5c298381b34978fd1f16688e42294a4afe62080339e31f3e26a7404
-    "proposal.md": 57bc13817243374365ea093412154c5f323acb97e5200c7a89cfb717cad7e85f
-    "tasks.md": 6da4f0a6049dc358357473de29c39197316407dbbc7f880c8a45ec62f24cbc74
 ---

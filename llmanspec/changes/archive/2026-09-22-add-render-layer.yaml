@@ -1,15 +1,4 @@
 ---
-depends_on:
-  - fix-show-dirstyle-specs
-needs_specs_change: false
-branch: sdd/add-render-layer
-base_branch: main
-base_sha: 91a90f471090a1eae57c7e54f05025eb9557a135
-frozen:
-  at: "2026-09-26T11:29:55.347Z"
-  archive: "freezed_changes.7z.archived"
-  files:
-    "design.md": 5bc9ec7c1498861f57cd15663b7c167dc71264e34f9d90b6d3834f13632bf6c0
-    "proposal.md": 929dd47945b5284a40f5d8b748e70bd989bdfbd80b28cb4ed14caf7e26bfbf4c
-    "tasks.md": ec6ca39e58aeef6d0ede90423dd5619c9619d45cf021e7d1a59f8d5acb98507f
+title: "渲染层地基:统一机器格式出口(IR + json/compact-json/toon 渲染器)"
+depends_on: [fix-show-dirstyle-specs]
 ---

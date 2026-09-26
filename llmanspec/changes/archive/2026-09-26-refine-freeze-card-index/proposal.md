@@ -1,5 +1,8 @@
 ---
 depends_on: []
+branch: sdd/refine-freeze-card-index
+base_branch: main
+base_sha: d133029d67984fd0e7dc36ffa04550face60cfb1
 ---
 
 ## Why

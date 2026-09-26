@@ -1,14 +1,4 @@
 ---
+title: "修复 show 对目录式 specs 的解析缺陷"
 depends_on: []
-needs_specs_change: false
-branch: sdd/fix-show-dirstyle-specs
-base_branch: main
-base_sha: 57320af30421566a3c4a0ebb480e7dac9720ffdc
-frozen:
-  at: "2026-09-26T11:29:55.347Z"
-  archive: "freezed_changes.7z.archived"
-  files:
-    "design.md": 1f61125b19b2c887e4a0be954211fe001f3fbee6df562292bcaf3174e3451f9f
-    "proposal.md": d38782b632282f24d245df9320545e4d6d12743c622ebf8c92bd431d82fe5d92
-    "tasks.md": 483fdd32fccfb41389975eae0a0fa06a55c10c3004bad4afe451099397ee1fcb
 ---

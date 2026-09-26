@@ -1,13 +1,4 @@
 ---
+title: ""
 depends_on: []
-branch: sdd/port-config-and-parsing
-base_sha: 2cb8cc230816c95a7b77575310d6ea1c4228bacf
-base_branch: main
-frozen:
-  at: "2026-09-26T11:29:55.347Z"
-  archive: "freezed_changes.7z.archived"
-  files:
-    "design.md": e3c82f23b3d942a7d9720816e9e7a4a831e9bb8ef879432ae06ea25c9bebdeb5
-    "proposal.md": 6d5bdf6bd65f1cfe2ef1e774ce2f55e533172b63efba8d2a70f738a129652c8c
-    "tasks.md": 597b42722e37d1d022a0c4d495dea3fb91aff2a22718efe4a4a264f14170efdb
 ---

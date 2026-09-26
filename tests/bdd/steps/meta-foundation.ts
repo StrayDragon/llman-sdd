@@ -404,24 +404,22 @@ bdd.thenStep('冷备文件生成且原目录被 `<YYYY-MM-DD>-<id>.yaml` 平铺�
   }
 });
 
-bdd.thenStep(
-  '平铺卡含对应 proposal.md frontmatter 字段与 frozen 元信息(文件清单/sha256)',
-  (ctx) => {
-    const repo = ctx.fixtures['卡冻结仓库'] as FreezeFixture;
-    const card = readFileSync(
-      join(repo.root, 'llmanspec', 'changes', 'archive', '2026-01-01-card-demo.yaml'),
-      'utf8',
-    );
-    if (!card.includes('depends_on: [other]')) {
-      throw new Error(`card lost proposal frontmatter:\n${card}`);
-    }
-    if (!card.includes('frozen:') || !card.includes('proposal.md') || !card.includes('design.md')) {
-      throw new Error(`card lacks frozen metadata or file list:\n${card}`);
-    }
-    const hex = card.match(/(?:proposal\.md|design\.md)": ([0-9a-f]{64})/u);
-    if (!hex) throw new Error(`card file list lacks sha256 digests:\n${card}`);
-  },
-);
+bdd.thenStep('平铺卡仅含 title 与 depends_on 且不含 frozen 段', (ctx) => {
+  const repo = ctx.fixtures['卡冻结仓库'] as FreezeFixture;
+  const card = readFileSync(
+    join(repo.root, 'llmanspec', 'changes', 'archive', '2026-01-01-card-demo.yaml'),
+    'utf8',
+  );
+  if (!card.includes('title: "card demo"')) {
+    throw new Error(`card lost the proposal title:\n${card}`);
+  }
+  if (!card.includes('depends_on: [other]')) {
+    throw new Error(`card lost depends_on:\n${card}`);
+  }
+  if (card.includes('frozen:') || card.includes('branch:') || card.includes('design.md')) {
+    throw new Error(`card carries stale frontmatter/frozen transcription:\n${card}`);
+  }
+});
 
 bdd.given('一个含平铺冻结卡与冷备的临时仓库', (ctx) => {
   if (bundledSevenZip !== 'ok') {
@@ -456,7 +454,7 @@ bdd.when('运行 archive thaw --change 该卡名', (ctx) => {
   } satisfies FreezeCliResult;
 });
 
-bdd.thenStep('原目录完整回到 changes/archive 下且内容与 sha256 校验一致', (ctx) => {
+bdd.thenStep('原目录完整回到 changes/archive 下且内容与冻结前一致', (ctx) => {
   const { code, stdout, stderr } = ctx.fixtures['卡解冻结果'] as FreezeCliResult;
   if (code !== 0) throw new Error(`thaw failed: ${stdout}${stderr}`);
   const repo = ctx.fixtures['卡解冻仓库'] as FreezeFixture;

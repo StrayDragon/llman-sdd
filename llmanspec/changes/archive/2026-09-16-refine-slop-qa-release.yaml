@@ -1,16 +1,4 @@
 ---
-depends_on:
-- port-context-index
-blocks:
-- release-v2-and-cutover
-branch: sdd/refine-slop-qa-release
-base_sha: 458260ad0d82b6e6464b0e2ebf25a4ca0f489daf
-base_branch: main
-frozen:
-  at: "2026-09-26T11:29:55.347Z"
-  archive: "freezed_changes.7z.archived"
-  files:
-    "design.md": c73f2bc8d40998b08a9b74e1fe160ade997cc8520bb1316ad1a779839ea6e711
-    "proposal.md": cb8f24139e105c21d138e7ff36af2938a1f327d0cbff9a7be4b9fe9c5a9f78d4
-    "tasks.md": c8215a502b9cbcddac96af2bee621e38162419b8791e1d2ad6ec8c82d3819fe0
+title: "Refine:全链路 slop 重构、QA 链路适配与工程化收尾(插队,先于 release)"
+depends_on: [port-context-index]
 ---

@@ -1,19 +1,4 @@
 ---
-depends_on:
-  [
-    fix-lifecycle-validation-defects,
-    harden-core-purity-config,
-    align-docs-and-gates
-  ]
-needs_specs_change: true
-branch: sdd/align-report-cli-surface
-base_branch: main
-base_sha: a02eff1a754d974894d8a93480095161f627c2b3
-frozen:
-  at: "2026-09-26T11:31:21.557Z"
-  archive: "freezed_changes.7z.archived"
-  files:
-    "design.md": 10e584034427430f1a3d05714d44f3123c532da55aa3848f519ffaf9fe448704
-    "proposal.md": 5454b2e96bbefb37100f55690cda34fd20f555c7f8ccabf9c5e4ccce61b014a5
-    "tasks.md": c256d05cb140ceb1cbefce291d0375648e3cb8c6638ef20aabb9c82a4bdce88d
+title: "报告面与 CLI 命令面对齐、残留面彻底清除与 0.4.0 发布"
+depends_on: [fix-lifecycle-validation-defects, harden-core-purity-config, align-docs-and-gates]
 ---

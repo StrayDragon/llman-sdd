@@ -1,17 +1,24 @@
 /**
- * Frozen-change thin-index card contract (review-freeze capability, r24/r25):
- * `freeze` replaces a dated archive dir with a flat card `<YYYY-MM-DD>-<id>.yaml`
- * whose content mirrors the archived proposal's frontmatter fence verbatim plus
- * a `frozen:` section (timestamp, body file list with per-file sha256, archive
- * name). Cards are the authoritative record that a change is in the cold backup.
+ * Frozen-change relationship-index card contract (review-freeze capability,
+ * r24/r25): `freeze` replaces a dated archive dir with a flat card
+ * `<YYYY-MM-DD>-<id>.yaml` whose content carries only the change's `title`
+ * (proposal H1) and `depends_on` (proposal frontmatter) — a human/agent
+ * readable navigation index. id and date are implied by the file name; bodies
+ * live in the 7z cold backup. Cards are the authoritative record that a change
+ * is in the cold backup.
  *
  * The card is a fenced YAML document (same `---` convention as proposal.md) so
  * existing frontmatter readers (`extractFrontmatter` / `parseDeps`) work
  * unchanged — parseDeps on a card text reads the preserved `depends_on`.
  *
+ * Depends_on extraction is deliberately dependency-free (no `yaml` package):
+ * it recognizes single-line flow `[a, b]`, block `- item` lists and multi-line
+ * flow blocks, then normalizes to a single-line flow array so `parseDeps`
+ * reads it unchanged. Anything unparseable degrades to `depends_on: []` (never
+ * blocks the freeze).
+ *
  * Pure string logic — all filesystem effects live in freeze.ts (FreezeIo).
  */
-import { parseDocument } from 'yaml';
 
 export const FROZEN_CARD_EXT = '.yaml';
 
@@ -30,83 +37,69 @@ export function isFrozenCard(name: string): boolean {
   return frozenCardIdOf(name) !== null;
 }
 
-export interface FrozenFileEntry {
-  path: string;
-  sha256: string;
-}
-
-export interface FrozenMeta {
-  at: string;
-  archive: string;
-  files: FrozenFileEntry[];
-}
-
-export interface ParseFrozenCardResult {
-  /** raw frontmatter fence content (between the delimiters). */
-  frontmatter: string;
-  /** frozen metadata section; undefined when absent (malformed). */
-  frozen?: FrozenMeta;
-  /** the raw card text, for pass-through readers. */
-  raw: string;
-}
-
-/** Compose a card document: original frontmatter + frozen section + close fence. */
-export function composeFrozenCard(frontmatter: string, frozen: FrozenMeta): string {
-  const fileLines = frozen.files.map((f) => `    "${escapeYamlScalar(f.path)}": ${f.sha256}`);
-  const lines = [
-    '---',
-    ...frontmatter.replace(/\n+$/u, '').split('\n'),
-    'frozen:',
-    `  at: "${escapeYamlScalar(frozen.at)}"`,
-    `  archive: "${escapeYamlScalar(frozen.archive)}"`,
-    '  files:',
-    ...fileLines,
-    '---',
-  ];
-  return `${lines.join('\n')}\n`;
-}
-
 function escapeYamlScalar(value: string): string {
   return value.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
 }
 
-/**
- * Parse a frozen card back to id/frontmatter/frozen. Returns null when the text
- * is not a fenced card (missing `---` fence or id shape).
- */
-export function parseFrozenCard(text: string): ParseFrozenCardResult | null {
-  if (!text.startsWith('---\n')) return null;
-  const close = text.indexOf('\n---', 4);
-  if (close === -1) return null;
-  const block = text.slice(4, close);
-  const raw = text;
-  // The id lives in the file name (`<YYYY-MM-DD>-<id>.yaml`), not in the body;
-  // callers derive it via `frozenCardIdOf`. The card text itself round-trips
-  // frontmatter and the frozen manifest.
-  const doc = parseDocument(block);
-  const map = doc.toJS() as Record<string, unknown> | null;
-  if (map === null || typeof map !== 'object') return null;
-  let frozen: FrozenMeta | undefined;
-  const fz = map['frozen'];
-  if (fz !== null && typeof fz === 'object') {
-    const fzMap = fz as Record<string, unknown>;
-    const filesRaw = fzMap['files'];
-    const files: FrozenFileEntry[] = [];
-    if (filesRaw !== null && typeof filesRaw === 'object') {
-      for (const [path, sha] of Object.entries(filesRaw as Record<string, unknown>)) {
-        if (typeof sha === 'string' && /^[0-9a-f]{64}$/u.test(sha))
-          files.push({ path, sha256: sha });
-      }
-    }
-    frozen = {
-      at: typeof fzMap['at'] === 'string' ? fzMap['at'] : '',
-      archive: typeof fzMap['archive'] === 'string' ? fzMap['archive'] : '',
-      files,
-    };
+/** Normalize a flow-list inner string (comma-separated, quotes stripped). */
+function splitFlowItems(inner: string): string[] {
+  const out: string[] = [];
+  for (const raw of inner.split(',')) {
+    const item = raw.trim().replaceAll(/^['"]|['"]$/gu, '');
+    if (item !== '') out.push(item);
   }
-  return {
-    frontmatter: block,
-    frozen,
-    raw,
-  };
+  return out;
+}
+
+function toFlow(items: string[]): string {
+  return items.length === 0 ? 'depends_on: []' : `depends_on: [${items.join(', ')}]`;
+}
+
+/**
+ * Extract `depends_on` from a proposal frontmatter block. Falls back to
+ * `depends_on: []` when absent/empty/unparseable — a malformed dependency list
+ * never breaks the freeze.
+ */
+export function extractDependsOn(frontmatter: string): string {
+  const lines = frontmatter.split('\n');
+  const flowIdx = lines.findIndex((l) => /^depends_on\s*:\s*\[/u.test(l));
+  if (flowIdx !== -1) {
+    // Single-line flow `depends_on: [a, b]` (may span lines).
+    let acc = (lines[flowIdx] ?? '').replace(/^depends_on\s*:/u, '').trim();
+    let j = flowIdx;
+    while (!/\]\s*$/u.test(acc) && j < lines.length - 1) {
+      j++;
+      acc += ` ${(lines[j] ?? '').trim()}`;
+    }
+    const inner = acc.replace(/^\[/u, '').replace(/\]\s*/u, '');
+    return toFlow(splitFlowItems(inner));
+  }
+  const blockIdx = lines.findIndex((l) => /^depends_on\s*:\s*$/u.test(l));
+  if (blockIdx !== -1) {
+    // Block list `- a` lines.
+    const items: string[] = [];
+    for (const l of lines.slice(blockIdx + 1)) {
+      const m = l.match(/^\s*-\s+(\S+)/u);
+      if (m?.[1]) items.push(m[1].replaceAll(/['"]/gu, ''));
+      // multi-line flow handled below
+      else if (/^\s*\[/u.test(l)) break;
+      else if (l.trim() !== '') break;
+    }
+    if (items.length > 0) return toFlow(items);
+    // Multi-line flow `[\n a,\n b\n ]`.
+    let acc = lines
+      .slice(blockIdx + 1)
+      .join(' ')
+      .replace(/^[^[]*\[/u, '');
+    acc = (acc.split(']')[0] ?? '').trim();
+    if (acc !== '') return toFlow(splitFlowItems(acc));
+    return 'depends_on: []';
+  }
+  return 'depends_on: []';
+}
+
+/** Compose a relationship-index card: `title` + `depends_on` inside fences. */
+export function composeFrozenCard(title: string, frontmatter: string): string {
+  const dependsOn = extractDependsOn(frontmatter);
+  return ['---', `title: "${escapeYamlScalar(title)}"`, dependsOn, '---'].join('\n') + '\n';
 }

@@ -1,13 +1,4 @@
 ---
+title: "补齐 config 命令面(只读概览 + extra_skills 非交互管理)"
 depends_on: []
-branch: sdd/add-config-command
-base_branch: main
-base_sha: 9b8d48eac2b6a7976d9a82557ee55ae4390fc430
-frozen:
-  at: "2026-09-26T11:29:55.347Z"
-  archive: "freezed_changes.7z.archived"
-  files:
-    "design.md": 76b86e66d790a34d1d5b54daa4e0d7f2eb01c5a140eb38f92217e8837c172952
-    "proposal.md": de0740bfdaea0bc396a30c8f3c91cbb7d156f0f6c09c1741b9bc8da2ea936288
-    "tasks.md": c349830d94c47e977443b43a77b50011a8b378a76d8fe8e96337200da3107059
 ---

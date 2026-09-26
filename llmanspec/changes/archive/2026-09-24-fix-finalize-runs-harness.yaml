@@ -1,13 +1,4 @@
 ---
+title: "收口时真跑验收命令"
 depends_on: []
-branch: sdd/fix-finalize-runs-harness
-base_branch: main
-base_sha: 97f46deea6217c8c051182ff0fcb60f862017f61
-frozen:
-  at: "2026-09-26T11:29:55.347Z"
-  archive: "freezed_changes.7z.archived"
-  files:
-    "design.md": 2be5498fa6520179dc4adbc71607626a537a88761b584f87aed03a94da8f9794
-    "proposal.md": 5d80835eb685e35a7847367215fc02be2639183ba41dba9f9f8ba89095bbfcd3
-    "tasks.md": 9c99dbf4a759a4965df1b9f7c208b39bf7a290ea7ac368a1bc1080625a911510
 ---

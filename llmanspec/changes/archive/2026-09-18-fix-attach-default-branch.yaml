@@ -1,12 +1,4 @@
 ---
+title: "change attach 补默认分支门禁"
 depends_on: []
-branch: sdd/fix-attach-default-branch
-base_branch: main
-base_sha: b881a4acf6afc309aed4d608089073a77299505f
-frozen:
-  at: "2026-09-26T11:29:55.347Z"
-  archive: "freezed_changes.7z.archived"
-  files:
-    "proposal.md": d2842017b398280cca7994c83268639a7b36716cb22c5b2d54f330b57e064ce7
-    "tasks.md": 9aa0d3326eae8696eadf77ab8c796f612a0377b423654dfe345ef18fe24ab4b5
 ---

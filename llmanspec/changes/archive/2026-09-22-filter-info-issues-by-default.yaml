@@ -1,14 +1,4 @@
 ---
-depends_on:
-  - add-render-layer
-branch: sdd/filter-info-issues-by-default
-base_branch: main
-base_sha: d2b613dd178cab670740c38dd53ddd9081a44883
-frozen:
-  at: "2026-09-26T11:29:55.347Z"
-  archive: "freezed_changes.7z.archived"
-  files:
-    "design.md": fcf1a2dc5e32c7df1d9c76c973b9d657fbb046f106338e8acd7a0d81f56cffbb
-    "proposal.md": a8ca6fbb2e03b6e515776a9aec1075eef41478bb67c01bdc020c41b236703b88
-    "tasks.md": 7a552666faa16aa0195c77b18ca09b9d359206df2d8cb9b0cdeb8a8fa1320e54
+title: "INFO 级 issue 缺省过滤(--include-info 恢复)"
+depends_on: [add-render-layer]
 ---

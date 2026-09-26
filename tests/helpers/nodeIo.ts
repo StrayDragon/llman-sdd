@@ -32,7 +32,6 @@ export function makeNodeIo(root: string) {
     listDir: (p: string): string[] => readdirSync(full(p)),
     isDirectory: (p: string): boolean => statSync(full(p)).isDirectory(),
     mtimeMs: (p: string): number => statSync(full(p)).mtimeMs,
-    now: (): Date => new Date(),
     remove: (p: string): void => rmSync(full(p), { force: true }),
     removeDir: (p: string): void => rmSync(full(p), { recursive: true, force: true }),
     moveDir: (from: string, to: string): void => {

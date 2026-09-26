@@ -1,13 +1,4 @@
 ---
+title: "技能模板指引全量对齐:命令值域·行为语义·authoring helpers 覆盖"
 depends_on: []
-branch: sdd/align-skill-template-guidance
-base_branch: main
-base_sha: f3b68d987e16dfdf43306219c6faa54e1fe2136a
-frozen:
-  at: "2026-09-26T11:29:55.347Z"
-  archive: "freezed_changes.7z.archived"
-  files:
-    "design.md": e1833bdc7188593726be5473150aec9d3b38bb7bf257bc0b5e1b441c4eb8eee9
-    "proposal.md": 75533c1f2e18dd10533871acfd28cb540790183ea91a60eede051544a2d03e02
-    "tasks.md": 9441b1384ad4ba39f19b1d904635ea36e56a7755eec08e1ede440a5692a50a04
 ---

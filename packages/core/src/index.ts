@@ -213,10 +213,6 @@ export {
   frozenCardIdOf,
   frozenCardName,
   isFrozenCard,
-  parseFrozenCard,
-  type FrozenFileEntry,
-  type FrozenMeta,
-  type ParseFrozenCardResult,
 } from './archive/frozenCard.ts';
 export {
   buildReview,

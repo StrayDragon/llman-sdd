@@ -1,14 +1,4 @@
 ---
+title: "core 纯度与配置契约加固:副作用注入、死配置清理、判定口径去重"
 depends_on: []
-needs_specs_change: true
-branch: sdd/harden-core-purity-config
-base_branch: main
-base_sha: e16d51b928c1ccb837ddbc7373650456cad41067
-frozen:
-  at: "2026-09-26T11:29:55.347Z"
-  archive: "freezed_changes.7z.archived"
-  files:
-    "design.md": e50ce575c99a254134e82a62c66e36d907136fb8ab3d83de624f13be0ccecc5e
-    "proposal.md": 8aba7260e69f56c8ab6296673c233bc2f2bd2de71c263d44aa98ff6bd081fd5d
-    "tasks.md": 7d24e2d487f795c3ae9fd469720a35b6f57546bd533fc5947cee5ad3d3b71964
 ---

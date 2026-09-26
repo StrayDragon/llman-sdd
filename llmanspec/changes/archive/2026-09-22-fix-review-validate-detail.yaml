@@ -1,14 +1,4 @@
 ---
+title: "修复 review validate 信号的误导性 detail 文案"
 depends_on: []
-needs_specs_change: false
-branch: sdd/fix-review-validate-detail
-base_branch: main
-base_sha: f06a67e89e2d1f8f3113cb1a509005e3829a2021
-frozen:
-  at: "2026-09-26T11:29:55.347Z"
-  archive: "freezed_changes.7z.archived"
-  files:
-    "design.md": 69e29becd5fab8bb387fd118aedc3cbaef111c6e36c622d00874a5784d8ef6b8
-    "proposal.md": f27d6a4eb54ca01a318dc2f3a6b4c923addf0afe0590dedfb05a7a216edf00fc
-    "tasks.md": 5b4af0b97e91f2c4970f8239eefcad1072bcb6ea6a60f75c2ab7e97303de430a
 ---

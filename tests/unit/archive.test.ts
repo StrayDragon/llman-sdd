@@ -9,7 +9,6 @@ import {
   runFreeze,
   runList,
   runThaw,
-  parseFrozenCard,
   isFrozenCard,
   type FreezeIo,
   type WasmSevenZipDeps,
@@ -49,11 +48,14 @@ describe('7z adapter roundtrip', () => {
 describe('freeze card flow against the real adapter', () => {
   const io = (): FreezeIo => ({ ...makeNodeIo(DIR) });
 
-  test('freeze writes a flat card with frontmatter and replaces the dir', async () => {
+  test('freeze writes a flat relationship-index card (title + depends_on only) and replaces the dir', async () => {
     rmSync(DIR, { recursive: true, force: true });
     const src = join(DIR, 'llmanspec', 'changes', 'archive', '2026-01-01-demo');
     mkdirSync(src, { recursive: true });
-    writeFileSync(join(src, 'proposal.md'), '---\ndepends_on: [other]\n---\n\n# demo\n');
+    writeFileSync(
+      join(src, 'proposal.md'),
+      '---\ndepends_on: [other]\n---\n\n# Demo Change\n\nbody\n',
+    );
     writeFileSync(join(src, 'design.md'), '# d\n');
     const sz = await makeWasmSevenZip(deps());
 
@@ -65,26 +67,58 @@ describe('freeze card flow against the real adapter', () => {
     expect(existsSync(join(archiveDir, '2026-01-01-demo'))).toBe(false);
     expect(isFrozenCard('2026-01-01-demo.yaml')).toBe(true);
     const cardText = readFileSync(join(archiveDir, '2026-01-01-demo.yaml'), 'utf8');
-    const card = parseFrozenCard(cardText);
-    expect(card).not.toBeNull();
-    expect(card?.frontmatter).toContain('depends_on: [other]');
-    expect(card?.frozen?.archive).toBe('freezed_changes.7z.archived');
-    expect(card?.frozen?.files.some((f) => f.path === 'proposal.md')).toBe(true);
-    expect(card?.frozen?.files.some((f) => f.path === 'design.md')).toBe(true);
-    for (const f of card?.frozen?.files ?? []) {
-      expect(f.sha256).toMatch(/^[0-9a-f]{64}$/u);
-    }
+    // Title extracted from the proposal H1; depends_on preserved in flow form.
+    expect(cardText).toContain('title: "Demo Change"');
+    expect(cardText).toContain('depends_on: [other]');
+    // No frozen section, no frontmatter transcription beyond depends_on.
+    expect(cardText).not.toContain('frozen:');
+    expect(cardText).not.toContain('branch:');
+    expect(cardText).not.toContain('design.md');
 
     // --list derives entries from cards without parsing the 7z.
     const lines = await runList(io(), sz, DIR);
     expect(lines.join('\n')).toContain('2026-01-01-demo');
   });
 
-  test('thaw restores bodies, verifies sha256, and removes the card', async () => {
+  test('freeze omits depends_on when the proposal has none', async () => {
     rmSync(DIR, { recursive: true, force: true });
     const src = join(DIR, 'llmanspec', 'changes', 'archive', '2026-01-01-demo');
     mkdirSync(src, { recursive: true });
-    writeFileSync(join(src, 'proposal.md'), '---\ndepends_on: []\n---\n\n# demo\n');
+    writeFileSync(join(src, 'proposal.md'), '---\ndepends_on: []\n---\n\n# Solo\n\nbody\n');
+    const sz = await makeWasmSevenZip(deps());
+    await runFreeze(io(), sz, DIR, {});
+
+    const card = readFileSync(
+      join(DIR, 'llmanspec', 'changes', 'archive', '2026-01-01-demo.yaml'),
+      'utf8',
+    );
+    expect(card).toContain('title: "Solo"');
+    expect(card).toContain('depends_on: []');
+  });
+
+  test('freeze preserves multi-line flow depends_on as a single-line flow array', async () => {
+    const frontmatter =
+      'depends_on:\n  [\n    fix-lifecycle,\n    harden-core\n  ]\nneeds_specs_change: true';
+    const src = join(DIR, 'llmanspec', 'changes', 'archive', '2026-01-01-multi');
+    mkdirSync(src, { recursive: true });
+    writeFileSync(join(src, 'proposal.md'), `---\n${frontmatter}\n---\n\n# Multi\n\nbody\n`);
+    const sz = await makeWasmSevenZip(deps());
+    await runFreeze(io(), sz, DIR, {});
+
+    const card = readFileSync(
+      join(DIR, 'llmanspec', 'changes', 'archive', '2026-01-01-multi.yaml'),
+      'utf8',
+    );
+    expect(card).toContain('depends_on: [fix-lifecycle, harden-core]');
+    expect(card).not.toContain('needs_specs_change');
+  });
+
+  test('thaw restores bodies and removes the card', async () => {
+    rmSync(DIR, { recursive: true, force: true });
+    const src = join(DIR, 'llmanspec', 'changes', 'archive', '2026-01-01-demo');
+    mkdirSync(src, { recursive: true });
+    writeFileSync(join(src, 'proposal.md'), '---\ndepends_on: []\n---\n\n# Demo\n\nbody\n');
+    writeFileSync(join(src, 'design.md'), '# d\n');
     const sz = await makeWasmSevenZip(deps());
     await runFreeze(io(), sz, DIR, {});
 
@@ -93,30 +127,19 @@ describe('freeze card flow against the real adapter', () => {
 
     const archiveDir = join(DIR, 'llmanspec', 'changes', 'archive');
     expect(existsSync(join(archiveDir, '2026-01-01-demo', 'proposal.md'))).toBe(true);
-    expect(readFileSync(join(archiveDir, '2026-01-01-demo', 'proposal.md'), 'utf8')).toContain(
-      '# demo',
-    );
+    expect(readFileSync(join(archiveDir, '2026-01-01-demo', 'design.md'), 'utf8')).toBe('# d\n');
     expect(existsSync(join(archiveDir, '2026-01-01-demo.yaml'))).toBe(false);
   });
 
-  test('thaw rejects a tampered body by sha256 mismatch', async () => {
+  test('thaw without a cold backup is rejected with a clear error', async () => {
     rmSync(DIR, { recursive: true, force: true });
-    const src = join(DIR, 'llmanspec', 'changes', 'archive', '2026-01-01-demo');
-    mkdirSync(src, { recursive: true });
-    writeFileSync(join(src, 'proposal.md'), '---\ndepends_on: []\n---\n\n# demo\n');
+    mkdirSync(join(DIR, 'llmanspec', 'changes', 'archive'), { recursive: true });
     const sz = await makeWasmSevenZip(deps());
-    await runFreeze(io(), sz, DIR, {});
-
-    // Corrupt the cold-backup entry after freeze (simulated by patching the
-    // extracted tmp copy — tamper the source archive by re-adding a changed
-    // file under the same name).
-    const archiveAbs = join(DIR, 'llmanspec', 'changes', 'archive', 'freezed_changes.7z.archived');
-    const changed = join(DIR, 'changed', '2026-01-01-demo');
-    mkdirSync(changed, { recursive: true });
-    writeFileSync(join(changed, 'proposal.md'), '---\ndepends_on: []\n---\n\n# tampered\n');
-    await sz.add(archiveAbs, join(DIR, 'changed'), ['2026-01-01-demo']);
-
-    expect(runThaw(io(), sz, DIR, ['2026-01-01-demo'])).rejects.toThrow(/sha256 mismatch/u);
+    const error = await runThaw(io(), sz, DIR, ['2026-01-01-ghost']).then(
+      () => '',
+      (e: unknown) => (e as Error).message,
+    );
+    expect(error).toContain('freeze archive not found');
   });
 });
 
@@ -127,7 +150,6 @@ describe('freezeCandidates', () => {
     isDirectory: (p: string) => !p.endsWith('.yaml') && !p.endsWith('.7z.archived'),
     readText: () => '',
     writeText: () => {},
-    now: () => new Date(),
     remove: () => {},
     removeDir: () => {},
     mkdirp: () => {},

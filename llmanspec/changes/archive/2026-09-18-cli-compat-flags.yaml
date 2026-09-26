@@ -1,12 +1,4 @@
 ---
+title: "杂项 CLI 兼容:thaw --dest、backend 旗标、全局 --max-scan-depth"
 depends_on: []
-branch: sdd/cli-compat-flags
-base_branch: main
-base_sha: 8a6a96dce8c4d44e6e5963edb3b2ba796ceaa0d2
-frozen:
-  at: "2026-09-26T11:29:55.347Z"
-  archive: "freezed_changes.7z.archived"
-  files:
-    "proposal.md": 1af048da61c9f94674668febdf09c0d83c79d3a608575f351ce115dcc4e384fe
-    "tasks.md": c2ceb1795f276dbc572758cbeefac20146b10a6f4329b6f298b49808fb4d5921
 ---

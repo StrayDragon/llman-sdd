@@ -1,14 +1,4 @@
 ---
+title: "worktree 感知的 change 生命周期:start --worktree / 分叉保真 / finalize 目标灵活度"
 depends_on: []
-needs_specs_change: true
-branch: sdd/add-worktree-aware-lifecycle
-base_branch: main
-base_sha: cd2a85ee5303a46382435a331f9fdd537fd772e4
-frozen:
-  at: "2026-09-26T11:29:55.347Z"
-  archive: "freezed_changes.7z.archived"
-  files:
-    "design.md": 8f90d64706a25af8cb88a45a2afa503beb26c8eb1d829b574d325b85b3227997
-    "proposal.md": 25859e0c6aea043dbafb88f5be73f7acee0605a560f7342c7b41e7908939ae08
-    "tasks.md": 0f5b8cdf56facd84213c1a2b438df18847e634b24f8ab62af78317f0c5a0b42f
 ---

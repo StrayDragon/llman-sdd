@@ -1,13 +1,4 @@
 ---
+title: "外部影响面 Eval 剧本流水线"
 depends_on: []
-branch: sdd/eval-playbook-base-new-version-docker-agent
-base_branch: main
-base_sha: 0247c520a5b12b0648ab01a0c03f6bb0199a26ab
-frozen:
-  at: "2026-09-26T11:29:55.347Z"
-  archive: "freezed_changes.7z.archived"
-  files:
-    "design.md": 2550dba0c72a0c01abc596ab0f85cc48c49b74de0e5ebf807a0533826efc0b8b
-    "proposal.md": 6c818d3395328ae76cfb75723576f084b249489c178139b7f302dd4161f0b6fc
-    "tasks.md": b042bcbb6fafb3eccef5d0987577aebd6399e5284d2b1c0b6c20a02667ec44a7
 ---

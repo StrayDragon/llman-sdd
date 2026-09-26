@@ -1,13 +1,4 @@
 ---
-depends_on:
-  - align-stage-inference
-branch: sdd/list-show-output-flags
-base_branch: main
-base_sha: 982e41895ad67f9ec70c4261e36521f5eef5d3b6
-frozen:
-  at: "2026-09-26T11:29:55.347Z"
-  archive: "freezed_changes.7z.archived"
-  files:
-    "proposal.md": ad537367f1cd749643cfd6ad5ab59996c06743ea04d1c7796f0cf5d03755356d
-    "tasks.md": eaf0c2f7ee369d8274ddd3ff8f9070a425236e45e07948665f873bf227ddd744
+title: "list/show 输出面 flag 对齐与 show 文本合同"
+depends_on: [align-stage-inference]
 ---
