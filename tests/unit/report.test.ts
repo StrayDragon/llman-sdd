@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import {
   collectChanges,
+  graphData,
   graphMermaid,
   nextReqId,
   renderChangesJson,
@@ -284,6 +285,58 @@ describe('graph scope/depth/seed (r54)', () => {
     expect(lines.some((l) => l.includes('old_a'))).toBe(false);
     const deep = graphMermaid(mkIo(), '.', { seed: 'seeded', depth: 2 });
     expect(deep.some((l) => l.includes('old_a'))).toBe(true);
+  });
+
+  // 跨 active→archived 边界的依赖链:a-front(唯一活跃) → b-mid → c-tail。
+  // 用于全图 depth 语义的 0/1/2 三档断言(scope active 只有根节点)。
+  const mkChainIo = (): GraphFsIo => ({
+    exists: () => true,
+    readText: (p) => {
+      if (p.includes('a-front')) return '---\ndepends_on: [b-mid]\n---\n\nx\n';
+      if (p.includes('b-mid')) return '---\ndepends_on: [c-tail]\n---\n\nx\n';
+      return '---\ndepends_on: []\n---\n\nx\n';
+    },
+    listDir: (dir) => {
+      if (dir.endsWith('archive')) return ['2026-09-01-b-mid', '2026-09-02-c-tail'];
+      if (dir.endsWith('changes')) return ['a-front', 'archive'];
+      return [];
+    },
+    isDirectory: () => true,
+  });
+
+  test('full-graph default equals depth 1 and pulls direct deps only (r54)', () => {
+    const def = graphMermaid(mkChainIo(), '.');
+    const d1 = graphMermaid(mkChainIo(), '.', { depth: 1 });
+    expect(def).toEqual(d1);
+    expect(def.some((l) => l.includes('a_front'))).toBe(true);
+    expect(def.some((l) => l.includes('b_mid'))).toBe(true);
+    expect(def.some((l) => l.includes('c_tail'))).toBe(false);
+  });
+
+  test('full-graph depth 0 keeps scope nodes only (r54)', () => {
+    const lines = graphMermaid(mkChainIo(), '.', { depth: 0 });
+    expect(lines.some((l) => l.includes('a_front'))).toBe(true);
+    expect(lines.some((l) => l.includes('b_mid'))).toBe(false);
+    expect(lines.some((l) => l.includes('c_tail'))).toBe(false);
+  });
+
+  test('full-graph depth 2 expands recursively along depends_on (r54)', () => {
+    const lines = graphMermaid(mkChainIo(), '.', { depth: 2 });
+    for (const id of ['a_front', 'b_mid', 'c_tail']) {
+      expect(lines.some((l) => l.includes(id))).toBe(true);
+    }
+    // 链耗尽后深度不再引入新节点
+    const wide = graphMermaid(mkChainIo(), '.', { depth: 3 });
+    expect(wide).toEqual(lines);
+  });
+
+  test('graphData honors depth in no-seed mode (r54)', () => {
+    const d0 = graphData(mkChainIo(), '.', { scope: 'active', depth: 0 });
+    expect(d0.nodes.map((n) => n.id)).toEqual(['a-front']);
+    const d1 = graphData(mkChainIo(), '.', { scope: 'active', depth: 1 });
+    expect(d1.nodes.map((n) => n.id).toSorted()).toEqual(['a-front', 'b-mid']);
+    const d2 = graphData(mkChainIo(), '.', { scope: 'active', depth: 2 });
+    expect(d2.nodes.map((n) => n.id).toSorted()).toEqual(['a-front', 'b-mid', 'c-tail']);
   });
 });
 

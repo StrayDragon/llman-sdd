@@ -1,5 +1,8 @@
 ---
 depends_on: []
+branch: sdd/graph-scope-depth-defaults
+base_branch: main
+base_sha: f3f929ec6b50f2f8e871d86900855684428389ea
 ---
 
 ## Why

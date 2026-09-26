@@ -33,27 +33,36 @@ export function buildDefaultNodes(
   io: GraphFsIo,
   root: string,
   kinds: ScopeKind[],
+  depth: number,
   maxScanDepth?: number,
 ): GraphNode[] {
   const nodes = collectNodes(io, root, kinds, maxScanDepth);
+  // depth 0 = 仅 scope 内节点(human-readable graph):不拉取任何依赖 target。
+  if (depth <= 0) return nodes;
+
   const nodeIds = new Set(nodes.map((n) => n.id));
   const all = collectNodes(io, root, ['active', 'archived'], maxScanDepth);
   const allMap = new Map(all.map((n) => [n.id, n]));
 
-  const missing: string[] = [];
-  for (const node of all) {
-    if (!nodeIds.has(node.id) || !node.present) continue;
-    for (const dep of parseDeps(proposalFor(io, root, node))) {
-      if (!nodeIds.has(dep)) missing.push(dep);
+  // BFS 沿 depends_on 从 scope 根展开 depth 层(depth 1 即现状的一层依赖拉取;
+  // N >= 2 递归展开)。拉入的依赖 target 若不在 scope 作为节点保留
+  // (present/archived 标记由 allMap 已知节点提供,未知 id 记为 phantom)。
+  let frontier = nodes.filter((n) => n.present).map((n) => n.id);
+  for (let level = 0; level < depth && frontier.length > 0; level++) {
+    const next: string[] = [];
+    for (const id of frontier) {
+      const node = allMap.get(id);
+      if (node === undefined || !node.present) continue;
+      for (const dep of parseDeps(proposalFor(io, root, node))) {
+        if (nodeIds.has(dep)) continue;
+        nodeIds.add(dep);
+        next.push(dep);
+        const existing = allMap.get(dep);
+        if (existing !== undefined) nodes.push(existing);
+        else nodes.push({ id: dep, archived: false, present: false });
+      }
     }
-  }
-  const seenMissing = new Set<string>();
-  for (const dep of missing) {
-    if (seenMissing.has(dep)) continue;
-    seenMissing.add(dep);
-    const existing = allMap.get(dep);
-    if (existing !== undefined) nodes.push(existing);
-    else nodes.push({ id: dep, archived: false, present: false });
+    frontier = next;
   }
   return nodes;
 }

@@ -202,6 +202,74 @@ bdd.thenStep('冻结卡节点被标注 done 且依赖边保留', (ctx) => {
   }
 });
 
+// r54 扩展 — 全图模式受 --depth 约束 (acceptance):active 根 + archived 链,
+// depth 0 = 仅 scope;1(缺省) = 一层直接依赖;2 = 递归展开。
+bdd.given('一个含活跃 change A 依赖 change B、B 依赖 change C 的临时工作区', (ctx) => {
+  const root = mkdtempSync(join(tmpdir(), 'llman-depth-'));
+  const changes = join(root, 'llmanspec', 'changes');
+  const aDir = join(changes, 'a-change');
+  mkdirSync(aDir, { recursive: true });
+  writeFileSync(join(aDir, 'proposal.md'), '---\ndepends_on: [b-change]\n---\n\n## Why\nx\n');
+  const bDir = join(changes, 'archive', '2026-01-01-b-change');
+  mkdirSync(bDir, { recursive: true });
+  writeFileSync(join(bDir, 'proposal.md'), '---\ndepends_on: [c-change]\n---\n\n## Why\nx\n');
+  const cDir = join(changes, 'archive', '2026-01-02-c-change');
+  mkdirSync(cDir, { recursive: true });
+  writeFileSync(join(cDir, 'proposal.md'), '---\ndepends_on: []\n---\n\n## Why\nx\n');
+  ctx.fixtures['depth工作区'] = { root };
+});
+
+bdd.when('运行 graph --depth 0', (ctx) => {
+  const { root } = ctx.fixtures['depth工作区'] as { root: string };
+  const proc = runCli(['graph', '--depth', '0'], root);
+  ctx.fixtures['depth0结果'] = { out: proc.stdout ?? '', code: proc.status ?? 1 };
+});
+
+bdd.when('运行 graph --depth 1 与 graph 缺省', (ctx) => {
+  const { root } = ctx.fixtures['depth工作区'] as { root: string };
+  const d1 = runCli(['graph', '--depth', '1'], root);
+  const def = runCli(['graph'], root);
+  ctx.fixtures['depth1结果'] = {
+    d1: d1.stdout ?? '',
+    def: def.stdout ?? '',
+    code1: d1.status ?? 1,
+    codeDef: def.status ?? 1,
+  };
+});
+
+bdd.when('运行 graph --depth 2', (ctx) => {
+  const { root } = ctx.fixtures['depth工作区'] as { root: string };
+  const proc = runCli(['graph', '--depth', '2'], root);
+  ctx.fixtures['depth2结果'] = { out: proc.stdout ?? '', code: proc.status ?? 1 };
+});
+
+bdd.thenStep('节点集为活跃 scope 内节点且不含依赖 target', (ctx) => {
+  const { out, code } = ctx.fixtures['depth0结果'] as { out: string; code: number };
+  if (code !== 0) throw new Error(`graph --depth 0 failed: ${out}`);
+  if (!out.includes('a_change')) throw new Error(`scope node missing at depth 0: ${out}`);
+  if (out.includes('b_change') || out.includes('c_change'))
+    throw new Error(`dependency targets leaked at depth 0:\n${out}`);
+});
+
+bdd.thenStep('两层输出节点集一致且含直接依赖 target、不含二级依赖', (ctx) => {
+  const r = ctx.fixtures['depth1结果'] as {
+    d1: string;
+    def: string;
+    code1: number;
+    codeDef: number;
+  };
+  if (r.code1 !== 0 || r.codeDef !== 0) throw new Error('graph --depth 1 / 缺省 运行失败');
+  if (r.d1 !== r.def) throw new Error(`depth 1 与缺省输出不一致:\n${r.d1}\n---\n${r.def}`);
+  if (!r.d1.includes('b_change')) throw new Error(`direct dep missing at depth 1: ${r.d1}`);
+  if (r.d1.includes('c_change')) throw new Error(`second-level dep leaked at depth 1: ${r.d1}`);
+});
+
+bdd.thenStep('节点集含二级依赖且超出一层范围', (ctx) => {
+  const { out, code } = ctx.fixtures['depth2结果'] as { out: string; code: number };
+  if (code !== 0) throw new Error(`graph --depth 2 failed: ${out}`);
+  if (!out.includes('c_change')) throw new Error(`second-level dep missing at depth 2: ${out}`);
+});
+
 bdd.given('一个已存在 spec 的临时工作区', (ctx) => {
   const root = mkdtempSync(join(tmpdir(), 'llman-skel-'));
   mkdirSync(join(root, 'llmanspec', 'specs'), { recursive: true });

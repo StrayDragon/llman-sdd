@@ -21,12 +21,14 @@ llman-sdd graph <change-id> --depth 0    # 仅自身
 
 沿 upstream（depends_on）、downstream（被谁依赖）、blocks 三方向遍历，自动发现活跃与已归档 change。
 
-**全局视图（scope 模式）**：
+**全局视图（scope 模式）**——以 scope 内节点为根，沿 `depends_on` 展开一层（depth 1，缺省），避免无限依赖链；`--depth` 同样约束全图模式：
 
 ```bash
-llman-sdd graph                          # 所有活跃 change（默认）
-llman-sdd graph --scope archived         # 已归档
-llman-sdd graph --scope all              # 全部
+llman-sdd graph                          # 活跃 change + 直接依赖（depth 1 缺省）
+llman-sdd graph --scope archived         # 已归档 + 直接依赖
+llman-sdd graph --scope all              # 全部 + 直接依赖
+llman-sdd graph --depth 0                # 仅 scope 内节点（不拉依赖 target）
+llman-sdd graph --depth 3                # 依赖链递归展开 3 层
 ```
 
 ## 输出

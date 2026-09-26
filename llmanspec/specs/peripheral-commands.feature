@@ -114,7 +114,8 @@
 
   @req:r54 @human
   场景: graph 范围与深度
-    - `graph` MUST 支持 `--scope active|archived|all` 及逗号组合(缺省 active)、`--depth <N>`(种子依赖 BFS 展开层级,缺省 1)与位置参数 `[change]`(种子);archived 节点 MUST 仅在 scope 含 archived 且被活跃依赖引用或种子可达时出现;`--format` MUST 仅接受 `mermaid`(缺省 mermaid),其他值 MUST 报 `unsupported --format: <v> (mermaid only)` 且以退出码 2 退出。
+    - `graph` MUST 支持 `--scope active|archived|all` 及逗号组合(缺省 active)、`--depth <N>`(缺省 1)与位置参数 `[change]`(种子);archived 节点 MUST 仅在 scope 含 archived 且被活跃依赖引用或种子可达时出现;`--format` MUST 仅接受 `mermaid`(缺省 mermaid),其他值 MUST 报 `unsupported --format: <v> (mermaid only)` 且以退出码 2 退出。
+    - `--depth` MUST 同时约束种子与无种子全图模式:无种子时以 scope 内节点为根,`--depth 0` MUST 仅输出 scope 内节点(不拉入依赖 target),`--depth 1`(缺省)MUST 输出 scope 内节点及其直接依赖 target,`--depth N(≥2)` MUST 沿 depends_on 递归展开 N 层;种子模式 MUST 保持既有的依赖+反向 BFS 展开语义(缺省 1);`--depth` 不得在任一模式被静默忽略。
     - 冻结平铺卡 `changes/archive/<YYYY-MM-DD>-<id>.yaml` MUST 被识别为 archived 节点(与归档目录同语义,标注 done 与 archived class);其 frontmatter 中 `depends_on` MUST 参与依赖边解析,使冻结 change 的依赖链在 `--scope archived` 与 `--scope all` 下可展示;平铺卡 id 拆解(`<date>-<id>`、去 `.yaml` 后缀)与归档目录口径一致。
 
   @req:r55 @human
@@ -138,6 +139,16 @@
     假如 一个含活跃 change 的临时工作区
     当 运行 graph --format json
     那么 报 unsupported --format 且退出码为 2
+
+  @req:r54 @executable
+  场景: 全图模式受 --depth 约束
+    假如 一个含活跃 change A 依赖 change B、B 依赖 change C 的临时工作区
+    当 运行 graph --depth 0
+    那么 节点集为活跃 scope 内节点且不含依赖 target
+    当 运行 graph --depth 1 与 graph 缺省
+    那么 两层输出节点集一致且含直接依赖 target、不含二级依赖
+    当 运行 graph --depth 2
+    那么 节点集含二级依赖且超出一层范围
 
   @req:r55 @executable
   场景: skeleton force 与 next-req-id json

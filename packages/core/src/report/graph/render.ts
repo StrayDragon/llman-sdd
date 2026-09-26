@@ -26,7 +26,7 @@ export function graphMermaid(io: GraphFsIo, root: string, opts: GraphOptions = {
   if (opts.seed !== undefined) {
     nodes = buildSeedNeighborhood(io, root, opts.seed, opts.depth ?? 1, opts.maxScanDepth);
   } else {
-    nodes = buildDefaultNodes(io, root, kinds, opts.maxScanDepth);
+    nodes = buildDefaultNodes(io, root, kinds, opts.depth ?? 1, opts.maxScanDepth);
   }
 
   if (nodes.length === 0) {

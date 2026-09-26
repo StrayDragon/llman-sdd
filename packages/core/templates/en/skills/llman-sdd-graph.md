@@ -21,12 +21,14 @@ llman-sdd graph <change-id> --depth 0    # just the change itself
 
 Traverses three directions: upstream (depends_on), downstream (depended by), and blocks; auto-discovers active and archived changes.
 
-**Global view (scope mode)**:
+**Global view (scope mode)** — scope nodes are roots expanded one level along `depends_on` (depth 1, default; avoids unbounded dependency chains); `--depth` constrains this mode too:
 
 ```bash
-llman-sdd graph                          # all active changes (default)
-llman-sdd graph --scope archived         # archived
-llman-sdd graph --scope all              # everything
+llman-sdd graph                          # active changes + direct deps (depth 1 default)
+llman-sdd graph --scope archived         # archived + direct deps
+llman-sdd graph --scope all              # everything + direct deps
+llman-sdd graph --depth 0                # scope nodes only (no dependency targets)
+llman-sdd graph --depth 3                # recurse 3 levels along dependency chains
 ```
 
 ## Output

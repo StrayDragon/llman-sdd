@@ -10,7 +10,10 @@ export function registerGraph(program: Command): void {
     .argument('[change]', 'seed change id (BFS over depends_on)')
     .option('--format <format>', 'output format', 'mermaid')
     .option('--scope <scope>', 'active | archived | all (comma-combined)', 'active')
-    .option('--depth <n>', 'seed BFS depth (default: 1)')
+    .option(
+      '--depth <n>',
+      'expansion depth: 0 = scope only, 1 = direct deps (default), N = recursive',
+    )
     .action(
       (change: string | undefined, options: { format: string; scope?: string; depth?: string }) => {
         if (options.format !== 'mermaid') {
