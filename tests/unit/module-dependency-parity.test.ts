@@ -20,11 +20,12 @@ const SRC_DIR = join(REPO_ROOT, 'packages', 'core', 'src');
 
 /** Declared allowed module edges — SSOT for r72. Shrink on decoupling. */
 const ALLOWED: Readonly<Record<string, readonly string[]>> = {
+  archive: ['change'],
   change: ['git'],
   config: ['change', 'templates'],
   context: ['spec', 'validation'],
   init: ['config', 'templates'],
-  report: ['change', 'git', 'render', 'spec', 'templates', 'validation'],
+  report: ['archive', 'change', 'git', 'render', 'spec', 'templates', 'validation'],
   review: ['git', 'spec', 'validation'],
   templates: ['config'],
   validation: ['change', 'git', 'spec'],

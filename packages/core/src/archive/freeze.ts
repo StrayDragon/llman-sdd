@@ -1,12 +1,25 @@
 /**
  * Archive freeze/thaw orchestration (review-freeze capability, r24/r25).
- * Port of predecessor change/freeze.rs: candidates = dated archive dirs; freeze adds
- * them into `freezed_changes.7z.archived` (7z a updates existing archives)
- * then removes the originals; thaw extracts selected dirs back into place.
+ * Port of predecessor change/freeze.rs: candidates = dated archive dirs;
+ * freeze now writes a flat card `<YYYY-MM-DD>-<id>.yaml` (frontmatter +
+ * frozen metadata) into the archive dir, adds the body files into
+ * `freezed_changes.7z.archived` (7z a updates existing archives), then removes
+ * the original dirs; thaw extracts selected dirs back and removes the card.
  * All filesystem effects flow through the injected FreezeIo.
  */
+import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 
+import { extractFrontmatter } from '../change/frontmatter.ts';
+import {
+  FROZEN_CARD_EXT,
+  composeFrozenCard,
+  frozenCardIdOf,
+  frozenCardName,
+  isFrozenCard,
+  parseFrozenCard,
+  type FrozenFileEntry,
+} from './frozenCard.ts';
 import type { SevenZipPort } from './sevenzip.ts';
 
 export const FREEZE_ARCHIVE_NAME = 'freezed_changes.7z.archived';
@@ -15,8 +28,15 @@ export const ARCHIVE_DIR_REL = 'llmanspec/changes/archive';
 export interface FreezeIo {
   exists(path: string): boolean;
   listDir(path: string): string[];
+  readText(path: string): string;
+  writeText(path: string, content: string): void;
+  isDirectory(path: string): boolean;
+  /** Current wall clock (core stays injection-pure — r3). */
+  now(): Date;
   /** rm -rf */
   removeDir(path: string): void;
+  /** Remove a single file. */
+  remove(path: string): void;
   mkdirp(path: string): void;
   /** Move a directory within the repo (same-device; adapter may copy). */
   moveDir(from: string, to: string): void;
@@ -24,6 +44,15 @@ export interface FreezeIo {
 
 const DATED_RE = /^\d{4}-\d{2}-\d{2}-/u;
 
+function sha256Text(text: string): string {
+  return createHash('sha256').update(text).digest('hex');
+}
+
+/**
+ * r24: freeze candidates = date-prefixed entries that are directories with a
+ * proposal.md body (i.e. not yet frozen — frozen dirs have been replaced by
+ * the flat `<date>-<id>.yaml` card, which is a file, not a dir).
+ */
 export function freezeCandidates(
   io: FreezeIo,
   archiveDir: string,
@@ -32,7 +61,7 @@ export function freezeCandidates(
   const all = io.exists(archiveDir)
     ? io
         .listDir(archiveDir)
-        .filter((n) => DATED_RE.test(n))
+        .filter((n) => DATED_RE.test(n) && !isFrozenCard(n) && io.isDirectory(`${archiveDir}/${n}`))
         .toSorted()
     : [];
   let candidates = opts.before ? all.filter((n) => n.slice(0, 10) < (opts.before ?? '')) : [...all];
@@ -50,6 +79,35 @@ export interface FreezeOpts {
 export interface FreezeRunResult {
   lines: string[];
   candidates: string[];
+}
+
+/** Collect body files (excluding the frozen card itself) under a dir. */
+function collectBodyFiles(io: FreezeIo, dirAbs: string, dirRel: string, out: string[]): void {
+  for (const name of io.exists(dirAbs) ? io.listDir(dirAbs) : []) {
+    const rel = `${dirRel}/${name}`;
+    const abs = `${dirAbs}/${name}`;
+    if (io.isDirectory(abs)) {
+      collectBodyFiles(io, abs, rel, out);
+    } else if (!isFrozenCard(name)) {
+      out.push(rel);
+    }
+  }
+}
+
+/** sha256 map for every body file (path → digest). */
+function bodyShas(io: FreezeIo, archiveDirRel: string): Record<string, string> {
+  const files: string[] = [];
+  for (const name of io.exists(archiveDirRel) ? io.listDir(archiveDirRel) : []) {
+    if (DATED_RE.test(name) && !isFrozenCard(name)) {
+      const dir = `${archiveDirRel}/${name}`;
+      if (io.isDirectory(dir)) collectBodyFiles(io, dir, name, files);
+    }
+  }
+  const out: Record<string, string> = {};
+  for (const rel of files) {
+    out[rel] = sha256Text(io.readText(`${archiveDirRel}/${rel}`));
+  }
+  return out;
 }
 
 export async function runFreeze(
@@ -72,8 +130,44 @@ export async function runFreeze(
       ],
     };
   }
+
+  // Card = authoritative record that bodies are in the cold backup. Write
+  // cards first; on `7z add` failure roll them back and keep the original dirs.
+  const shas = bodyShas(io, ARCHIVE_DIR_REL);
   const archiveAbs = join(rootAbs, ARCHIVE_DIR_REL, FREEZE_ARCHIVE_NAME);
-  await sz.add(archiveAbs, join(rootAbs, ARCHIVE_DIR_REL), candidates);
+  const frozenAt = io.now().toISOString();
+
+  const cards: Array<{ datedId: string; source: string }> = [];
+  for (const c of candidates) {
+    const proposalRel = `${ARCHIVE_DIR_REL}/${c}/proposal.md`;
+    const frontmatter = io.exists(proposalRel)
+      ? (extractFrontmatter(io.readText(proposalRel)) ?? '')
+      : '';
+    const files: FrozenFileEntry[] = Object.entries(shas)
+      .filter(([rel]) => rel.startsWith(`${c}/`))
+      .map(([rel, sha]) => ({
+        path: rel.slice(c.length + 1),
+        sha256: sha,
+      }));
+    cards.push({
+      datedId: c,
+      source: composeFrozenCard(frontmatter, {
+        at: frozenAt,
+        archive: FREEZE_ARCHIVE_NAME,
+        files,
+      }),
+    });
+  }
+
+  for (const card of cards) {
+    io.writeText(`${ARCHIVE_DIR_REL}/${frozenCardName(card.datedId)}`, card.source);
+  }
+  try {
+    await sz.add(archiveAbs, join(rootAbs, ARCHIVE_DIR_REL), candidates);
+  } catch (error) {
+    for (const card of cards) io.remove(`${ARCHIVE_DIR_REL}/${frozenCardName(card.datedId)}`);
+    throw error;
+  }
   for (const c of candidates) {
     io.removeDir(`${ARCHIVE_DIR_REL}/${c}`);
   }
@@ -85,25 +179,39 @@ export async function runFreeze(
   };
 }
 
+/**
+ * r24: `--list` enumerates frozen changes from the flat cards on disk (no 7z
+ * parse needed). Legacy entries frozen without cards (predecessor format) are
+ * derived from the 7z listing so old archives stay listable (r25 legacy compat).
+ */
 export async function runList(io: FreezeIo, sz: SevenZipPort, rootAbs: string): Promise<string[]> {
-  const archiveAbs = join(rootAbs, ARCHIVE_DIR_REL, FREEZE_ARCHIVE_NAME);
-  if (!io.exists(archiveAbs)) {
-    return [`freeze archive not found: ./${ARCHIVE_DIR_REL}/${FREEZE_ARCHIVE_NAME}`];
+  let names = new Set<string>();
+  const archiveDirRel = ARCHIVE_DIR_REL;
+  if (io.exists(archiveDirRel)) {
+    for (const name of io.listDir(archiveDirRel)) {
+      if (isFrozenCard(name) && frozenCardIdOf(name) !== null) {
+        names.add(name.slice(0, -FROZEN_CARD_EXT.length));
+      }
+    }
   }
-  // Real 7z lists file paths under their directory (`<dir>/proposal.md`);
-  // directory entries themselves are skipped by parseListNames. Derive the
-  // archived change names from the leading path segment.
-  const entries = (await sz.listEntries(archiveAbs)).map((n) => n.replace(/\/$/u, ''));
-  const top = (n: string): string => n.split('/')[0] ?? n;
-  const unique = [...new Set(entries.map(top).filter((n) => DATED_RE.test(n)))].toSorted();
-  if (unique.length === 0) {
+  const archiveAbs = join(rootAbs, ARCHIVE_DIR_REL, FREEZE_ARCHIVE_NAME);
+  if (io.exists(archiveAbs)) {
+    // Legacy/unexpected entries present only inside the 7z (no card on disk).
+    const entries = (await sz.listEntries(archiveAbs)).map((n) => n.replace(/\/$/u, ''));
+    const top = (n: string): string => n.split('/')[0] ?? n;
+    for (const e of entries.map(top).filter((n) => DATED_RE.test(n))) {
+      if (!names.has(e)) names.add(e);
+    }
+  }
+  const sorted = [...names].toSorted();
+  if (sorted.length === 0) {
     return [
       `Freeze archive ${ARCHIVE_DIR_REL}/${FREEZE_ARCHIVE_NAME} contains no archived changes`,
     ];
   }
   return [
-    `Frozen archived changes in ${ARCHIVE_DIR_REL}/${FREEZE_ARCHIVE_NAME} (${unique.length}):`,
-    ...unique.map((c) => `  - ${c}`),
+    `Frozen archived changes in ${ARCHIVE_DIR_REL}/${FREEZE_ARCHIVE_NAME} (${sorted.length}):`,
+    ...sorted.map((c) => `  - ${c}`),
   ];
 }
 
@@ -130,7 +238,16 @@ export async function runThaw(
   io.removeDir(tmpRel);
   try {
     await sz.extractAll(archiveAbs, tmpAbs);
-    const available = new Set(io.listDir(tmpRel).filter((n) => DATED_RE.test(n)));
+    const available = new Set(
+      io.exists(tmpRel) ? io.listDir(tmpRel).filter((n) => DATED_RE.test(n)) : [],
+    );
+    // Cards on disk also count as available (they are the authoritative record
+    // that bodies are in the cold backup, even before any extraction listing).
+    for (const name of io.exists(ARCHIVE_DIR_REL) ? io.listDir(ARCHIVE_DIR_REL) : []) {
+      if (isFrozenCard(name) && frozenCardIdOf(name) !== null) {
+        available.add(name.slice(0, -FROZEN_CARD_EXT.length));
+      }
+    }
     const missing = names.filter((n) => !available.has(n));
     if (missing.length > 0) {
       throw new Error(
@@ -142,7 +259,23 @@ export async function runThaw(
       if (io.exists(`${destRel}/${name}`)) {
         throw new Error(`target already exists: ${name}`);
       }
+      // Card present → verify extracted body against recorded sha256, then
+      // restore and remove the card (thaw returns to the directory form).
+      const cardRel = `${ARCHIVE_DIR_REL}/${frozenCardName(name)}`;
+      if (io.exists(cardRel)) {
+        const card = parseFrozenCard(io.readText(cardRel));
+        for (const f of card?.frozen?.files ?? []) {
+          const bodyRel = `${tmpRel}/${name}/${f.path}`;
+          if (!io.exists(bodyRel)) {
+            throw new Error(`thaw verification failed: ${name}/${f.path} missing in cold backup`);
+          }
+          if (sha256Text(io.readText(bodyRel)) !== f.sha256) {
+            throw new Error(`thaw verification failed: ${name}/${f.path} sha256 mismatch`);
+          }
+        }
+      }
       io.moveDir(`${tmpRel}/${name}`, `${destRel}/${name}`);
+      if (io.exists(cardRel)) io.remove(cardRel);
       restored.push(name);
     }
     return {

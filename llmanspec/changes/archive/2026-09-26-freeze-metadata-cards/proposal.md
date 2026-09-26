@@ -1,5 +1,8 @@
 ---
 depends_on: []
+branch: sdd/freeze-metadata-cards
+base_branch: main
+base_sha: ad50fe558ac1615743a357852d13ab899ada67d5
 ---
 
 ## Why

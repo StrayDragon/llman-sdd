@@ -172,6 +172,36 @@ bdd.thenStep('仅归档节点出现', (ctx) => {
   if (out.includes('live_one')) throw new Error(`active node leaked into archived scope: ${out}`);
 });
 
+// r54 扩展 — 冻结平铺卡识别为 archived 节点且依赖边保留 (acceptance)
+bdd.given('一个含平铺冻结卡且其 frontmatter 指向另一冻结卡的临时工作区', (ctx) => {
+  const root = mkdtempSync(join(tmpdir(), 'llman-freeze-card-'));
+  const changes = join(root, 'llmanspec', 'changes');
+  mkdirSync(join(changes, 'archive'), { recursive: true });
+  // 冻结卡 <date>-<id>.yaml:frontmatter 原样 + depends_on 指向另一冻结卡
+  writeFileSync(
+    join(changes, 'archive', '2026-01-01-card-a.yaml'),
+    '---\ndepends_on: [card-b]\n---\n\n## Why\nx\n',
+  );
+  writeFileSync(
+    join(changes, 'archive', '2026-01-02-card-b.yaml'),
+    '---\ndepends_on: []\n---\n\n## Why\nx\n',
+  );
+  ctx.fixtures['graph工作区'] = { root };
+});
+
+bdd.thenStep('冻结卡节点被标注 done 且依赖边保留', (ctx) => {
+  const { out } = ctx.fixtures['scope结果'] as { out: string };
+  if (!out.includes('card_a["card-a ✓ done"]:::archived')) {
+    throw new Error(`frozen card node missing from graph output:\n${out}`);
+  }
+  if (!out.includes('card_b["card-b ✓ done"]:::archived')) {
+    throw new Error(`frozen card dependency node missing from graph output:\n${out}`);
+  }
+  if (!out.includes('card_a -->|depends on| card_b')) {
+    throw new Error(`frozen-card dependency edge missing from graph output:\n${out}`);
+  }
+});
+
 bdd.given('一个已存在 spec 的临时工作区', (ctx) => {
   const root = mkdtempSync(join(tmpdir(), 'llman-skel-'));
   mkdirSync(join(root, 'llmanspec', 'specs'), { recursive: true });

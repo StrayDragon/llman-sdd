@@ -47,8 +47,9 @@ export const STAGE_ORDER = ['draft', 'designed', 'planned', 'full'] as const;
 /**
  * r73 dependency-reference resolution: `active` matches a leaf change dir by
  * name (nested groups included — same caliber as the CLI change scan),
- * `archived` matches an `archive/<YYYY-MM-DD>-<id>` entry exactly (a suffix
- * like `2026-01-01-the-other` must NOT satisfy id `other`). A missing
+ * `archived` matches an `archive/<YYYY-MM-DD>-<id>` dir OR a flat frozen card
+ * `archive/<YYYY-MM-DD>-<id>.yaml` exactly (a suffix like
+ * `2026-01-01-the-other` must NOT satisfy id `other`). A missing
  * `archive/` dir reads as empty and never throws.
  */
 function resolveChangeRef(
@@ -64,10 +65,39 @@ function resolveChangeRef(
   const archive = `${changesRoot}/archive`;
   const entries = io.exists(archive) && io.isDirectory(archive) ? io.listDir(archive) : [];
   // `YYYY-MM-DD-` is 11 chars; the remainder must equal the id exactly.
-  const archived = entries.some(
-    (name) => /^\d{4}-\d{2}-\d{2}-/u.test(name) && name.slice(11) === id,
-  );
+  const archived = entries.some((name) => {
+    if (!/^\d{4}-\d{2}-\d{2}-/u.test(name)) return false;
+    const base = name.endsWith('.yaml') ? name.slice(0, -'.yaml'.length) : name;
+    return base.slice(11) === id;
+  });
   return archived ? 'archived' : 'unknown';
+}
+
+/**
+ * r87: global change-id uniqueness gate. Enumerates active change ids (leaf
+ * dir names), archived dir ids and frozen-card ids, and returns every id that
+ * appears more than once across the whole set. This is the cheap, enumerable
+ * form of the uniqueness contract: frozen ids are no longer hidden inside the
+ * cold backup, so collisions are checkable without thawing.
+ */
+export function checkGlobalChangeIdUniqueness(io: ChangeFsIoLite, changesRoot: string): string[] {
+  const archive = `${changesRoot}/archive`;
+  const entries = io.exists(archive) && io.isDirectory(archive) ? io.listDir(archive) : [];
+  const counts = new Map<string, number>();
+  walkActiveChangeDirs(io, changesRoot, (_dir, name) => {
+    counts.set(name, (counts.get(name) ?? 0) + 1);
+  });
+  for (const name of entries) {
+    if (!/^\d{4}-\d{2}-\d{2}-/u.test(name)) continue;
+    const base = name.endsWith('.yaml') ? name.slice(0, -'.yaml'.length) : name;
+    const id = base.slice(11);
+    if (id === '') continue;
+    counts.set(id, (counts.get(id) ?? 0) + 1);
+  }
+  return [...counts]
+    .filter(([, n]) => n > 1)
+    .map(([id]) => id)
+    .toSorted((a, b) => a.localeCompare(b));
 }
 
 export type StageGate = (typeof STAGE_ORDER)[number];

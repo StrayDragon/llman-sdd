@@ -496,7 +496,13 @@ const requireIssues = (ctx: {
   fixtures: Record<string, unknown>;
 }): { level: string; path: string; message: string }[] => {
   const r = ctx.fixtures['命令结果'] as { stdout: string };
-  const parsed = JSON.parse(r.stdout) as {
+  // runCliCombined concatenates stdout+stderr; the CLI prints a trailing
+  // `Error: validation failed` on stderr for failing runs. Prefer parsing the
+  // JSON head when the tail carries that human trailer.
+  let text = r.stdout;
+  const trimmed = text.replace(/\nError: validation failed\s*$/u, '');
+  if (trimmed.trim() !== '') text = trimmed;
+  const parsed = JSON.parse(text) as {
     items: { issues: { level: string; path: string; message: string }[] }[];
   };
   return parsed.items.flatMap((i) => i.issues);
@@ -681,9 +687,10 @@ bdd.thenStep(
 );
 
 // r73 — dependency reference resolution + body-text immunity for
-// needs_specs_change (acceptance). Archive entries and both dep consumers are
-// seeded in one repo; the When targets the change seeded for the named dep.
-bdd.given('一个含归档条目 "{entry}" 的临时仓库', (ctx, entry) => {
+// needs_specs_change (acceptance). Archive dirs, frozen cards and both dep
+// consumers are seeded in one repo; the When targets the change seeded for
+// the named dep.
+bdd.given('一个含归档目录 "{entry}" 与平铺冻结卡 "{card}" 的临时仓库', (ctx, entry, card) => {
   const repo = makeTempRepo();
   const writeProposal = (id: string, frontmatter: string): void => {
     const dir = join(repo.root, 'llmanspec', 'changes', id);
@@ -691,11 +698,20 @@ bdd.given('一个含归档条目 "{entry}" 的临时仓库', (ctx, entry) => {
     writeFileSync(join(dir, 'proposal.md'), frontmatter);
   };
   writeProposal(`archive/${entry}`, '---\ndepends_on: []\n---\nx\n');
+  // 平铺冻结卡:目录内 proposal.md 已随 freeze 入冷备,磁盘仅存 <date>-<id>.yaml
+  writeFileSync(
+    join(repo.root, 'llmanspec', 'changes', 'archive', card),
+    '---\ndepends_on: []\n---\n',
+  );
   writeProposal('demo-ghost', '---\ndepends_on: [ghost]\n---\n\n## Why\nx\n');
   writeProposal('demo-arch', '---\ndepends_on: [other]\n---\n\n## Why\nx\n');
+  writeProposal('demo-flat', '---\ndepends_on: [flat]\n---\n\n## Why\nx\n');
   repo.run('git', ['add', '-A']);
   repo.run('git', [...gitCommit, 'seed deps']);
-  ctx.fixtures['依赖仓库'] = { repo, changes: { ghost: 'demo-ghost', other: 'demo-arch' } };
+  ctx.fixtures['依赖仓库'] = {
+    repo,
+    changes: { ghost: 'demo-ghost', other: 'demo-arch', flat: 'demo-flat' },
+  };
 });
 
 bdd.when('对 depends_on 为 "{dep}" 的 change 运行 validate --json', (ctx, dep) => {
@@ -1014,6 +1030,48 @@ bdd.thenStep('输出不含 unknown field 相关 issue', (ctx) => {
     throw new Error(
       `archived proposal must be exempt from the frontmatter field gate:\n${JSON.stringify(hits)}`,
     );
+  }
+});
+
+// r87 — global change-id uniqueness gate (acceptance). Active change id
+// colliding with an archived dir / frozen card id must surface as ERROR.
+bdd.given('一个含活跃 change "{id}" 与归档目录 "{entry}" 的临时仓库', (ctx, id, entry) => {
+  const repo = makeTempRepo();
+  const mk = (rel: string, frontmatter: string): void => {
+    const dir = join(repo.root, 'llmanspec', 'changes', rel);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'proposal.md'), frontmatter);
+  };
+  mk(id, '---\ndepends_on: []\n---\n\n## Why\nx\n');
+  mk(`archive/${entry}`, '---\ndepends_on: []\n---\nx\n');
+  repo.run('git', ['add', '-A']);
+  repo.run('git', [...gitCommit, 'seed duplicate']);
+  ctx.fixtures['验证仓库'] = { repo, id } satisfies ValidateRepoFixture;
+});
+
+bdd.given('一个仅含活跃 change "{id}" 的临时仓库', (ctx, id) => {
+  const repo = makeTempRepo();
+  const dir = join(repo.root, 'llmanspec', 'changes', id);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'proposal.md'), '---\ndepends_on: []\n---\n\n## Why\nx\n');
+  repo.run('git', ['add', '-A']);
+  repo.run('git', [...gitCommit, 'seed unique']);
+  ctx.fixtures['验证仓库'] = { repo, id } satisfies ValidateRepoFixture;
+});
+
+bdd.thenStep('输出含 "duplicate change id: {id}" 的 ERROR', (ctx, id) => {
+  const hit = requireIssues(ctx).find(
+    (x) => x.level === 'ERROR' && x.message.includes(`duplicate change id: ${id}`),
+  );
+  if (!hit) {
+    throw new Error(`duplicate-change-id ERROR missing:\n${JSON.stringify(requireIssues(ctx))}`);
+  }
+});
+
+bdd.thenStep('输出不含 "duplicate change id"', (ctx) => {
+  const hits = requireIssues(ctx).filter((x) => x.message.includes('duplicate change id'));
+  if (hits.length > 0) {
+    throw new Error(`unexpected duplicate-change-id ERROR:\n${JSON.stringify(hits)}`);
   }
 });
 

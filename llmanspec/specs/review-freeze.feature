@@ -26,12 +26,14 @@
 
   @req:r24 @human
   场景: freeze 冷备合同
-    - `archive freeze` MUST 将候选归档目录写入 `llmanspec/changes/archive/freezed_changes.7z.archived` 并删除原目录;候选 MUST 为目录名带 `YYYY-MM-DD-` 前缀且早于 `--before` 日期者,`--keep-recent N` MUST 按名保留最近 N 个不冻结;`--dry-run` MUST 仅列候选不做变更;`--list` MUST 列出冷备内条目。
-    - 执行 worktree 非主检出(主检出 = 持有默认分支的 worktree)时,freeze 与 thaw MUST 输出 WARNING(指明当前为非主检出、冷备可能不完整、建议回主检出执行)且 MUST NOT 阻断:退出码与既有产物形态不变;主检出探测失败 SHALL 静默跳过警告(best-effort)。
+    - `archive freeze` MUST 将候选归档目录的正文(proposal.md/design.md/tasks.md/specs 等)写入 `llmanspec/changes/archive/freezed_changes.7z.archived`,并为每个冻结候选生成平铺卡 `llmanspec/changes/archive/<YYYY-MM-DD>-<id>.yaml` 替代原目录(原目录删除);候选 MUST 为目录名带 `YYYY-MM-DD-` 前缀且早于 `--before` 日期者,已存在同日期平铺卡的条目 MUST 不再重复冻结,`--keep-recent N` MUST 按名保留最近 N 个不冻结;`--dry-run` MUST 仅列候选不做变更;`--list` MUST 列出冻结 change 名。
+    - 平铺卡 MUST 为 YAML,内容 MUST 含冻结 change 对应 proposal.md frontmatter 围栏内容字段原样(归档 proposal 不受字段门禁约束,豁免字段一并保留)加 `frozen:` 段(冻结时间戳、正文文件清单、各文件 sha256、冷备归档名);卡存在即正文必在冷备的权威记录。
+    - freeze 失败原子性:`7z add` 失败 MUST 回滚已写卡文件且不删除原目录;执行 worktree 非主检出(主检出 = 持有默认分支的 worktree)时,freeze 与 thaw MUST 输出 WARNING(指明当前为非主检出、冷备可能不完整、建议回主检出执行)且 MUST NOT 阻断:退出码与既有产物形态不变;主检出探测失败 SHALL 静默跳过警告(best-effort)。
 
   @req:r25 @human
   场景: thaw 回置与双向兼容
-    - `archive thaw --change <名>`(可重复)MUST 将冷备中的归档目录回置到 `llmanspec/changes/archive/`;未知名 MUST 报错并列出可用条目;冷备 MUST 为 7z 格式,本工具的冻结产物 MUST 可被自身解冻(自洽双向)。
+    - `archive thaw --change <名>`(可重复)MUST 将冷备中的归档目录回置到 `llmanspec/changes/archive/`;`<名>` 匹配平铺卡 `<YYYY-MM-DD>-<id>.yaml` 或冷备 7z 内 `<YYYY-MM-DD>-<id>/` 条目,匹配卡时 MUST 按卡内 sha256 校验回置正文并在成功后删除对应卡;未知名 MUST 报错并列出可用条目;冷备 MUST 为 7z 格式,本工具的冻结产物 MUST 可被自身解冻(自洽双向)。
+    - 存量兼容:冷备文件 `freezed_changes.7z.archived` 内含未经平铺卡化的旧冻结条目(前代 freeze 产物)MUST 仍可按 7z 条目名回置,未生成卡 MUST NOT 阻断其列表与回置。
 
   @req:r25 @executable
   场景: 冻结解冻自洽
@@ -67,6 +69,20 @@
     那么 冷备文件生成且被冻结目录自 archive 删除
     而且 dry-run 仅列候选且未做任何变更
     而且 freeze --list 列出冷备条目
+
+  @req:r24 @executable
+  场景: freeze 生成平铺冻结卡
+    假如 一个含带日期归档目录的临时仓库
+    当 运行 archive freeze --before 该日期
+    那么 冷备文件生成且原目录被 `<YYYY-MM-DD>-<id>.yaml` 平铺卡替代
+    而且 平铺卡含对应 proposal.md frontmatter 字段与 frozen 元信息(文件清单/sha256)
+
+  @req:r25 @executable
+  场景: thaw 回置并移除平铺卡
+    假如 一个含平铺冻结卡与冷备的临时仓库
+    当 运行 archive thaw --change 该卡名
+    那么 原目录完整回到 changes/archive 下且内容与 sha256 校验一致
+    而且 平铺卡被删除
 
   @req:r24 @executable
   场景: 非主检出 freeze 警告且归档仍产出

@@ -208,15 +208,30 @@
 
   @req:r73 @human
   场景: frontmatter 依赖引用解析与单一解析口径
-    - proposal frontmatter 的 `depends_on` 与 `blocks` 每项 MUST 命中活跃 change(叶子目录名)或 `changes/archive/` 下目录名精确为 `<YYYY-MM-DD>-<id>` 的归档条目,均未命中 MUST 报 ERROR(消息含 `references unknown change: <id>`),命中归档 MUST NOT 产出 issue;`changes/archive/` 目录是否存在 MUST NOT 影响该判定;frontmatter 块 MUST 以单一口径切分(首行 `---`,闭合为独占一行的 `---`,其后为换行或文件结束),依赖、绑定与 `needs_specs_change` 的读取 MUST 共用该口径;`needs_specs_change` MUST 仅从 frontmatter 读取,正文同名文本 MUST NOT 影响判定。
+    - proposal frontmatter 的 `depends_on` 与 `blocks` 每项 MUST 命中活跃 change(叶子目录名)、`changes/archive/` 下目录名精确为 `<YYYY-MM-DD>-<id>` 的归档条目或 `changes/archive/` 下平铺冻结卡 `<YYYY-MM-DD>-<id>.yaml`(以文件名去 `.yaml` 后缀并取日期前缀之后部分精确匹配 id),均未命中 MUST 报 ERROR(消息含 `references unknown change: <id>`),命中归档或平铺卡 MUST NOT 产出 issue;`changes/archive/` 目录是否存在 MUST NOT 影响该判定;frontmatter 块 MUST 以单一口径切分(首行 `---`,闭合为独占一行的 `---`,其后为换行或文件结束),依赖、绑定与 `needs_specs_change` 的读取 MUST 共用该口径;`needs_specs_change` MUST 仅从 frontmatter 读取,正文同名文本 MUST NOT 影响判定。
 
   @req:r73 @executable
-  场景: 未知依赖在含归档目录的仓库中报错
-    假如 一个含归档条目 "2026-01-01-other" 的临时仓库
+  场景: 未知依赖与平铺卡依赖解析
+    假如 一个含归档目录 "2026-01-01-other" 与平铺冻结卡 "2026-01-02-flat.yaml" 的临时仓库
     当 对 depends_on 为 "ghost" 的 change 运行 validate --json
     那么 输出含 "references unknown change: ghost" 的 ERROR
     当 对 depends_on 为 "other" 的 change 运行 validate --json
     那么 该 change 无依赖相关 issue
+    当 对 depends_on 为 "flat" 的 change 运行 validate --json
+    那么 该 change 无依赖相关 issue
+
+  @req:r87 @human
+  场景: change id 全局唯一性门禁
+    - validate MUST 枚举活跃 change id(叶子目录名)、归档目录 `<YYYY-MM-DD>-<id>` 与平铺冻结卡 `<YYYY-MM-DD>-<id>.yaml` 拆解出的 id,任一 id 同时以活跃与归档/冻结形态存在或重复出现于归档/冻结集合 MUST 报 ERROR(消息含 `duplicate change id: <id>`);仅活跃存在 MUST NOT 产出 issue。
+
+  @req:r87 @executable
+  场景: 活跃与冻结 id 冲突报错
+    假如 一个含活跃 change "demo" 与归档目录 "2026-01-01-demo" 的临时仓库
+    当 运行 validate --changes --json
+    那么 输出含 "duplicate change id: demo" 的 ERROR
+    假如 一个仅含活跃 change "demo" 的临时仓库
+    当 运行 validate --changes --json
+    那么 输出不含 "duplicate change id"
 
   @req:r73 @executable
   场景: 正文同名文本不影响 needs_specs_change

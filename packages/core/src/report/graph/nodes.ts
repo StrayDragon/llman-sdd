@@ -1,3 +1,4 @@
+import { frozenCardIdOf, isFrozenCard } from '../../archive/frozenCard.ts';
 import { CHANGES_DIR } from '../../change/lifecycle.ts';
 import type { GraphFsIo, GraphNode, ScopeKind } from './types.ts';
 
@@ -33,6 +34,11 @@ export function collectActiveNodes(
   return out;
 }
 
+/**
+ * Archived nodes: dated dirs (as before) plus flat frozen cards
+ * `<YYYY-MM-DD>-<id>.yaml` (r54 extension — cards are archived changes whose
+ * body lives in the cold backup; the card filename carries the id).
+ */
 export function collectArchivedNodes(io: GraphFsIo, root: string): GraphNode[] {
   const archiveDir = `${root}/${CHANGES_DIR}/archive`;
   if (!io.exists(archiveDir) || !io.isDirectory(archiveDir)) return [];
@@ -40,11 +46,18 @@ export function collectArchivedNodes(io: GraphFsIo, root: string): GraphNode[] {
   const seen = new Set<string>();
   for (const name of io.listDir(archiveDir)) {
     const child = `${archiveDir}/${name}`;
-    if (!io.isDirectory(child)) continue;
-    const id = extractArchivedId(name);
-    if (id !== null && !seen.has(id)) {
-      seen.add(id);
-      out.push({ id, archived: true, present: true });
+    if (io.isDirectory(child)) {
+      const id = extractArchivedId(name);
+      if (id !== null && !seen.has(id)) {
+        seen.add(id);
+        out.push({ id, archived: true, present: true });
+      }
+    } else if (isFrozenCard(name)) {
+      const id = frozenCardIdOf(name);
+      if (id !== null && !seen.has(id)) {
+        seen.add(id);
+        out.push({ id, archived: true, present: true });
+      }
     }
   }
   return out;
@@ -80,7 +93,7 @@ export function proposalFor(io: GraphFsIo, root: string, node: GraphNode): strin
     let best = '';
     let bestDate = '';
     for (const name of io.listDir(archiveDir)) {
-      const id = extractArchivedId(name);
+      const id = isFrozenCard(name) ? frozenCardIdOf(name) : extractArchivedId(name);
       if (id !== node.id) continue;
       const date = name.slice(0, 10);
       if (best === '' || date > bestDate) {
@@ -89,7 +102,12 @@ export function proposalFor(io: GraphFsIo, root: string, node: GraphNode): strin
       }
     }
     const p = `${archiveDir}/${best}/proposal.md`;
-    return io.exists(p) ? io.readText(p) : '';
+    if (io.exists(p)) return io.readText(p);
+    // Frozen card fallback (r54): dir gone, body in cold backup — read the
+    // card (frontmatter incl. depends_on) so dependency edges survive freeze.
+    const card = isFrozenCard(best) ? `${archiveDir}/${best}` : `${archiveDir}/${best}.yaml`;
+    if (io.exists(card)) return io.readText(card);
+    return '';
   }
   const changesDir = `${root}/${CHANGES_DIR}`;
   const found: string[] = [];

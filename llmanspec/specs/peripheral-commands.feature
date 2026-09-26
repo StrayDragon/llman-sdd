@@ -115,6 +115,7 @@
   @req:r54 @human
   场景: graph 范围与深度
     - `graph` MUST 支持 `--scope active|archived|all` 及逗号组合(缺省 active)、`--depth <N>`(种子依赖 BFS 展开层级,缺省 1)与位置参数 `[change]`(种子);archived 节点 MUST 仅在 scope 含 archived 且被活跃依赖引用或种子可达时出现;`--format` MUST 仅接受 `mermaid`(缺省 mermaid),其他值 MUST 报 `unsupported --format: <v> (mermaid only)` 且以退出码 2 退出。
+    - 冻结平铺卡 `changes/archive/<YYYY-MM-DD>-<id>.yaml` MUST 被识别为 archived 节点(与归档目录同语义,标注 done 与 archived class);其 frontmatter 中 `depends_on` MUST 参与依赖边解析,使冻结 change 的依赖链在 `--scope archived` 与 `--scope all` 下可展示;平铺卡 id 拆解(`<date>-<id>`、去 `.yaml` 后缀)与归档目录口径一致。
 
   @req:r55 @human
   场景: spec 助手兼容 flag
@@ -125,6 +126,12 @@
     假如 一个含活跃与归档 change 的临时工作区
     当 运行 graph --scope archived
     那么 仅归档节点出现
+
+  @req:r54 @executable
+  场景: 冻结平铺卡节点与依赖链
+    假如 一个含平铺冻结卡且其 frontmatter 指向另一冻结卡的临时工作区
+    当 运行 graph --scope archived
+    那么 冻结卡节点被标注 done 且依赖边保留
 
   @req:r54 @executable
   场景: 非 mermaid 输出格式被拒

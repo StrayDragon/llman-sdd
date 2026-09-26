@@ -1,6 +1,7 @@
 import {
   applyStrict,
   buildDuplicatesFor,
+  checkGlobalChangeIdUniqueness,
   collectChanges,
   currentBranch,
   defaultBranch,
@@ -140,6 +141,34 @@ function changeV1Items(names: string[], opts: { stage?: string; strict?: boolean
       staleness: notApplicableStaleness(),
       matchedViaPrefix: false,
     });
+  }
+  // r87: global change-id uniqueness gate. Duplicate ids attach to their
+  // active change item when the active change is being validated; archive↔
+  // archive / frozen-only collisions surface as synthetic items (no active
+  // counterpart to carry the ERROR).
+  const duplicates = checkGlobalChangeIdUniqueness(io, `${process.cwd()}/llmanspec/changes`);
+  const byId = new Map(items.map((i) => [i.id, i]));
+  for (const dup of duplicates) {
+    const issue: ChangeIssue = {
+      level: 'ERROR',
+      path: 'change-id',
+      message: `duplicate change id: ${dup}`,
+    };
+    const target = byId.get(dup);
+    if (target !== undefined) {
+      target.issues = [...target.issues, issue];
+      target.valid = false;
+    } else {
+      items.push({
+        id: dup,
+        type: 'change',
+        valid: false,
+        issues: [issue],
+        durationMs: 0,
+        staleness: notApplicableStaleness(),
+        matchedViaPrefix: false,
+      });
+    }
   }
   items.sort(compareItems);
   return items;

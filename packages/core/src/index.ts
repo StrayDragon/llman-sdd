@@ -69,6 +69,7 @@ export {
 export {
   checkChangeDoc,
   validateChange,
+  checkGlobalChangeIdUniqueness,
   STAGE_ORDER,
   type ChangeCheckConfig,
   type ChangeCheckInput,
@@ -206,6 +207,17 @@ export {
   type FreezeRunResult,
   type ThawResult,
 } from './archive/freeze.ts';
+export {
+  FROZEN_CARD_EXT,
+  composeFrozenCard,
+  frozenCardIdOf,
+  frozenCardName,
+  isFrozenCard,
+  parseFrozenCard,
+  type FrozenFileEntry,
+  type FrozenMeta,
+  type ParseFrozenCardResult,
+} from './archive/frozenCard.ts';
 export {
   buildReview,
   renderReviewHtml,

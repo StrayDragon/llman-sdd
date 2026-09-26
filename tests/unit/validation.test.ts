@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import {
   checkChangeDoc,
+  checkGlobalChangeIdUniqueness,
   discoverSpecs,
   parseCapability,
   validateAllSpecs,
@@ -431,6 +432,88 @@ describe('T2: dependency reference resolution (r73)', () => {
       ...archiveAt('2026-01-01-other'),
     });
     expect(r.issues.some((i) => i.message.includes('references unknown change: ghost'))).toBe(true);
+  });
+
+  test('flat frozen card <YYYY-MM-DD>-<id>.yaml satisfies depends_on (r73 extension)', () => {
+    const r = run({
+      './llmanspec/changes/demo/proposal.md': '---\ndepends_on: [flat]\n---\n\n## Why\nx\n',
+      './llmanspec/changes/archive/2026-01-02-flat.yaml': '---\ndepends_on: []\n---\n',
+    });
+    expect(r.issues.some((i) => i.message.includes('references unknown change'))).toBe(false);
+  });
+
+  test('frozen card 2026-01-01-the-other.yaml must not suffix-match id other', () => {
+    const r = run({
+      './llmanspec/changes/demo/proposal.md': '---\ndepends_on: [other]\n---\n\n## Why\nx\n',
+      './llmanspec/changes/archive/2026-01-01-the-other.yaml': '---\ndepends_on: []\n---\n',
+    });
+    expect(r.issues.some((i) => i.message.includes('references unknown change: other'))).toBe(true);
+  });
+});
+
+describe('r87: global change-id uniqueness gate', () => {
+  /** Same path convention as the T2 fixture: `./` prefixes, dirs derived. */
+  const makeIo = (files: Record<string, string>): ChangeFsIoLite => {
+    const dirs = new Set<string>();
+    for (const f of Object.keys(files)) {
+      const parts = f.split('/');
+      parts.pop();
+      while (parts.length > 0) {
+        dirs.add(parts.join('/'));
+        parts.pop();
+      }
+    }
+    return {
+      exists: (p) => files[p] !== undefined || dirs.has(p),
+      readText: (p) => {
+        const v = files[p];
+        if (v === undefined) throw new Error(`missing ${p}`);
+        return v;
+      },
+      listDir: (p) => [
+        ...new Set(
+          [...Object.keys(files), ...dirs]
+            .filter((e) => e.startsWith(`${p}/`))
+            .map((e) => e.slice(p.length + 1).split('/')[0] as string),
+        ),
+      ],
+      isDirectory: (p) => dirs.has(p),
+    };
+  };
+  const proposal = (deps: string): string => `---\ndepends_on: ${deps}\n---\nx\n`;
+
+  test('active ↔ archived dir collision is reported', () => {
+    const dups = checkGlobalChangeIdUniqueness(
+      makeIo({
+        './llmanspec/changes/demo/proposal.md': proposal('[]'),
+        './llmanspec/changes/archive/2026-01-01-demo/proposal.md': proposal('[]'),
+      }),
+      './llmanspec/changes',
+    );
+    expect(dups).toEqual(['demo']);
+  });
+
+  test('active ↔ frozen card collision is reported', () => {
+    const dups = checkGlobalChangeIdUniqueness(
+      makeIo({
+        './llmanspec/changes/flat/proposal.md': proposal('[]'),
+        './llmanspec/changes/archive/2026-01-02-flat.yaml': proposal('[]'),
+      }),
+      './llmanspec/changes',
+    );
+    expect(dups).toContain('flat');
+  });
+
+  test('unique ids are not reported', () => {
+    expect(
+      checkGlobalChangeIdUniqueness(
+        makeIo({
+          './llmanspec/changes/demo/proposal.md': proposal('[]'),
+          './llmanspec/changes/other/proposal.md': proposal('[]'),
+        }),
+        './llmanspec/changes',
+      ),
+    ).toEqual([]);
   });
 });
 

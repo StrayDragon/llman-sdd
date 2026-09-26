@@ -148,6 +148,47 @@ describe('graphMermaid', () => {
     expect(malformed[0]).toBe('flowchart TD');
     expect(malformed.some((l) => l.includes('-->'))).toBe(false);
   });
+
+  test('frozen flat cards are archived nodes and keep dependency edges (r54)', () => {
+    const io: GraphFsIo = {
+      exists: () => true,
+      // Frozen card carries frontmatter (incl. depends_on) at the archive path
+      // `<date>-<id>.yaml`; active proposals read from the change dir.
+      readText: (p) =>
+        p.endsWith('add-alpha/proposal.md')
+          ? '---\ndepends_on:\n  - add-beta\n  - add-old\n  - add-flat\n---\n\nx\n'
+          : '---\ndepends_on: []\n---\n\nx\n',
+      listDir: (p) =>
+        p.endsWith('archive')
+          ? ['2026-09-01-add-old', '2026-09-02-add-flat.yaml']
+          : ['add-alpha', 'add-beta', 'archive'],
+      isDirectory: (p) => !p.endsWith('.yaml'),
+    };
+    const lines = graphMermaid(io, '.');
+    expect(lines[0]).toBe('flowchart TD');
+    // Frozen card node is rendered like an archived change.
+    expect(lines).toContain('    add_flat["add-flat ✓ done"]:::archived');
+    // Dependency edge to the frozen card survives.
+    expect(lines).toContain('    add_alpha -->|depends on| add_flat');
+    expect(lines.at(-1)).toContain('classDef archived');
+  });
+
+  test('proposalFor prefers a real dir proposal over a same-id frozen card', () => {
+    const io: GraphFsIo = {
+      exists: (p) => p.endsWith('2026-09-01-add-old/proposal.md') || p.includes('archive'),
+      readText: (p) =>
+        p.endsWith('2026-09-01-add-old/proposal.md') ? '---\ndepends_on: [x]\n---\n' : '',
+      listDir: (p) =>
+        p.endsWith('archive')
+          ? ['2026-09-01-add-old', '2026-09-01-add-old.yaml']
+          : ['add-alpha', 'add-beta', 'archive'],
+      isDirectory: (p) => !p.endsWith('.yaml'),
+    };
+    // scope archived renders the dir-based node with its own frontmatter; both
+    // the dir and the card resolve the same id, dir wins (latest matching).
+    const lines = graphMermaid(io, '.', { scope: 'archived' });
+    expect(lines.some((l) => l.includes('add_old["add-old ✓ done"]:::archived'))).toBe(true);
+  });
 });
 
 describe('nextReqId', () => {

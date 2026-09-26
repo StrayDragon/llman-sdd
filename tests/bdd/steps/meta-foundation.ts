@@ -251,6 +251,12 @@ interface FreezeFixture {
   run: (args: string[]) => { code: number; stdout: string; stderr: string };
 }
 
+interface FreezeCliResult {
+  code: number;
+  stdout: string;
+  stderr: string;
+}
+
 interface FreezeResult {
   dry: { code: number; stdout: string; stderr: string };
   /** dry-run 后、真实 freeze 前采样的零变更快照(--dry-run 不做任何变更)。 */
@@ -345,5 +351,131 @@ bdd.thenStep('freeze --list 列出冷备条目', (ctx) => {
   // --keep-recent 1 语义:middle 按名保留,未入冷备
   if (list.stdout.includes('2026-01-02-middle')) {
     throw new Error('--keep-recent candidate was frozen despite being kept');
+  }
+});
+
+// ---------------------------------------------------------------------------
+// r24/r25 扩展 — freeze 生成平铺冻结卡替代目录、thaw 回置并移除卡 (acceptance)
+// ---------------------------------------------------------------------------
+
+bdd.given('一个含带日期归档目录的临时仓库', (ctx) => {
+  if (bundledSevenZip !== 'ok') {
+    throw new Error(
+      '[7z 环境守卫] bundled 7z-wasm 依赖不可用——freeze 卡场景无法执行,请先 bun install',
+    );
+  }
+  const root = mkdtempSync(join(tmpdir(), 'llman-sdd-freeze-card-'));
+  const full = join(root, 'llmanspec', 'changes', 'archive', '2026-01-01-card-demo');
+  mkdirSync(full, { recursive: true });
+  writeFileSync(join(full, 'proposal.md'), `---\ndepends_on: [other]\n---\n\n# card demo\n`);
+  writeFileSync(join(full, 'design.md'), '# design\n');
+  ctx.fixtures['卡冻结仓库'] = {
+    root,
+    run: (args: string[]) => {
+      const proc = runCli(args, root);
+      return { code: proc.status ?? 1, stdout: proc.stdout ?? '', stderr: proc.stderr ?? '' };
+    },
+  } satisfies FreezeFixture;
+});
+
+bdd.when('运行 archive freeze --before 该日期', (ctx) => {
+  const repo = ctx.fixtures['卡冻结仓库'] as FreezeFixture;
+  const res = repo.run(['archive', 'freeze', '--before', '2026-02-01']);
+  ctx.fixtures['卡冻结结果'] = {
+    code: res.code,
+    stdout: res.stdout,
+    stderr: res.stderr,
+  } satisfies FreezeCliResult;
+});
+
+bdd.thenStep('冷备文件生成且原目录被 `<YYYY-MM-DD>-<id>.yaml` 平铺卡替代', (ctx) => {
+  const { code, stdout, stderr } = ctx.fixtures['卡冻结结果'] as FreezeCliResult;
+  if (code !== 0) throw new Error(`freeze failed: ${stdout}${stderr}`);
+  const repo = ctx.fixtures['卡冻结仓库'] as FreezeFixture;
+  const archiveDir = join(repo.root, 'llmanspec', 'changes', 'archive');
+  if (!existsSync(join(archiveDir, FREEZE_ARCHIVE_NAME))) {
+    throw new Error(`${FREEZE_ARCHIVE_NAME} was not written`);
+  }
+  if (existsSync(join(archiveDir, '2026-01-01-card-demo'))) {
+    throw new Error('frozen directory was not replaced by the flat card');
+  }
+  if (!existsSync(join(archiveDir, '2026-01-01-card-demo.yaml'))) {
+    throw new Error('flat frozen card missing after freeze');
+  }
+});
+
+bdd.thenStep(
+  '平铺卡含对应 proposal.md frontmatter 字段与 frozen 元信息(文件清单/sha256)',
+  (ctx) => {
+    const repo = ctx.fixtures['卡冻结仓库'] as FreezeFixture;
+    const card = readFileSync(
+      join(repo.root, 'llmanspec', 'changes', 'archive', '2026-01-01-card-demo.yaml'),
+      'utf8',
+    );
+    if (!card.includes('depends_on: [other]')) {
+      throw new Error(`card lost proposal frontmatter:\n${card}`);
+    }
+    if (!card.includes('frozen:') || !card.includes('proposal.md') || !card.includes('design.md')) {
+      throw new Error(`card lacks frozen metadata or file list:\n${card}`);
+    }
+    const hex = card.match(/(?:proposal\.md|design\.md)": ([0-9a-f]{64})/u);
+    if (!hex) throw new Error(`card file list lacks sha256 digests:\n${card}`);
+  },
+);
+
+bdd.given('一个含平铺冻结卡与冷备的临时仓库', (ctx) => {
+  if (bundledSevenZip !== 'ok') {
+    throw new Error(
+      '[7z 环境守卫] bundled 7z-wasm 依赖不可用——thaw 卡场景无法执行,请先 bun install',
+    );
+  }
+  const root = mkdtempSync(join(tmpdir(), 'llman-sdd-thaw-card-'));
+  // 先冻结出一个真实带卡冷备,再以该仓库作为 thaw 前置
+  const full = join(root, 'llmanspec', 'changes', 'archive', '2026-01-01-card-thaw');
+  mkdirSync(full, { recursive: true });
+  writeFileSync(join(full, 'proposal.md'), `---\ndepends_on: []\n---\n\n# thaw demo\n`);
+  const cli = (args: string[]) => {
+    const proc = runCli(args, root);
+    return { code: proc.status ?? 1, stdout: proc.stdout ?? '', stderr: proc.stderr ?? '' };
+  };
+  const frozen = cli(['archive', 'freeze', '--before', '2026-02-01']);
+  if (frozen.code !== 0) throw new Error(`freeze setup failed: ${frozen.stdout}${frozen.stderr}`);
+  ctx.fixtures['卡解冻仓库'] = {
+    root,
+    run: cli,
+  } satisfies FreezeFixture;
+});
+
+bdd.when('运行 archive thaw --change 该卡名', (ctx) => {
+  const repo = ctx.fixtures['卡解冻仓库'] as FreezeFixture;
+  const res = repo.run(['archive', 'thaw', '--change', '2026-01-01-card-thaw']);
+  ctx.fixtures['卡解冻结果'] = {
+    code: res.code,
+    stdout: res.stdout,
+    stderr: res.stderr,
+  } satisfies FreezeCliResult;
+});
+
+bdd.thenStep('原目录完整回到 changes/archive 下且内容与 sha256 校验一致', (ctx) => {
+  const { code, stdout, stderr } = ctx.fixtures['卡解冻结果'] as FreezeCliResult;
+  if (code !== 0) throw new Error(`thaw failed: ${stdout}${stderr}`);
+  const repo = ctx.fixtures['卡解冻仓库'] as FreezeFixture;
+  const p = join(
+    repo.root,
+    'llmanspec',
+    'changes',
+    'archive',
+    '2026-01-01-card-thaw',
+    'proposal.md',
+  );
+  if (!existsSync(p)) throw new Error('thawed dir missing proposal.md');
+  const content = readFileSync(p, 'utf8');
+  if (!content.includes('# thaw demo')) throw new Error(`thawed content drifted: ${content}`);
+});
+
+bdd.thenStep('平铺卡被删除', (ctx) => {
+  const repo = ctx.fixtures['卡解冻仓库'] as FreezeFixture;
+  if (existsSync(join(repo.root, 'llmanspec', 'changes', 'archive', '2026-01-01-card-thaw.yaml'))) {
+    throw new Error('frozen card was not removed on thaw');
   }
 });
