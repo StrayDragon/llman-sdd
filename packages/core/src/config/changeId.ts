@@ -1,7 +1,7 @@
 /**
  * change_id contract (r59/r60): pattern compile-check at load time, validate
  * ERROR for active changes violating the pattern, and `change new --from`
- * template rendering (Strict via templates/engine.ts) with the v1 preset vars.
+ * template rendering (Strict via templates/engine.ts) with the predecessor preset vars.
  */
 
 import { harvestUniqueNumbers, type NextIdIo } from '../change/nextId.ts';
@@ -20,7 +20,7 @@ export function compileChangeIdPattern(pattern: string | null | undefined): RegE
 }
 
 export interface ChangeIdVars {
-  /** whole-tree next free number (v1 llman_sdd_unique_id) */
+  /** whole-tree next free number (predecessor llman_sdd_unique_id) */
   llman_sdd_unique_id: number;
   /** explicit --verb value; undefined when not provided (Strict render errors) */
   verb?: string;
@@ -31,14 +31,14 @@ export interface ChangeIdVars {
 }
 
 /**
- * Render a change_id.template with v1 preset vars (r60). Strict semantics:
- * referencing a variable that was not provided errors out (v1 parity —
+ * Render a change_id.template with predecessor preset vars (r60). Strict semantics:
+ * referencing a variable that was not provided errors out (predecessor parity —
  * `{{ verb }}` without --verb fails). Rendering converges on
  * templates/engine.ts (Q3): template calls single-point, no loader,
  * autoescape:false — this file no longer imports the adapter directly.
  */
 export function renderChangeIdTemplate(template: string, vars: ChangeIdVars): string {
-  // Named pre-check (v1 parity): referencing an unprovided variable errors with
+  // Named pre-check (predecessor parity): referencing an unprovided variable errors with
   // the variable name and the preset list, instead of a generic render error.
   const provided = new Set(
     Object.keys(vars).filter((k) => vars[k as keyof ChangeIdVars] !== undefined),
@@ -66,9 +66,9 @@ export function nextUniqueNumber(io: NextIdIo, llmanspecRoot: string): number {
 const VERB_TABLE = ['add', 'update', 'remove', 'refactor', 'fix'] as const;
 
 /**
- * v1 `new.rs::split_verb` parity: the subject is the derived id minus a
+ * predecessor `new.rs::split_verb` parity: the subject is the derived id minus a
  * detected table-verb prefix; the verb is the explicit override when given,
- * otherwise the auto-detected one (v1 renders `{{ verb }}` without --verb for
+ * otherwise the auto-detected one (predecessor renders `{{ verb }}` without --verb for
  * descriptions that carry a verb token).
  */
 export function splitVerb(

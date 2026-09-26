@@ -1,8 +1,8 @@
 /**
  * llmanspec/config.yaml contract (config-schema capability): field-for-field
- * alignment with v1 (crates/llman-sdd/src/sdd/project/config.rs). Unknown
- * keys are tolerated (v1 schema sets no additionalProperties:false); field
- * names stay snake_case for v1-config readability.
+ * alignment with predecessor (crates/llman-sdd/src/sdd/project/config.rs). Unknown
+ * keys are tolerated (predecessor schema sets no additionalProperties:false); field
+ * names stay snake_case for predecessor-config readability.
  */
 import { z } from 'zod';
 

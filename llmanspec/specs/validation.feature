@@ -11,7 +11,7 @@
 
   @req:r12 @human
   场景: 规则域(种子缺陷判定)
-    - 缺 `# capability:` 头注释 MUST 判 ERROR;@human 规则场景描述不含 MUST/SHALL(或 必须/不得/禁止)MUST 判 ERROR;@human 场景未携带 @req 标签 MUST 判 ERROR;@human 与 @executable 同用 MUST 判 ERROR;残留 @manual tag MUST 判迁移 ERROR(0.3.0 起移除);跨 specs 全局重复 req_id MUST 对每个涉事 capability 判 ERROR;`# scope:` 声明的路径 MUST 在磁盘存在,缺失在 `--strict` 下判 ERROR、否则 WARNING(v1 r42 语义)。staleness(git scope 漂移)SHALL 在 change 生命周期阶段接入,本能力不判定。
+    - 缺 `# capability:` 头注释 MUST 判 ERROR;@human 规则场景描述不含 MUST/SHALL(或 必须/不得/禁止)MUST 判 ERROR;@human 场景未携带 @req 标签 MUST 判 ERROR;@human 与 @executable 同用 MUST 判 ERROR;残留 @manual tag MUST 判迁移 ERROR(0.3.0 起移除);跨 specs 全局重复 req_id MUST 对每个涉事 capability 判 ERROR;`# scope:` 声明的路径 MUST 在磁盘存在,缺失在 `--strict` 下判 ERROR、否则 WARNING(前代 r42 语义)。staleness(git scope 漂移)SHALL 在 change 生命周期阶段接入,本能力不判定。
 
   @req:r63 @human
   场景: validate 完整性 WARNING(已绑定 change)
@@ -51,7 +51,7 @@
 
   @req:r47 @human
   场景: validate 目标与模式 flag
-    - `validate` MUST 支持位置参数 `[item]`(spec id 或 change id 自动消歧)、`--all`(全部 changes 与 specs)、`--changes`/`--specs`(限定域)、`--type change|spec`(强制消歧)、`--stage draft|designed|planned|full`(change 域按 v1 产物语义判门:designed 需 design.md、planned 需 design.md+tasks.md、full 另需 tasks.md)、`--strict`(WARNING 按 v1 范围升级为 ERROR 并影响退出)与 `--json`/`--compact-json`(输出 items[].{id,type,valid,issues[].{level,path,message}},staleness,summary{items,passed,failed},version 的 v1 结构);`--specs` 旧 no-op 标记 MUST 废除,域限定语义由 `--changes`/`--specs` 承担;`validate` MUST 支持 `--output <toon|json|compact-json|human>` 且缺省输出 TOON(items 与 json 同载荷),`--output human` 输出 v1 人读报告行(含 Totals 收尾与 Next steps 引导),Next steps 引导 MUST 仅出现在 human 模式,stderr 错误摘要(`Error: validation failed`、阶段强制缺失行)不随输出格式变化。
+    - `validate` MUST 支持位置参数 `[item]`(spec id 或 change id 自动消歧)、`--all`(全部 changes 与 specs)、`--changes`/`--specs`(限定域)、`--type change|spec`(强制消歧)、`--stage draft|designed|planned|full`(change 域按前代产物语义判门:designed 需 design.md、planned 需 design.md+tasks.md、full 另需 tasks.md)、`--strict`(WARNING 按前代范围升级为 ERROR 并影响退出)与 `--json`/`--compact-json`(输出 items[].{id,type,valid,issues[].{level,path,message}},staleness,summary{items,passed,failed},version 的前代结构);`--specs` 旧 no-op 标记 MUST 废除,域限定语义由 `--changes`/`--specs` 承担;`validate` MUST 支持 `--output <toon|json|compact-json|human>` 且缺省输出 TOON(items 与 json 同载荷),`--output human` 输出前代人读报告行(含 Totals 收尾与 Next steps 引导),Next steps 引导 MUST 仅出现在 human 模式,stderr 错误摘要(`Error: validation failed`、阶段强制缺失行)不随输出格式变化。
 
   @req:r48 @human
   场景: bdd run_command 占位符与结果映射
@@ -61,7 +61,7 @@
   场景: validate 目标消歧与阶段门
     假如 一个含 specs 与已绑定 change 的临时仓库
     当 运行 validate --stage full 指向 draft 阶段 change
-    那么 退出码非零且按产物报阶段强制缺失(v1 语义)
+    那么 退出码非零且按产物报阶段强制缺失(前代语义)
 
   @req:r47 @executable
   场景: 输出模式与 strict 升级

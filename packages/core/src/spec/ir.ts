@@ -52,7 +52,7 @@ export function specIdOf(entry: { fileName: string; doc: CapabilityDoc }): strin
 }
 
 /**
- * v1 wording: constraint statements must contain one of these tokens.
+ * predecessor wording: constraint statements must contain one of these tokens.
  * Shared by the parser (structural error), validation (verdict gate), and
  * add-req (authoring gate) so all three MUST-word checks are the same
  * caliber: ASCII keywords match on word boundaries (MUSTARD must NOT hit),

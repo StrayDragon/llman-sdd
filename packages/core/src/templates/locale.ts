@@ -1,6 +1,6 @@
 /**
  * Locale normalization + fallback chain (init-generators capability, r18).
- * Port of v1 config.rs normalize_locale / locale_fallbacks.
+ * Port of predecessor config.rs normalize_locale / locale_fallbacks.
  */
 export function normalizeLocale(value: string): string {
   const trimmed = value.trim();

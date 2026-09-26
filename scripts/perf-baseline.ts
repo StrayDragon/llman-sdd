@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 /**
- * Performance baseline for the v2 CLI (acceptance design, T5).
+ * Performance baseline for the CLI (acceptance design, T5).
  *
  * Generates a synthetic specs fixture (default 60 capabilities × 3 reqs ×
  * 2 scenarios) in a temp project, then times the read-path commands through

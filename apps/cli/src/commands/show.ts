@@ -155,9 +155,9 @@ export function registerShow(program: Command): void {
       const reqsOnly = outTokens.has('reqs-only');
       // toon-default-output: no --output → toon; machine modes share the json
       // gates (Why/What validation) and suppress the prefix hint; `human` is the
-      // sole v1 text form. Legacy modifiers (meta-only/no-scenarios/reqs-only/
-      // -r) belong to the text face — they route to human (v1 no-op render
-      // semantics preserved). The v1 delta modifier was removed: unknown
+      // sole predecessor text form. Legacy modifiers (meta-only/no-scenarios/reqs-only/
+      // -r) belong to the text face — they route to human (predecessor no-op render
+      // semantics preserved). The predecessor delta modifier was removed: unknown
       // tokens are rejected like other report commands.
       const wantsMachine = outTokens.has('json') || outTokens.has('toon') || asCompact;
       // no --output at all → toon; explicit legacy-only modifiers → human text
@@ -168,7 +168,7 @@ export function registerShow(program: Command): void {
         : outTokens.has('json')
           ? 'json'
           : 'toon';
-      // v1: unknown output tokens are rejected by clap; script consumers rely on
+      // predecessor: unknown output tokens are rejected by clap; script consumers rely on
       // the deprecation being a no-op render rather than an error.
       // Spec 判定与 collectSpecs/discoverSpecs 同口径:扁平文件与目录式
       // `specs/<cap>/<cap>.feature` 均按 entry 精确 id(specIdOf:capability ?? 去
@@ -204,7 +204,7 @@ export function registerShow(program: Command): void {
           );
           return;
         }
-        // text mode: v1 ignores all output modifiers (meta-only/no-scenarios/-r)
+        // text mode: predecessor ignores all output modifiers (meta-only/no-scenarios/-r)
         // and renders the full source + morphology.
         const raw = readFileSync(specPath, 'utf8').trimEnd();
         const summary = collectSpecs(entries).find((x) => x.id === item);
@@ -216,13 +216,13 @@ export function registerShow(program: Command): void {
       }
 
       // ---- change ----
-      // r61: v1 r112 prefix chain — exact > unique prefix > multiple > not found.
+      // r61: predecessor r112 prefix chain — exact > unique prefix > multiple > not found.
       const resolved = resolveChangeIdOrExit(program, item, { suppressHint: asJson });
       const changeId = resolved.id;
       const viaPrefix = resolved.viaPrefix;
       const proposal = readFileSync(join('llmanspec', 'changes', changeId, 'proposal.md'), 'utf8');
       if (asJson) {
-        // v1 parse_change gates: Why first, then What Changes (json only).
+        // predecessor parse_change gates: Why first, then What Changes (json only).
         if (!hasSection(proposal, 'Why')) {
           throw new CliError('Change must have a Why section');
         }

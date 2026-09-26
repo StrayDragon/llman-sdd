@@ -26,7 +26,7 @@
 
   @req:r15 @human
   场景: finalize 合并与归档收口
-    - `change finalize` MUST 以 squash(默认)或 ff 把特性分支合并到目标分支(into > base_branch > 默认分支),将 `changes/<id>` 重命名为 `changes/archive/<YYYY-MM-DD>-<id>`,并以单条提交 `archive(sdd): <id>` 收口;finalize MUST 校验当前分支 == binding.branch,不满足 MUST 在任何写入前报错退出(非默认分支由绑定语义保证,v1 r94 语义);合并冲突时 MUST best-effort:输出 WARNING 与手工命令提示,仍完成归档改名与提交。
+    - `change finalize` MUST 以 squash(默认)或 ff 把特性分支合并到目标分支(into > base_branch > 默认分支),将 `changes/<id>` 重命名为 `changes/archive/<YYYY-MM-DD>-<id>`,并以单条提交 `archive(sdd): <id>` 收口;finalize MUST 校验当前分支 == binding.branch,不满足 MUST 在任何写入前报错退出(非默认分支由绑定语义保证,前代 r94 语义);合并冲突时 MUST best-effort:输出 WARNING 与手工命令提示,仍完成归档改名与提交。
 
   @req:r15 @executable
   场景: squash 收口
@@ -95,7 +95,7 @@
 
   @req:r35 @human
   场景: next-id 数字编号计数
-    - `change next-id` MUST 无参数执行,递归扫描 `llmanspec/` 全树目录名(任意深度,跳过符号链接与点目录)提取编号:内置启发式 MUST 取 token 边界上的 `c<数字>` 串(大小写不敏感,匹配 c2790、c10-active 与 2026-01-01-c20-slug 等形态),纯前导数字名(如 3-third)MUST NOT 计入;人读输出 MUST 为 `max number in tree: N`(无编号时 `no numbered change dirs found in tree`)加 `next free number: M` 两行;`--json` MUST 输出 {maxNumber, nextNumber, warnings},无编号时 maxNumber MUST 为 null 且 nextNumber MUST 为 1;本命令 MUST 为只读,不创建任何目录;归档内条目扫描 SHALL 为 best-effort 扩展,v2 最小实现不进入冻结包。
+    - `change next-id` MUST 无参数执行,递归扫描 `llmanspec/` 全树目录名(任意深度,跳过符号链接与点目录)提取编号:内置启发式 MUST 取 token 边界上的 `c<数字>` 串(大小写不敏感,匹配 c2790、c10-active 与 2026-01-01-c20-slug 等形态),纯前导数字名(如 3-third)MUST NOT 计入;人读输出 MUST 为 `max number in tree: N`(无编号时 `no numbered change dirs found in tree`)加 `next free number: M` 两行;`--json` MUST 输出 {maxNumber, nextNumber, warnings},无编号时 maxNumber MUST 为 null 且 nextNumber MUST 为 1;本命令 MUST 为只读,不创建任何目录;归档内条目扫描 SHALL 为 best-effort 扩展,当前最小实现不进入冻结包。
     - 扫描范围 MUST 为当前工作树加全部关联 git worktree(`git worktree list --porcelain`,路径去重)各自的 `llmanspec/` 全树;worktree list 失败 SHALL 退化为仅当前树(best-effort,与归档扫描同级)并在 warnings 记录退化;同一编号出现于多个 worktree 时 `--json` 的 warnings MUST 给出提示(含该编号与 worktree 路径);human 两行输出形态 MUST 不变。
 
   @req:r35 @executable
@@ -191,7 +191,7 @@
 
   @req:r44 @human
   场景: change new/attach 兼容 flag
-    - `change new` MUST 支持 `--force`(覆盖已存在 proposal,v1 文案 `change proposal already exists: ... (pass --force to overwrite)`)与 `--verb <V>`(v1 语义:显式覆盖 verb,无显式时按描述自动识别 add/update/remove/refactor/fix 动词前缀,subject 为剥离该动词前缀后的描述主体);`change attach` MUST 支持 `--force`(已绑定 change 重绑到当前分支)与 `--base <branch>`(显式记录 fork 源分支,该分支 MUST 存在且 MUST NOT 等于当前分支)。
+    - `change new` MUST 支持 `--force`(覆盖已存在 proposal,前代文案 `change proposal already exists: ... (pass --force to overwrite)`)与 `--verb <V>`(前代语义:显式覆盖 verb,无显式时按描述自动识别 add/update/remove/refactor/fix 动词前缀,subject 为剥离该动词前缀后的描述主体);`change attach` MUST 支持 `--force`(已绑定 change 重绑到当前分支)与 `--base <branch>`(显式记录 fork 源分支,该分支 MUST 存在且 MUST NOT 等于当前分支)。
 
   @req:r45 @human
   场景: start 前缀与 finalize 校验/收口的取值序
@@ -199,7 +199,7 @@
 
   @req:r46 @human
   场景: change diff 结构化输出
-    - `change diff <id>` MUST 支持 `--json`(输出 {change, branch, base, commitCount})与 `--export-patch <path>`(diff 内容写文件而非 stdout,路径不作为 SSOT);`commitCount` MUST 为 `merge-base(base_branch, branch)..branch` 的提交数(base_branch 缺键回退默认分支),MUST NOT 依赖 frontmatter `base_sha`;`base` 字段 MUST 回显 frontmatter `base_sha`(v1 输出形状,仅审计)。
+    - `change diff <id>` MUST 支持 `--json`(输出 {change, branch, base, commitCount})与 `--export-patch <path>`(diff 内容写文件而非 stdout,路径不作为 SSOT);`commitCount` MUST 为 `merge-base(base_branch, branch)..branch` 的提交数(base_branch 缺键回退默认分支),MUST NOT 依赖 frontmatter `base_sha`;`base` 字段 MUST 回显 frontmatter `base_sha`(前代输出形状,仅审计)。
 
   @req:r44 @executable
   场景: attach 重绑与显式 base
@@ -272,7 +272,7 @@
 
   @req:r60 @human
   场景: change_id template 渲染
-    - config `change_id.template` 存在时,`change new --from` 的 id MUST 由模板渲染生成(nunjucks Strict:未定义变量引用 MUST 报错);内置变量 MUST 为 llman_sdd_unique_id(全树含归档的最小空闲编号)、verb(--verb 显式覆盖或按五动词表自动识别,描述无动词且模板引用 {{ verb }} 时 MUST 报 unprovided variable)、subject(描述派生 id 剥离检测到的动词前缀)与 date(YYYY-MM-DD);渲染 id 派生遵循 v1 纯 slug 语义(无动词强制);未配置 template 时 MUST 保持启发式派生不变。
+    - config `change_id.template` 存在时,`change new --from` 的 id MUST 由模板渲染生成(nunjucks Strict:未定义变量引用 MUST 报错);内置变量 MUST 为 llman_sdd_unique_id(全树含归档的最小空闲编号)、verb(--verb 显式覆盖或按五动词表自动识别,描述无动词且模板引用 {{ verb }} 时 MUST 报 unprovided variable)、subject(描述派生 id 剥离检测到的动词前缀)与 date(YYYY-MM-DD);渲染 id 派生遵循前代纯 slug 语义(无动词强制);未配置 template 时 MUST 保持启发式派生不变。
 
   @req:r60 @executable
   场景: template 渲染派生 id
@@ -308,7 +308,7 @@
 
   @req:r68 @human
   场景: start 分叉保真与 worktree 模式
-    - `change start` MUST 支持 `--base <branch>` 显式记录分叉源:base_branch MUST 记录该分支,该分支 MUST 存在且 MUST NOT 等于新建分支;`--base` 或 `--worktree` 给定时 MUST 豁免「当前在默认分支」门(干净树门保持)。`change start` MUST 支持 `--worktree`:MUST NOT 切换当前检出,而 MUST 在 `sdd.worktree_root`(缺省为仓库根的父目录,相对路径按仓库根解析)下以 `worktree_naming`(id → 分支 `/` 换 `-`;hash → base32(sha256(change_id))[:8];缺省 id)命名的目录创建 worktree 并在其中检出新分支,当前 checkout MUST 保持原分支,输出 MUST 含 worktree 路径;分叉源判定 MUST 依次取 --base 显式 > 当前分支(如实记录,可为非默认分支) > 默认分支解析;分支或 worktree 路径已存在 MUST 报错且零写入;无旗标经典路径行为 MUST 逐字节保持(v1 parity)。`--worktree` 模式下 binding(branch/base_branch/base_sha)MUST 写入新 worktree 内的 proposal.md,发起检出 MUST 字节不变(工作树保持干净);新 worktree 内 proposal 不存在(未提交)MUST 报错,并 MUST 移除已创建的 worktree 与分支。
+    - `change start` MUST 支持 `--base <branch>` 显式记录分叉源:base_branch MUST 记录该分支,该分支 MUST 存在且 MUST NOT 等于新建分支;`--base` 或 `--worktree` 给定时 MUST 豁免「当前在默认分支」门(干净树门保持)。`change start` MUST 支持 `--worktree`:MUST NOT 切换当前检出,而 MUST 在 `sdd.worktree_root`(缺省为仓库根的父目录,相对路径按仓库根解析)下以 `worktree_naming`(id → 分支 `/` 换 `-`;hash → base32(sha256(change_id))[:8];缺省 id)命名的目录创建 worktree 并在其中检出新分支,当前 checkout MUST 保持原分支,输出 MUST 含 worktree 路径;分叉源判定 MUST 依次取 --base 显式 > 当前分支(如实记录,可为非默认分支) > 默认分支解析;分支或 worktree 路径已存在 MUST 报错且零写入;无旗标经典路径行为 MUST 逐字节保持(前代 parity)。`--worktree` 模式下 binding(branch/base_branch/base_sha)MUST 写入新 worktree 内的 proposal.md,发起检出 MUST 字节不变(工作树保持干净);新 worktree 内 proposal 不存在(未提交)MUST 报错,并 MUST 移除已创建的 worktree 与分支。
 
   @req:r68 @executable
   场景: start --worktree 建树不劫持检出

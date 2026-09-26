@@ -41,7 +41,7 @@
 
   @req:r77 @human
   场景: 全局旗标面
-    - CLI 全局旗标面 MUST 提供 `--max-scan-depth <N>`(语义见 peripheral-commands r58);v1 兼容的无交互效果全局旗标 MUST NOT 存在,调用之 MUST 得到 commander unknown option 且退出码 2;`config skills` 亦 MUST NOT 提供该兼容旗标(缺省即输出状态)。
+    - CLI 全局旗标面 MUST 提供 `--max-scan-depth <N>`(语义见 peripheral-commands r58);前代兼容的无交互效果全局旗标 MUST NOT 存在,调用之 MUST 得到 commander unknown option 且退出码 2;`config skills` 亦 MUST NOT 提供该兼容旗标(缺省即输出状态)。
 
   @req:r77 @executable
   场景: 全局兼容旗标为 unknown option

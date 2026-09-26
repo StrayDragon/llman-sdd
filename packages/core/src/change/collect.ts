@@ -1,7 +1,7 @@
 import { readBinding } from './frontmatter.ts';
 /**
  * Change collection + stage derivation (change domain, peripheral-commands
- * capability r20/r34 shapes; v1 commands/list.rs port). Pure — IO injected.
+ * capability r20/r34 shapes; predecessor commands/list.rs port). Pure — IO injected.
  * Lives in change/ (not report/) so the domain never imports its renderers:
  * report/{show,specs}.ts and validation/changeCheck.ts consume this one-way.
  */
@@ -74,7 +74,7 @@ export function stageFor(
   hasTasks: boolean,
   hasBinding: boolean,
 ): ChangeSummary['stage'] {
-  // Monotonic v1 parity (r34): design.md gates designed, tasks.md only
+  // Monotonic predecessor parity (r34): design.md gates designed, tasks.md only
   // upgrades on top of design, binding only upgrades the complete set.
   if (hasDesign && hasTasks && hasBinding) return 'full';
   if (hasDesign && hasTasks) return 'planned';
@@ -133,8 +133,8 @@ export function collectChanges(
       idleDays,
     });
   };
-  // r58: recursive, depth-limited proposal discovery (v1 --max-scan-depth parity)
+  // r58: recursive, depth-limited proposal discovery (predecessor --max-scan-depth parity)
   walkActiveChangeDirs(io, changesDir, readChangeDir, { maxScanDepth: opts.maxScanDepth });
-  // v1 lists newest-first
+  // predecessor lists newest-first
   return out.toSorted((a, b) => b.lastModified.getTime() - a.lastModified.getTime());
 }

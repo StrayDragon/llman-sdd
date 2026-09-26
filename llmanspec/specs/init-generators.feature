@@ -20,14 +20,14 @@
   @req:r19 @executable
   场景: 渲染与基线归一化一致
     假如 本仓库的等价 config(zh-Hans 与 bdd 配置)
-    当 v2 渲染全部 skills
+    当 渲染全部 skills
     那么 与 golden 基线归一化版本号后 diff 为空
     而且 每个 SKILL.md 通过 ethics 治理门
 
   @req:r19 @executable
   场景: en 渲染与 en 基线归一化一致
     假如 本仓库的等价 config(en 与 bdd 配置)
-    当 v2 渲染全部 skills
+    当 渲染全部 skills
     那么 与 golden en 基线归一化版本号后 diff 为空
     而且 每个 SKILL.md 通过 ethics 治理门
 
@@ -64,16 +64,16 @@
 
   @req:r17 @executable
   场景: 模板渲染语义可执行验收
-    假如 v2 模板引擎与样例单元表
-    当 v2 渲染样例模板并经 init 落盘临时工作区
+    假如 模板引擎与样例单元表
+    当 渲染样例模板并经 init 落盘临时工作区
     那么 未定义变量渲染为空且字符串变量注入一致
     而且 unit 递归展开且缺失 id 与嵌套超限均报错
     而且 渲染产物无尾随空白且落盘产物以单一换行结尾
 
   @req:r18 @executable
   场景: locale 兜底链可执行验收
-    假如 v2 locale 输入集与双语资源桩
-    当 v2 计算 locale 归一化、回退链与资源回退
+    假如 locale 输入集与双语资源桩
+    当 计算 locale 归一化、回退链与资源回退
     那么 zh 与 en 变体按映射表归一化且空值回退 en
     而且 回退链为去重的归一化值语言主部与 en 序列
     而且 资源按 unit 级独立回退且首个命中 locale 生效

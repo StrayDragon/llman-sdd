@@ -2,7 +2,7 @@
  * tasks.md checkbox parsing — single source of truth shared by change
  * collection (change/collect), change validation (validation/changeCheck),
  * the archive task gate (change/lifecycle) and the CLI archive gate.
- * v1 line shape: `^\s*-\s+\[( |x|X)\]`.
+ * predecessor line shape: `^\s*-\s+\[( |x|X)\]`.
  *
  * D9 close-out pseudo-task detection (B23): tasks.md must list implementation
  * and verification tasks only — `change finalize`/`change archive` are

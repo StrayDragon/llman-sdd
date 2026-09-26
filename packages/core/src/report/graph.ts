@@ -1,6 +1,6 @@
 /**
  * Change dependency graph (peripheral-commands capability, r21/r30/r54):
- * v1 `commands/graph.rs` observable contract — scope parsing, connected
+ * predecessor `commands/graph.rs` observable contract — scope parsing, connected
  * component subgraphs, conditional classDef, empty placeholder, bidirectional
  * seed BFS, error paths. Pure: IO injected.
  *

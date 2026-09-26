@@ -1,5 +1,5 @@
 /**
- * Default llmanspec/config.yaml templates, extracted verbatim from v1
+ * Default llmanspec/config.yaml templates, extracted verbatim from predecessor
  * (crates/llman-sdd/src/sdd/project/config.rs DEFAULT_CONFIG_EN/ZH_HANS).
  */
 export const LLMANSPEC_SCHEMA_URL =

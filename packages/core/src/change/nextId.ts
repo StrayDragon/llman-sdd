@@ -1,5 +1,5 @@
 /**
- * Whole-tree change-id number harvest (r35, v1 `change next-id` parity).
+ * Whole-tree change-id number harvest (r35, predecessor `change next-id` parity).
  * Read-only: walks directory names at any depth under `llmanspec/` and
  * extracts `c<digits>` tokens at token boundaries — the same value
  * `change new --from` used to inject as `llman_sdd_unique_id`.

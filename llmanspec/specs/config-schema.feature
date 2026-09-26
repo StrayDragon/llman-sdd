@@ -50,7 +50,7 @@
 
   @req:r59 @human
   场景: change_id pattern 契约
-    - config `change_id.pattern` MUST 在加载期编译校验(非法正则 MUST 报错;该编译 MUST 由 core 配置加载完成,读取配置的所有命令路径均受其约束);pattern 的强制点 MUST 为 validate 的 change 域(对活跃 change 目录名违反 pattern 者判 ERROR,归档/legacy 不回溯,与 v1 一致);`change new` 对显式 id 与派生 id MUST NOT 因 pattern 拒绝;pattern 缺省 MUST 为宽松 kebab 兼容(等价 ^[a-z0-9][a-z0-9-]*$)。
+    - config `change_id.pattern` MUST 在加载期编译校验(非法正则 MUST 报错;该编译 MUST 由 core 配置加载完成,读取配置的所有命令路径均受其约束);pattern 的强制点 MUST 为 validate 的 change 域(对活跃 change 目录名违反 pattern 者判 ERROR,归档/legacy 不回溯,与前代一致);`change new` 对显式 id 与派生 id MUST NOT 因 pattern 拒绝;pattern 缺省 MUST 为宽松 kebab 兼容(等价 ^[a-z0-9][a-z0-9-]*$)。
 
   @req:r59 @executable
   场景: pattern 在 validate 域强制

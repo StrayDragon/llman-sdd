@@ -114,7 +114,7 @@ async function main(): Promise<void> {
       return;
     }
 
-    // v1 parity: expected domain errors surface as a single `Error: <message>`
+    // predecessor parity: expected domain errors surface as a single `Error: <message>`
     // line on stderr with exit code 1 (no Bun stack trace).
     const message = stripCommanderPrefix(error instanceof Error ? error.message : String(error));
     console.error(message.startsWith('Error: ') ? message : `Error: ${message}`);

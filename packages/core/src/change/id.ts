@@ -1,5 +1,5 @@
 /**
- * Change id derivation (change-lifecycle capability): v1 `change/new.rs`
+ * Change id derivation (change-lifecycle capability): predecessor `change/new.rs`
  * `derive_change_id` parity — pure kebab sanitization (lowercase alnum,
  * separators), no verb requirement, empty/oversized handling.
  */
@@ -8,7 +8,7 @@ const ID_CAP = 60;
 
 export class ChangeIdError extends Error {}
 
-/** v1 parity: sanitize to lowercase kebab (ASCII alnum only; CJK/punct dropped). */
+/** predecessor parity: sanitize to lowercase kebab (ASCII alnum only; CJK/punct dropped). */
 export function deriveChangeId(description: string): string {
   const trimmed = description.trim();
   if (trimmed === '') {

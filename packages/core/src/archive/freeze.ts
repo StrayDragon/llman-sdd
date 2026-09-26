@@ -1,6 +1,6 @@
 /**
  * Archive freeze/thaw orchestration (review-freeze capability, r24/r25).
- * Port of v1 change/freeze.rs: candidates = dated archive dirs; freeze adds
+ * Port of predecessor change/freeze.rs: candidates = dated archive dirs; freeze adds
  * them into `freezed_changes.7z.archived` (7z a updates existing archives)
  * then removes the originals; thaw extracts selected dirs back into place.
  * All filesystem effects flow through the injected FreezeIo.

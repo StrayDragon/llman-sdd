@@ -10,7 +10,7 @@ import { bdd } from '../runner.ts';
 import { CLI, REPO_ROOT, type TempRepo, makeTempRepo, seedChange, runCli } from './shared.ts';
 
 // ---------------------------------------------------------------------------
-// peripheral-commands capability — live v1 ↔ v2 comparison
+// peripheral-commands capability — live CLI comparison
 // ---------------------------------------------------------------------------
 
 interface OutputShapeResult {
@@ -23,7 +23,7 @@ bdd.given('本仓库的真实 llmanspec 工作区', (ctx) => {
   ctx.fixtures['工作区'] = { root: REPO_ROOT };
 });
 
-bdd.when('运行 v2 的 list --json 与 graph', (ctx) => {
+bdd.when('运行 list --json 与 graph', (ctx) => {
   const run = (args: string[]): string => {
     const proc = runCli(args);
     return proc.stdout ?? '';
@@ -87,7 +87,7 @@ bdd.given('一个含流式 depends_on 指向已归档 change 的临时工作区'
   ctx.fixtures['graph工作区'] = { root };
 });
 
-bdd.when('运行 v2 的 graph', (ctx) => {
+bdd.when('运行 graph', (ctx) => {
   const { root } = ctx.fixtures['graph工作区'] as { root: string };
   const proc = runCli(['graph', '--format', 'mermaid'], root);
   ctx.fixtures['graph输出'] = {
@@ -379,8 +379,8 @@ bdd.thenStep('报 unsupported --format 且退出码为 2', (ctx) => {
   }
 });
 
-// show 拒绝已删除的 v1 修饰 token(Q1)
-bdd.when('运行 show 该 change --output 且附加已删除的 v1 修饰 token', (ctx) => {
+// show 拒绝已删除的前代修饰 token(Q1)
+bdd.when('运行 show 该 change --output 且附加已删除的前代修饰 token', (ctx) => {
   const root = (ctx.fixtures['工作区'] as { root: string }).root;
   const token = ['delta', 's'].join('');
   ctx.fixtures['removed结果'] = runCliAt(root, ['show', 'live-change', '--output', token]);

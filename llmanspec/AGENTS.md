@@ -13,7 +13,7 @@
 llman-sdd:spec 驱动开发(SDD)工作流(TypeScript + Bun),完全接替 Rust llman 中的 sdd 子系统。
 本仓库以 llman-sdd 自托管 SDD 流水线(狗粮模式)。
 
-- v1 契约参考(只读):`../llman.old-rs-impl-sdd/crates/llman-sdd`
+- 前代契约参考(只读):`../llman.old-rs-impl-sdd/crates/llman-sdd`
 - 本工具行为契约:`llmanspec/specs/*.feature`(随各 change 在特性分支上落地)
 - 活跃 change 以 `llman-sdd list` 为准
 
@@ -23,7 +23,7 @@ llman-sdd:spec 驱动开发(SDD)工作流(TypeScript + Bun),完全接替 Rust ll
 - Monorepo:Bun workspaces;`packages/core` 纯域逻辑 / `apps/cli` 命令入口;`apps/web` 预留(打包器已定案 **rsbuild**,内置 rspack 引擎;启动 web 交互功能时以独立 change 引入,CLI 与二进制分发不经过打包器——Bun 直跑 TS + `bun build --compile`)
 - 工具链:oxlint + oxfmt(oxc 双件套)、tsc --noEmit、prek(git hooks)、justfile(任务编排);oxfmt 忽略 `llmanspec/` 与 `AGENTS.md`(SDD 托管文件,格式归 llman 管,避免 `init --update` 回打漂移)
 - 依赖映射:commander(CLI)/ nunjucks(模板)/ @inquirer/prompts(向导交互,经 PromptDriver
-  端口接 v1 适配器,现阶段未安装)/
+  端口接前代适配器,现阶段未安装)/
   @cucumber/gherkin(spec 解析,官方 i18n 已含 zh-CN「规则」)/
   @toon-format/toon(机器输出 TOON 编码,纯函数 encoder,add-render-layer 引入)/
   zod(zod v4 内建 toJSONSchema)+ yaml(配置契约与注释保留)/ 7z-wasm(冻结冷备)
@@ -32,21 +32,21 @@ llman-sdd:spec 驱动开发(SDD)工作流(TypeScript + Bun),完全接替 Rust ll
 
 ## 范围决策(定案,勿反复)
 
-- 保留:archive freeze/thaw(核心功能;`.7z` 格式必须与 v1 冻结产物双向兼容)
-- `project migrate`:保留子命令入口,内容为指向 v1(Rust llman ≤ 0.0.x)的引导提示,不移植迁移实现
+- 保留:archive freeze/thaw(核心功能;`.7z` 格式必须与前代冻结产物双向兼容)
+- `project migrate`:保留子命令入口,内容为指向前代(Rust llman ≤ 0.0.x)的引导提示,不移植迁移实现
 - 移除:`project import`(OpenSpec 互导)、`change checkpoint`/`change delta` 及其兼容桩、rust-i18n;已移除的命令与选项彻底删除,不保留报错 stub(调用得到 CLI 的 unknown command/option 错误)
-- worktree:v1 的并行 change 机制不移植;v2 支持单 change 单 worktree——`change start --worktree`(r68)与 finalize/archive 的目标 worktree 感知(r69)
-- ink 是 TUI 战略方向(v1 不引入):所有交互走 PromptDriver 接口;ink 与 inquirer 禁止同进程混用
+- worktree:前代的并行 change 机制不移植;本仓支持单 change 单 worktree——`change start --worktree`(r68)与 finalize/archive 的目标 worktree 感知(r69)
+- ink 是 TUI 战略方向(前代不引入):所有交互走 PromptDriver 接口;ink 与 inquirer 禁止同进程混用
 - 测试/构建选型终局,rust 生态工具不迁移:rstest 仅适用 Rust 栈,本仓库以
   bun:test + Gherkin runner 承担同等角色;rsbuild/rspack 属 web 阶段(见技术栈
   Monorepo 条),现阶段 CLI/测试链路零打包器——后续需求直接引用本条,勿重新调研。
   撞名注意:config 的 `bdd.framework: rstest-bdd` 指 Rust rstest crate 生态;
   Rstack 的 JS 测试框架写作 Rstest(`@rstest/core`),同名不同物,讨论时消歧
 
-- 输出对齐口径(2026-09 定案,toon-default-output 修订):v1→v2 对齐收窄为**兼容别名面**——`--json`/`--compact-json` 的输出结构与退出码保持 v1 字节一致;报告型命令(review/validate/list/show/config skills/index check)的**缺省输出自 0.4.0 起为 TOON**(`--output <toon|json|compact-json|human>`,human 为 v1 人读形态唯一入口),主动 divergence;其余人读文案细节(init 输出行、list 时间戳精度、start/finalize 文案、skeleton 头注释 locale 文案)不做逐字节对齐
+- 输出对齐口径(2026-09 定案,toon-default-output 修订):与前代对齐收窄为**兼容别名面**——`--json`/`--compact-json` 的输出结构与退出码保持前代字节一致;报告型命令(review/validate/list/show/config skills/index check)的**缺省输出自 0.4.0 起为 TOON**(`--output <toon|json|compact-json|human>`,human 为前代人读形态唯一入口),主动 divergence;其余人读文案细节(init 输出行、list 时间戳精度、start/finalize 文案、skeleton 头注释 locale 文案)不做逐字节对齐
 - 不移植(定案维持):`project import` 与 migrate 实现体维持移除;`show --output` 修饰符(meta-only/no-scenarios/reqs-only)以 peripheral-commands r53 为准
-- 锁定哈希门禁(v1 spec-format r135 / sdd-workflow r130)不移植:改/删 `@human` 规则的报告制 WARNING 由 git 分支对比 + `review`/`change diff` 浮现,不经 validate/finalize 报告通道;review 的 `locked` 信号恒 0 系有意(2026-09 定案,close-v1-parity-gaps 核验转正)
-- `llmanspec/AGENTS.md` 托管块:v2 init 写入 LLMANSPEC:START/END 标记(v1 不写),属有意改进,保留
+- 锁定哈希门禁(前代 spec-format r135 / sdd-workflow r130)不移植:改/删 `@human` 规则的报告制 WARNING 由 git 分支对比 + `review`/`change diff` 浮现,不经 validate/finalize 报告通道;review 的 `locked` 信号恒 0 系有意(2026-09 定案,close-v1-parity-gaps 核验转正)
+- `llmanspec/AGENTS.md` 托管块:本工具 init 写入 LLMANSPEC:START/END 标记(前代不写),属有意改进,保留
 
 ## Change Proposal Frontmatter SSOT
 
@@ -76,7 +76,7 @@ llman-sdd:spec 驱动开发(SDD)工作流(TypeScript + Bun),完全接替 Rust ll
 - `packages/core` 保持纯域逻辑:文件系统 / git / 终端副作用一律经接口注入,便于 golden 对照测试
 - nunjucks 调用收敛在 templates/engine.ts,且无 loader、`autoescape: false`,trim/尾换行语义对齐 minijinja
 - 验收基线:行为合约 SSOT 为 `llmanspec/specs/*.feature`;skills 生成物与
-  v2 自有快照基线(tests/golden/baseline)在相同 config(locale/bdd)下归一化 diff 为空
+  自有快照基线(tests/golden/baseline)在相同 config(locale/bdd)下归一化 diff 为空
 - BDD:Gherkin→bun:test runner(`tests/bdd/`,源自 crystalith 移植);
   带 `@executable` 标签的场景必须可被 `bun test tests/bdd` 执行
 - specs 写法:zh-CN Gherkin 关键字(功能/场景/规则),与 `locale: zh-Hans` 一致

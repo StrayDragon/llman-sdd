@@ -80,7 +80,7 @@ bdd.given('一个带注释与 extra_skills 的 llmanspec config', (ctx) => {
   ctx.fixtures['config工作区'] = { root, original } satisfies ConfigFixture;
 });
 
-bdd.when('运行 v2 的 config 概览', (ctx) => {
+bdd.when('运行 config 概览', (ctx) => {
   const { root, original } = ctx.fixtures['config工作区'] as ConfigFixture;
   const proc = runCli(['config'], root);
   const after = readFileSync(join(root, 'llmanspec', 'config.yaml'), 'utf8');
@@ -104,7 +104,7 @@ bdd.thenStep('概览五要素输出且文件未被修改', (ctx) => {
   if (!unchanged) throw new Error('config overview modified config.yaml');
 });
 
-bdd.when('运行 v2 的 config skills --json', (ctx) => {
+bdd.when('运行 config skills --json', (ctx) => {
   const { root } = ctx.fixtures['config工作区'] as ConfigFixture;
   const proc = runCli(['config', 'skills', '--json'], root);
   ctx.fixtures['skillsjson'] = {
@@ -121,7 +121,7 @@ bdd.thenStep('JSON 输出 {enabled, available} 且 --set 为未知选项', (ctx)
   const parsed = JSON.parse(r.out) as { enabled: string[]; available: string[] };
   if (!Array.isArray(parsed.enabled) || parsed.available.length !== 6)
     throw new Error(`shape wrong: ${r.out}`);
-  // v1 parity: --set/--unset are NOT part of the flag surface (clap rc=2).
+  // predecessor parity: --set/--unset are NOT part of the flag surface (clap rc=2).
   const set = runCli(['config', 'skills', '--set', 'llman-sdd-validate'], root);
   if (set.status !== 2)
     throw new Error(`--set must be an unknown option (rc=2), got ${set.status}`);

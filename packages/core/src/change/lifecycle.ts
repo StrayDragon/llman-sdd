@@ -13,7 +13,7 @@ import {
 import { readBinding, writeBinding } from './frontmatter.ts';
 /**
  * Change lifecycle (change-lifecycle capability): new / start / attach /
- * finalize with the v1 git-native contract (r14-r16). All effects flow
+ * finalize with the predecessor git-native contract (r14-r16). All effects flow
  * through the injected GitLike and FsIo ports — this module stays pure.
  * FsIo paths are ROOT-RELATIVE (e.g. `llmanspec/changes/<id>/proposal.md`);
  * the git cwd binding lives in the GitLike adapter.
@@ -312,7 +312,7 @@ export function finalizeChange(
       ].join('\n'),
     );
   }
-  // r15 (v1 r94): finalize runs on the bound branch — any other branch must
+  // r15 (predecessor r94): finalize runs on the bound branch — any other branch must
   // fail before any write (no switch, no merge, no rename).
   const current = currentBranch(git);
   if (current !== binding.branch) {
@@ -491,7 +491,7 @@ export interface ChangeDiffInfo {
  * `change diff --json` (r46): structured bound-branch summary. commitCount =
  * `merge-base(base_branch, branch)..branch` commit count — the stored
  * `base_sha` is audit-only and never participates in the range; the `base`
- * field echoes it for the v1 JSON shape.
+ * field echoes it for the predecessor JSON shape.
  */
 export function changeDiffInfo(git: GitLike, io: FsIo, id: string): ChangeDiffInfo {
   const binding = readBinding(io.readText(proposalPath(id)));

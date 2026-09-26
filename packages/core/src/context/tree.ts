@@ -1,7 +1,7 @@
 /**
  * Pageindex tree (context-index capability, r26): specs IR serialized as a
  * tree — building is LLM-free. Serialization keys are snake_case, matching
- * v1's tree.json so retrieval IDs stay comparable.
+ * predecessor's tree.json so retrieval IDs stay comparable.
  */
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';

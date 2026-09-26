@@ -1,6 +1,6 @@
 /**
  * Validation engine (validation capability): aggregates Phase-2 parse errors
- * plus the verdict-equivalent gates (r11/r12, ordered to match v1
+ * plus the verdict-equivalent gates (r11/r12, ordered to match predecessor
  * `spec/validation.rs` observable issue order). Pure — filesystem access is
  * injected via SpecIo.
  */
@@ -12,7 +12,7 @@ export type ValidationLevel = 'ERROR' | 'WARNING' | 'INFO';
 
 export interface ValidationItem {
   level: ValidationLevel;
-  /** Gate anchor, e.g. `t/rule/ok` or `t/valid_scope` (v1-style `path`). */
+  /** Gate anchor, e.g. `t/rule/ok` or `t/valid_scope` (predecessor-style `path`). */
   id: string;
   message: string;
 }
@@ -59,7 +59,7 @@ export function validateCapability(
     items.push({ level, id, message });
   };
 
-  // Header gates (r12 / v1 spec_meta). v1 treats a missing `# capability:`
+  // Header gates (r12 / predecessor spec_meta). predecessor treats a missing `# capability:`
   // header as a parse-level failure: only `file` + registry-scan issues are
   // emitted and all single-track gates are skipped.
   if (doc.header.capability === null) {
@@ -117,7 +117,7 @@ export function validateCapability(
     push('ERROR', err.code.startsWith('file') ? 'file' : `${cap}/${err.code}`, err.message);
   }
 
-  // Single-track gates (v1 validate_single_track order).
+  // Single-track gates (predecessor validate_single_track order).
   const human = doc.scenarios.filter((s) => s.classification === 'human');
   const acceptance = doc.scenarios.filter((s) => s.classification === 'executable');
 
@@ -154,10 +154,10 @@ export function validateCapability(
     }
   }
 
-  // Dangling acceptance @req links (v1 order: acceptance/@req then coverage).
+  // Dangling acceptance @req links (predecessor order: acceptance/@req then coverage).
   const ruleReqIds = new Set(human.flatMap((s) => s.reqIds));
   for (const sc of acceptance) {
-    // r65: orphan acceptance scenario — no @req link at all (v1 r132 WARNING).
+    // r65: orphan acceptance scenario — no @req link at all (predecessor r132 WARNING).
     if (sc.reqIds.length === 0) {
       push(
         'WARNING',
@@ -203,7 +203,7 @@ export function validateCapability(
  * (`validate <spec>` path) and the full sweep. The registry is built from the
  * already-parsed docs, so a duplicate is reported for every involved
  * capability regardless of unrelated parse errors elsewhere (r12 acceptance:
- * 重复 req_id MUST 对每个涉事 capability 判 ERROR — the v1 "structural error
+ * 重复 req_id MUST 对每个涉事 capability 判 ERROR — the 前代 "structural error
  * aborts the index scan" guard is intentionally dropped; a parse-failed spec
  * merely omits the scenarios it could not decode, never invents ids).
  */
@@ -237,7 +237,7 @@ export function validateAllSpecs(entries: readonly SpecEntry[], io: SpecIo): Val
   return { verdicts, lines, failed };
 }
 
-/** v1 `apply_strict`: WARNING issues escalate to ERROR when --strict. */
+/** predecessor `apply_strict`: WARNING issues escalate to ERROR when --strict. */
 export function applyStrict<T extends { level: ValidationLevel }>(items: readonly T[]): T[] {
   return items.map((i) => (i.level === 'WARNING' ? { ...i, level: 'ERROR' as const } : i));
 }

@@ -7,13 +7,13 @@
 
   @req:r23 @human
   场景: review 五信号聚合合同
-    - `review` MUST 支持 `--output <toon|json|compact-json|human>` 且缺省(无输出 flag)输出 TOON(IR 与 json 同载荷);`--json`/`--compact-json` 为兼容别名,其 JSON 输出与 v1 字节一致;`--output human` 输出 v1 人读行形态;退出码语义不随输出格式变化。
-  - `review` MUST 输出 signals 数组,元素字段 MUST 为 kind/capability/count/detail;kind MUST 覆盖 pending(规则无匹配验收)、unbound(v1 孤儿语义:无 @req 链接的验收场景)、stale(v1 语义:基于 base-ref/scope 的真实 staleness 计算)、locked(恒 0)、validate(sweep FAIL 汇总;v1 快照内部 sweep 的恒失败缺陷不复制);JSON MUST 含 summary{criticalCount, warningCount},warningCount MUST 等于 pending、unbound、stale 三类信号计数之和,criticalCount MUST 等于 sweep FAIL 的 capability 数;退出码 MUST 仅在 criticalCount > 0 时非零;`--capability` MUST 限定单一 capability;`--export-html <path>` MUST 写出自包含 HTML 报告。
+    - `review` MUST 支持 `--output <toon|json|compact-json|human>` 且缺省(无输出 flag)输出 TOON(IR 与 json 同载荷);`--json`/`--compact-json` 为兼容别名,其 JSON 输出与前代字节一致;`--output human` 输出前代人读行形态;退出码语义不随输出格式变化。
+  - `review` MUST 输出 signals 数组,元素字段 MUST 为 kind/capability/count/detail;kind MUST 覆盖 pending(规则无匹配验收)、unbound(前代孤儿语义:无 @req 链接的验收场景)、stale(前代语义:基于 base-ref/scope 的真实 staleness 计算)、locked(恒 0)、validate(sweep FAIL 汇总;前代快照内部 sweep 的恒失败缺陷不复制);JSON MUST 含 summary{criticalCount, warningCount},warningCount MUST 等于 pending、unbound、stale 三类信号计数之和,criticalCount MUST 等于 sweep FAIL 的 capability 数;退出码 MUST 仅在 criticalCount > 0 时非零;`--capability` MUST 限定单一 capability;`--export-html <path>` MUST 写出自包含 HTML 报告。
 
   @req:r23 @executable
-  场景: v2 review 信号形状合法
+  场景: review 信号形状合法
     假如 本仓库的真实 llmanspec 工作区
-    当 v2 运行 review
+    当 运行 review
     那么 signals 覆盖五种 kind
     而且 summary 含 criticalCount 与 warningCount
     而且 退出码与 criticalCount 一致
@@ -31,12 +31,12 @@
 
   @req:r25 @human
   场景: thaw 回置与双向兼容
-    - `archive thaw --change <名>`(可重复)MUST 将冷备中的归档目录回置到 `llmanspec/changes/archive/`;未知名 MUST 报错并列出可用条目;冷备 MUST 为 7z 格式,v2 的冻结产物 MUST 可被自身解冻(自洽双向)。
+    - `archive thaw --change <名>`(可重复)MUST 将冷备中的归档目录回置到 `llmanspec/changes/archive/`;未知名 MUST 报错并列出可用条目;冷备 MUST 为 7z 格式,本工具的冻结产物 MUST 可被自身解冻(自洽双向)。
 
   @req:r25 @executable
   场景: 冻结解冻自洽
     假如 一个含已归档目录的临时仓库
-    当 v2 运行 freeze 后再 thaw 回置该目录
+    当 运行 freeze 后再 thaw 回置该目录
     那么 目录完整回到 changes/archive 下
     而且 内容与冻结前一致
 
@@ -47,7 +47,7 @@
   @req:r33 @executable
   场景: capability 过滤生效
     假如 本仓库的真实 llmanspec 工作区
-    当 运行 v2 的 review --json 并限定单一 capability
+    当 运行 review --json 并限定单一 capability
     那么 三类信号仅含该 capability 且 locked 与 validate 保持全局
 
   @req:r56 @human
@@ -63,7 +63,7 @@
   @req:r24 @executable
   场景: freeze 冷备合同可执行验收
     假如 一个含三个带日期归档目录的临时仓库
-    当 v2 先 dry-run 再按 before 与 keep-recent 执行 freeze
+    当 先 dry-run 再按 before 与 keep-recent 执行 freeze
     那么 冷备文件生成且被冻结目录自 archive 删除
     而且 dry-run 仅列候选且未做任何变更
     而且 freeze --list 列出冷备条目

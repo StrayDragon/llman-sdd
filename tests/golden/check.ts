@@ -1,5 +1,5 @@
-// Golden drift gate: re-render skills with v2's own renderer (runInit) and
-// diff against the committed v2 self-snapshot baseline under
+// Golden drift gate: re-render skills with this repo's own renderer (runInit) and
+// diff against the committed self-snapshot baseline under
 // tests/golden/baseline/ (version-normalized — the local package version may
 // move without touching template contracts). Also gates the repo's own
 // committed .agents/skills against the zh-Hans baseline (init-generators r80).
@@ -14,7 +14,7 @@ import {
   diffTrees,
   formatTreeDiffs,
   normalizeTree,
-  renderV2Skills,
+  renderSkills,
 } from './lib.ts';
 
 let ok = true;
@@ -26,16 +26,16 @@ for (const [locale, subdir] of [
   ['en', 'skills-en'],
 ] as const) {
   const baselineTree = normalizeTree(join(BASELINE_DIR, subdir));
-  const v2 = renderV2Skills(locale);
+  const fresh = renderSkills(locale);
   try {
-    const diffs = diffTrees(baselineTree, normalizeTree(v2.skillsDir));
+    const diffs = diffTrees(baselineTree, normalizeTree(fresh.skillsDir));
     if (diffs.length > 0) {
       ok = false;
       console.error(`[render-vs-baseline/${subdir}] drift:\n${formatTreeDiffs(diffs)}`);
     }
     counts.push(`${subdir}: ${baselineTree.size} files`);
   } finally {
-    rmSync(v2.tmpRoot, { recursive: true, force: true });
+    rmSync(fresh.tmpRoot, { recursive: true, force: true });
   }
 }
 
@@ -51,5 +51,5 @@ counts.push('.agents/skills: fresh');
 
 if (!ok) process.exit(1);
 console.log(
-  `golden check passed: fresh v2 render matches baseline (${counts.join(', ')}, versions normalized)`,
+  `golden check passed: fresh render matches baseline (${counts.join(', ')}, versions normalized)`,
 );

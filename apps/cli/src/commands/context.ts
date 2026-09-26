@@ -26,7 +26,7 @@ export function registerContext(program: Command): void {
         throw new CliError('at least one of --task or --paths is required');
       }
       const config = resolveChatConfig(process.env as Record<string, string | undefined>);
-      // r62: lazy refresh runs BEFORE the chat-model gate (v1 r97 — the index
+      // r62: lazy refresh runs BEFORE the chat-model gate (predecessor r97 — the index
       // self-heals even when retrieval subsequently fails with api_error).
       const refresh = loadTreeWithAutoRebuild(newIo(), 'llmanspec/specs', loadSpecEntries(), {
         chatModel: process.env.LLMAN_SDD_INDEX_CHAT_MODEL ?? '',
@@ -41,7 +41,7 @@ export function registerContext(program: Command): void {
       }
       const tree = refresh.tree;
       if (config === null) {
-        // v1 parity: unavailable/error JSON on stdout, exit 0.
+        // predecessor parity: unavailable/error JSON on stdout, exit 0.
         console.log(JSON.stringify(unavailableResult(), null, 2));
         return;
       }

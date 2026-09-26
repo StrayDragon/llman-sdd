@@ -56,7 +56,7 @@ export function isCleanTree(git: GitLike): boolean {
 
 /** Local-first default branch resolution: main → master → origin/HEAD → origin/*. */
 // Deliberately NOT shared with defaultBranchNameFn() in validation/staleness.ts
-// (that probe is local-only with a 'main' fallback — v1 staleness parity). Do not merge.
+// (that probe is local-only with a 'main' fallback — predecessor staleness parity). Do not merge.
 export function defaultBranch(git: GitLike): string {
   for (const candidate of ['main', 'master']) {
     if (git.runOpt(['show-ref', '--verify', '--quiet', `refs/heads/${candidate}`]) !== null) {
@@ -82,14 +82,14 @@ export function revParseHead(git: GitLike): string {
   return git.run(['rev-parse', 'HEAD']);
 }
 
-/** Count uncommitted files (v1 "dirty tree: N uncommitted files"). */
+/** Count uncommitted files (predecessor "dirty tree: N uncommitted files"). */
 export function dirtyCount(git: GitLike): number {
   const s = git.run(['status', '--porcelain']);
   if (s === '') return 0;
   return s.split('\n').filter((l) => l.trim() !== '').length;
 }
 
-/** Fork-point sha of `current` relative to `other` (v1 merge-base semantics). */
+/** Fork-point sha of `current` relative to `other` (predecessor merge-base semantics). */
 export function mergeBase(git: GitLike, current: string, other: string): string {
   return git.runOpt(['merge-base', current, other]) ?? git.run(['rev-parse', current]);
 }

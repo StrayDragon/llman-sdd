@@ -1,5 +1,5 @@
-// Domain step definitions: review-freeze 能力 — 覆盖 r23/r25(v2 review
-// 五类信号与 criticalCount 退出码一致、v1 freeze → v2 thaw 回置)与 r33
+// Domain step definitions: review-freeze 能力 — 覆盖 r23/r25(review
+// 五类信号与 criticalCount 退出码一致、freeze → thaw 回置)与 r33
 // (review --capability 过滤:locked/validate 保持全局)。
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -8,10 +8,10 @@ import { bdd } from '../runner.ts';
 import { CLI, type CliResult, type TempRepo, makeTempRepo, runCli } from './shared.ts';
 
 // ---------------------------------------------------------------------------
-// review-freeze capability — live v1 ↔ v2 review + v1 freeze → v2 thaw
+// review-freeze capability — live CLI review + freeze → thaw
 // ---------------------------------------------------------------------------
 
-bdd.when('v2 运行 review', (ctx) => {
+bdd.when('运行 review', (ctx) => {
   const proc = runCli(['review', '--json']);
   const out = proc.stdout ?? '';
   try {
@@ -56,11 +56,11 @@ bdd.given('一个含已归档目录的临时仓库', (ctx) => {
   ctx.fixtures['冻结仓库'] = { root: repo.root, repo };
 });
 
-bdd.when('v2 运行 freeze 后再 thaw 回置该目录', (ctx) => {
+bdd.when('运行 freeze 后再 thaw 回置该目录', (ctx) => {
   const repo = (ctx.fixtures['冻结仓库'] as { repo: TempRepo }).repo;
   const freeze = repo.run('bun', [CLI, 'archive', 'freeze', '--before', '2026-02-01']);
   if (freeze.code !== 0) {
-    throw new Error(`v2 freeze failed:\n${freeze.stdout}`);
+    throw new Error(`freeze failed:\n${freeze.stdout}`);
   }
   const thaw = repo.run('bun', [CLI, 'archive', 'thaw', '--change', '2026-01-01-old-demo']);
   ctx.fixtures['thaw结果'] = {
@@ -109,7 +109,7 @@ interface ReviewFilterResult {
   signals: { kind: string; capability: string }[];
 }
 
-bdd.when('运行 v2 的 review --json 并限定单一 capability', (ctx) => {
+bdd.when('运行 review --json 并限定单一 capability', (ctx) => {
   const proc = runCli(['review', '--json', '--capability', 'peripheral-commands']);
   let signals: { kind: string; capability: string }[] = [];
   try {

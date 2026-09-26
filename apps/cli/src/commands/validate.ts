@@ -45,7 +45,7 @@ interface VItem {
   matchedViaPrefix: boolean;
 }
 
-/** v1 validate ordering: id asc, tie-broken by type asc. */
+/** predecessor validate ordering: id asc, tie-broken by type asc. */
 function compareItems(a: VItem, b: VItem): number {
   return a.id < b.id ? -1 : a.id > b.id ? 1 : a.type.localeCompare(b.type);
 }
@@ -330,7 +330,7 @@ export function registerValidate(program: Command): void {
           exitWith(shown.valid ? 0 : 1);
           return;
         }
-        // change single (r61: v1 r112 prefix resolution on the change id)
+        // change single (r61: predecessor r112 prefix resolution on the change id)
         const io = newIo();
         const root = process.cwd();
         const resolved = resolveChangeIdOrExit(program, item, {

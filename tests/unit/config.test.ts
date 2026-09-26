@@ -104,7 +104,7 @@ describe('config command surface (r37/r38)', () => {
   const BASE =
     '# yaml-language-server: $schema=https://x/y.json\nschema: spec-driven\nlocale: en\n';
 
-  test('overview renders the five v1 elements', () => {
+  test('overview renders the five predecessor elements', () => {
     expect(renderConfigOverview(BASE)).toEqual([
       'schema: spec-driven',
       'locale: en',
@@ -138,7 +138,7 @@ describe('change_id contract (r59/r60)', () => {
     expect(() => compileChangeIdPattern('^[unclosed')).toThrow(/valid regex/u);
   });
 
-  test('renderChangeIdTemplate: v1 preset vars and strict undefined', () => {
+  test('renderChangeIdTemplate: predecessor preset vars and strict undefined', () => {
     const out = renderChangeIdTemplate('c{{ llman_sdd_unique_id }}-{{ verb }}-{{ subject }}', {
       llman_sdd_unique_id: 7,
       verb: 'port',

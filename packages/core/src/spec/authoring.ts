@@ -1,5 +1,5 @@
 /**
- * Programming-style spec authoring helpers (r41-r43, v1 parity):
+ * Programming-style spec authoring helpers (r41-r43, predecessor parity):
  * append rules / acceptance scenarios, resolve req ids, dedupe conflicts.
  * Appends are text-level so existing file content (formatting, comments)
  * stays untouched.
@@ -58,7 +58,7 @@ function findReq(
   return null;
 }
 
-/** v1 parity: only @human (rule) req ids participate in the dedupe registry. */
+/** predecessor parity: only @human (rule) req ids participate in the dedupe registry. */
 export function ruleReqIds(entries: readonly SpecEntryLike[]): Set<string> {
   const ids = new Set<string>();
   for (const entry of entries) {

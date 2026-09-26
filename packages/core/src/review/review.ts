@@ -3,7 +3,7 @@ import { specIdOf } from '../spec/ir.ts';
 import { evaluateStaleness, notApplicableStaleness } from '../validation/staleness.ts';
 /**
  * Review aggregation (review-freeze capability, r23): five-signal review over
- * spec IR + validate sweep. Port of v1 sdd/review.rs observable contract.
+ * spec IR + validate sweep. Port of predecessor sdd/review.rs observable contract.
  */
 import { validateAllSpecs, type SpecEntry, type SpecIo } from '../validation/validate.ts';
 
@@ -24,11 +24,11 @@ export interface ReviewInput {
   activeChanges?: readonly { name: string; completedTasks: number; totalTasks: number }[];
   /** Restrict per-capability signals (pending/unbound/stale) to this capability. */
   capability?: string;
-  /** git + root for real staleness evaluation (v1 parity). */
+  /** git + root for real staleness evaluation (predecessor parity). */
   git?: GitLike;
   root?: string;
   specsDir?: string;
-  /** v1 base-ref override env value (LLMANSPEC_BASE_REF), injected by caller. */
+  /** predecessor base-ref override env value (LLMANSPEC_BASE_REF), injected by caller. */
   baseRefEnv?: string;
 }
 
@@ -70,13 +70,13 @@ export function buildReview(input: ReviewInput, io: SpecIo): ReviewResult {
     const acceptance = entry.doc.scenarios.filter((s) => s.classification === 'executable');
     const acceptanceReqIds = new Set(acceptance.flatMap((s) => s.reqIds));
     const pending = rules.filter((r) => !r.reqIds.some((id) => acceptanceReqIds.has(id)));
-    // v1 r5: unbound = orphan acceptance scenarios (no @req link).
+    // predecessor r5: unbound = orphan acceptance scenarios (no @req link).
     const unbound = acceptance.filter((s) => s.reqIds.length === 0);
 
     push('pending', cap, pending.length);
     push('unbound', cap, unbound.length);
 
-    // staleness (v1 evaluate): real base-ref/scope evaluation.
+    // staleness (predecessor evaluate): real base-ref/scope evaluation.
     let staleInfo = notApplicableStaleness();
     let staleCount = 0;
     if (input.git !== undefined && input.root !== undefined) {
@@ -96,7 +96,7 @@ export function buildReview(input: ReviewInput, io: SpecIo): ReviewResult {
 
   const failed = sweep.verdicts.filter((v) => !v.ok);
   const sweepFailedCount = failed.length;
-  // v1 sweep = `validate --all --strict --no-check`: pending tasks escalate a
+  // predecessor sweep = `validate --all --strict --no-check`: pending tasks escalate a
   // change to FAIL, and that feeds the review critical count.
   for (const c of strictChangeFails) {
     failed.push({
@@ -112,7 +112,7 @@ export function buildReview(input: ReviewInput, io: SpecIo): ReviewResult {
       ],
     });
   }
-  // v1 parity: `count` is the removed locked-rule-confirmation concept (always
+  // predecessor parity: `count` is the removed locked-rule-confirmation concept (always
   // 0 now); the detail text carries the bound-change count separately.
   push(
     'locked',
@@ -167,7 +167,7 @@ export function buildReview(input: ReviewInput, io: SpecIo): ReviewResult {
   };
 }
 
-/** `review --export-html`: fill the v1 shared/review.html template (pure —
+/** `review --export-html`: fill the predecessor shared/review.html template (pure —
  * callers read the template; CLI passes it via core's TEMPLATES_ROOT). */
 export function renderReviewHtml(
   template: string,

@@ -5,7 +5,7 @@
  * `node:fs`, `Bun.$`, or prompt libraries; runtimes wire adapters in.
  */
 
-/** Interaction port. v1 ships an @inquirer/prompts adapter; a future ink TUI
+/** Interaction port. predecessor ships an @inquirer/prompts adapter; a future ink TUI
  * ships its own adapter (the two must never run in the same process). */
 export interface PromptDriver {
   select<T extends string>(message: string, choices: readonly T[]): Promise<T>;

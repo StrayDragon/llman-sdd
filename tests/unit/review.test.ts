@@ -48,7 +48,7 @@ describe('buildReview', () => {
     expect(result.summary.criticalCount).toBe(0);
     const pendingA = result.signals.find((s) => s.kind === 'pending' && s.capability === 'a');
     expect(pendingA?.count).toBe(0);
-    // locked 信号:count 恒 0(v1 的锁定确认概念已移除),detail 带绑定数
+    // locked 信号:count 恒 0(前代的锁定确认概念已移除),detail 带绑定数
     const locked = result.signals.find((s) => s.kind === 'locked');
     expect(locked?.count).toBe(0);
     expect(locked?.detail).toInclude('2 bound change(s)');
@@ -121,14 +121,14 @@ describe('buildReview', () => {
     expect(validate?.detail).toInclude('c2-half-done (4 unchecked)');
   });
 
-  test('locked detail uses the v2 command name', () => {
+  test('locked detail uses the current command name', () => {
     const entries = [{ fileName: 'a.feature', doc: parseCapability(SPEC('a', 'r1'), 'a.feature') }];
     const result = buildReview({ entries, boundChangeCount: 1 }, io);
     const locked = result.signals.find((s) => s.kind === 'locked');
     expect(locked?.detail).toInclude('`llman-sdd change diff <id>`');
   });
 
-  test('text lines follow the v1 layout', () => {
+  test('text lines follow the predecessor layout', () => {
     const entries = [{ fileName: 'a.feature', doc: parseCapability(SPEC('a', 'r1'), 'a.feature') }];
     const result = buildReview({ entries, boundChangeCount: 0 }, io);
     expect(result.lines[0]).toBe('Review: critical=0 warning=0');

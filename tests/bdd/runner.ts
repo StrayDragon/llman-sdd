@@ -1,7 +1,7 @@
 import { describe, test } from 'bun:test';
 // BDD runner — Gherkin (.feature) → bun:test bridge.
 //
-// Ported from ../crystalith/apps/server/tests/bdd/runner.ts (v1 pytest-bdd
+// Ported from ../crystalith/apps/server/tests/bdd/runner.ts (predecessor pytest-bdd
 // semantics, ~200 lines, self-contained):
 //   - Parses `# language: zh-CN` features via @cucumber/gherkin (parser only).
 //   - Maps 假如/当/那么/而且 keywords to Given/When/Then/And step kinds.
@@ -22,7 +22,7 @@ import { AstBuilder, GherkinClassicTokenMatcher, Parser } from '@cucumber/gherki
 
 export type StepKind = 'given' | 'when' | 'then';
 
-/** Per-scenario mutable state shared across steps (the v1 conftest model). */
+/** Per-scenario mutable state shared across steps (the predecessor conftest model). */
 export interface TestContext {
   fixtures: Record<string, unknown>;
 }
@@ -71,7 +71,7 @@ function compilePattern(pattern: string): CompiledPattern {
         continue;
       }
       const inner = pattern.slice(i + 1, end);
-      // Param names use CJK + word chars (v1 used Chinese names like 名称).
+      // Param names use CJK + word chars (前代 used Chinese names like 名称).
       const dMatch = inner.match(/^([\w\u4E00-\u9FFF]+):d$/);
       if (dMatch?.[1]) {
         paramNames.push(dMatch[1]);

@@ -38,7 +38,7 @@ function collectSpecEntries(io: SpecHelperIo, specsDir: string): ParsedEntry[] {
 }
 
 /**
- * v1 parity (`req_registry.rs::next_req_id_from_index`): smallest free rN over
+ * predecessor parity (`req_registry.rs::next_req_id_from_index`): smallest free rN over
  * the RULE (@human) req ids only; acceptance-only req tags do not occupy ids.
  * The id set comes from the global req registry (r7 mapping's sibling API in
  * spec/reqRegistry.ts) fed with the human-scenario view of each spec.

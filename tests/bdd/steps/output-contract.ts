@@ -89,7 +89,7 @@ bdd.when('补齐 What Changes 后再运行 show', (ctx) => {
 
 bdd.thenStep('文本模式不设门且输出 Stage', (ctx) => {
   const r = ctx.fixtures['show结果'] as { beforeCode: number; beforeOut: string };
-  // v1 parity: text/compact mode renders changes without Why/What Changes gates.
+  // predecessor parity: text/compact mode renders changes without Why/What Changes gates.
   if (r.beforeCode !== 0) throw new Error(`text show should render: ${r.beforeOut}`);
   if (!r.beforeOut.includes('Stage:')) throw new Error(`Stage line missing: ${r.beforeOut}`);
   if (!r.beforeOut.includes('Gates:')) throw new Error(`Gates trailer missing: ${r.beforeOut}`);
@@ -139,9 +139,11 @@ bdd.thenStep('文本模式 -r 与 meta-only 均为全量渲染', (ctx) => {
     metaCode: number;
   };
   if (r.reqCode !== 0 || !r.reqOut.includes('规则一') || !r.reqOut.includes('规则二'))
-    throw new Error(`-r must render the full spec in text (v1 parity): ${r.reqOut}`);
+    throw new Error(`-r must render the full spec in text (predecessor parity): ${r.reqOut}`);
   if (r.metaCode !== 0 || !r.metaOut.includes('规则一') || !r.metaOut.includes('## Morphology'))
-    throw new Error(`meta-only must render the full spec in text (v1 parity): ${r.metaOut}`);
+    throw new Error(
+      `meta-only must render the full spec in text (predecessor parity): ${r.metaOut}`,
+    );
 });
 
 // ---------------------------------------------------------------------------

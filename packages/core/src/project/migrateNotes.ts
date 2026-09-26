@@ -1,8 +1,8 @@
-// Collaboration notes for `project migrate` — v1 (Rust ≤0.0.78) shipped two
-// one-shot migrations (toon2features / specs-flatten); v2 deliberately ships
+// Collaboration notes for `project migrate` — the predecessor (Rust ≤0.0.78) shipped two
+// one-shot migrations (toon2features / specs-flatten); this tool deliberately ships
 // none (peripheral-commands r35: the command outputs an explanation and never
 // migrates). Porting the implementations was surveyed on 2026-09-23 and
-// declined: specs-flatten fights v2's directory-style coexistence direction,
+// declined: specs-flatten fights this repo's directory-style coexistence direction,
 // and toon2features has no confirmed audience. Instead, `--kind <x>` prints
 // the equivalent manual-migration guidance so old command forms get useful
 // stdout instead of an unknown-option error.

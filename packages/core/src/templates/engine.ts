@@ -1,6 +1,6 @@
 /**
  * Template engine (init-generators capability, r17): nunjucks adapter with
- * minijinja-compatible semantics used by v1 — string-only globals, undefined
+ * minijinja-compatible semantics used by predecessor — string-only globals, undefined
  * renders empty (Lenient), nested `unit(id)` expansion capped at 32, and
  * trailing whitespace trimmed from the final product.
  */
@@ -28,7 +28,7 @@ export function renderWithUnits(
     throw new Error(`unit nesting exceeded ${MAX_UNIT_NESTING_DEPTH}`);
   }
   // minijinja keep_trailing_newline=false: a single trailing newline of the
-  // template SOURCE is stripped before rendering (v1 parity). \r? first —
+  // template SOURCE is stripped before rendering (predecessor parity). \r? first —
   // stripping \n alone would strand a trailing \r for CRLF sources.
   const source = raw.replace(/\r?\n$/u, '');
   const env = new nunjucks.Environment(null, {

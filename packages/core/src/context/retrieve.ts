@@ -5,7 +5,7 @@
  * direct/related classification (direct wins). r29 pins the output contract:
  * quality ∈ {agentic, unavailable}, exhaustion degrades to agentic +
  * truncation note, failures emit summary {totalSpecs:0, error:true}.
- * Env contract mirrors v1: LLMAN_SDD_INDEX_CHAT_MODEL (required) /
+ * Env contract mirrors predecessor: LLMAN_SDD_INDEX_CHAT_MODEL (required) /
  * LLMAN_SDD_INDEX_CHAT_API_HOST|KEY with LLMAN_SDD_INDEX_OPENAI_* fallbacks.
  */
 import type { SerializedTreeIndex } from './tree.ts';
@@ -52,7 +52,7 @@ export interface ContextSuccessSummary {
   paths: string[];
 }
 
-/** r29: failures collapse to v1's print_err two-field error summary. */
+/** r29: failures collapse to predecessor's print_err two-field error summary. */
 export interface ContextErrorSummary {
   totalSpecs: 0;
   error: true;
@@ -165,7 +165,7 @@ function parseTiers(content: string): { direct: TierEntry[]; related: TierEntry[
 
 /**
  * r28: the model may classify one spec into both tiers (observed with real
- * models; v1 passes duplicates through). Cross-tier duplicates keep the direct
+ * models; predecessor passes duplicates through). Cross-tier duplicates keep the direct
  * entry, in-tier duplicates keep the first occurrence; summary counts are
  * computed after this runs.
  */
@@ -260,13 +260,13 @@ export async function runContextRetrieval(deps: RetrieveDeps): Promise<ContextRe
       tiers = parseTiers(message.content ?? '');
     }
   } catch (error) {
-    // v1 print_err semantics: network/transport/parse failures degrade to
+    // predecessor print_err semantics: network/transport/parse failures degrade to
     // unavailable + api_error, never crash the CLI without JSON output.
     return errorResult(`retrieval failed: ${(error as Error).message}`, 'api_error');
   }
   if (tiers === null) {
     // r29: loop exhaustion degrades to agentic + truncation note + empty
-    // tiers (v1 truncated RetrievalOutput), with the success summary shape.
+    // tiers (predecessor truncated RetrievalOutput), with the success summary shape.
     const noTiers: TierEntry[] = [];
     return {
       status: {

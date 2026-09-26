@@ -107,7 +107,7 @@ bdd.when('运行 validate --stage full 指向 draft 阶段 change', (ctx) => {
   };
 });
 
-bdd.thenStep('退出码非零且按产物报阶段强制缺失(v1 语义)', (ctx) => {
+bdd.thenStep('退出码非零且按产物报阶段强制缺失(前代语义)', (ctx) => {
   const r = ctx.fixtures['validate结果'] as { code: number; stdout: string; stderr: string };
   if (r.code === 0) throw new Error(`stage gate should fail: ${r.stdout}`);
   if (!`${r.stdout}${r.stderr}`.includes('Stage forced to')) {
@@ -658,7 +658,7 @@ bdd.thenStep('四次输出均不含内部需求编号', (ctx) => {
   for (const [i, out] of outputs.entries()) {
     if (
       /\((?:[a-z-]+ )?r\d+[^)]*\)/u.test(out) ||
-      /\b(?:sdd-workflow|spec-format|v1) r\d+\b/u.test(out)
+      /\b(?:sdd-workflow|spec-format|predecessor) r\d+\b/u.test(out)
     ) {
       throw new Error(`output ${i + 1} leaks internal requirement ids:\n${out}`);
     }

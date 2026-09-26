@@ -16,7 +16,7 @@ export type MachineFormat = 'json' | 'compact-json' | 'toon';
  * - `json`: 2-space pretty — byte-identical to the historical `--json` output.
  * - `compact-json`: true minified single line (normalizes the historical
  *   strip-newlines / indent-0 variants; same data, contract still "one line").
- * - `toon`: TOON v1 via the official encoder (comma delimiter default).
+ * - `toon`: TOON predecessor via the official encoder (comma delimiter default).
  */
 export function renderMachine(ir: unknown, format: MachineFormat): string {
   switch (format) {

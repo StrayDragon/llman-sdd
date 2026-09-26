@@ -17,7 +17,7 @@ function makeChangesRepo(ids: string[]): string {
   return root;
 }
 
-describe('resolveChangeId (r61 / v1 r112)', () => {
+describe('resolveChangeId (r61 / predecessor r112)', () => {
   test('exact match wins even when another id extends it', () => {
     const root = makeChangesRepo(['c123', 'c123-foo']);
     expect(resolveChangeId(makeNodeIo(root), root, 'c123')).toEqual({

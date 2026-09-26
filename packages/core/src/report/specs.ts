@@ -2,7 +2,7 @@ import { renderMachine } from '../render/machine.ts';
 import { specIdOf } from '../spec/ir.ts';
 /**
  * Specs listing (peripheral-commands capability, r20/r21): morphology counts
- * aligned with v1 — rules = @human scenarios; enforced = rules carrying an
+ * aligned with predecessor — rules = @human scenarios; enforced = rules carrying an
  * @req link that has an executable acceptance scenario; pending = the rest.
  */
 import type { CapabilityDoc } from '../spec/ir.ts';

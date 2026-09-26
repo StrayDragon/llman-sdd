@@ -1,6 +1,6 @@
 /**
  * Real-LLM smoke test for the context retrieval chain (r27-r29 contract):
- * run `context --task` through the v2 CLI against a real chat endpoint and
+ * run `context --task` through the CLI against a real chat endpoint and
  * assert the landed output contract.
  *
  * Env-guarded: without LLMAN_SDD_INDEX_CHAT_MODEL the script exits 0 with a

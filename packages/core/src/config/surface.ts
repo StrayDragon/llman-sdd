@@ -7,7 +7,7 @@
 import { loadConfig } from './load.ts';
 import { EXTRA_SKILLS } from './schema.ts';
 
-/** Render the five-element overview (v1 parity wording). */
+/** Render the five-element overview (predecessor parity wording). */
 export function renderConfigOverview(source: string): string[] {
   const config = loadConfig(source);
   const enabled = (config.extra_skills ?? []).length;
@@ -23,7 +23,7 @@ export function renderConfigOverview(source: string): string[] {
   ];
 }
 
-/** Shape of `config skills --json` (v1 parity). */
+/** Shape of `config skills --json` (predecessor parity). */
 export function skillsJson(source: string): { enabled: string[]; available: readonly string[] } {
   return { enabled: [...(loadConfig(source).extra_skills ?? [])], available: EXTRA_SKILLS };
 }

@@ -1,5 +1,5 @@
 /**
- * Staleness evaluator (validation/staleness parity): v1 `sdd/spec/staleness.rs`
+ * Staleness evaluator (validation/staleness parity): predecessor `sdd/spec/staleness.rs`
  * observable contract — status/baseRef/scope/touchedPaths/specUpdated/dirty/
  * notes plus per-capability staleness issues. Pure: git + env are injected.
  */
@@ -62,9 +62,9 @@ const BASE_MISSING_MSG =
   "Note: Unable to resolve base ref for staleness check. Set LLMANSPEC_BASE_REF (e.g. 'main' or 'origin/main'), or upgrade llman if below 0.0.60.";
 
 /**
- * Evaluate staleness for one capability spec — v1 status semantics.
+ * Evaluate staleness for one capability spec — predecessor status semantics.
  * Returns the info object plus warning/info issues (strict escalation is the
- * caller's job, matching v1 `apply_strict`).
+ * caller's job, matching predecessor `apply_strict`).
  */
 export function evaluateStaleness(deps: StalenessDeps): {
   info: StalenessInfo;
@@ -125,7 +125,7 @@ export function evaluateStaleness(deps: StalenessDeps): {
     }
   }
 
-  // Tolerant: outside a git repo (or on git failure) treat as dirty (v1 unwrap_or(true)).
+  // Tolerant: outside a git repo (or on git failure) treat as dirty (predecessor unwrap_or(true)).
   const dirty = (git.runOpt(['status', '--porcelain']) ?? 'dirty') !== '';
   if (dirty) {
     if (status === 'OK' || status === 'STALE') status = 'INFO';
@@ -152,7 +152,7 @@ function revParse(git: GitLike, ref: string): string | null {
 }
 
 // Deliberately NOT shared with defaultBranch() in git/spawnGit.ts — this
-// v1-staleness probe is local-only (main → master, 'main' fallback, no origin
+// predecessor staleness probe is local-only (main → master, 'main' fallback, no origin
 // consultation). Do not merge the two.
 function defaultBranchNameFn(git: GitLike): string {
   if (git.runOpt(['show-ref', '--verify', '--quiet', 'refs/heads/main']) !== null) return 'main';

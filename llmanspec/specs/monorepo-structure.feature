@@ -1,6 +1,6 @@
 # language: zh-CN
 # capability: monorepo-structure
-# purpose: 规范 v2 仓库的 Bun workspaces 布局、oxc 工具链门禁、core 纯域纪律与 BDD runner 就绪要求,并以只读对账断言锁定本地门禁与 CI 的一致性。
+# purpose: 规范本仓的 Bun workspaces 布局、oxc 工具链门禁、core 纯域纪律与 BDD runner 就绪要求,并以只读对账断言锁定本地门禁与 CI 的一致性。
 # scope: package.json, .bun-version, tsconfig.json, .oxlintrc.json, .oxfmtrc.json, .pre-commit-config.yaml, justfile, .github/workflows/, scripts/, tests/bdd/assert/
 
 功能: monorepo-structure

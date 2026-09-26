@@ -1,7 +1,7 @@
-// Shared golden helpers: render skills products with v2's own renderer
+// Shared golden helpers: render skills products with this repo's own renderer
 // (runInit) into a fresh temp project using a config equivalent to this
 // repo's llmanspec/config.yaml, and diff against tests/golden/baseline/
-// (version-normalized). The baseline is the v2 self-snapshot (single SSOT).
+// (version-normalized). The baseline is the self-snapshot (single SSOT).
 import {
   cpSync,
   existsSync,
@@ -52,8 +52,8 @@ export interface RenderResult {
   version: string;
 }
 
-/** Render skills with v2 (runInit) into a fresh temp project. */
-export function renderV2Skills(locale: 'zh-Hans' | 'en' = 'zh-Hans'): RenderResult {
+/** Render skills with runInit into a fresh temp project. */
+export function renderSkills(locale: 'zh-Hans' | 'en' = 'zh-Hans'): RenderResult {
   const tmpRoot = mkdtempSync(join(tmpdir(), 'llman-sdd-golden-'));
   mkdirSync(join(tmpRoot, 'llmanspec'), { recursive: true });
   writeFileSync(
@@ -64,7 +64,7 @@ export function renderV2Skills(locale: 'zh-Hans' | 'en' = 'zh-Hans'): RenderResu
   runInit(makeNodeIo(tmpRoot), templateIo, { update: true, version });
   const skillsDir = join(tmpRoot, '.agents', 'skills');
   if (!existsSync(skillsDir)) {
-    throw new Error(`v2 did not render skills into ${skillsDir}`);
+    throw new Error(`runInit did not render skills into ${skillsDir}`);
   }
   return { tmpRoot, skillsDir, version };
 }

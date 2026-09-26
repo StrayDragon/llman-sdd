@@ -11,7 +11,7 @@ export function registerProject(program: Command): void {
     .description('Remap globally duplicated req ids (report with --dry-run)')
     .option('--dry-run', 'report the remap plan without writing')
     .action((options: { dryRun?: boolean }) => {
-      // v1 parity: dedupe registry covers @human (rule) req ids only.
+      // predecessor parity: dedupe registry covers @human (rule) req ids only.
       const entries = loadSpecEntries();
       const owners = new Map<string, string[]>();
       for (const e of entries) {
@@ -36,7 +36,7 @@ export function registerProject(program: Command): void {
       const plan = planDedupe(entries, io, 'llmanspec/specs', duplicates, {
         apply: !options.dryRun,
       });
-      // v1 output: `{cap}: {from} → {to}` per remap (prefix in dry-run) + count line.
+      // predecessor output: `{cap}: {from} → {to}` per remap (prefix in dry-run) + count line.
       for (const item of plan) {
         const cap = item.remapFile.replace(/^.*specs\//u, '').replace(/\.feature$/u, '');
         const prefix = options.dryRun ? '[dry-run] ' : '';

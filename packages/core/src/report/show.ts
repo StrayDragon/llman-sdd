@@ -9,9 +9,9 @@ import { CHANGES_DIR } from '../change/lifecycle.ts';
 import { currentBranch, isCleanTree, type GitLike } from '../git/spawnGit.ts';
 import { discoverSpecs } from '../validation/discover.ts';
 /**
- * show change JSON (peripheral-commands capability, r21): v1 field set and
+ * show change JSON (peripheral-commands capability, r21): predecessor field set and
  * gate structure (clean-tree / on-bound-branch / stage-complete /
- * specs-landed / tasks-done / validate). Object keys are inserted in v1's
+ * specs-landed / tasks-done / validate). Object keys are inserted in predecessor's
  * order; consumers compare structurally. Effects flow through the injected
  * FsIo and GitLike ports — this module stays pure.
  */
@@ -50,7 +50,7 @@ export function showChangeJson(
     ? countTasks(io.readText(`${dir}/tasks.md`))
     : { completed: 0, total: 0 };
 
-  // v1 parity: show works (gracefully degraded gates) outside a git repo.
+  // predecessor parity: show works (gracefully degraded gates) outside a git repo.
   let cleanTree = false;
   let current = null;
   try {

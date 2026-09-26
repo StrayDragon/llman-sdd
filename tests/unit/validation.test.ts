@@ -48,7 +48,7 @@ describe('discoverSpecs', () => {
 });
 
 describe('validateAllSpecs', () => {
-  test('clean specs pass with v1-style report lines', () => {
+  test('clean specs pass with predecessor-style report lines', () => {
     const entries: SpecEntry[] = [
       { fileName: 'a.feature', doc: parseCapability(io.readText('a.feature'), 'a.feature') },
     ];
@@ -58,7 +58,7 @@ describe('validateAllSpecs', () => {
     expect(report.lines[0]).toBe('OK spec/a');
   });
 
-  test('@human without MUST word fails (v1 parity)', () => {
+  test('@human without MUST word fails (predecessor parity)', () => {
     const doc = parseCapability(
       `# language: zh-CN\n# capability: t\n# purpose: p\n# scope: llmanspec/\n\n功能: t\n\n  @req:r1 @human\n  场景: ok\n    - 系统提供 x\n`,
     );
@@ -68,7 +68,7 @@ describe('validateAllSpecs', () => {
     expect(report.lines.join('\n')).toInclude('constraint statement must contain MUST/SHALL');
   });
 
-  test('@human without @req tag fails (v1 parity)', () => {
+  test('@human without @req tag fails (predecessor parity)', () => {
     const doc = parseCapability(
       `# language: zh-CN\n# capability: t\n# purpose: p\n# scope: llmanspec/\n\n功能: t\n\n  @human\n  场景: ok\n    - 系统 MUST x\n`,
     );
@@ -100,14 +100,14 @@ describe('validateAllSpecs', () => {
     expect(report.lines.at(-1)).toBe('Totals: 0 passed, 2 failed (2 items)');
   });
 
-  test('missing capability header fails (v1 short-circuit); missing purpose is ERROR', () => {
+  test('missing capability header fails (predecessor short-circuit); missing purpose is ERROR', () => {
     const doc = parseCapability(
       `# scope: llmanspec/\n\n功能: t\n\n  @req:r1 @human\n  场景: ok\n    - 系统 MUST x\n`,
     );
     const report = validateAllSpecs([{ fileName: 't.feature', doc }], io);
     expect(report.failed).toBe(true);
     const joined = report.lines.join('\n');
-    // v1 parity: missing capability short-circuits to file + registry issues.
+    // predecessor parity: missing capability short-circuits to file + registry issues.
     expect(joined).toInclude('missing `# capability:` header comment');
 
     const withCap = parseCapability(
@@ -115,7 +115,7 @@ describe('validateAllSpecs', () => {
     );
     const report2 = validateAllSpecs([{ fileName: 't.feature', doc: withCap }], io);
     const joined2 = report2.lines.join('\n');
-    // v1 parity: missing/empty purpose is an ERROR at `{cap}/purpose`.
+    // predecessor parity: missing/empty purpose is an ERROR at `{cap}/purpose`.
     expect(joined2).toInclude('[ERROR] t/purpose: `# purpose:` header comment must not be empty');
   });
 });

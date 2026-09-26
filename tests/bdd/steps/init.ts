@@ -1,4 +1,4 @@
-// Domain step definitions: init-generators 能力 — 覆盖 r19/r66(v2 渲染 vs
+// Domain step definitions: init-generators 能力 — 覆盖 r19/r66(渲染 vs
 // golden 基线、zh-Hans 与 en 双 locale 基线门、双 locale 分流判据、ethics
 // 治理门)与 r49/r50(init 子目录落点与 --lang 别名)。
 import { spawnSync } from 'node:child_process';
@@ -31,7 +31,7 @@ import { bdd } from '../runner.ts';
 import { REPO_ROOT, runCli } from './shared.ts';
 
 // ---------------------------------------------------------------------------
-// init-generators capability — v2 render vs golden baseline (normalized)
+// init-generators capability — fresh render vs golden baseline (normalized)
 // ---------------------------------------------------------------------------
 
 bdd.given('本仓库的等价 config(zh-Hans 与 bdd 配置)', (ctx) => {
@@ -105,7 +105,7 @@ bdd.thenStep('zh-Hans 与 en 产物均含 authoring helpers 引导标识', (ctx)
   }
 });
 
-bdd.when('v2 渲染全部 skills', (ctx) => {
+bdd.when('渲染全部 skills', (ctx) => {
   const root = (ctx.fixtures['init'] as { root: string }).root;
   runInit(
     makeNodeIo(root),

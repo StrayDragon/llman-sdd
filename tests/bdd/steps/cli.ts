@@ -1,5 +1,5 @@
 // Domain step definitions: cli 能力 — 覆盖 r75(错误出口单一前缀/退出码)、
-// r76(报告命令输出旗标共享注册)、r77(全局旗标面,v1 兼容旗标已删)。
+// r76(报告命令输出旗标共享注册)、r77(全局旗标面,前代兼容旗标已删)。
 // 断言针对 CLI 输出的真实形状(stderr 前缀、退出码、单行 JSON),不绕道内部 API。
 import { bdd } from '../runner.ts';
 import { CLI, REPO_ROOT, makeTempRepo, runCli as spawnCli, seedChange } from './shared.ts';
@@ -136,7 +136,7 @@ bdd.thenStep('两输出均含同载荷 JSON 且 compact-json 为单行', (ctx) =
 // ---------------------------------------------------------------------------
 
 bdd.when('运行 CLI 任意命令并附加该兼容旗标', (ctx) => {
-  // 已删除的 v1 兼容旗标;拼接避免 rg 命中字面 token(removed 面零提及)。
+  // 已删除的前代兼容旗标;拼接避免 rg 命中字面 token(removed 面零提及)。
   const legacyFlag = ['--no-', 'interactive'].join('');
   recordResult(ctx, runCli(['list', legacyFlag]));
 });

@@ -1,5 +1,5 @@
 /**
- * Change-id prefix resolution (peripheral-commands r61, v1 cli spec r112):
+ * Change-id prefix resolution (peripheral-commands r61, predecessor cli spec r112):
  * exact match > unique prefix > multiple candidates > no match, all
  * case-sensitive. Candidates are the active change ids discovered via
  * collectChanges (depth-limited, archive-skipping). Pure — IO is injected.

@@ -12,7 +12,7 @@
   @req:r20 @executable
   场景: 输出结构合法
     假如 本仓库的真实 llmanspec 工作区
-    当 运行 v2 的 list --json 与 graph
+    当 运行 list --json 与 graph
     那么 list JSON 元素含 name 与 status 且 status 属于合法枚举
     而且 graph 首行为 flowchart TD
 
@@ -37,7 +37,7 @@
 
   @req:r61 @human
   场景: change id 前缀解析
-    - `show`、`validate <item>` 与 `change start/attach/diff/finalize/archive` 的 change id 解析 MUST 按 v1 r112 优先级链:exact match 优先于前缀;唯一前缀命中 MUST 解析到该 change,且人读输出 MUST 向 stderr 打 `'input' -> 'resolved' (prefix match)` 提示;多个前缀命中 MUST 报错并列出全部候选,退出码非零;无匹配 MUST 报 change not found;解析 MUST 大小写敏感;JSON 的 matchedViaPrefix MUST 如实上报(exact 为 false,前缀命中为 true);spec id 的精确匹配 MUST 优先于同前缀 change id(不被劫持);共享解析器不含归档兜底(v1 的 archived 回退与 did-you-mean 有意不移植)。`graph` 种子 MUST 支持前缀解析,但走其自有口径:精确 > 活跃唯一前缀 > 归档唯一前缀,多命中/无命中按 graph not found 报错——归档兜底为 graph 特有。
+    - `show`、`validate <item>` 与 `change start/attach/diff/finalize/archive` 的 change id 解析 MUST 按前代 r112 优先级链:exact match 优先于前缀;唯一前缀命中 MUST 解析到该 change,且人读输出 MUST 向 stderr 打 `'input' -> 'resolved' (prefix match)` 提示;多个前缀命中 MUST 报错并列出全部候选,退出码非零;无匹配 MUST 报 change not found;解析 MUST 大小写敏感;JSON 的 matchedViaPrefix MUST 如实上报(exact 为 false,前缀命中为 true);spec id 的精确匹配 MUST 优先于同前缀 change id(不被劫持);共享解析器不含归档兜底(前代的 archived 回退与 did-you-mean 有意不移植)。`graph` 种子 MUST 支持前缀解析,但走其自有口径:精确 > 活跃唯一前缀 > 归档唯一前缀,多命中/无命中按 graph not found 报错——归档兜底为 graph 特有。
 
   @req:r61 @executable
   场景: 唯一前缀解析生效
@@ -71,7 +71,7 @@
   @req:r30 @executable
   场景: 流式依赖边被解析
     假如 一个含流式 depends_on 指向已归档 change 的临时工作区
-    当 运行 v2 的 graph
+    当 运行 graph
     那么 archived 节点被标注 done 且依赖边保留
 
   @req:r51 @human
@@ -80,11 +80,11 @@
 
   @req:r52 @human
   场景: show 文本输出与 Why/What Changes 门
-    - `show <change>` 仅 `--output human` MUST 输出人类可读文本(含 `Stage:`、`path:`、proposal 全文与 `Gates: n/m pass` 尾节),文本模式 MUST NOT 对 `## Why`/`## What Changes` 设门(v1 语义);`show` 缺省(无 --output)MUST 输出 TOON(change/spec IR 与 json 同载荷),并 MUST 支持 `--output <toon|json|compact-json|human>`;`--output compact-json` MUST 输出可 `JSON.parse` 的单行 JSON(不得回落人读文本);`--output json` MUST 按序校验:缺 `## Why` 报 `Change must have a Why section`、缺 `## What Changes` 报 `Change must have a What Changes section`,任一不满足 MUST 退出码非零。
+    - `show <change>` 仅 `--output human` MUST 输出人类可读文本(含 `Stage:`、`path:`、proposal 全文与 `Gates: n/m pass` 尾节),文本模式 MUST NOT 对 `## Why`/`## What Changes` 设门(前代语义);`show` 缺省(无 --output)MUST 输出 TOON(change/spec IR 与 json 同载荷),并 MUST 支持 `--output <toon|json|compact-json|human>`;`--output compact-json` MUST 输出可 `JSON.parse` 的单行 JSON(不得回落人读文本);`--output json` MUST 按序校验:缺 `## Why` 报 `Change must have a Why section`、缺 `## What Changes` 报 `Change must have a What Changes section`,任一不满足 MUST 退出码非零。
 
   @req:r53 @human
   场景: show spec 检视与 output 修饰
-    - `show <spec>` 文本模式 MUST 忽略 `-r/--requirement`、`--output compact|meta-only|no-scenarios|reqs-only` 而渲染全量源码+Morphology(v1 语义,修饰仅作用于 JSON);`--output json[,meta-only|no-scenarios|reqs-only]` MUST 按 v1 结构输出(items/requirements/scenarios/morphology)。
+    - `show <spec>` 文本模式 MUST 忽略 `-r/--requirement`、`--output compact|meta-only|no-scenarios|reqs-only` 而渲染全量源码+Morphology(前代语义,修饰仅作用于 JSON);`--output json[,meta-only|no-scenarios|reqs-only]` MUST 按前代结构输出(items/requirements/scenarios/morphology)。
 
   @req:r51 @executable
   场景: list 排序与紧凑输出
@@ -109,7 +109,7 @@
   @req:r53 @executable
   场景: show 拒绝已删除的 output token
     假如 一个含活跃 change 的临时仓库
-    当 运行 show 该 change --output 且附加已删除的 v1 修饰 token
+    当 运行 show 该 change --output 且附加已删除的前代修饰 token
     那么 报 invalid --output token 且退出码非零
 
   @req:r54 @human

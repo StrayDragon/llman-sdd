@@ -52,7 +52,7 @@ interface RenderSample {
   written: string;
 }
 
-bdd.given('v2 模板引擎与样例单元表', (ctx) => {
+bdd.given('模板引擎与样例单元表', (ctx) => {
   // 同环境同变量:unit(id) 递归展开复用同一 vars 环境
   const units = new Map([
     ['a', 'A{{ unit("b") }}'],
@@ -62,7 +62,7 @@ bdd.given('v2 模板引擎与样例单元表', (ctx) => {
   return ctx.fixtures['渲染样例'];
 });
 
-bdd.when('v2 渲染样例模板并经 init 落盘临时工作区', (ctx) => {
+bdd.when('渲染样例模板并经 init 落盘临时工作区', (ctx) => {
   const { units } = ctx.fixtures['渲染样例'] as { units: Map<string, string> };
   const sample: RenderSample = {
     lenient: renderTemplate('a={{ nope }}', units, {}),
@@ -142,7 +142,7 @@ interface LocaleSample {
   registryHit: string | null;
 }
 
-bdd.given('v2 locale 输入集与双语资源桩', (ctx) => {
+bdd.given('locale 输入集与双语资源桩', (ctx) => {
   // 资源桩:units/skills/validation-hints 仅 en 存在,skills/propose 仅
   // zh-Hans 存在——同一回退链下两个资源各自独立回退/首命中。
   // (UNIT_FILES 键含子目录,如 units/skills/validation-hints.md。)
@@ -161,7 +161,7 @@ bdd.given('v2 locale 输入集与双语资源桩', (ctx) => {
   return ctx.fixtures['locale样例'];
 });
 
-bdd.when('v2 计算 locale 归一化、回退链与资源回退', (ctx) => {
+bdd.when('计算 locale 归一化、回退链与资源回退', (ctx) => {
   const { io } = ctx.fixtures['locale样例'] as {
     io: { exists(p: string): boolean; readText(p: string): string };
   };
@@ -295,7 +295,7 @@ bdd.given('一个含三个带日期归档目录的临时仓库', (ctx) => {
   return ctx.fixtures['freeze仓库'];
 });
 
-bdd.when('v2 先 dry-run 再按 before 与 keep-recent 执行 freeze', (ctx) => {
+bdd.when('先 dry-run 再按 before 与 keep-recent 执行 freeze', (ctx) => {
   const repo = ctx.fixtures['freeze仓库'] as FreezeFixture;
   // --before 2026-01-03 候选 = ancient + middle;--keep-recent 1 再按名保留
   // middle → 实际只冻结 ancient。

@@ -90,7 +90,7 @@ export function cliMaxScanDepth(program: Command): number {
 }
 
 /**
- * r61: shared v1-r112 change id resolution for every change-taking command.
+ * r61: shared predecessor r112 change id resolution for every change-taking command.
  * Emits the `(prefix match)` hint on stderr; fails by throwing CliError (the
  * unified exit renders the single `Error: <message>` line and exit code 1).
  */
@@ -112,7 +112,7 @@ export type OutMode = 'toon' | 'json' | 'compact-json' | 'human';
 
 /**
  * D4: shared output-flag surface for every report command. Mounts the unified
- * `--output <toon|json|compact-json|human>` plus the v1-compatibility alias
+ * `--output <toon|json|compact-json|human>` plus the predecessor-compatibility alias
  * flags (`--json` / `--compact-json`), so report commands no longer duplicate
  * `.option('--output', ...)` registrations. `outputHint` lets a command keep a
  * richer value-domain description (show's legacy JSON modifiers).
@@ -128,8 +128,8 @@ export function addReportOutputOptions(cmd: Command, opts: { outputHint?: string
 }
 
 /**
- * toon-default-output: explicit `--output` wins, then the v1-parity legacy
- * flags, then the toon default. Legacy `--compact-json` keeps its v1 guard
+ * toon-default-output: explicit `--output` wins, then the predecessor-parity legacy
+ * flags, then the toon default. Legacy `--compact-json` keeps its predecessor guard
  * (must pair with `--json`) — standalone compact goes through `--output`.
  * Invalid `--output` values are usage errors (exit 2) and throw CliError.
  */

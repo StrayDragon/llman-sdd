@@ -96,7 +96,7 @@ describe('deriveChangeId', () => {
   test('keeps existing verb prefix', () => {
     expect(deriveChangeId('port config and parsing')).toBe('port-config-and-parsing');
   });
-  test('does not force a verb prefix (v1 pure slug)', () => {
+  test('does not force a verb prefix (predecessor pure slug)', () => {
     expect(deriveChangeId('demo feature')).toBe('demo-feature');
   });
   test('ascii-sanitizes and caps length', () => {
@@ -104,7 +104,7 @@ describe('deriveChangeId', () => {
     expect(id.length).toBeLessThanOrEqual(60);
     expect(/^[a-z0-9-]+$/u.test(id)).toBe(true);
   });
-  test('pure non-ascii yields an error (v1)', () => {
+  test('pure non-ascii yields an error (predecessor)', () => {
     expect(() => deriveChangeId('中文描述')).toThrow('empty id after sanitizing');
   });
 });
@@ -146,7 +146,7 @@ describe('attachChange default-branch gate (r31)', () => {
   });
 });
 
-describe('harvestUniqueNumbers (r35, v1 c-token parity)', () => {
+describe('harvestUniqueNumbers (r35, predecessor c-token parity)', () => {
   const io = (
     dirs: string[],
   ): { listDir: (p: string) => string[]; isDirectory: (p: string) => boolean } => ({
@@ -237,13 +237,13 @@ describe('r44/r45/r46 — change family flags', () => {
     run(['add', '-A']);
     run(['commit', '-qm', 'work']);
     const info = changeDiffInfo(git, io, 'fam');
-    // v1 parity: `base` is the recorded base_sha (merge-base), not the branch name.
+    // predecessor parity: `base` is the recorded base_sha (merge-base), not the branch name.
     expect(info).toMatchObject({ change: 'fam', branch: 'sdd/fam', commitCount: 1 });
     expect(info.base).toMatch(/^[0-9a-f]{40}$/u);
   });
 });
 
-describe('finalize branch gate (r15 / v1 r94)', () => {
+describe('finalize branch gate (r15 / predecessor r94)', () => {
   test('finalize from a foreign branch fails before any write', () => {
     const { root, run } = makeGitRepo('fam', { prefix: 'llman-finalize-gate-' });
     const git = makeSpawnGit(root);

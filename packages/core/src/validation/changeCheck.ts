@@ -7,7 +7,7 @@ import {
 } from '../change/frontmatter.ts';
 import { CLOSE_OUT_TASK_HINT, closeOutTaskLines, parseTaskCheckboxes } from '../change/tasks.ts';
 /**
- * Change-domain validation (v1 `commands/validate.rs` change path parity):
+ * Change-domain validation (predecessor `commands/validate.rs` change path parity):
  * frontmatter/depends_on gates, design/tasks constraints, completeness stage
  * INFO, pattern gate and task gates. IO + git injected (pure).
  */
@@ -17,7 +17,7 @@ export type ChangeIssueLevel = 'ERROR' | 'WARNING' | 'INFO';
 
 export interface ChangeIssue {
   level: ChangeIssueLevel;
-  /** v1-style anchor (issue path), e.g. `proposal.md/frontmatter.depends_on`. */
+  /** predecessor-style anchor (issue path), e.g. `proposal.md/frontmatter.depends_on`. */
   path: string;
   message: string;
 }
@@ -137,8 +137,8 @@ const COMPLETENESS: Record<string, string> = {
 };
 
 /**
- * File-aware change validation with v1 messages/paths (used by the validate
- * command). `strict` escalates WARNING issues to ERROR (v1 build_report).
+ * File-aware change validation with predecessor messages/paths (used by the validate
+ * command). `strict` escalates WARNING issues to ERROR (predecessor build_report).
  * `git` (optional) enables the r63 completeness WARNINGs — Full-not-ready
  * with skill guidance, per change.
  */
@@ -158,7 +158,7 @@ export function validateChange(
   const baseDir = `${root}/llmanspec/changes`;
   const proposal = `${dir}proposal.md`;
   // Probed once here: shared by the stage inference below and the --stage
-  // artifact gate at the end (v1 issue order preserved).
+  // artifact gate at the end (predecessor issue order preserved).
   const hasDesign = io.exists(`${dir}design.md`);
   const hasTasks = io.exists(`${dir}tasks.md`);
   if (!io.exists(proposal)) {
@@ -213,7 +213,7 @@ export function validateChange(
       }
     }
 
-    // Unknown frontmatter field gate (v1).
+    // Unknown frontmatter field gate (predecessor).
     for (const l of fmLines) {
       if (l === '' || l.startsWith('-') || l.startsWith('#')) continue;
       const m = l.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*:/u);
@@ -263,10 +263,10 @@ export function validateChange(
       }
     }
 
-    // completeness INFO (v1 surface).
+    // completeness INFO (predecessor surface).
     push('INFO', 'completeness', COMPLETENESS[stage] ?? '');
 
-    // r63: Full-but-not-ready WARNING with skill guidance (v1 r1 surface).
+    // r63: Full-but-not-ready WARNING with skill guidance (predecessor r1 surface).
     if (opts.git !== undefined && binding !== null && stage === 'full') {
       const needs = readNeedsSpecsChange(fm);
       const landed = specsLanded(opts.git, binding);
@@ -280,7 +280,7 @@ export function validateChange(
     }
   }
 
-  // pattern gate (v1 change-id path). loadConfig compiles the pattern first
+  // pattern gate (predecessor change-id path). loadConfig compiles the pattern first
   // on the CLI path; this branch defends direct core callers that build a
   // ChangeCheckConfig without going through loadConfig.
   if (config.change_id_pattern) {
@@ -302,7 +302,7 @@ export function validateChange(
     }
   }
 
-  // stage gate (v1 --stage: artifact presence per gate).
+  // stage gate (predecessor --stage: artifact presence per gate).
   if (opts.stage !== undefined) {
     if (opts.stage === 'designed' && !hasDesign) {
       push('ERROR', 'design.md', `Stage forced to 'designed' but design.md is missing`);

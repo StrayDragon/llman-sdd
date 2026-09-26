@@ -2,7 +2,7 @@ import type { SddConfig } from '../config/schema.ts';
 import { renderTemplate, type UnitRegistry } from './engine.ts';
 /**
  * Skills rendering + init orchestration (init-generators capability, r19).
- * Port of v1 templates.rs / update_skills.rs / init.rs semantics.
+ * Port of predecessor templates.rs / update_skills.rs / init.rs semantics.
  */
 import { localeFallbacks } from './locale.ts';
 
@@ -49,7 +49,7 @@ export const ETHICS_KEYS: readonly string[] = [
   'ethics.escalation_policy',
 ];
 
-/** Framework-derived run_command (v1 config.rs effective_run_command). */
+/** Framework-derived run_command (predecessor config.rs effective_run_command). */
 export function effectiveRunCommand(bdd: NonNullable<SddConfig['bdd']>): string {
   if (bdd.run_command) return bdd.run_command;
   switch (bdd.framework ?? '') {
@@ -66,7 +66,7 @@ export function effectiveRunCommand(bdd: NonNullable<SddConfig['bdd']>): string 
   }
 }
 
-/** All-string globals (v1 BTreeMap<String, String> semantics). */
+/** All-string globals (predecessor BTreeMap<String, String> semantics). */
 export function buildTemplateVars(config: SddConfig, version: string): Record<string, string> {
   const vars: Record<string, string> = { llman_version: version };
   if (config.bdd) {

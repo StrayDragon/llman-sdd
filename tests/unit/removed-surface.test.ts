@@ -116,7 +116,7 @@ test('removed commands do not exist anywhere (D2)', () => {
   }
 });
 
-test('-r/--requirement survives on show; --output still exposes the v1 no-delta value domain (D2)', () => {
+test('-r/--requirement survives on show; --output still exposes the predecessor no-delta value domain (D2)', () => {
   const program = buildProgram();
   const show = program.commands.find((c) => c.name() === 'show');
   expect(show).toBeDefined();
