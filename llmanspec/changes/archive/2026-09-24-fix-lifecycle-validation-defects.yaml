@@ -1,0 +1,14 @@
+---
+depends_on: []
+needs_specs_change: true
+branch: sdd/fix-lifecycle-validation-defects
+base_branch: main
+base_sha: e16d51b928c1ccb837ddbc7373650456cad41067
+frozen:
+  at: "2026-09-26T11:29:55.347Z"
+  archive: "freezed_changes.7z.archived"
+  files:
+    "design.md": bfca5bd273c15803b40b6eb5b41a0f6f68ef861321145328c889356b1a84434f
+    "proposal.md": e23d536d8d1d8bee5f3bc994a74dc9ca40b1b604cea8311d17c8477983def997
+    "tasks.md": b28ff23da2a6af998a774b94cbbbaf06394b52f9663d7c421fa74c7d70de892a
+---

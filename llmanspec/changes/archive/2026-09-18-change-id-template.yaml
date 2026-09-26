@@ -1,0 +1,14 @@
+---
+depends_on:
+  - align-next-id-numeric
+  - change-family-flags
+branch: sdd/change-id-template
+base_branch: main
+base_sha: 81e9e709b26ed365467e33e9e65b44afd0b85278
+frozen:
+  at: "2026-09-26T11:29:55.347Z"
+  archive: "freezed_changes.7z.archived"
+  files:
+    "proposal.md": 50e6175188b43b6c9fbafab2d2724c7fadb8158041a8d1f7c8684dead6510330
+    "tasks.md": 8438b5371beea680d122c2cf57da559a08f8cd8763b7b36793693b118dd9505e
+---

@@ -1,0 +1,13 @@
+---
+depends_on: []
+branch: sdd/remove-manual-tag
+base_branch: main
+base_sha: a8b4d21a6f570fed30e0ff91c725b66713cf332f
+frozen:
+  at: "2026-09-26T11:29:55.347Z"
+  archive: "freezed_changes.7z.archived"
+  files:
+    "design.md": c09fe666caa690a4ed845b4b25926fb8c30a1afe892a4cecb17e66301cbf0630
+    "proposal.md": 36d1bbd663d9e51323b2bc0262ec8d4d025704eb09c3500e94ac283d68479af0
+    "tasks.md": 8d043055ce7769fd3e43f005557500c17d3a2d63417df028181874e70369598b
+---

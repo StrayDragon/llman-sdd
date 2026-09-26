@@ -1,0 +1,14 @@
+---
+depends_on: []
+needs_specs_change: true
+branch: sdd/add-bdd-exe-validation-core
+base_branch: main
+base_sha: 0588ead04e6ad8f8ef58bed753c0177a16948f58
+frozen:
+  at: "2026-09-26T11:29:55.347Z"
+  archive: "freezed_changes.7z.archived"
+  files:
+    "design.md": faf47a4754fa93005486c57fd8f9ed7f2c5a1605adb8672c5cdb82a31a430a39
+    "proposal.md": 881561435a7547900aa169ef7ec207eb6710f6d925dc398edf71eaeca1103a58
+    "tasks.md": 2c10954f7bfb2c64321f7e1aa0d57cc5f385f65651fdd232b9629242c4417206
+---

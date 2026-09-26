@@ -1,0 +1,14 @@
+---
+depends_on: []
+needs_specs_change: true
+branch: sdd/polish-cli-followups
+base_branch: main
+base_sha: 256af30bb1c6cdaa569aa24f0ee67cec621344c0
+frozen:
+  at: "2026-09-26T11:29:55.347Z"
+  archive: "freezed_changes.7z.archived"
+  files:
+    "design.md": 704795500c42b1465cb4412320367d2c277199b9a0e65b28d575de1e2558c9d3
+    "proposal.md": 447e688bc9c41dc6de80fb373a4986809f47d68dadd79bfbb6d85b9b363a6195
+    "tasks.md": 452540ce15fdb5804f490049592668198fc7317518dba3b18c1d04ee182663db
+---

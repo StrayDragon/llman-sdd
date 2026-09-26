@@ -1,0 +1,14 @@
+---
+depends_on:
+- port-config-and-parsing
+branch: sdd/port-change-lifecycle
+base_sha: a1bd7a93fe6efb1b640040b8b547d3b6bf4d3e2e
+base_branch: main
+frozen:
+  at: "2026-09-26T11:29:55.347Z"
+  archive: "freezed_changes.7z.archived"
+  files:
+    "design.md": cf3283dbb11629f6cd2df68500d77f10582f9affd2d08206d05478047054d47a
+    "proposal.md": ea13d4d9d629af5ef3fb4d73890d47b4c7698b98912002a93752ca5288ac57f8
+    "tasks.md": 8006c7f021b044582c52b0fbd72ca3038ded53dff118fba6a1022d5db64f76e2
+---

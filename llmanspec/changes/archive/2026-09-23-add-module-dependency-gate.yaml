@@ -1,0 +1,13 @@
+---
+depends_on: []
+branch: sdd/add-module-dependency-gate
+base_branch: main
+base_sha: 876b8313192996a60c0ba1f94b58b877b1eceb10
+frozen:
+  at: "2026-09-26T11:29:55.347Z"
+  archive: "freezed_changes.7z.archived"
+  files:
+    "design.md": 475c984ca5f02760d25e46bb9e6612eaf64fb40f7e291710da4f44b1708d8f4b
+    "proposal.md": b267ab13206b5e9d6709b8ebf94d632988a04861f46abd2b92a8509dbf74ef22
+    "tasks.md": dd111b6b21188ee2f84f9047d82c596293ca61a699d6b877694ce83ef4949484
+---

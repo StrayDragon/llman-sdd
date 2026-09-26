@@ -1,0 +1,12 @@
+---
+depends_on: []
+branch: sdd/align-stage-inference
+base_branch: main
+base_sha: a90ccaa2faf61ceb0119589373058ec7d1ac7943
+frozen:
+  at: "2026-09-26T11:29:55.347Z"
+  archive: "freezed_changes.7z.archived"
+  files:
+    "proposal.md": 274b1e9ead58159bfd64cbfde58b1f666672fd08228b7ce9c5f11961c16c0286
+    "tasks.md": 6652f3bb1e8fb828cc202e384faa6df5eb7287054dbb147f07ecba1fac53ba65
+---

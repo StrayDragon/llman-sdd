@@ -1,0 +1,12 @@
+---
+depends_on: []
+branch: sdd/fix-review-capability-filter
+base_branch: main
+base_sha: 7801969d931096edcb77c9f6f3eae1aeb510c7d3
+frozen:
+  at: "2026-09-26T11:29:55.347Z"
+  archive: "freezed_changes.7z.archived"
+  files:
+    "proposal.md": 057ce54ef2dad4d4d7749b56ad54e7d4f527a48945bb22f23e7f6b3834235386
+    "tasks.md": 3988d5f92c939428e76de24ecad0107306e994714dd56c7982063695be3739cd
+---

@@ -1,0 +1,14 @@
+---
+depends_on: []
+needs_specs_change: true
+branch: sdd/add-worktree-hardening
+base_branch: main
+base_sha: 725f3c4eb66587b9b969f67eb50561c3c4cf613e
+frozen:
+  at: "2026-09-26T11:29:55.347Z"
+  archive: "freezed_changes.7z.archived"
+  files:
+    "design.md": 447bab84a9410a3a5e0161d15fdc4c8339a208fe9b5fc53dec2c03d9957a674d
+    "proposal.md": 804072cdc09521febf4ca08329d13878977869b99b35a4279afecd6fc969c885
+    "tasks.md": e0d66b28ef566e3c377cdcd4cc221043d721edd223fc596fdc170b5cb2817a29
+---

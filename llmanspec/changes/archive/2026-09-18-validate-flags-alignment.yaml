@@ -1,0 +1,12 @@
+---
+depends_on: []
+branch: sdd/validate-flags-alignment
+base_branch: main
+base_sha: e8017a94c52d74e650d9b1a8ab85073be006cc1f
+frozen:
+  at: "2026-09-26T11:29:55.347Z"
+  archive: "freezed_changes.7z.archived"
+  files:
+    "proposal.md": a32d5bd3dbeacbf641bbb307a3a5eb31fdbf24d6f04eaa406d733a468a23985b
+    "tasks.md": 1414712d4675353bfa0a13fff0499dc83a6064df0c9aa93e555db96888e33878
+---

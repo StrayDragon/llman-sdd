@@ -1,0 +1,20 @@
+---
+depends_on:
+- port-validation-engine
+- port-change-lifecycle
+- port-init-and-generators
+- port-peripheral-commands
+- port-review-freeze-context
+- port-context-index
+- refine-slop-qa-release
+branch: sdd/release-v2-and-cutover
+base_sha: 9742d01d6215108b8e7f9ee89b9391d6d12632f7
+base_branch: main
+frozen:
+  at: "2026-09-26T11:29:55.347Z"
+  archive: "freezed_changes.7z.archived"
+  files:
+    "design.md": 4aa6ffd30994c444521401b9861e58f91cdf528b9f81192b8dbf1a395572d34d
+    "proposal.md": d4ce9da3f69cddcbc845db815e771108e0af9efbaaec306b8aa701f4b1cc4c5a
+    "tasks.md": 0a88ba2bb1111d29a923f58181070607ce0fa8f301b956ffd31751bcddfc604b
+---

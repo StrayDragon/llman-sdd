@@ -1,0 +1,14 @@
+---
+depends_on:
+- port-peripheral-commands
+branch: sdd/port-review-freeze-context
+base_sha: aa63fe74e2fccc5cb223a80ce954e48ad7023c0b
+base_branch: main
+frozen:
+  at: "2026-09-26T11:29:55.347Z"
+  archive: "freezed_changes.7z.archived"
+  files:
+    "design.md": d363f5bc2b01ae06140669774a312a858c7d736c487e46de67487bea9707b902
+    "proposal.md": e8d634b53462ae129c2e35ecb80bc86316a3ba8b39abffdc0f1119735eafa0d0
+    "tasks.md": 9cd6613cf5512c6bdb407a5ad61730aa6d8220b5578dbd0fa5773e30ecec5304
+---

@@ -1,0 +1,14 @@
+---
+depends_on: []
+needs_specs_change: true
+branch: sdd/add-bdd-exe-authoring-surface
+base_branch: main
+base_sha: 0588ead04e6ad8f8ef58bed753c0177a16948f58
+frozen:
+  at: "2026-09-26T11:29:55.347Z"
+  archive: "freezed_changes.7z.archived"
+  files:
+    "design.md": b50e1b1b5618f56498abbe3d9850622b06647e64578cf7a4aa9d6aea3e850c0e
+    "proposal.md": 7c75c3f469ab426fc881f3f75bace2aaf53e8b5f499465744e63468c0d8f5645
+    "tasks.md": 9cf41afea042f77869d30944d77fca823291eaac2299f96fdb3fe7732c41da85
+---

@@ -1,0 +1,14 @@
+---
+depends_on: []
+needs_specs_change: true
+branch: sdd/codify-gate-evidence-lessons
+base_branch: main
+base_sha: 7f4bfa751d5088c8d50a01d9d47f918c3279af2f
+frozen:
+  at: "2026-09-26T11:29:55.347Z"
+  archive: "freezed_changes.7z.archived"
+  files:
+    "design.md": a52947156d175baf036afb4a0efd20b684618f2471c6d7ef71a7b4525f9f7849
+    "proposal.md": b4b9cd453d787d3dbd6be139bc98f36144b237667b6c757b6417d87f5f8c9196
+    "tasks.md": 94400338116f4887119038bdf09ecfa53455d6d78e144925fd273f652ccfa808
+---

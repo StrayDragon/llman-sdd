@@ -1,0 +1,12 @@
+---
+depends_on: []
+branch: sdd/fix-graph-flow-deps
+base_branch: main
+base_sha: e870b6ee60a92e24ce5a3fdef5d9e278e3aa3d79
+frozen:
+  at: "2026-09-26T11:29:55.347Z"
+  archive: "freezed_changes.7z.archived"
+  files:
+    "proposal.md": 86b56ac0349612e22ed504b500cdc9312886c346504b06d2f89703d6bc9237e1
+    "tasks.md": 8f9cc6e0c51df5052ef6b5c9e5850c46f1fd979d037e173f4298ad50f9bff6e7
+---

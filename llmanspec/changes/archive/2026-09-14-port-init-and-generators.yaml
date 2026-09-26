@@ -1,0 +1,14 @@
+---
+depends_on:
+- port-config-and-parsing
+branch: sdd/port-init-and-generators
+base_sha: 7ec0c91003dce8e4fa3198811fd96bcace3c03d3
+base_branch: main
+frozen:
+  at: "2026-09-26T11:29:55.347Z"
+  archive: "freezed_changes.7z.archived"
+  files:
+    "design.md": f6540c2bb72ba8e0b75f953029b6bb41dea931e73f1e6af24be8b888f84d2d73
+    "proposal.md": 5eade710ef8291d20cd0d363045b576144c1660159eaa379606b75765ce6e3fa
+    "tasks.md": ba3dfbcfa553cdd3faad4e82e0e3d29e465411b43ad3481844a716673638fc60
+---

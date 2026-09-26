@@ -1,0 +1,15 @@
+---
+depends_on:
+- port-change-lifecycle
+- port-init-and-generators
+branch: sdd/port-peripheral-commands
+base_sha: 8f6f3c713c92bc4092c5f9675ba718c99429f9f8
+base_branch: main
+frozen:
+  at: "2026-09-26T11:29:55.347Z"
+  archive: "freezed_changes.7z.archived"
+  files:
+    "design.md": 3f1a7757ab4cbf179626754f076a01600fb125ec097a9b33bdeb77a395ac8393
+    "proposal.md": f35181eea7819cbee786d5e1b48864463a3b9beb5eaa381c7e328711324a2d0e
+    "tasks.md": 303bd84bc27f875bd6d7a398da10de6d8dbef378efb14bb8efc1de401f54c228
+---

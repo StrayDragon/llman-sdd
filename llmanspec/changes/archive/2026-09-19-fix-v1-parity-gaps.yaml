@@ -1,0 +1,13 @@
+---
+depends_on: []
+branch: sdd/fix-v1-parity-gaps
+base_branch: main
+base_sha: 2c5d13750d4a9e3d9ff4140c9fa94ab697ae47a1
+frozen:
+  at: "2026-09-26T11:29:55.347Z"
+  archive: "freezed_changes.7z.archived"
+  files:
+    "design.md": a9161f303f8040b998827f1d958f15be154ca97868554c536ee568afb37fda2a
+    "proposal.md": 0437954dea0036a4c139d2c8d3616d6fe82b84453dc2692938ff074a936a5519
+    "tasks.md": 610b0b92c37e66b0d03d01c2c12717f24d56f67f8ff21ccbe75c9ff3a89d62c4
+---
