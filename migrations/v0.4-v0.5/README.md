@@ -49,3 +49,10 @@
 4. 旧格式文件在 0.5 下“解析惰性”(标签无语义),但缺迁移会产生结构告警——
    请务必执行第 1 步。历史归档 change 文档中的 `@req:<id>` 引用仍然有效
    (句柄机制保留)。
+
+## 下游自迭代 Agent 提示词
+
+给下游 coding agent 整段使用的迁移/收敛提示词（v1 spec.toon → 原生、旧标签
+`.feature` 升级、specs-compact 压降，含 req_id 映射与门禁自迭代闭环）见
+[downstream-agent-prompts.md](downstream-agent-prompts.md)，并按复查（
+`llman-sdd validate` + `review`）更新其中的状态登记表。
