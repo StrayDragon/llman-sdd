@@ -7,6 +7,7 @@
 
 import type { CapabilityDoc, RuleIR } from './ir.ts';
 import { specIdOf } from './ir.ts';
+import { BLOCK_KEYWORD_LINE_RE, officialKeywordsOrEn } from './keywords.ts';
 
 export class AuthoringError extends Error {}
 
@@ -29,10 +30,27 @@ interface KeywordSet {
   thenText: string;
 }
 
+/**
+ * Dialect of the target file: an explicit `# language:` header wins
+ * (official matchers auto-switch on it); headerless zh content parses via
+ * the zh-CN fallback chain (r7), anything else is en.
+ */
+function dialectOf(content: string): string {
+  const firstLine = content.split('\n').find((l) => l.trim() !== '');
+  const header = firstLine?.match(/^#\s*language:\s*(\S+)\s*$/u)?.[1];
+  if (header !== undefined) return header;
+  return content.includes('功能:') ? 'zh-CN' : 'en';
+}
+
 function keywordsOf(content: string): KeywordSet {
-  return content.includes('功能:')
-    ? { rule: '规则', scenario: '场景', given: '假如', when: '当', thenText: '那么' }
-    : { rule: 'Rule', scenario: 'Scenario', given: 'Given', when: 'When', thenText: 'Then' };
+  const kw = officialKeywordsOrEn(dialectOf(content));
+  return {
+    rule: kw.rule,
+    scenario: kw.scenario,
+    given: kw.given,
+    when: kw.when,
+    thenText: kw.thenText,
+  };
 }
 
 function findRule(
@@ -137,15 +155,16 @@ export function addScenario(
   const lines = content.split('\n');
   const tagIdx = lines.findIndex((l) => l.trim() === `@req:${opts.reqId}`);
   if (tagIdx === -1) throw new AuthoringError(`req id not found in file: ${opts.reqId}`);
-  // block end = first line after the tag's own `规则:` header at 2-space top-level
-  // indent that is a tag line or a `规则:/场景:` keyword line (2-space + keyword
-  // immediately). The rule header directly following the tag opens the block, so
-  // the scan starts after it — otherwise the header itself is mistaken for the
-  // boundary and the scenario is inserted before the `规则:` line (broken output).
+  // block end = first line after the tag's own rule header at 2-space top-level
+  // indent that is a tag line or an official block keyword line (2-space +
+  // keyword immediately, any official dialect). The rule header directly
+  // following the tag opens the block, so the scan starts after it — otherwise
+  // the header itself is mistaken for the boundary and the scenario is
+  // inserted before the rule line (broken output).
   let end = lines.length;
   for (let i = tagIdx + 2; i < lines.length; i++) {
     const l = lines[i] ?? '';
-    if (l.startsWith('  @') || /^  (规则|Rule|场景|Scenario|功能|Feature):/u.test(l)) {
+    if (l.startsWith('  @') || BLOCK_KEYWORD_LINE_RE.test(l)) {
       end = i;
       break;
     }

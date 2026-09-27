@@ -8,6 +8,7 @@ import {
   buildReqRegistry,
   localeToGherkinLang,
   migrateNativeSource,
+  officialKeywordsOrEn,
   parseCapability,
   parseFeatureSource,
   SpecParseError,
@@ -509,5 +510,99 @@ bdd.thenStep('迁移产物仍使用中文关键字且解析无错误', (ctx) => 
   const doc = parseCapability(res.content, '方言回归.feature');
   if (doc.errors.length > 0) {
     throw new Error(`zh-CN output must parse cleanly, got: ${JSON.stringify(doc.errors)}`);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// r7/r88 — official dialect vocabulary for skeleton + migration (acceptance)
+// ---------------------------------------------------------------------------
+
+bdd.thenStep('en 骨架的规则与步骤关键字取自官方 en 词表(无中文关键字混入)', (ctx) => {
+  const r = ctx.fixtures['skeleton结果'] as SkeletonResult;
+  if (r.code !== 0) throw new Error(`skeleton failed: ${r.out}`);
+  const content = r.content ?? '';
+  const kw = officialKeywordsOrEn('en');
+  for (const fragment of [`${kw.rule}:`, `${kw.scenario}:`, `${kw.given} TODO`]) {
+    if (!content.includes(fragment)) {
+      throw new Error(`en skeleton must use the official en keyword "${fragment}":\n${content}`);
+    }
+  }
+  for (const zh of ['规则:', '场景:', '假如', '当 TODO', '那么']) {
+    if (content.includes(zh)) {
+      throw new Error(`en skeleton must not mix zh-CN keywords (found "${zh}"):\n${content}`);
+    }
+  }
+});
+
+bdd.when('在 locale 为 fr 的已初始化临时仓库运行 spec skeleton demo-cap', (ctx) => {
+  const repo = makeTempRepo();
+  writeFileSync(join(repo.root, 'llmanspec', 'config.yaml'), 'schema: spec-driven\nlocale: fr\n');
+  const result = repo.run('bun', [CLI, 'spec', 'skeleton', 'demo-cap']);
+  const path = join(repo.root, 'llmanspec', 'specs', 'demo-cap.feature');
+  const content = existsSync(path) ? readFileSync(path, 'utf8') : null;
+  ctx.fixtures['skeleton结果'] = {
+    code: result.code,
+    out: `${result.stdout}${result.stderr}`,
+    content,
+  } satisfies SkeletonResult;
+});
+
+bdd.thenStep('生成的 spec 首行为 "# language: fr" 且关键字取自官方 fr 词表', (ctx) => {
+  const r = ctx.fixtures['skeleton结果'] as SkeletonResult;
+  if (r.code !== 0) throw new Error(`skeleton failed: ${r.out}`);
+  const content = r.content ?? '';
+  if (!content.startsWith('# language: fr\n')) {
+    throw new Error(`fr skeleton must start with the fr header (locale passthrough):\n${content}`);
+  }
+  const kw = officialKeywordsOrEn('fr');
+  for (const fragment of [
+    `${kw.feature}: demo-cap`,
+    `${kw.rule}:`,
+    `${kw.scenario}:`,
+    `${kw.given} TODO`,
+  ]) {
+    if (!content.includes(fragment)) {
+      throw new Error(`fr skeleton must use the official fr keyword "${fragment}":\n${content}`);
+    }
+  }
+});
+
+const FR_LEGACY = `# language: fr
+# capability: démo
+# purpose: démo
+# scope: src/
+
+Fonctionnalité: démo
+
+  @req:r1 @human
+  Scénario: sortie stable
+    - Le système MUST produire des résultats stables.
+    Soit une entrée \`1\`
+    Quand le système s'exécute
+    Alors la sortie MUST être \`1\`
+`;
+
+bdd.given('一个 `# language: fr` 的 legacy feature 内容', (ctx) => {
+  ctx.fixtures['同体迁移'] = { 源文本: FR_LEGACY };
+});
+
+bdd.thenStep('迁移产物使用官方 fr 词表关键字且解析无错误', (ctx) => {
+  const res = ctx.fixtures['迁移结果'] as MigrateOutcome | undefined;
+  if (!res?.ok) throw new Error(`migration failed: ${res?.message}`);
+  const kw = officialKeywordsOrEn('fr');
+  if (!res.content.includes(`${kw.rule}: sortie stable`)) {
+    throw new Error(`fr source must migrate with the official fr rule keyword:\n${res.content}`);
+  }
+  if (!res.content.includes(`${kw.scenario}: Acceptance example`)) {
+    throw new Error(
+      `fr source must migrate with the official fr scenario keyword:\n${res.content}`,
+    );
+  }
+  if (res.content.includes('规则:') || res.content.includes('Rule:')) {
+    throw new Error(`fr output must not mix en/zh-CN keywords:\n${res.content}`);
+  }
+  const doc = parseCapability(res.content, 'démo.feature');
+  if (doc.errors.length > 0) {
+    throw new Error(`fr output must parse cleanly, got: ${JSON.stringify(doc.errors)}`);
   }
 });

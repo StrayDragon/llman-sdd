@@ -26,6 +26,9 @@
       那么 生成的 spec 首行为 "# language: zh-CN" 且规则体使用中文
       当 在 locale 为 en 的已初始化临时仓库运行 spec skeleton demo-cap
       那么 生成的 spec 首行为 "# language: en"
+      而且 en 骨架的规则与步骤关键字取自官方 en 词表(无中文关键字混入)
+      当 在 locale 为 fr 的已初始化临时仓库运行 spec skeleton demo-cap
+      那么 生成的 spec 首行为 "# language: fr" 且关键字取自官方 fr 词表
 
   @req:r8
   规则: 头注释契约
@@ -84,7 +87,7 @@
 
   @req:r88
   规则: 迁移输出方言一致并强制解析自检
-    `spec migrate-native` 的迁移产物 MUST 与源 feature 的解析方言一致(`# language:` 头或语言兜底链定方言):zh-CN 源输出 `规则:`/`场景:`、en 源输出 `Rule:`/`Scenario:`,自动嵌套验收场景标题同步本地化(验收示例 / Acceptance example),preamble 原样保留。迁移完成前 MUST 以官方解析器对产物做解析自检,自检失败 MUST 返回错误而非产出内容(dry-run 同样受检),不得静默写入不可解析的文件。
+    `spec migrate-native` 的迁移产物 MUST 与源 feature 的解析方言一致(`# language:` 头或语言兜底链定方言),规则/场景块关键字 MUST 取自该方言在官方 gherkin 词表(@cucumber/gherkin dialects)中的合法关键字,且 MUST 确定性选取:过滤 `* ` 星号步后优先首个本地文字(非 ASCII)同义词、否则取首个——zh-CN 源输出 `规则:`/`场景:`、en 源输出 `Rule:`/`Scenario:` 不得漂移;自动嵌套验收场景标题维持本地化(验收示例 / Acceptance example),preamble 原样保留。迁移完成前 MUST 以官方解析器对产物做解析自检,自检失败 MUST 返回错误而非产出内容(dry-run 同样受检),不得静默写入不可解析的文件。
 
     场景: en 方言 legacy 迁移保持方言一致
       假如 一个 `# language: en` 的「描述与步骤同体」legacy feature 内容
@@ -96,3 +99,8 @@
       假如 一个 zh-CN 的两体 legacy feature 内容(规则场景与归属验收分离)
       当 迁移该 feature 为原生格式
       那么 迁移产物仍使用中文关键字且解析无错误
+
+    场景: 官方词表跨方言迁移
+      假如 一个 `# language: fr` 的 legacy feature 内容
+      当 迁移该 feature 为原生格式
+      那么 迁移产物使用官方 fr 词表关键字且解析无错误

@@ -1,5 +1,8 @@
 ---
 depends_on: []
+branch: sdd/use-official-keywords
+base_branch: main
+base_sha: 6ecba2eaf9dc7550a45887926e6a09dd4279667d
 ---
 
 # 关键字词表收敛至官方 gherkin 方言表
@@ -16,7 +19,7 @@ depends_on: []
 
 ## What Changes
 
-- 新增 `packages/core/src/spec/keywords.ts` 公共助手:`officialKeywords(language)` 从官方词表选取 feature/rule/scenario/given/when/then 关键字。确定性选取策略:过滤 `* ` 星号步、trim、优先首个本地文字(非 ASCII)同义词、否则取首个——官方表同义词序不保证本地化词优先(zh-CN `rule: ["Rule","规则"]`、`given: ["* ","假如",…]`),该策略恰好复现 en/zh-CN 现行合约关键字(Rule/Scenario/Given/When/Then;规则/场景/假如/当/那么),其余方言产出官方表内关键字(如 fr → Règle/Scénario/Soit/Quand/Alors)。
+- 新增 `packages/core/src/spec/keywords.ts` 公共助手:`officialKeywords(language)` 从官方词表选取 feature/rule/scenario/given/when/then 关键字。确定性选取策略:en/zh-CN 合约关键字逐字锁定(运行时校验其必须为官方表成员,失配回退表内选取,单测钉住字节);其余方言过滤 `* ` 星号步、trim 后取首个同义词。官方表同义词序不保证本地化优先且无统一位置规律(en `scenario: ["Example","Scenario"]`、zh-CN `rule: ["Rule","规则"]`),启发式不可行——该策略保证 en/zh-CN 输出与现行合约逐字节一致,其余方言产出官方表内关键字(如 fr → Règle/Exemple/Soit/Quand/Alors)。
 - 三处发射点收敛到该助手:
   - `migrateNative()`:方言渲染关键字改由官方词表选取(行为对 en/zh-CN 逐字节不变);
   - `authoring.ts`:方言解析口径改为目标文件 `# language:` 头优先、`功能:` 探测(zh-CN)兜底;块边界扫描正则改为由官方词表动态构建(覆盖全部方言);

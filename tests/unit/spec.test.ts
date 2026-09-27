@@ -8,8 +8,10 @@ import {
   localeToGherkinLang,
   migrateNativeSource,
   parseCapability,
+  parseFeatureSource,
   planDedupe,
   resolveReq,
+  skeletonContent,
 } from '@llman-sdd/core';
 
 const NATIVE_RULE = (req: string, capability = 'sample') => `# language: zh-CN
@@ -321,6 +323,52 @@ describe('spec authoring helpers (r41-r43, native v2)', () => {
     expect(plan[0]?.reqId).toBe('r1');
     expect(io.readText('llmanspec/specs/b.feature')).toInclude(`@req:${plan[0]?.newReqId}`);
   });
+
+  test('fr spec files get official fr keywords for appended blocks and scenarios', () => {
+    // 边界正则由官方词表构建:fr 块关键字 Règle/Scénario 也被识别为块边界
+    const fr = `# language: fr
+# capability: démo
+# purpose: démo
+# scope: x/
+
+Fonctionnalité: démo
+
+  @req:r1
+  Règle: règle une
+    Le système MUST x
+
+  @req:r2
+  Règle: règle deux
+    Le système MUST y
+`;
+    const { io, store } = memIo({ 'llmanspec/specs/a.feature': fr });
+    const path = addReq(io, 'llmanspec/specs', entriesOf(parse(fr)), {
+      capability: 'a',
+      reqId: 'r3',
+      title: 't',
+      statement: 'Le système MUST z',
+    });
+    expect(store[path]).toInclude('Règle: t');
+    const content = store[path] as string;
+    const doc2 = parseCapability(content, 'a.feature');
+    addScenario(io, 'llmanspec/specs', entriesOf(doc2), {
+      capability: 'a',
+      reqId: 'r1',
+      scenarioId: 's1',
+      when: 'le système agit',
+      thenText: 'la sortie MUST être `1`',
+    });
+    const updated = store[path] as string;
+    // 嵌套场景插在 r1 块内(r2 之前)而非文件尾;fr 官方表 scenario 首个同义词是 Exemple
+    expect(updated.indexOf('Exemple: s1')).toBeGreaterThan(-1);
+    expect(updated.indexOf('Exemple: s1')).toBeLessThan(updated.indexOf('@req:r2'));
+    expect(updated).toInclude('Quand le système agit');
+    expect(updated).toInclude('Alors la sortie MUST être `1`');
+    const reparsed = parseCapability(updated, 'a.feature');
+    expect(reparsed.errors).toHaveLength(0);
+    const nested = reparsed.rules[0]?.scenarios[0];
+    expect(nested?.steps.map((s) => s.kind)).toEqual(['when', 'then']);
+  });
 });
 
 describe('migrateNativeSource roundtrip', () => {
@@ -451,6 +499,38 @@ Feature: demo
     expect(doc.errors).toHaveLength(0);
   });
 
+  test('fr dialect legacy source migrates with official fr keywords (issue #3 family)', () => {
+    const src = `# language: fr
+# capability: démo
+# purpose: démo
+# scope: src/
+
+Fonctionnalité: démo
+
+  @req:r1 @human
+  Scénario: sortie stable
+    - Le système MUST produire des résultats stables.
+    Soit une entrée \`1\`
+    Quand le système s'exécute
+    Alors la sortie MUST être \`1\`
+`;
+    const res = migrateNativeSource(src);
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.content).toInclude('# language: fr');
+    expect(res.content).toInclude('Fonctionnalité: démo');
+    expect(res.content).toInclude('Règle: sortie stable');
+    // fr 官方表 scenario 首个同义词是 Exemple —— 关键字取自官方词表而非手写偏好
+    expect(res.content).toInclude('Exemple: Acceptance example');
+    expect(res.content).not.toInclude('规则:');
+    expect(res.content).not.toInclude('Rule:');
+    const doc = parseCapability(res.content, 'démo.feature');
+    expect(doc.errors).toHaveLength(0);
+    const sc = doc.rules[0]?.scenarios[0];
+    expect(sc?.name).toBe('Acceptance example');
+    expect(sc?.steps.map((s) => s.kind)).toEqual(['given', 'when', 'then']);
+  });
+
   test('unbound acceptance migrates to natural functional home (no orphan concept)', () => {
     // 孤儿概念已废除:无归属验收按文件顺序置于末尾,官方解析器将其并入前一
     // 规则,即其功能级归属;不产生任何孤儿/告警语义。
@@ -478,5 +558,37 @@ Feature: demo
     expect(doc.errors).toHaveLength(0);
     expect(doc.orphans).toHaveLength(0);
     expect(doc.rules[0]?.scenarios.map((s) => s.name)).toContain('无归验收');
+  });
+});
+
+describe('skeletonContent dialect vocabulary (r7/r88)', () => {
+  test('en locale skeleton uses official en keywords throughout (no zh mixing)', () => {
+    const content = skeletonContent('demo', 'r1', 'en');
+    expect(content.startsWith('# language: en\n')).toBe(true);
+    expect(content).toInclude('Feature: demo');
+    expect(content).toInclude('Rule: TODO-rule');
+    expect(content).toInclude('Scenario: TODO-acceptance');
+    expect(content).toInclude('Given TODO precondition');
+    expect(content).not.toInclude('假如');
+    expect(content).not.toInclude('规则');
+  });
+
+  test('fr locale skeleton passes the locale through with official fr keywords', () => {
+    const content = skeletonContent('demo', 'r1', 'fr');
+    expect(content.startsWith('# language: fr\n')).toBe(true);
+    expect(content).toInclude('Fonctionnalité: demo');
+    expect(content).toInclude('Règle: TODO-rule');
+    expect(content).toInclude('Soit TODO precondition');
+    const { doc } = parseFeatureSource(content);
+    expect(doc.feature?.name).toBe('demo');
+  });
+
+  test('zh-Hans skeleton output is byte-identical to the contract keywords', () => {
+    const content = skeletonContent('demo', 'r1', 'zh-Hans');
+    expect(content.startsWith('# language: zh-CN\n')).toBe(true);
+    expect(content).toInclude('功能: demo');
+    expect(content).toInclude('规则: TODO-rule');
+    expect(content).toInclude('场景: TODO-acceptance');
+    expect(content).toInclude('假如 TODO 前置');
   });
 });

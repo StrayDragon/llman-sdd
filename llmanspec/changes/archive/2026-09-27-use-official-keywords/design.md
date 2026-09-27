@@ -6,11 +6,13 @@
 
 ## 选取策略(确定性)
 
-过滤 `* ` 星号步 → trim → 优先首个**本地文字(非 ASCII)**同义词 → 否则取首个。
+**en/zh-CN 合约锁定 + 其余方言取首个非星号同义词**,所有发射词都必须是对应方言官方表内的成员。
 
-理由:官方表同义词序不保证本地化词优先——zh-CN `rule` 首位是 "Rule"、`given` 首位是星号步,盲取 [0] 会把 zh-CN 输出漂移成 `Rule:`/`* `;该策略对 en(全 ASCII → Rule/Scenario/Given/When/Then)与 zh-CN(非 ASCII → 规则/场景/假如/当/那么)逐字节复现现行合约关键字,对 fr(de 等)产出官方表内本地词(Règle/Scénario/Soit/Quand/Alors——fr `scenario: ["Exemple","Scénario"]` 中 Exemple 为纯 ASCII 被跳过)。en 步骤关键字表内带尾随空格("Given "),trim 后组装 `${kw} ${text}` 与现行输出一致。
+理由:官方表同义词序不保证本地化优先,且无统一位置规律——en `scenario: ["Example","Scenario"]`(合约要 Scenario 在末位)、zh-CN `rule: ["Rule","规则"]`(合约要 规则 在末位)、fr `given` 首个带重音词是 "Etant donné que"(排在 "Soit " 之后),位置/ASCII 启发式都无法同时满足合约字节与确定性。故:
 
-未知/无表语言:`officialKeywords()` 返回 null,调用方**整体回退 en**(头 + 关键字同源,文件可解析)——与现行非 zh locale 行为一致,不为无效 locale 引入新的错误路径。
+1. en/zh-CN 关键字逐字锁定(功能/规则/场景/假如/当/那么;Feature/Rule/Scenario/Given/When/Then),锁定值 MUST 为官方表成员——运行时成员校验,失配则回退表内选取(不静默漂移),单测钉住字节;
+2. 其余方言:过滤 `* ` 星号步、trim 后取首个(en 步骤表内带尾随空格 "Given ",trim 后组装与现行输出一致);如 fr → Règle/Exemple/Soit/Quand/Alors,zh-TW rule 官方表仅含 "Rule" 故为唯一合法选取;
+3. 无表语言:officialKeywords 返回 null,调用方整体回退 en(头 + 关键字同源,文件可解析)——与现行非 zh locale 行为一致。
 
 ## 三处发射点收敛
 

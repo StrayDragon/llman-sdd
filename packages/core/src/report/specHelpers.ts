@@ -1,3 +1,4 @@
+import { officialKeywords, officialKeywordsOrEn } from '../spec/keywords.ts';
 import { localeToGherkinLang, parseCapability } from '../spec/parser.ts';
 import { buildReqRegistry } from '../spec/reqRegistry.ts';
 /**
@@ -57,22 +58,23 @@ export function nextReqId(io: SpecHelperIo, specsDir: string): string {
 export function skeletonContent(capability: string, reqId: string, locale: string): string {
   const zh = localeFallbacks(locale)[0] === 'zh-Hans';
   // r7: the `# language:` header derives from the locale mapping — never a
-  // second hardcoded caliber.
-  const language = localeToGherkinLang(zh ? 'zh-Hans' : 'en');
+  // second hardcoded caliber. Table-less locales fall back to en wholesale
+  // (header + keywords same-source) so the skeleton stays parseable.
+  const mapped = localeToGherkinLang(locale);
+  const language = officialKeywords(mapped) !== null ? mapped : 'en';
+  const kw = officialKeywordsOrEn(language);
   const header = zh
     ? `# language: ${language}\n# capability: ${capability}\n# purpose: TODO: 一句话描述该能力与其目的。\n# scope: llmanspec/`
     : `# language: ${language}\n# capability: ${capability}\n# purpose: TODO: Describe this capability and its purpose.\n# scope: llmanspec/`;
-  const feature = zh ? `功能: ${capability}` : `Feature: ${capability}`;
-  const ruleKw = zh ? '规则' : 'Rule';
-  const scenarioKw = zh ? '场景' : 'Scenario';
-  const ruleTitle = 'TODO-rule';
   const ruleDesc = zh ? 'TODO: 需求描述(自由文本)。' : 'TODO: requirement statement (free text).';
-  const scTitle = 'TODO-acceptance';
-  // native v2 skeleton: a `规则:` block (with @req handle) + one nested example
+  // Skeleton placeholder prose is not vocabulary — the zh/en copy stays; keywords do not.
+  const steps = zh
+    ? `      ${kw.given} TODO 前置\n      ${kw.when} TODO 动作\n      ${kw.thenText} TODO 断言`
+    : `      ${kw.given} TODO precondition\n      ${kw.when} TODO action\n      ${kw.thenText} TODO assertion`;
+  // native v2 skeleton: a rule block (with @req handle) + one nested example
   return (
-    `${header}\n\n${feature}\n\n  @req:${reqId}\n  ${ruleKw}: ${ruleTitle}\n` +
-    `    ${ruleDesc}\n\n    ${scenarioKw}: ${scTitle}\n` +
-    `      假如 TODO 前置\n      当 TODO 动作\n      那么 TODO 断言\n`
+    `${header}\n\n${kw.feature}: ${capability}\n\n  @req:${reqId}\n  ${kw.rule}: TODO-rule\n` +
+    `    ${ruleDesc}\n\n    ${kw.scenario}: TODO-acceptance\n${steps}\n`
   );
 }
 

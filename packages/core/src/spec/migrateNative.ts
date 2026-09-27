@@ -9,6 +9,7 @@
  * derived from the tag set the official parser exposes per scenario.
  */
 
+import { officialKeywordsOrEn } from './keywords.ts';
 import { parseFeatureSource } from './parser.ts';
 
 export interface MigrateBlock {
@@ -123,17 +124,14 @@ export function migrateNativeSource(source: string): MigrateResult {
     return { ok: false, message: 'no legacy scenarios found (already native?)' };
   }
 
-  // Keywords follow the source's resolved dialect so the output stays
-  // parseable in one language — the preamble (`# language:` header,
-  // `Feature:`/`功能:` line) is kept verbatim and already matches it.
-  // parseFeatureSource only resolves en or zh-CN, so those are the only
-  // reachable dialects here; the trailing parse self-check guards the rest.
-  const zh = language === 'zh-CN';
-  const kw = {
-    rule: zh ? '规则' : 'Rule',
-    scenario: zh ? '场景' : 'Scenario',
-    autoAcceptance: zh ? '验收示例' : 'Acceptance example',
-  };
+  // Keywords come from the official gherkin dialect table so the output
+  // stays parseable in one language — the preamble (`# language:` header,
+  // `Feature:`/`功能:` line) is kept verbatim and already matches it. The
+  // trailing parse self-check guards the rest.
+  const kw = officialKeywordsOrEn(language);
+  // The auto-nested acceptance title is a synthesized name, not a keyword —
+  // no official source exists, so it keeps its localized map.
+  const autoAcceptance = language === 'zh-CN' ? '验收示例' : 'Acceptance example';
 
   // preamble: everything before the first top-level tag line (headers,
   // feature line, comments) — cut textually, preserved verbatim.
@@ -165,7 +163,7 @@ export function migrateNativeSource(source: string): MigrateResult {
     if (b.steps.length > 0) {
       out.push('');
       if (b.skip) out.push('    @skip');
-      out.push(`    ${kw.scenario}: ${kw.autoAcceptance}`);
+      out.push(`    ${kw.scenario}: ${autoAcceptance}`);
       for (const s of b.steps) out.push(`      ${s.keyword} ${s.text}`);
       scenarios++;
     }

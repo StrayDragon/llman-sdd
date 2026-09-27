@@ -34,6 +34,14 @@ export {
   parseCapability,
   parseFeatureSource,
 } from './spec/parser.ts';
+export {
+  BLOCK_KEYWORD_LINE_RE,
+  officialKeywords,
+  officialKeywordsOrEn,
+  stepKeywordToOfficialKind,
+  STEP_KIND_BY_KEYWORD,
+  type GherkinKeywords,
+} from './spec/keywords.ts';
 export { buildReqRegistry, type ReqRegistry, type RegistryDuplicate } from './spec/reqRegistry.ts';
 export {
   analyzeLegacy,
@@ -187,7 +195,12 @@ export { graphData, graphMermaid, type GraphDataIr, type GraphFsIo } from './rep
 export { parseDeps } from './report/graph.ts';
 export { renderMachine, type MachineFormat } from './render/machine.ts';
 export { showChangeJson, type ShowDeps, type ShowFsIo } from './report/show.ts';
-export { nextReqId, scaffoldSpec, type SpecHelperIo } from './report/specHelpers.ts';
+export {
+  nextReqId,
+  scaffoldSpec,
+  skeletonContent,
+  type SpecHelperIo,
+} from './report/specHelpers.ts';
 export {
   collectSpecs,
   morphologyOf,

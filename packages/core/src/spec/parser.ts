@@ -19,6 +19,7 @@ import {
   type ScenarioStepKind,
   type SpecStructuralError,
 } from './ir.ts';
+import { stepKeywordToOfficialKind } from './keywords.ts';
 
 export class SpecParseError extends Error {}
 
@@ -54,13 +55,9 @@ export function parseFeatureSource(source: string): { doc: GherkinDocument; lang
 
 const REQ_TAG_RE = /^@?req:(r\d+)$/u;
 
-/** Gherkin keyword (zh-CN + en) → step kind; And/But/* inherit via fallback. */
+/** Gherkin keyword → step kind, from the official dialect tables; And/But/* inherit via fallback. */
 function stepKeywordToKind(keyword: string): ScenarioStepKind {
-  const kw = keyword.trim();
-  if (/^(假如|Given)/iu.test(kw)) return 'given';
-  if (/^(当|When)/iu.test(kw)) return 'when';
-  if (/^(那么|Then)/iu.test(kw)) return 'then';
-  return 'given';
+  return stepKeywordToOfficialKind(keyword) ?? 'given';
 }
 
 const HEADER_RE = /^#\s*(capability|purpose|scope):\s*(.*)$/u;

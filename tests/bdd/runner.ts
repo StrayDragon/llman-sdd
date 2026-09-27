@@ -15,6 +15,7 @@ import { describe, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 
 import { AstBuilder, GherkinClassicTokenMatcher, Parser } from '@cucumber/gherkin';
+import { STEP_KIND_BY_KEYWORD } from '@llman-sdd/core';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -178,16 +179,10 @@ async function runStep(def: StepDef, text: string, docString: string | null, ctx
   }
 }
 
-// Gherkin keyword (trimmed) → step kind. And/But/* inherit from the most
-// recent concrete kind.
+// Gherkin keyword (trimmed) → step kind, from the official dialect tables.
+// And/But/* inherit from the most recent concrete kind.
 function keywordToKind(keyword: string, prevKind: StepKind): StepKind {
-  const kw = keyword.trim();
-  // Chinese (zh-CN) + English keyword coverage.
-  if (/^(假如|Given)/u.test(kw)) return 'given';
-  if (/^(当|When)/u.test(kw)) return 'when';
-  if (/^(那么|Then)/u.test(kw)) return 'then';
-  // 而且/并且/但是/But/* inherit previous kind.
-  return prevKind;
+  return STEP_KIND_BY_KEYWORD.get(keyword.trim()) ?? prevKind;
 }
 
 function parseFeature(featurePath: string) {
