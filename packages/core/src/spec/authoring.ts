@@ -50,8 +50,8 @@ function findReq(
 ): { entry: SpecEntryLike; scenarioName: string; statement: string } | null {
   for (const entry of entries) {
     for (const scenario of entry.doc.scenarios) {
-      // Rules are `@human` governance or `@rule @executable` requirement
-      // scenarios — acceptance-only req tags do not define a requirement.
+      // Rules are `@human` governance or `@rule` requirement scenarios —
+      // acceptance (`@executable`) req tags do not define a requirement.
       if (scenario.reqIds.includes(reqId) && isRuleScenario(scenario)) {
         return { entry, scenarioName: scenario.name, statement: scenario.statement };
       }
@@ -60,7 +60,7 @@ function findReq(
   return null;
 }
 
-/** predecessor parity: only rule req ids (`@human` or `@rule @executable`) participate in the dedupe registry. */
+/** predecessor parity: only rule req ids (`@human` or `@rule`) participate in the dedupe registry. */
 export function ruleReqIds(entries: readonly SpecEntryLike[]): Set<string> {
   const ids = new Set<string>();
   for (const entry of entries) {
@@ -175,8 +175,8 @@ export function resolveReq(entries: readonly SpecEntryLike[], reqId: string): Re
   const harness: string[] = [];
   for (const entry of entries) {
     for (const scenario of entry.doc.scenarios) {
-      // Harness = acceptance scenarios bound to this req; `@rule @executable`
-      // rule scenarios are not themselves harness (they anchor the req).
+      // Harness = acceptance scenarios bound to this req; rule scenarios
+      // (`@human`/`@rule`) are not themselves harness (they anchor the req).
       if (
         scenario.classification === 'executable' &&
         !isRuleScenario(scenario) &&

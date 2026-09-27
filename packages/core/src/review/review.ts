@@ -67,8 +67,8 @@ export function buildReview(input: ReviewInput, io: SpecIo): ReviewResult {
     // validate stay global regardless.
     if (input.capability !== undefined && cap !== input.capability) continue;
     const rules = entry.doc.scenarios.filter(isRuleScenario);
-    // Acceptance excludes `@rule @executable` rules — a rule is not its own
-    // acceptance and must not satisfy its own pending/unbound signals.
+    // `@rule` and `@executable` are mutually exclusive — a rule is never its
+    // own acceptance and must not satisfy its own pending/unbound signals.
     const acceptance = entry.doc.scenarios.filter(
       (s) => s.classification === 'executable' && !isRuleScenario(s),
     );

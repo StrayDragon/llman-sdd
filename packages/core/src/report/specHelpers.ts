@@ -40,7 +40,7 @@ function collectSpecEntries(io: SpecHelperIo, specsDir: string): ParsedEntry[] {
 
 /**
  * predecessor parity (`req_registry.rs::next_req_id_from_index`): smallest free rN over
- * the RULE req ids only (`@human` or `@rule @executable`); acceptance-only req tags do
+ * the RULE req ids only (`@human` or `@rule`); acceptance-only req tags do
  * not occupy ids. The id set comes from the global req registry (r7 mapping's sibling
  * API in spec/reqRegistry.ts) fed with the rule-scenario view of each spec.
  */

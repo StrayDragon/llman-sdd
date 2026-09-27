@@ -1,15 +1,15 @@
 /**
  * Specs listing (peripheral-commands capability, r20/r21): morphology counts
- * aligned with predecessor — rules = `@human` governance or `@rule @executable`
- * automatable requirement scenarios; enforced = rules carrying an @req link
+ * aligned with predecessor — rules = `@human` governance or `@rule` automatable
+ * requirement scenarios; enforced = rules carrying an @req link
  * that has an executable acceptance scenario; pending = the rest.
  */
 import { renderMachine } from '../render/machine.ts';
 import { specIdOf } from '../spec/ir.ts';
 /**
  * Specs listing (peripheral-commands capability, r20/r21): morphology counts
- * aligned with predecessor — rules = `@human` governance or `@rule @executable`
- * automatable requirement scenarios; enforced = rules carrying an @req link
+ * aligned with predecessor — rules = `@human` governance or `@rule` automatable
+ * requirement scenarios; enforced = rules carrying an @req link
  * that has an executable acceptance scenario; pending = the rest.
  */
 import type { CapabilityDoc } from '../spec/ir.ts';
@@ -37,7 +37,7 @@ export interface SpecSummary {
 
 /** Morphology counts shared by `list --specs`, `show <spec> --json`, and the
  * CLI text render — the single source of the enforced/pending two-state rule
- * (rules = @human or @rule @executable; enforced = @req-linked acceptance
+ * (rules = @human or @rule; enforced = @req-linked acceptance
  * coverage; pending = rest). */
 export function morphologyOfScenarios(
   scenarios: readonly {
@@ -47,8 +47,8 @@ export function morphologyOfScenarios(
   }[],
 ): SpecMorphology {
   // Rule role is decided by the parser flag (`rule`), with `classification`
-  // joining only as a safety net for consumers passing raw data. Acceptance
-  // excludes `@rule @executable` rules — a rule is not its own acceptance.
+  // joining only as a safety net for consumers passing raw data. `@rule` and
+  // `@executable` are mutually exclusive — a rule is never its own acceptance.
   const rules = scenarios.filter((s) => s.rule === true || s.classification === 'human');
   const acceptance = scenarios.filter((s) => s.classification === 'executable' && s.rule !== true);
   const acceptanceReqIds = new Set(acceptance.flatMap((s) => [...s.reqIds]));

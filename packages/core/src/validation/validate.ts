@@ -117,21 +117,22 @@ export function validateCapability(
     push('ERROR', err.code.startsWith('file') ? 'file' : `${cap}/${err.code}`, err.message);
   }
 
-  // Single-track gates (predecessor validate_single_track order). Acceptance
-  // scenarios are executable AND NOT rules — `@rule @executable` requirement
-  // scenarios are rules, not acceptances (they must not self-satisfy links).
+  // Single-track gates (predecessor validate_single_track order). Roles are
+  // mutually exclusive: `@rule`/`@human` mark RULES (a rule is never its own
+  // acceptance), `@executable` marks ACCEPTANCE; the parser rejects a scenario
+  // tagged with both. isRuleScenario stays as belt-and-braces.
   const acceptance = doc.scenarios.filter(
     (s) => s.classification === 'executable' && !isRuleScenario(s),
   );
-  // Rules = `@human` governance constraints ∪ `@rule @executable` automatable
-  // requirements (`@rule`/`@human` both set the rule role in the parser).
+  // Rules = `@human` governance constraints ∪ `@rule` automatable requirements
+  // (`@rule`/`@human` both set the rule role in the parser).
   const rules = doc.scenarios.filter(isRuleScenario);
 
   if (rules.length === 0) {
     push(
       'ERROR',
       rulesPath(cap),
-      'spec must define at least one rule scenario (`@human` or `@rule @executable`)',
+      'spec must define at least one rule scenario (`@human` or `@rule`)',
     );
   }
 
@@ -166,7 +167,7 @@ export function validateCapability(
 
   // Dangling acceptance @req links (predecessor order: acceptance/@req then coverage).
   // Acceptance `@req:<rid>` must resolve to a rule — `@human` governance or
-  // `@rule @executable` automatable requirement.
+  // `@rule` automatable requirement.
   const ruleReqIds = new Set(rules.flatMap((s) => s.reqIds));
   const acceptanceReqIds = new Set(acceptance.flatMap((s) => s.reqIds));
   for (const sc of acceptance) {

@@ -49,8 +49,8 @@ function renderSpecJson(
     | undefined;
   const cap = entry ? (doc?.header.capability ?? item) : item;
   const purpose = doc?.header.purpose ?? '';
-  // Requirements = rules (`@human` or `@rule @executable`); acceptance
-  // scenarios exclude `@rule @executable` rule anchors.
+  // Requirements = rules (`@human` or `@rule`); acceptance scenarios exclude
+  // rule anchors (`@rule` and `@executable` are mutually exclusive).
   const rules = doc?.scenarios.filter((s) => s.rule === true || s.classification === 'human') ?? [];
   const acceptances =
     doc?.scenarios.filter((s) => s.classification === 'executable' && s.rule !== true) ?? [];
