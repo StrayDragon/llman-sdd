@@ -22,6 +22,8 @@ export interface MigrateBlock {
 }
 
 export interface MigrateAnalysis {
+  /** Gherkin dialect the source resolved to (en start, zh-CN fallback). */
+  language: string;
   blocks: MigrateBlock[];
 }
 
@@ -59,12 +61,22 @@ export function hasNativeRules(source: string): boolean {
 }
 
 /**
+ * The gherkin token matcher auto-switches on an explicit `# language:`
+ * header, so the matcher-resolved dialect is only authoritative when the
+ * source carries none — an explicit header wins.
+ */
+function sourceDialect(source: string, resolved: string): string {
+  const firstLine = source.split('\n').find((l) => l.trim() !== '');
+  return firstLine?.match(/^#\s*language:\s*(\S+)\s*$/u)?.[1] ?? resolved;
+}
+
+/**
  * Analyze a legacy source through the official parser: every top-level
  * scenario becomes a block; its role comes from the tags, its body from the
  * official description/step fields.
  */
 export function analyzeLegacy(source: string): MigrateAnalysis | { ok: false; message: string } {
-  const { doc } = parseFeatureSource(source);
+  const { doc, language } = parseFeatureSource(source);
   const blocks: MigrateBlock[] = [];
   for (const child of doc.feature?.children ?? []) {
     if (child.rule) {
@@ -86,7 +98,7 @@ export function analyzeLegacy(source: string): MigrateAnalysis | { ok: false; me
       steps: sc.steps.map((s) => ({ keyword: s.keyword.trim(), text: s.text.trim() })),
     });
   }
-  return { blocks };
+  return { language: sourceDialect(source, language), blocks };
 }
 
 /** Strip `- ` list markers from a rule-statement line (legacy prose residue). */
@@ -106,10 +118,22 @@ export function migrateNativeSource(source: string): MigrateResult {
   const analysis = analyzeLegacy(source);
   if ('ok' in analysis) return { ok: false, message: analysis.message };
 
-  const { blocks } = analysis as MigrateAnalysis;
+  const { language, blocks } = analysis as MigrateAnalysis;
   if (blocks.length === 0) {
     return { ok: false, message: 'no legacy scenarios found (already native?)' };
   }
+
+  // Keywords follow the source's resolved dialect so the output stays
+  // parseable in one language — the preamble (`# language:` header,
+  // `Feature:`/`功能:` line) is kept verbatim and already matches it.
+  // parseFeatureSource only resolves en or zh-CN, so those are the only
+  // reachable dialects here; the trailing parse self-check guards the rest.
+  const zh = language === 'zh-CN';
+  const kw = {
+    rule: zh ? '规则' : 'Rule',
+    scenario: zh ? '场景' : 'Scenario',
+    autoAcceptance: zh ? '验收示例' : 'Acceptance example',
+  };
 
   // preamble: everything before the first top-level tag line (headers,
   // feature line, comments) — cut textually, preserved verbatim.
@@ -130,7 +154,7 @@ export function migrateNativeSource(source: string): MigrateResult {
     if (!b.isRule) continue;
     rules++;
     out.push(`  @req:${b.reqIds[0] ?? ''}`);
-    out.push(`  规则: ${b.title}`);
+    out.push(`  ${kw.rule}: ${b.title}`);
     for (const line of b.descriptionLines) {
       const text = stripBullet(line);
       if (text !== '') out.push(`    ${text}`);
@@ -141,7 +165,7 @@ export function migrateNativeSource(source: string): MigrateResult {
     if (b.steps.length > 0) {
       out.push('');
       if (b.skip) out.push('    @skip');
-      out.push('    场景: 验收示例');
+      out.push(`    ${kw.scenario}: ${kw.autoAcceptance}`);
       for (const s of b.steps) out.push(`      ${s.keyword} ${s.text}`);
       scenarios++;
     }
@@ -152,7 +176,7 @@ export function migrateNativeSource(source: string): MigrateResult {
       scenarios++;
       out.push('');
       if (a.skip) out.push('    @skip');
-      out.push(`    场景: ${a.title}`);
+      out.push(`    ${kw.scenario}: ${a.title}`);
       for (const s of a.steps) out.push(`      ${s.keyword} ${s.text}`);
     }
   }
@@ -166,12 +190,24 @@ export function migrateNativeSource(source: string): MigrateResult {
     scenarios++;
     out.push('');
     if (a.skip) out.push('  @skip');
-    out.push(`  场景: ${a.title}`);
+    out.push(`  ${kw.scenario}: ${a.title}`);
     for (const s of a.steps) out.push(`    ${s.keyword} ${s.text}`);
   }
 
   if (rules === 0) {
     return { ok: false, message: 'no legacy rule scenarios found (@req + @rule/@human)' };
   }
-  return { ok: true, content: `${out.join('\n')}\n`, rules, scenarios };
+
+  const content = `${out.join('\n')}\n`;
+  // Fail closed: never hand back content the official parser rejects — a
+  // dialect mismatch would otherwise land on disk as silent corruption.
+  try {
+    parseFeatureSource(content);
+  } catch (error) {
+    return {
+      ok: false,
+      message: `migrated output failed parse self-check: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+  return { ok: true, content, rules, scenarios };
 }

@@ -81,3 +81,18 @@
       假如 一个带 @skip 的「描述与验收步骤同体」legacy feature 内容
       当 迁移该 feature 为原生格式
       那么 自动嵌套场景带 @skip 标签
+
+  @req:r88
+  规则: 迁移输出方言一致并强制解析自检
+    `spec migrate-native` 的迁移产物 MUST 与源 feature 的解析方言一致(`# language:` 头或语言兜底链定方言):zh-CN 源输出 `规则:`/`场景:`、en 源输出 `Rule:`/`Scenario:`,自动嵌套验收场景标题同步本地化(验收示例 / Acceptance example),preamble 原样保留。迁移完成前 MUST 以官方解析器对产物做解析自检,自检失败 MUST 返回错误而非产出内容(dry-run 同样受检),不得静默写入不可解析的文件。
+
+    场景: en 方言 legacy 迁移保持方言一致
+      假如 一个 `# language: en` 的「描述与步骤同体」legacy feature 内容
+      当 迁移该 feature 为原生格式
+      那么 迁移产物使用 en 关键字且以 en 解析器解析无错误
+      而且 自动嵌套验收场景标题为 Acceptance example
+
+    场景: zh-CN 方言迁移输出保持中文关键字
+      假如 一个 zh-CN 的两体 legacy feature 内容(规则场景与归属验收分离)
+      当 迁移该 feature 为原生格式
+      那么 迁移产物仍使用中文关键字且解析无错误

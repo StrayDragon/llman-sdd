@@ -1,5 +1,8 @@
 ---
 depends_on: []
+branch: sdd/align-migrate-dialect
+base_branch: main
+base_sha: 6ae1a8d1a3d42670183037dc7baa52a43ee5cb44
 ---
 
 # 迁移输出方言一致并强制解析自检

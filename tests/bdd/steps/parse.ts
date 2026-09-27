@@ -426,3 +426,88 @@ bdd.thenStep('自动嵌套场景带 @skip 标签', (ctx) => {
     );
   }
 });
+
+// ---------------------------------------------------------------------------
+// r88 — migration output dialect consistency + parse self-check (acceptance)
+// ---------------------------------------------------------------------------
+
+const EN_SAME_BODY_LEGACY = `# language: en
+# capability: demo
+# purpose: demo
+# scope: src/
+
+Feature: demo
+
+  @req:r1 @human
+  Scenario: stable output
+    - System MUST produce stable results.
+    Given input is \`1\`
+    When system runs
+    Then output MUST be \`1\`
+`;
+
+const ZH_TWO_BODY_LEGACY = `# language: zh-CN
+# capability: 方言回归
+# purpose: p
+# scope: x/
+
+功能: 方言回归
+
+  @req:r1 @human
+  场景: 历史规则
+    - 系统 MUST x
+
+  @req:r1 @executable
+  场景: 历史验收
+    假如 前置
+    当 动作
+    那么 结果
+`;
+
+bdd.given('一个 `# language: en` 的「描述与步骤同体」legacy feature 内容', (ctx) => {
+  ctx.fixtures['同体迁移'] = { 源文本: EN_SAME_BODY_LEGACY };
+});
+
+bdd.given('一个 zh-CN 的两体 legacy feature 内容(规则场景与归属验收分离)', (ctx) => {
+  ctx.fixtures['同体迁移'] = { 源文本: ZH_TWO_BODY_LEGACY };
+});
+
+bdd.thenStep('迁移产物使用 en 关键字且以 en 解析器解析无错误', (ctx) => {
+  const res = ctx.fixtures['迁移结果'] as MigrateOutcome | undefined;
+  if (!res?.ok) throw new Error(`migration failed: ${res?.message}`);
+  if (!res.content.includes('# language: en') || !res.content.includes('Rule:')) {
+    throw new Error(`en source must migrate to en keywords:\n${res.content}`);
+  }
+  if (res.content.includes('规则:')) {
+    throw new Error(`en output must not mix zh-CN keywords:\n${res.content}`);
+  }
+  const doc = parseCapability(res.content, 'demo.feature');
+  if (doc.errors.length > 0) {
+    throw new Error(`en output must parse cleanly, got: ${JSON.stringify(doc.errors)}`);
+  }
+});
+
+bdd.thenStep('自动嵌套验收场景标题为 Acceptance example', (ctx) => {
+  const res = ctx.fixtures['迁移结果'] as MigrateOutcome | undefined;
+  if (!res?.ok) throw new Error(`migration failed: ${res?.message}`);
+  const doc = parseCapability(res.content, 'demo.feature');
+  const name = doc.rules[0]?.scenarios[0]?.name;
+  if (name !== 'Acceptance example') {
+    throw new Error(`auto-nested acceptance must be localized to en, got ${JSON.stringify(name)}`);
+  }
+});
+
+bdd.thenStep('迁移产物仍使用中文关键字且解析无错误', (ctx) => {
+  const res = ctx.fixtures['迁移结果'] as MigrateOutcome | undefined;
+  if (!res?.ok) throw new Error(`migration failed: ${res?.message}`);
+  if (!res.content.includes('规则:') || !res.content.includes('场景:')) {
+    throw new Error(`zh-CN source must keep Chinese keywords:\n${res.content}`);
+  }
+  if (res.content.includes('Rule:')) {
+    throw new Error(`zh-CN output must not mix en keywords:\n${res.content}`);
+  }
+  const doc = parseCapability(res.content, '方言回归.feature');
+  if (doc.errors.length > 0) {
+    throw new Error(`zh-CN output must parse cleanly, got: ${JSON.stringify(doc.errors)}`);
+  }
+});

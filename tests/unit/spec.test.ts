@@ -391,6 +391,66 @@ describe('migrateNativeSource roundtrip', () => {
     expect(doc.rules[0]?.description).toContain('系统 MUST 输出稳定结果。');
   });
 
+  test('en dialect legacy source migrates to a single-dialect en output (issue #3)', () => {
+    const src = `# language: en
+# capability: demo
+# purpose: demo
+# scope: src/
+
+Feature: demo
+
+  @req:r1 @human
+  Scenario: stable output
+    - System MUST produce stable results.
+    Given input is \`1\`
+    When system runs
+    Then output MUST be \`1\`
+`;
+    const res = migrateNativeSource(src);
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    // preamble (en header + Feature line) preserved verbatim, en keywords
+    expect(res.content).toInclude('# language: en');
+    expect(res.content).toInclude('Feature: demo');
+    expect(res.content).toInclude('Rule: stable output');
+    expect(res.content).not.toInclude('规则:');
+    expect(res.content).toInclude('Scenario: Acceptance example');
+    const doc = parseCapability(res.content, 'demo.feature');
+    expect(doc.errors).toHaveLength(0);
+    const sc = doc.rules[0]?.scenarios[0];
+    expect(sc?.name).toBe('Acceptance example');
+    expect(sc?.steps.map((s) => s.kind)).toEqual(['given', 'when', 'then']);
+    expect(doc.rules[0]?.description).toContain('System MUST produce stable results.');
+  });
+
+  test('zh-CN dialect output keeps Chinese keywords (regression)', () => {
+    const src = `# language: zh-CN
+# capability: demo
+# purpose: p
+# scope: x/
+
+功能: demo
+
+  @req:r1 @human
+  场景: 历史规则
+    - 系统 MUST x
+
+  @req:r1 @executable
+  场景: 历史验收
+    假如 前置
+    当 动作
+    那么 结果
+`;
+    const res = migrateNativeSource(src);
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.content).toInclude('规则: 历史规则');
+    expect(res.content).toInclude('场景: 历史验收');
+    expect(res.content).not.toInclude('Rule:');
+    const doc = parseCapability(res.content, 'demo.feature');
+    expect(doc.errors).toHaveLength(0);
+  });
+
   test('unbound acceptance migrates to natural functional home (no orphan concept)', () => {
     // 孤儿概念已废除:无归属验收按文件顺序置于末尾,官方解析器将其并入前一
     // 规则,即其功能级归属;不产生任何孤儿/告警语义。
