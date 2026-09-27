@@ -9,7 +9,7 @@ base_sha: abf120770a35599a90e76ee88fc0b34998bc4ae6
 
 仓库 13 个 capability 的 87 条 `@human` 规则中，85 条是确定性 CLI/引擎行为（可 GWT 判定），仅 2 条（eval-playbook r84/r85）是纯治理/外部事实。但现行验证引擎强制「规则只能是 `@human` 场景、每 capability 至少 1 条 `@human`、`@executable` 验收必须挂回 `@human` 规则」，导致可自动化行为长期挂着 `@human` 标签，与 llman-sdd-verify 技能分流条款（「凡 GWT 可表达的自动化判定行为 MUST 落 `@executable` 验收；`@human` 仅用于不可自动化的人工约束」）语义相悖。
 
-用户已决策（2026-10）：**路线 H**——改造验证引擎，使规则可声明为 `@executable`；**合并为一个 change**；缺口 G1（change-lifecycle r35 符号链接）**补实现+验收**；本次**不运行** specs-compact；意外问题**全部当场修**。规划/triage 全量依据见 `docs/research/dedup-human-triage-plan.md`（阶段 0 产物，已提交 main）。
+用户已决策（2026-09-27,路线定策于当日,详见 design.md §1）：**路线 H**——改造验证引擎，使规则可声明为 `@executable`；**合并为一个 change**；缺口 G1（change-lifecycle r35 符号链接）**补实现+验收**；本次**不运行** specs-compact；意外问题**全部当场修**。规划/triage 全量依据见 `docs/research/dedup-human-triage-plan.md`（阶段 0 产物，已提交 main）。
 
 ## What Changes
 

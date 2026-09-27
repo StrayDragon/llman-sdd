@@ -249,3 +249,13 @@ A+ 共 15 条，分布在 change-lifecycle(4: r14/r44/r68/r69)、peripheral-comm
 - 编辑与验证串行；验证不得与编辑同批并行。
 - `@human` 与 `@executable` 不得同场景。
 - 不收口任务进 tasks.md；任务门要求全部任务勾选。
+
+## 8. 模型定案（2026-09-27，替代上文 §2/§6 的中间框架）
+
+> 用户裁定后最终采用**互斥模型**（change `dedup-human-executable-rules`，已 finalize 归档）。上文 §2「路线 L/H」与 §6「@rule @executable 组合」属提出后即被否定的中间框架，以下方定案为准：
+
+- **`@rule` 与 `@executable` 互斥**（同场景判 ERROR）：`@executable` = 可执行行为/验收（假如/当/那么 步骤绑定 BDD 代码，runner 执行，**默认首选**）；`@rule` = 无法程序化表达（抽象目标/架构决策/治理）或暂不转写的需求锚点；`@rule @human` = 纯人工/治理约束（statement 须含 MUST/SHALL）。`@human` 单独出现仍隐式规则（旧文档兼容）。
+- **撰写引导优先 executable、尽可能减少 `@rule` 定义**，模板含「何时用 executable / 何时用 rule」示例（init-generators r66 与两语种技能模板已同步）。
+- 引擎守护：`@rule` 可自动化规则（非 @human）无链接验收且无步骤 → ERROR；每 capability 至少 1 条规则；验收 `@req` 必须挂回规则。
+- 实际落地：87 条规则 → 85 条 `@rule`（行为由既有 163 条 `@executable` 验收承载）+ 2 条 `@rule @human`（eval r84/r85）。
+- 上表（regen 后）中 A+ 各项的实际处置以归档 change 的 design.md §4 为准（补验收/共享路径/维持既有三类）。

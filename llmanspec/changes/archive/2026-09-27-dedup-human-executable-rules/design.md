@@ -19,7 +19,7 @@
 
 ### 为什么「链接验收承载」而非「规则自带全部步骤」（设计取舍，已在提案中声明）
 
-按用户 2026-10 决策（互斥模型）：规则（`@rule`/`@rule @human`）与验收（`@executable`）是两个互斥角色，规则不自带 `@executable`，由链接的 `@executable` 验收场景承担全部自动判定（步骤锚定、`bun test tests/bdd` 全绿）。引擎不要求把既有验收并入规则场景，避免步骤拼接的 fixture 串扰与粒度丢失；模板引导向 executable 迁移、最小化规则定义。
+按用户 2026-09-27 决策（互斥模型）：规则（`@rule`/`@rule @human`）与验收（`@executable`）是两个互斥角色，规则不自带 `@executable`，由链接的 `@executable` 验收场景承担全部自动判定（步骤锚定、`bun test tests/bdd` 全绿）。引擎不要求把既有验收并入规则场景，避免步骤拼接的 fixture 串扰与粒度丢失；模板引导向 executable 迁移、最小化规则定义。
 
 ## 2. 引擎改动点（全部向后兼容）
 
