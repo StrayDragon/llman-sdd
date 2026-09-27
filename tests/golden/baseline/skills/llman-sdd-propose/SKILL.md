@@ -144,9 +144,9 @@ MUST 通过才能继续；失败项在 validate 输出的 `items[].issues[]` 逐
 
 ### 4b) 单轨 feature 撰写
 - 规划文档可短暂留在默认分支；**不要**在默认分支编辑 `llmanspec/specs/**`。绑定分支后，落地 specs 与实现都在绑定分支上。
-- **单轨**：每个 capability 只有一个 `<capability>.feature`。约束规则是 `@req:<id> @human` 场景（statement 全文放描述）；可执行验收场景带 `@executable` 并用 `@req:<req_id>` 挂回规则。绝不把场景嵌进 `Rule:` 块（runner 静默跳过其中场景）。
+- **单轨**：每个 capability 只有一个 `<capability>.feature`。行为以 `@executable` 场景表达（`假如/当/那么` 步骤绑定 runner 步骤代码并被执行——**默认首选形态**）；仅当需求无法程序化表达（抽象目标、架构决策、治理/人工约束）或暂不转写时，才以 `@req:<id> @rule` 规则场景承载（statement 全文放描述；可自动化锚点 MUST 挂 `@executable` 验收；纯人工约束用 `@req:<id> @rule @human` 并在 proposal/design 记录理由）。`@rule` 与 `@executable` 同场景互斥。绝不把场景嵌进 `Rule:` 块（runner 静默跳过其中场景）。
 - **结构化新增首选**：向既有 capability 追加规则/验收，优先 `llman-sdd spec next-req-id`（全局 rN 分配）+ `spec add-req` / `spec add-scenario`（配对 tag 语法内建；写入路径自动解析扁平/目录布局）。新建 capability 用 `spec skeleton <capability>`；rN 反查用 `spec resolve-req <rN>`。手改 `.feature` 保留为逃生门（适合改既有条款）。
-- **@human/@executable 分流判据**（写新条款前先判定）：凡 GWT（假如/当/那么）可表达的自动化判定行为 MUST 落成 `@executable` 验收场景并挂回对应规则——纯文字规则无法守护行为；`@human` 仅用于无法自动化判定的人工约束（流程裁决、审美、外部事实）。新增 `@human` 无可配对验收时 MUST 在 proposal/design 记录理由。
+- **executable/@rule 分流判据**（写新条款前先判定，**优先 executable、尽可能减少 @rule 定义**）：凡 GWT（假如/当/那么）可表达、绑定步骤代码的自动化判定行为 MUST 落成 `@executable` 验收场景并挂回对应规则——纯文字规则无法守护行为。用例如下：行为可程序判定（如「当 运行 validate 后,那么 stdout 为 TOON 且退出码为 0」）→ `@executable`；抽象目标/架构决策不可程序判定 → `@rule @human`（statement 含 MUST/SHALL）；暂不转写 → `@rule` 锚点并 MUST 挂 `@executable` 验收。新增 `@rule @human` 无可配对验收时 MUST 在 proposal/design 记录理由。
 
 ### 5) 总结并建议下一步
 - 进入实现：`llman-sdd-apply`；需要再想清楚：`llman-sdd-explore`。
@@ -163,15 +163,15 @@ MUST 通过才能继续；失败项在 validate 输出的 `items[].issues[]` 逐
 # scope: src/
 ```
 
-2）tag 语法（`@human constraint scenario must carry an @req:<req_id> tag` / `orphan acceptance scenario`）：
-- 规则：`@req:<id> @human`——statement 全文放场景描述（须含 MUST/SHALL）。
-- 验收：`@executable` + 至少一个 `@req:<id>` 挂回规则。
-- 配对判据：新增 `@human` 前先分流——凡 GWT 可表达的自动化判定行为 MUST 落 `@executable` 验收并挂回规则（纯文字规则无行为守护）；`@human` 仅用于不可自动化的人工约束，无法配对时在 proposal/design 记录理由。
-- 禁止 `@human` 与 `@executable` 同场景；`@manual` 已在 0.3.0 移除——残留报迁移 ERROR，删掉即可（`@human` 本身已承载人工判定语义）。
+2）tag 语法（`rule scenario must carry an @req:<req_id> tag` / `@rule 与 @executable 互斥` / `orphan acceptance scenario`）：
+- 规则：`@req:<id> @rule`——statement 全文放场景描述；纯人工约束用 `@req:<id> @rule @human`（须含 MUST/SHALL）。
+- 验收/可执行：`@executable` + 至少一个 `@req:<id>` 挂回规则——默认首选形态，步骤绑定 BDD 代码。
+- 分流判据（**优先 executable、尽可能减少 @rule 定义**）：凡 GWT（假如/当/那么）可表达、绑定步骤代码的自动化判定行为 MUST 落 `@executable` 并挂回规则（纯文字规则无行为守护）；抽象目标/架构决策等不可自动化的人工约束用 `@rule @human`，无法配对时在 proposal/design 记录理由；暂不转写用 `@rule` 锚点并 MUST 挂 `@executable` 验收。
+- 禁止 `@rule` 与 `@executable` 同场景；禁止 `@human` 与 `@executable` 同场景；`@manual` 已在 0.3.0 移除——残留报迁移 ERROR，删掉即可。
 
 分支护栏：
 - 先 `change start` / `attach` 绑定分支，再在绑定的非默认分支编辑 `.feature` 并 commit（落地 specs）。
-- 锁定规则（报告制）：改/删既有 `@human` 场景只出 WARNING，不阻断 validate / finalize / `change diff`；报告按 `@req:<id>` 指明被改规则。控制点：git 分支对比 + `llman-sdd review` / `change diff`。旧锁定确认元数据（frontmatter `rules_touched` / `agent_acked`、`@agent` tag、`--yes` 确认语义）已全部删除，无别名无兼容层。
+- 锁定规则（报告制）：改/删既有 `@rule`/`@human` 规则场景只出 WARNING，不阻断 validate / finalize / `change diff`；报告按 `@req:<id>` 指明被改规则。控制点：git 分支对比 + `llman-sdd review` / `change diff`。旧锁定确认元数据（frontmatter `rules_touched` / `agent_acked`、`@agent` tag、`--yes` 确认语义）已全部删除，无别名无兼容层。
 - `stage=full` 且 specs-landed 门通过（specsLanded ∨ `needs_specs_change: false`）即可进 apply；verify/finalize 须 `readyToImplement=true`（完成信号）。收口优先 `change finalize`。
 
 ## Context

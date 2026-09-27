@@ -41,6 +41,7 @@ function renderSpecJson(
           name: string;
           classification: string;
           reqIds: string[];
+          rule?: boolean;
           statement: string;
           steps: { kind: string; text: string }[];
         }[];
@@ -48,8 +49,11 @@ function renderSpecJson(
     | undefined;
   const cap = entry ? (doc?.header.capability ?? item) : item;
   const purpose = doc?.header.purpose ?? '';
-  const humans = doc?.scenarios.filter((s) => s.classification === 'human') ?? [];
-  const acceptances = doc?.scenarios.filter((s) => s.classification === 'executable') ?? [];
+  // Requirements = rules (`@human` or `@rule @executable`); acceptance
+  // scenarios exclude `@rule @executable` rule anchors.
+  const rules = doc?.scenarios.filter((s) => s.rule === true || s.classification === 'human') ?? [];
+  const acceptances =
+    doc?.scenarios.filter((s) => s.classification === 'executable' && s.rule !== true) ?? [];
   const morphology = morphologyOfScenarios(doc?.scenarios ?? []);
   if (opts.metaOnly) {
     return {
@@ -58,11 +62,11 @@ function renderSpecJson(
       title: cap,
       purpose,
       overview: purpose,
-      requirementCount: humans.length,
+      requirementCount: rules.length,
       morphology,
     };
   }
-  const requirements = humans.map((rule) => ({
+  const requirements = rules.map((rule) => ({
     reqId: rule.reqIds[0] ?? '',
     title: rule.name,
     text: rule.statement,
@@ -91,7 +95,7 @@ function renderSpecJson(
     title: cap,
     purpose,
     overview: purpose,
-    requirementCount: humans.length,
+    requirementCount: rules.length,
     requirements,
     morphology,
   };

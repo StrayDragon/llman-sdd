@@ -6,7 +6,7 @@
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 
-import { specIdOf } from '../spec/ir.ts';
+import { isRuleScenario, specIdOf } from '../spec/ir.ts';
 import type { SpecEntry } from '../validation/validate.ts';
 
 export const TREE_VERSION = 1;
@@ -54,18 +54,16 @@ export function buildDocs(entries: readonly SpecEntry[]): SerializedDocNode[] {
   return entries
     .map((entry) => {
       const cap = specIdOf(entry);
-      const reqs = entry.doc.scenarios
-        .filter((s) => s.classification === 'human')
-        .map((s) => ({
-          req_id: s.reqIds[0] ?? '',
-          title: s.name,
-          statement: s.statement
-            .split('\n')
-            .map((l) => l.replace(/^-\s+/u, ''))
-            .join('\n'),
-        }));
+      const reqs = entry.doc.scenarios.filter(isRuleScenario).map((s) => ({
+        req_id: s.reqIds[0] ?? '',
+        title: s.name,
+        statement: s.statement
+          .split('\n')
+          .map((l) => l.replace(/^-\s+/u, ''))
+          .join('\n'),
+      }));
       const scenarios = entry.doc.scenarios
-        .filter((s) => s.classification === 'executable')
+        .filter((s) => s.classification === 'executable' && !isRuleScenario(s))
         .map((s) => ({
           req_id: s.reqIds[0] ?? '',
           id: s.name,

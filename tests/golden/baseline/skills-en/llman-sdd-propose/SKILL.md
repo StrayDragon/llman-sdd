@@ -144,9 +144,9 @@ This MUST pass before proceeding; failing items are listed one by one in the val
 
 ### 4b) Single-track feature authoring
 - Planning docs may briefly live on the default branch; **do not** edit `llmanspec/specs/**` on the default branch. After binding, landing specs and implementation happen on the bound branch.
-- **Single-track**: each capability is ONE `<capability>.feature`. Constraint rules are `@req:<id> @human` scenarios (statement verbatim in the description); executable acceptance scenarios carry `@executable` and link back via `@req:<req_id>`. Never nest scenarios in `Rule:` blocks (the runner skips them silently).
+- **Single-track**: each capability is ONE `<capability>.feature`. Behaviors are expressed as `@executable` scenarios (`Given/When/Then` steps bound to runner step code and executed — **the default, preferred shape**); only when a requirement cannot be expressed programmatically (abstract goals, architecture decisions, governance/human judgment) or is not yet converted, carry it as a `@req:<id> @rule` scenario (statement verbatim in the description; an automatable anchor MUST link an `@executable` acceptance; pure human constraints use `@req:<id> @rule @human` and record the rationale in proposal/design). `@rule` and `@executable` are mutually exclusive on one scenario. Never nest scenarios in `Rule:` blocks (the runner skips them silently).
 - **Structured adds preferred**: to append rules/acceptances to an existing capability, prefer `llman-sdd spec next-req-id` (global rN allocation) + `spec add-req` / `spec add-scenario` (pairing tag syntax built in; write path auto-resolves flat vs directory layout). New capability → `spec skeleton <capability>`; id lookup → `spec resolve-req <rN>`. Hand-editing the `.feature` stays the escape hatch (best for editing existing clauses).
-- **@human/@executable triage** (decide before writing any new clause): any behavior expressible as GWT (Given/When/Then) MUST land as an `@executable` acceptance scenario linked back to its rule — prose-only rules guard nothing; `@human` is only for human judgment that cannot be automated (process rulings, aesthetics, external facts). A new `@human` clause without a paired `@executable` MUST record the justification in proposal/design.
+- **executable/@rule triage** (decide before writing any new clause; **prefer executable, minimize @rule definitions**): any behavior expressible as GWT (Given/When/Then) and bound to step code MUST land as an `@executable` acceptance scenario linked back to its rule — prose-only rules guard nothing. Examples: programmatically decidable behavior (e.g. "when validate runs then stdout is TOON and exit code is 0") → `@executable`; abstract goals/architecture decisions not decidable by program → `@rule @human` (statement must contain MUST/SHALL); not yet converted → `@rule` anchor that MUST link an `@executable` acceptance. A new `@rule @human` clause without a paired `@executable` MUST record the justification in proposal/design.
 
 ### 5) Summarize and suggest next step
 - Enter implementation: `llman-sdd-apply`. Need more thinking: `llman-sdd-explore`.
@@ -163,15 +163,15 @@ Validation fixes (single-track feature-as-spec):
 # scope: src/
 ```
 
-2) Tag grammar (`@human constraint scenario must carry an @req:<req_id> tag` / `orphan acceptance scenario`):
-- Rules: `@req:<id> @human` — statement verbatim in the scenario description (MUST/SHALL required).
-- Acceptance: `@executable` + at least one `@req:<id>` linking a rule.
-- Pairing triage: before adding an `@human` rule — any GWT-expressible automatable behavior MUST land as an `@executable` acceptance linked back to the rule (prose-only rules guard nothing); `@human` is for non-automatable human judgment only; record the justification in proposal/design when no pairing is possible.
-- Never combine `@human` with `@executable`; `@manual` was removed in 0.3.0 — leftovers report a migration ERROR, just drop the tag (`@human` already carries the human-judgement semantics).
+2) Tag grammar (`rule scenario must carry an @req:<req_id> tag` / `@rule and @executable are mutually exclusive` / `orphan acceptance scenario`):
+- Rules: `@req:<id> @rule` — statement verbatim in the scenario description; pure human constraints use `@req:<id> @rule @human` (MUST/SHALL required).
+- Acceptance/executable: `@executable` + at least one `@req:<id>` linking a rule — the default preferred shape; steps are bound to BDD code.
+- Pairing triage (**prefer executable, minimize @rule definitions**): any GWT-expressible automatable behavior bound to step code MUST land as an `@executable` and link back to the rule (prose-only rules guard nothing); abstract goals/architecture decisions — non-automatable human judgment — use `@rule @human` and record the justification in proposal/design when no pairing is possible; not-yet-converted requirements use a `@rule` anchor that MUST link an `@executable` acceptance.
+- Never combine `@rule` with `@executable`; never combine `@human` with `@executable`; `@manual` was removed in 0.3.0 — leftovers report a migration ERROR, just drop the tag.
 
 Branch guardrail:
 - First `change start` / `attach` to bind the branch, then edit `.feature` on the bound non-default branch and commit (land specs).
-- Locked rules (report-only): editing/removing an existing `@human` scenario yields a WARNING and never blocks validate / finalize / `change diff`; the report names the rule by `@req:<id>`. Control points: git branch diff plus `llman-sdd review` / `change diff`. Legacy lock-ack metadata (frontmatter `rules_touched` / `agent_acked`, the `@agent` tag, the `--yes` ack semantics) is fully removed — no aliases, no compat layer.
+- Locked rules (report-only): editing/removing an existing `@rule`/`@human` rule scenario yields a WARNING and never blocks validate / finalize / `change diff`; the report names the rule by `@req:<id>`. Control points: git branch diff plus `llman-sdd review` / `change diff`. Legacy lock-ack metadata (frontmatter `rules_touched` / `agent_acked`, the `@agent` tag, the `--yes` ack semantics) is fully removed — no aliases, no compat layer.
 - Enter apply when `stage=full` and the specs-landed gate passes (specsLanded ∨ `needs_specs_change: false`); verify/finalize require `readyToImplement=true` (completion signal). Close-out prefers `change finalize`.
 
 ## Context

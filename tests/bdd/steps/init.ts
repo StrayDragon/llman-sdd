@@ -76,9 +76,9 @@ bdd.when('渲染 propose skill 与 validation-hints 单元', (ctx) => {
   };
 });
 
-bdd.thenStep('产物含 @human/@executable 分流判据小节标识', (ctx) => {
+bdd.thenStep('产物含 executable/@rule 分流判据小节标识与使用示例', (ctx) => {
   const r = ctx.fixtures['配对判据产物'] as { zh: string; en: string };
-  if (!r.zh.includes('@human/@executable 分流判据')) {
+  if (!r.zh.includes('executable/@rule 分流判据')) {
     throw new Error('zh-Hans propose render lacks the pairing-triage section');
   }
 });
@@ -88,7 +88,7 @@ bdd.thenStep('zh-Hans 与 en 产物均含该判据', (ctx) => {
   if (!r.zh.includes('MUST 落成 `@executable` 验收场景')) {
     throw new Error('zh-Hans render lacks the triage rule body');
   }
-  if (!r.en.includes('@human/@executable triage')) {
+  if (!r.en.includes('executable/@rule triage')) {
     throw new Error('en propose render lacks the pairing-triage section');
   }
 });

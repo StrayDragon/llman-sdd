@@ -72,7 +72,7 @@ For each unchecked task:
 ### 5) Verification and self-healing loop (after each task or batch)
 Run the project gates as appropriate:
 - Test suite: `just test` or `cargo test --all`; format/lint: `just check` or `just lint` + `just fmt`
-- Edit `llmanspec/specs/<capability>.feature` on the branch as needed (flat or directory main file; rules `@human`, acceptance `@executable`); run `llman-sdd validate --specs` after spec edits; commit on the branch freely.
+- Edit `llmanspec/specs/<capability>.feature` on the branch as needed (flat or directory main file; rules `@req:<id> @rule`/`@rule @human`, acceptance/executable `@executable` — `@rule` and `@executable` are mutually exclusive); run `llman-sdd validate --specs` after spec edits; commit on the branch freely.
 - SDD validation: `llman-sdd validate <id> --strict`
 
 **Gate evidence**:

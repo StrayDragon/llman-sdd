@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import {
@@ -84,6 +84,16 @@ function assertMergeMethod(method: string | undefined): void {
  * heuristic slug is otherwise returned unchanged unless an explicit `--verb`
  * is given, in which case the override is applied as `{verb}-{subject}` (r44).
  */
+/**
+ * r35: `change next-id` / change-id harvest scan must skip symlinks and dot
+ * directories. `lstat` (never `stat`) reports the link itself, so a symlink —
+ * even one pointing at a directory — is not a directory here and is neither
+ * counted nor recursed into. The next-id harvest is the single consumer that
+ * requires this no-follow semantics cycle-wide.
+ */
+function isDirectoryNoFollow(path: string): boolean {
+  return lstatSync(resolve(path)).isDirectory();
+}
 function deriveNewId(description: string, verb: string | undefined): string {
   const slug = deriveChangeId(description);
   const cliConfig = loadCliConfig();
@@ -94,7 +104,7 @@ function deriveNewId(description: string, verb: string | undefined): string {
       llman_sdd_unique_id: nextUniqueNumber(
         {
           listDir: (p) => readdirSync(resolve(p)),
-          isDirectory: (p) => statSync(resolve(p)).isDirectory(),
+          isDirectory: isDirectoryNoFollow,
         },
         'llmanspec',
       ),
@@ -210,7 +220,7 @@ export function registerChange(program: Command): void {
         makeCliGit(process.cwd()),
         {
           listDir: (p) => readdirSync(resolve(p)),
-          isDirectory: (p) => statSync(resolve(p)).isDirectory(),
+          isDirectory: isDirectoryNoFollow,
         },
         'llmanspec',
       );

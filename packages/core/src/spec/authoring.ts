@@ -6,7 +6,7 @@
  */
 
 import type { CapabilityDoc } from './ir.ts';
-import { MUST_WORD_RE, MUST_WORD_TERMS, specIdOf } from './ir.ts';
+import { MUST_WORD_RE, MUST_WORD_TERMS, isRuleScenario, specIdOf } from './ir.ts';
 
 export class AuthoringError extends Error {}
 
@@ -50,7 +50,9 @@ function findReq(
 ): { entry: SpecEntryLike; scenarioName: string; statement: string } | null {
   for (const entry of entries) {
     for (const scenario of entry.doc.scenarios) {
-      if (scenario.reqIds.includes(reqId) && scenario.classification === 'human') {
+      // Rules are `@human` governance or `@rule @executable` requirement
+      // scenarios — acceptance-only req tags do not define a requirement.
+      if (scenario.reqIds.includes(reqId) && isRuleScenario(scenario)) {
         return { entry, scenarioName: scenario.name, statement: scenario.statement };
       }
     }
@@ -58,12 +60,12 @@ function findReq(
   return null;
 }
 
-/** predecessor parity: only @human (rule) req ids participate in the dedupe registry. */
+/** predecessor parity: only rule req ids (`@human` or `@rule @executable`) participate in the dedupe registry. */
 export function ruleReqIds(entries: readonly SpecEntryLike[]): Set<string> {
   const ids = new Set<string>();
   for (const entry of entries) {
     for (const scenario of entry.doc.scenarios) {
-      if (scenario.classification === 'human') {
+      if (isRuleScenario(scenario)) {
         for (const id of scenario.reqIds) ids.add(id);
       }
     }
@@ -173,7 +175,13 @@ export function resolveReq(entries: readonly SpecEntryLike[], reqId: string): Re
   const harness: string[] = [];
   for (const entry of entries) {
     for (const scenario of entry.doc.scenarios) {
-      if (scenario.classification === 'executable' && scenario.reqIds.includes(reqId)) {
+      // Harness = acceptance scenarios bound to this req; `@rule @executable`
+      // rule scenarios are not themselves harness (they anchor the req).
+      if (
+        scenario.classification === 'executable' &&
+        !isRuleScenario(scenario) &&
+        scenario.reqIds.includes(reqId)
+      ) {
         harness.push(`${entry.fileName}:${scenario.name}`);
       }
     }

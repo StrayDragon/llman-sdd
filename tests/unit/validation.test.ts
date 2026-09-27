@@ -74,9 +74,55 @@ describe('validateAllSpecs', () => {
       `# language: zh-CN\n# capability: t\n# purpose: p\n# scope: llmanspec/\n\n功能: t\n\n  @human\n  场景: ok\n    - 系统 MUST x\n`,
     );
     const report = validateAllSpecs([{ fileName: 't.feature', doc }], io);
-    expect(report.lines.join('\n')).toInclude(
-      '@human constraint scenario must carry an @req:<req_id> tag',
+    expect(report.lines.join('\n')).toInclude('rule scenario must carry an @req:<req_id> tag');
+  });
+
+  test('@rule @executable on one scenario is rejected (mutual exclusion)', () => {
+    const doc = parseCapability(
+      `# language: zh-CN\n# capability: t\n# purpose: p\n# scope: llmanspec/\n\n功能: t\n\n  @req:r1 @rule @executable\n  场景: ok\n    - 系统 MUST x\n`,
     );
+    expect(doc.errors.map((e) => e.code)).toContain('tag:rule-exec-exclusive');
+  });
+
+  test('automatable rule without steps or linked acceptance fails', () => {
+    const doc = parseCapability(
+      `# language: zh-CN\n# capability: t\n# purpose: p\n# scope: llmanspec/\n\n功能: t\n\n  @req:r1 @rule\n  场景: ok\n    - 系统 MUST x\n`,
+    );
+    const report = validateAllSpecs([{ fileName: 't.feature', doc }], io);
+    expect(report.failed).toBe(true);
+    expect(report.lines.join('\n')).toInclude('automatable rule `ok` is not guarded');
+  });
+
+  test('automatable rule with a linked acceptance passes', () => {
+    const doc = parseCapability(
+      `# language: zh-CN\n# capability: t\n# purpose: p\n# scope: llmanspec/\n\n功能: t\n\n  @req:r1 @rule\n  场景: ok\n    - 系统 MUST x\n\n  @req:r1 @executable\n  场景: acc\n    假如 一个有效工作区\n    当 运行校验\n    那么 退出码为 0\n`,
+    );
+    const report = validateAllSpecs([{ fileName: 't.feature', doc }], io);
+    expect(report.lines.join('\n')).not.toInclude('automatable rule `ok` is not guarded');
+  });
+
+  test('acceptance may link an @rule requirement (no dangling ERROR)', () => {
+    const doc = parseCapability(
+      `# language: zh-CN\n# capability: t\n# purpose: p\n# scope: llmanspec/\n\n功能: t\n\n  @req:r1 @rule\n  场景: rule\n    - 系统 MUST x\n\n  @req:r1 @executable\n  场景: acc\n    假如 一个有效工作区\n    当 运行校验\n    那么 退出码为 0\n`,
+    );
+    const report = validateAllSpecs([{ fileName: 't.feature', doc }], io);
+    expect(report.lines.join('\n')).not.toInclude('has no matching rule');
+  });
+
+  test('governance rule (@rule @human) without acceptance stays valid', () => {
+    const doc = parseCapability(
+      `# language: zh-CN\n# capability: t\n# purpose: p\n# scope: llmanspec/\n\n功能: t\n\n  @req:r1 @rule @human\n  场景: ok\n    - 系统 MUST x\n`,
+    );
+    const report = validateAllSpecs([{ fileName: 't.feature', doc }], io);
+    expect(report.failed).toBe(false);
+  });
+
+  test('capability with zero rules fails even with only acceptance scenarios', () => {
+    const doc = parseCapability(
+      `# language: zh-CN\n# capability: t\n# purpose: p\n# scope: llmanspec/\n\n功能: t\n\n  @executable\n  场景: acc\n    假如 一个有效工作区\n    当 运行校验\n    那么 退出码为 0\n`,
+    );
+    const report = validateAllSpecs([{ fileName: 't.feature', doc }], io);
+    expect(report.lines.join('\n')).toInclude('spec must define at least one rule scenario');
   });
 
   test('valid_scope missing on disk fails', () => {

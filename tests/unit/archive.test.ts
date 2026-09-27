@@ -10,6 +10,7 @@ import {
   runList,
   runThaw,
   isFrozenCard,
+  SevenZipError,
   type FreezeIo,
   type WasmSevenZipDeps,
 } from '@llman-sdd/core';
@@ -94,6 +95,26 @@ describe('freeze card flow against the real adapter', () => {
     );
     expect(card).toContain('title: "Solo"');
     expect(card).toContain('depends_on: []');
+  });
+
+  test('7z add failure rolls back written cards and keeps the original dirs (r24 atomicity)', async () => {
+    rmSync(DIR, { recursive: true, force: true });
+    const src = join(DIR, 'llmanspec', 'changes', 'archive', '2026-01-01-demo');
+    mkdirSync(src, { recursive: true });
+    writeFileSync(join(src, 'proposal.md'), '# Demo Change\n\nbody\n');
+    const failing = {
+      add: async (): Promise<void> => {
+        throw new SevenZipError('7z add failed');
+      },
+      listEntries: async (): Promise<string[]> => [],
+      extractAll: async (): Promise<void> => {},
+    };
+    await expect(runFreeze(io(), failing, DIR, {})).rejects.toThrow('7z add failed');
+    // 已写平铺卡必须回滚,原目录必须保留。
+    expect(existsSync(src)).toBe(true);
+    expect(existsSync(join(DIR, 'llmanspec', 'changes', 'archive', '2026-01-01-demo.yaml'))).toBe(
+      false,
+    );
   });
 
   test('freeze preserves multi-line flow depends_on as a single-line flow array', async () => {

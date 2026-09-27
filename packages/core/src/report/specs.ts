@@ -1,9 +1,16 @@
+/**
+ * Specs listing (peripheral-commands capability, r20/r21): morphology counts
+ * aligned with predecessor — rules = `@human` governance or `@rule @executable`
+ * automatable requirement scenarios; enforced = rules carrying an @req link
+ * that has an executable acceptance scenario; pending = the rest.
+ */
 import { renderMachine } from '../render/machine.ts';
 import { specIdOf } from '../spec/ir.ts';
 /**
  * Specs listing (peripheral-commands capability, r20/r21): morphology counts
- * aligned with predecessor — rules = @human scenarios; enforced = rules carrying an
- * @req link that has an executable acceptance scenario; pending = the rest.
+ * aligned with predecessor — rules = `@human` governance or `@rule @executable`
+ * automatable requirement scenarios; enforced = rules carrying an @req link
+ * that has an executable acceptance scenario; pending = the rest.
  */
 import type { CapabilityDoc } from '../spec/ir.ts';
 import type { SpecEntry } from '../validation/validate.ts';
@@ -30,12 +37,20 @@ export interface SpecSummary {
 
 /** Morphology counts shared by `list --specs`, `show <spec> --json`, and the
  * CLI text render — the single source of the enforced/pending two-state rule
- * (rules = @human; enforced = @req-linked acceptance coverage; pending = rest). */
+ * (rules = @human or @rule @executable; enforced = @req-linked acceptance
+ * coverage; pending = rest). */
 export function morphologyOfScenarios(
-  scenarios: readonly { classification: string; reqIds: readonly string[] }[],
+  scenarios: readonly {
+    classification: string;
+    reqIds: readonly string[];
+    rule?: boolean;
+  }[],
 ): SpecMorphology {
-  const rules = scenarios.filter((s) => s.classification === 'human');
-  const acceptance = scenarios.filter((s) => s.classification === 'executable');
+  // Rule role is decided by the parser flag (`rule`), with `classification`
+  // joining only as a safety net for consumers passing raw data. Acceptance
+  // excludes `@rule @executable` rules — a rule is not its own acceptance.
+  const rules = scenarios.filter((s) => s.rule === true || s.classification === 'human');
+  const acceptance = scenarios.filter((s) => s.classification === 'executable' && s.rule !== true);
   const acceptanceReqIds = new Set(acceptance.flatMap((s) => [...s.reqIds]));
   const enforced = rules.filter((r) => r.reqIds.some((id) => acceptanceReqIds.has(id)));
   const orphan = acceptance.filter((s) => s.reqIds.length === 0);

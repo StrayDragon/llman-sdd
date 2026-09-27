@@ -789,6 +789,12 @@ const mixedDefectSpecs: Record<string, string> = {
     '# language: zh-CN\n# capability: dupcb\n# purpose: p\n# scope: llmanspec/\n\n功能: dupcb\n\n  @req:r106 @human\n  场景: ok\n    - 系统 MUST x\n',
   'noscope.feature':
     '# language: zh-CN\n# capability: noscope\n# purpose: p\n# scope: packages/core/src/does-not-exist-xyz/\n\n功能: noscope\n\n  @req:r107 @human\n  场景: ok\n    - 系统 MUST x\n',
+  'rulenoguard.feature':
+    '# language: zh-CN\n# capability: rulenoguard\n# purpose: p\n# scope: llmanspec/\n\n功能: rulenoguard\n\n  @req:r108 @rule\n  场景: ok\n    - 系统 MUST x\n',
+  'ruleexec.feature':
+    '# language: zh-CN\n# capability: ruleexec\n# purpose: p\n# scope: llmanspec/\n\n功能: ruleexec\n\n  @req:r109 @rule @executable\n  场景: ok\n    假如 一个有效工作区\n    当 运行校验\n    那么 退出码为 0\n',
+  'norule.feature':
+    '# language: zh-CN\n# capability: norule\n# purpose: p\n# scope: llmanspec/\n\n功能: norule\n\n  @executable\n  场景: acc\n    假如 一个有效工作区\n    当 运行校验\n    那么 退出码为 0\n',
 };
 
 bdd.given('一个每类种子缺陷各占一个 capability 的临时仓库', (ctx) => {
@@ -817,17 +823,20 @@ const requireDefectItems = (ctx: { fixtures: Record<string, unknown> }): DefectJ
 };
 
 bdd.thenStep(
-  '缺头注释、缺 MUST、缺 @req、互斥 tag、残留 @manual 与重复 req_id 各 capability 均 valid 为 false 且各含对应 ERROR',
+  '缺头注释、缺 MUST、缺 @req、互斥 tag、残留 @manual、重复 req_id、可执行规则无守护、规则与可执行同用与零规则 capability 各 capability 均 valid 为 false 且各含对应 ERROR',
   (ctx) => {
     const byId = new Map(requireDefectItems(ctx).map((i) => [i.id, i]));
     const checks: [string, string][] = [
       ['llmanspec/specs/noheader', 'missing `# capability:` header comment'],
       ['nomust', 'constraint statement must contain MUST/SHALL'],
-      ['noreq', '@human constraint scenario must carry an @req'],
+      ['noreq', 'rule scenario must carry an @req'],
       ['mutual', '@human 与 @executable 互斥'],
       ['manual', '@manual was removed in 0.3.0'],
       ['dupca', 'global duplicate req_id'],
       ['dupcb', 'global duplicate req_id'],
+      ['rulenoguard', 'automatable rule `ok` is not guarded'],
+      ['ruleexec', '@rule 与 @executable 互斥'],
+      ['norule', 'spec must define at least one rule scenario'],
     ];
     for (const [cap, marker] of checks) {
       const item = byId.get(cap);
@@ -1094,7 +1103,7 @@ bdd.thenStep('该 spec 条目 valid 为 false 且含悬空链接 ERROR', (ctx) =
   if (!item) throw new Error(`no item in output:\n${r.stdout}`);
   if (item.valid !== false) throw new Error(`dangling link must invalidate the spec`);
   const err = item.issues.find(
-    (x) => x.level === 'ERROR' && x.message.includes('has no matching @human constraint'),
+    (x) => x.level === 'ERROR' && x.message.includes('has no matching rule'),
   );
   if (!err) throw new Error(`dangling-link ERROR missing:\n${JSON.stringify(item.issues)}`);
 });

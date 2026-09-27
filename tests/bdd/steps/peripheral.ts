@@ -106,6 +106,39 @@ bdd.thenStep('archived 节点被标注 done 且依赖边保留', (ctx) => {
   }
 });
 
+// r30 补强 — 块式 depends_on(逐行 `- ` 列表)与畸形 frontmatter(acceptance):
+// 两种风格解析出的边集合一致;畸形条目按无依赖处理且不中断 graph 输出。
+bdd.given('一个含块式 depends_on 与畸形 frontmatter 的临时工作区', (ctx) => {
+  const root = mkdtempSync(join(tmpdir(), 'llman-graph-block-'));
+  const changes = join(root, 'llmanspec', 'changes');
+  const mkChange = (id: string, proposal: string): void => {
+    const dir = join(changes, id);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'proposal.md'), proposal);
+  };
+  mkdirSync(join(changes, 'archive', '2026-01-01-block-old'), { recursive: true });
+  writeFileSync(
+    join(changes, 'archive', '2026-01-01-block-old', 'proposal.md'),
+    '---\ndepends_on: []\n---\n\n## Why\nx\n',
+  );
+  // 块式(YAML 逐行 `- ` 列表)依赖。
+  mkChange('block-feat', '---\ndepends_on:\n  - block-old\n---\n\n## Why\nx\n');
+  // 畸形 frontmatter:截断的流式列表,必须按无依赖处理且不中断输出。
+  mkChange('malformed', '---\ndepends_on: [block-feat\n\n## Why\nx\n');
+  ctx.fixtures['graph工作区'] = { root };
+});
+
+bdd.thenStep('块式依赖边被解析且畸形条目不中断输出', (ctx) => {
+  const { out } = ctx.fixtures['graph输出'] as GraphDepsResult;
+  if (!out.includes('block_feat -->|depends on| block_old')) {
+    throw new Error(`block-style depends-on edge missing:\n${out}`);
+  }
+  // 畸形条目不得使 graph 失败或中断;至少输出 flowchart 头与常规节点。
+  if (!out.startsWith('flowchart TD')) {
+    throw new Error(`graph output broken by malformed frontmatter:\n${out}`);
+  }
+});
+
 // ---------------------------------------------------------------------------
 // r34 — monotonic stage inference (acceptance)
 // ---------------------------------------------------------------------------

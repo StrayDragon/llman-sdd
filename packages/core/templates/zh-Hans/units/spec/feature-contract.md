@@ -10,19 +10,25 @@
 
 功能: sample
 
-  @req:r1 @human
-  场景: Rule title
-    System MUST do something.
-
   @req:r1 @executable
   场景: happy
     假如 a precondition
     当 a trigger happens
     那么 the outcome is observed
+
+  @req:r2 @rule
+  场景: Rule title
+    System MUST do something (not yet converted to steps).
+
+  @req:r3 @rule @human
+  场景: Governance constraint
+    评审者 MUST 人工裁决该抽象目标的合理性。
 ```
 
 - 头注释（`# capability:` / `# purpose:` / `# scope:`）必填；`scope` 驱动过期检查。
-- `@human` 场景是人拥有的约束：statement 全文放场景描述。改/删只出 WARNING（报告制，不阻断门禁），用 git 分支对比审视；旧锁定确认元数据 `rules_touched` / `agent_acked` / `@agent` 已删除，无别名无兼容层。
+- **优先 `@executable`**：行为以 `假如/当/那么` 步骤表达并绑定 BDD 步骤代码、由 runner 执行——默认首选，尽可能减少 `@rule` 定义。
+- `@rule` 规则场景承载无法程序化表达（抽象目标、架构决策、治理）或暂不转写的需求：statement 全文放场景描述；可自动化锚点 MUST 挂 `@executable` 验收。`@rule @human` 是纯人工约束（statement 须含 MUST/SHALL）。`@rule` 与 `@executable` 同场景互斥。
+- 改/删既有 `@rule`/`@human` 规则场景只出 WARNING（报告制，不阻断门禁），用 git 分支对比审视；旧锁定确认元数据 `rules_touched` / `agent_acked` / `@agent` 已删除，无别名无兼容层。
 - `@executable` 场景是 runner 验收：用 `@req:<req_id>` 挂回规则。
 - 覆盖分级：enforced（有验收）/ pending——`list --specs` 逐项输出。
 - 场景 MUST 保持顶层：`Rule:` 块会被拒绝（runner 静默跳过其中场景）。

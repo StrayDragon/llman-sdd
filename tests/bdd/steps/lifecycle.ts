@@ -9,6 +9,7 @@ import {
   mkdtempSync,
   readFileSync,
   readdirSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -169,6 +170,22 @@ bdd.given('一个含 c10-active 与嵌套 c2620 目录的 llmanspec 树', (ctx) 
   };
   mk('changes/c10-active');
   mkdirSync(join(root, 'llmanspec', 'delayed-changes', 'c2620-tool-x'), { recursive: true });
+  ctx.fixtures['nextid工作区'] = { root };
+});
+
+bdd.given('一个含符号链接目录与真实编号目录的 llmanspec 树', (ctx) => {
+  const root = mkdtempSync(join(tmpdir(), 'llman-nextid-link-'));
+  const mk = (rel: string): void => {
+    mkdirSync(join(root, 'llmanspec', rel), { recursive: true });
+    writeFileSync(join(root, 'llmanspec', rel, 'proposal.md'), '---\ndepends_on: []\n---\nx\n');
+  };
+  mk('changes/c30-real');
+  // The link target lives OUTSIDE the scanned llmanspec/ tree: without the
+  // r35 no-follow rule the symlink c50-link would both count itself and pull
+  // the external c70-inner into the harvest (max 70); with the rule it is
+  // skipped entirely (max 30).
+  mkdirSync(join(root, 'external-target', 'sub', 'c70-inner'), { recursive: true });
+  symlinkSync(join(root, 'external-target'), join(root, 'llmanspec', 'changes', 'c50-link'), 'dir');
   ctx.fixtures['nextid工作区'] = { root };
 });
 
@@ -601,6 +618,71 @@ bdd.thenStep('git worktree 条目数不变', (ctx) => {
   const before = ctx.fixtures['worktree前条目数'] as number;
   const after = repo.run('git', ['worktree', 'list']).stdout.trim().split('\n').length;
   if (before !== after) throw new Error(`worktree entry count changed: ${before} → ${after}`);
+});
+
+// ---------------------------------------------------------------------------
+// r14/r44 补强 — 分支门异常路径(acceptance):start 在非默认分支被拒;
+// attach --base 指向不存在或等于当前分支被拒。fixture 独立命名,不复用
+// 既有 start/attach 步骤的 fixture 约定。
+// ---------------------------------------------------------------------------
+
+bdd.given('一个已提交的临时 git 仓库切到非默认分支且含已提交 change 的 proposal', (ctx) => {
+  const repo = makeTempRepo();
+  seedChange(repo, 'demo-feat', {
+    proposal: '---\ndepends_on: []\n---\n\n## Why\nTODO\n',
+    commit: 'draft',
+  });
+  repo.run('git', ['switch', '-qc', 'topic/one']);
+  ctx.fixtures['分支门仓库'] = { repo, id: 'demo-feat' };
+});
+
+bdd.when('在非默认分支对其运行 change start', (ctx) => {
+  const { repo, id } = ctx.fixtures['分支门仓库'] as { repo: TempRepo; id: string };
+  ctx.fixtures['分支门结果'] = repo.run('bun', [CLI, 'change', 'start', id]);
+});
+
+bdd.thenStep('start 报错提示改用 attach 且未创建分支', (ctx) => {
+  const repo = (ctx.fixtures['分支门仓库'] as { repo: TempRepo }).repo;
+  const r = ctx.fixtures['分支门结果'] as { code: number; stdout: string; stderr: string };
+  const out = `${r.stdout}${r.stderr}`;
+  if (
+    r.code === 0 ||
+    !out.includes('already on non-default branch') ||
+    !out.includes('change attach')
+  ) {
+    throw new Error(`gate failure with attach hint expected: ${out}`);
+  }
+  const refExists =
+    repo.run('git', ['show-ref', '--verify', '--quiet', 'refs/heads/sdd/demo-feat']).code === 0;
+  if (refExists) throw new Error('sdd/demo-feat must not be created on gate failure');
+});
+
+bdd.given('一个已切到特性分支且已提交 change 的临时仓库(无绑定)', (ctx) => {
+  const repo = makeTempRepo();
+  seedChange(repo, 'demo-attach-base', {
+    proposal: '---\ndepends_on: []\n---\n\n## Why\nTODO\n',
+    commit: 'draft',
+  });
+  repo.run('git', ['switch', '-qc', 'topic/base']);
+  ctx.fixtures['分支门仓库'] = { repo, id: 'demo-attach-base', defaultBranch: 'main' };
+});
+
+bdd.when('对其运行 change attach --base {branch}', (ctx, base: string) => {
+  const { repo, id } = ctx.fixtures['分支门仓库'] as { repo: TempRepo; id: string };
+  ctx.fixtures['分支门结果'] = repo.run('bun', [CLI, 'change', 'attach', id, '--base', base]);
+});
+
+bdd.thenStep('attach 报错含 "{text}" 且不写绑定', (ctx, text: string) => {
+  const { repo, id } = ctx.fixtures['分支门仓库'] as { repo: TempRepo; id: string };
+  const r = ctx.fixtures['分支门结果'] as { code: number; stdout: string; stderr: string };
+  const out = `${r.stdout}${r.stderr}`;
+  if (r.code === 0 || !out.includes(text)) {
+    throw new Error(`expected error containing "${text}": ${out}`);
+  }
+  const proposal = readFileSync(join(repo.root, 'llmanspec', 'changes', id, 'proposal.md'), 'utf8');
+  if (proposal.includes('branch: ')) {
+    throw new Error('binding must not be written on attach gate failure');
+  }
 });
 
 // ---------------------------------------------------------------------------

@@ -1,7 +1,8 @@
 // Domain step definitions: review-freeze 能力 — 覆盖 r23/r25(review
 // 五类信号与 criticalCount 退出码一致、freeze → thaw 回置)与 r33
 // (review --capability 过滤:locked/validate 保持全局)。
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { bdd } from '../runner.ts';
@@ -130,4 +131,64 @@ bdd.thenStep('三类信号仅含该 capability 且 locked 与 validate 保持全
   }
   if (!signals.some((s) => s.kind === 'locked')) throw new Error('locked signal missing');
   if (!signals.some((s) => s.kind === 'validate')) throw new Error('validate signal missing');
+});
+
+// ---------------------------------------------------------------------------
+// r23/r25 补强 — review --export-html 自包含报告(acceptance);thaw 未知名
+// 报错并列出可用条目(acceptance)。独立 fixture 与命名。
+// ---------------------------------------------------------------------------
+
+bdd.when('运行 review --export-html 到 {path}', (ctx, relPath: string) => {
+  // 输出到 TMPDIR,避免在仓库工作树留下待清理产物(oxfmt/卫生面)。
+  const outPath = join(tmpdir(), 'llman-review-export.html');
+  if (existsSync(outPath)) rmSync(outPath);
+  const proc = runCli(['review', '--export-html', outPath]);
+  ctx.fixtures['导出HTML'] = { status: proc.status ?? 1, path: outPath };
+});
+
+bdd.thenStep('导出 HTML 报告存在且自包含', (ctx) => {
+  const { path } = ctx.fixtures['导出HTML'] as { status: number; path: string };
+  // 文件必须产出;退出码仍随 criticalCount 语义(与本步骤无关)。
+  if (!existsSync(path)) throw new Error(`exported HTML missing: ${path}`);
+  const html = readFileSync(path, 'utf8');
+  if (!html.includes('<!DOCTYPE html') && !html.includes('<html')) {
+    throw new Error(`exported file is not HTML:\n${html.slice(0, 200)}`);
+  }
+  if (html.includes('src=') && !html.includes('data:')) {
+    throw new Error('exported HTML must be self-contained (no external src)');
+  }
+});
+
+bdd.given('一个含冻结归档条目与冷备的临时仓库', (ctx) => {
+  const repo = makeTempRepo();
+  const archiveDir = join(repo.root, 'llmanspec', 'changes', 'archive');
+  mkdirSync(join(archiveDir, '2026-01-01-old-demo'), { recursive: true });
+  writeFileSync(join(archiveDir, '2026-01-01-old-demo', 'proposal.md'), '# frozen demo\n');
+  repo.run('git', ['add', '-A']);
+  repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'archive dir']);
+  const freeze = repo.run('bun', [CLI, 'archive', 'freeze', '--before', '2026-02-01']);
+  if (freeze.code !== 0) throw new Error(`freeze setup failed:\n${freeze.stdout}`);
+  ctx.fixtures['冻结仓库'] = { root: repo.root, repo };
+});
+
+bdd.when('运行 archive thaw --change "{name}"', (ctx, name: string) => {
+  const repo = (ctx.fixtures['冻结仓库'] as { repo: TempRepo }).repo;
+  const thaw = repo.run('bun', [CLI, 'archive', 'thaw', '--change', name]);
+  ctx.fixtures['thaw结果'] = {
+    exitCode: thaw.code,
+    stdout: thaw.stdout,
+    stderr: thaw.stderr,
+  } satisfies CliResult;
+});
+
+bdd.thenStep('thaw 未知名报错并列出可用条目', (ctx) => {
+  const r = ctx.fixtures['thaw结果'] as CliResult;
+  const out = `${r.stdout}${r.stderr ?? ''}`;
+  if (r.exitCode === 0) throw new Error('thaw of an unknown change must fail');
+  if (!out.includes('archived change(s) not found') && !out.includes('available')) {
+    throw new Error(`unknown-name error must list availability:\n${out}`);
+  }
+  if (!out.includes('2026-01-01-old-demo')) {
+    throw new Error(`available entries must be listed:\n${out}`);
+  }
 });

@@ -1,5 +1,5 @@
 import type { GitLike } from '../git/spawnGit.ts';
-import { specIdOf } from '../spec/ir.ts';
+import { isRuleScenario, specIdOf } from '../spec/ir.ts';
 import { evaluateStaleness, notApplicableStaleness } from '../validation/staleness.ts';
 /**
  * Review aggregation (review-freeze capability, r23): five-signal review over
@@ -66,8 +66,12 @@ export function buildReview(input: ReviewInput, io: SpecIo): ReviewResult {
     // r33: per-capability signals honor the --capability filter; locked and
     // validate stay global regardless.
     if (input.capability !== undefined && cap !== input.capability) continue;
-    const rules = entry.doc.scenarios.filter((s) => s.classification === 'human');
-    const acceptance = entry.doc.scenarios.filter((s) => s.classification === 'executable');
+    const rules = entry.doc.scenarios.filter(isRuleScenario);
+    // Acceptance excludes `@rule @executable` rules — a rule is not its own
+    // acceptance and must not satisfy its own pending/unbound signals.
+    const acceptance = entry.doc.scenarios.filter(
+      (s) => s.classification === 'executable' && !isRuleScenario(s),
+    );
     const acceptanceReqIds = new Set(acceptance.flatMap((s) => s.reqIds));
     const pending = rules.filter((r) => !r.reqIds.some((id) => acceptanceReqIds.has(id)));
     // predecessor r5: unbound = orphan acceptance scenarios (no @req link).

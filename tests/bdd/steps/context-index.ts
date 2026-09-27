@@ -97,3 +97,53 @@ bdd.thenStep('索引被自动重建且不因 missing 返回 unavailable', (ctx) 
     throw new Error(`unexpected rebuild failure: ${r.stdout}`);
   }
 });
+
+// ---------------------------------------------------------------------------
+// r57 补强 — backend 取值优先级(acceptance):CLI 旗标 > env
+// LLMAN_SDD_INDEX_BACKEND > 缺省 pageindex。env=rag 时无旗标报错(env 生效);
+// 带 --backend pageindex 时 CLI 覆盖 env 成功执行。
+// ---------------------------------------------------------------------------
+
+bdd.given('一个含 specs 的临时仓库且 LLMAN_SDD_INDEX_BACKEND 为 rag', (ctx) => {
+  ctx.fixtures['idx仓库'] = { repo: makeTempRepo() };
+});
+
+bdd.when('不带 --backend 运行 index rebuild', (ctx) => {
+  const repo = (ctx.fixtures['idx仓库'] as { repo: TempRepo }).repo;
+  const proc = runCli(['index', 'rebuild'], repo.root, {
+    ...process.env,
+    LLMAN_SDD_INDEX_BACKEND: 'rag',
+  });
+  ctx.fixtures['backend结果'] = {
+    code: proc.status ?? 1,
+    out: `${proc.stdout ?? ''}${proc.stderr ?? ''}`,
+  };
+});
+
+bdd.when('带 --backend pageindex 运行 index rebuild', (ctx) => {
+  const repo = (ctx.fixtures['idx仓库'] as { repo: TempRepo }).repo;
+  const proc = runCli(['index', 'rebuild', '--backend', 'pageindex'], repo.root, {
+    ...process.env,
+    LLMAN_SDD_INDEX_BACKEND: 'rag',
+  });
+  ctx.fixtures['backend结果'] = {
+    code: proc.status ?? 1,
+    out: `${proc.stdout ?? ''}${proc.stderr ?? ''}`,
+  };
+});
+
+bdd.thenStep('报错含 rag 并提示迁移到 pageindex', (ctx) => {
+  const r = ctx.fixtures['backend结果'] as { code: number; out: string };
+  if (r.code === 0 || !r.out.includes('rag') || !r.out.includes('pageindex')) {
+    throw new Error(`expected rag-removed error, got code=${r.code} out=${r.out.slice(0, 300)}`);
+  }
+});
+
+bdd.thenStep('CLI 旗标覆盖 env 且索引生成', (ctx) => {
+  const repo = (ctx.fixtures['idx仓库'] as { repo: TempRepo }).repo;
+  const r = ctx.fixtures['backend结果'] as { code: number; out: string };
+  if (r.code !== 0) throw new Error(`rebuild failed despite CLI override: ${r.out}`);
+  if (!existsSync(join(repo.root, 'llmanspec', '.context', 'pageindex', 'tree.json'))) {
+    throw new Error('tree.json missing after rebuild');
+  }
+});

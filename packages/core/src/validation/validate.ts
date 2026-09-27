@@ -5,7 +5,7 @@
  * injected via SpecIo.
  */
 import type { CapabilityDoc } from '../spec/ir.ts';
-import { MUST_WORD_RE, specIdOf } from '../spec/ir.ts';
+import { MUST_WORD_RE, isRuleScenario, specIdOf } from '../spec/ir.ts';
 import { buildReqRegistry } from '../spec/reqRegistry.ts';
 
 export type ValidationLevel = 'ERROR' | 'WARNING' | 'INFO';
@@ -117,21 +117,31 @@ export function validateCapability(
     push('ERROR', err.code.startsWith('file') ? 'file' : `${cap}/${err.code}`, err.message);
   }
 
-  // Single-track gates (predecessor validate_single_track order).
-  const human = doc.scenarios.filter((s) => s.classification === 'human');
-  const acceptance = doc.scenarios.filter((s) => s.classification === 'executable');
+  // Single-track gates (predecessor validate_single_track order). Acceptance
+  // scenarios are executable AND NOT rules — `@rule @executable` requirement
+  // scenarios are rules, not acceptances (they must not self-satisfy links).
+  const acceptance = doc.scenarios.filter(
+    (s) => s.classification === 'executable' && !isRuleScenario(s),
+  );
+  // Rules = `@human` governance constraints ∪ `@rule @executable` automatable
+  // requirements (`@rule`/`@human` both set the rule role in the parser).
+  const rules = doc.scenarios.filter(isRuleScenario);
 
-  if (human.length === 0) {
-    push('ERROR', rulesPath(cap), 'spec must define at least one @human constraint scenario');
+  if (rules.length === 0) {
+    push(
+      'ERROR',
+      rulesPath(cap),
+      'spec must define at least one rule scenario (`@human` or `@rule @executable`)',
+    );
   }
 
   for (const scenario of doc.scenarios) {
     const anchor = `${cap}/rule/${scenario.name}`;
-    if (scenario.classification === 'human') {
+    if (scenario.rule) {
       if (scenario.reqIds.length === 0) {
-        push('ERROR', anchor, '@human constraint scenario must carry an @req:<req_id> tag');
+        push('ERROR', anchor, 'rule scenario must carry an @req:<req_id> tag');
       }
-      if (!MUST_WORD_RE.test(scenario.statement)) {
+      if (scenario.classification === 'human' && !MUST_WORD_RE.test(scenario.statement)) {
         push('ERROR', anchor, 'constraint statement must contain MUST/SHALL (or 必须/不得/禁止)');
       }
     } else if (scenario.classification === 'executable') {
@@ -155,7 +165,10 @@ export function validateCapability(
   }
 
   // Dangling acceptance @req links (predecessor order: acceptance/@req then coverage).
-  const ruleReqIds = new Set(human.flatMap((s) => s.reqIds));
+  // Acceptance `@req:<rid>` must resolve to a rule — `@human` governance or
+  // `@rule @executable` automatable requirement.
+  const ruleReqIds = new Set(rules.flatMap((s) => s.reqIds));
+  const acceptanceReqIds = new Set(acceptance.flatMap((s) => s.reqIds));
   for (const sc of acceptance) {
     // r65: orphan acceptance scenario — no @req link at all (predecessor r132 WARNING).
     if (sc.reqIds.length === 0) {
@@ -170,14 +183,29 @@ export function validateCapability(
         push(
           'ERROR',
           acceptanceReqPath(cap, sc.name),
-          `@req:${rid} on acceptance scenario \`${sc.name}\` has no matching @human constraint`,
+          `@req:${rid} on acceptance scenario \`${sc.name}\` has no matching rule (@human or @rule)`,
         );
       }
     }
   }
 
+  // An automatable rule (`@rule` not classified `@human`) MUST be guarded:
+  // either it ships its own steps or at least one acceptance links back to it.
+  // A rule with no guard would protect nothing; this pushes conversion toward
+  // @executable BDD features (the encouraged shape), leaving @rule only for
+  // genuinely non-programmable requirements (abstract/architecture/governance).
+  for (const sc of rules) {
+    if (sc.classification === 'human') continue;
+    if (sc.stepCount > 0 || sc.reqIds.some((rid) => acceptanceReqIds.has(rid))) continue;
+    push(
+      'ERROR',
+      `${cap}/rule/${sc.name}`,
+      `automatable rule \`${sc.name}\` is not guarded — add steps or link an @executable acceptance scenario, or mark it \`@rule @human\` if it cannot be automated`,
+    );
+  }
+
   // Rule coverage INFO (r134 pending rules).
-  for (const sc of human) {
+  for (const sc of rules) {
     for (const rid of sc.reqIds) {
       const covered = acceptance.some((a) => a.reqIds.includes(rid));
       if (!covered) {

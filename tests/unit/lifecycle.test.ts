@@ -184,6 +184,30 @@ describe('harvestUniqueNumbers (r35, predecessor c-token parity)', () => {
       warnings: [],
     });
   });
+
+  test('symlinked and dot directories are not counted (r35 no-follow)', () => {
+    // The CLI injects an lstat-backed isDirectory (no-follow). When a name is
+    // reported as a non-directory (symlink or dotfile), the harvest neither
+    // counts it nor recurses into it.
+    const io = (
+      isDir: (name: string) => boolean,
+    ): { listDir: (p: string) => string[]; isDirectory: (p: string) => boolean } => ({
+      listDir: (p) => {
+        if (p === '.') return ['.hidden', 'c10-active', 'link-to-dir'];
+        if (p === './c10-active') return ['nested'];
+        return [];
+      },
+      isDirectory: (p) => isDir(p),
+    });
+    // symlink `link-to-dir` (lstat → not a directory) and `.hidden` are
+    // skipped; only c10-active is walked and counted.
+    const skipLinks = io((p) => p === '.' || p === './c10-active' || p === './c10-active/nested');
+    expect(harvestUniqueNumbers(skipLinks, '.')).toEqual({
+      maxNumber: 10,
+      nextNumber: 11,
+      warnings: [],
+    });
+  });
 });
 
 describe('archiveChange gates (r39/r40)', () => {

@@ -1,3 +1,4 @@
+import { isRuleScenario } from '../spec/ir.ts';
 import { localeToGherkinLang, parseCapability } from '../spec/parser.ts';
 import { buildReqRegistry } from '../spec/reqRegistry.ts';
 /**
@@ -39,17 +40,17 @@ function collectSpecEntries(io: SpecHelperIo, specsDir: string): ParsedEntry[] {
 
 /**
  * predecessor parity (`req_registry.rs::next_req_id_from_index`): smallest free rN over
- * the RULE (@human) req ids only; acceptance-only req tags do not occupy ids.
- * The id set comes from the global req registry (r7 mapping's sibling API in
- * spec/reqRegistry.ts) fed with the human-scenario view of each spec.
+ * the RULE req ids only (`@human` or `@rule @executable`); acceptance-only req tags do
+ * not occupy ids. The id set comes from the global req registry (r7 mapping's sibling
+ * API in spec/reqRegistry.ts) fed with the rule-scenario view of each spec.
  */
 export function nextReqId(io: SpecHelperIo, specsDir: string): string {
-  const humanOnly = collectSpecEntries(io, specsDir).map((e) => ({
+  const ruleOnly = collectSpecEntries(io, specsDir).map((e) => ({
     fileName: e.fileName,
-    doc: { ...e.doc, scenarios: e.doc.scenarios.filter((s) => s.classification === 'human') },
+    doc: { ...e.doc, scenarios: e.doc.scenarios.filter(isRuleScenario) },
   }));
   const used = new Set(
-    [...buildReqRegistry(humanOnly).byId.keys()].map((reqId) =>
+    [...buildReqRegistry(ruleOnly).byId.keys()].map((reqId) =>
       Math.trunc(Number(reqId.replace(/^r/u, ''))),
     ),
   );

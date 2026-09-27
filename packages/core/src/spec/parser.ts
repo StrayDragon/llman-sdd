@@ -77,12 +77,14 @@ function extractHeader(source: string): CapabilityHeader {
 
 function classify(tags: string[]): {
   classification: ScenarioIR['classification'];
+  rule: boolean;
   errors: SpecStructuralError[];
 } {
   const errors: SpecStructuralError[] = [];
   const has = (t: string): boolean => tags.includes(t);
   const human = has('human');
   const executable = has('executable');
+  const rule = has('rule');
   const label = tags.join(',');
 
   if (has('manual')) {
@@ -97,12 +99,27 @@ function classify(tags: string[]): {
       message: `@human 与 @executable 互斥(tags: ${label})`,
     });
   }
+  // `@rule` marks a requirement that is NOT (yet) expressed as runnable steps:
+  // abstract goals, architecture decisions, governance or not-yet-converted
+  // clauses. `@executable` marks runnable BDD requirements/acceptances bound to
+  // step code. They are exclusive roles — a rule is never its own acceptance.
+  if (rule && executable) {
+    errors.push({
+      code: 'tag:rule-exec-exclusive',
+      message: `@rule 与 @executable 互斥——规则场景不携带 @executable(tags: ${label})`,
+    });
+  }
   const classification: ScenarioIR['classification'] = human
     ? 'human'
     : executable
       ? 'executable'
       : 'unclassified';
-  return { classification, errors };
+  // @human implies the rule role (legacy governance constraints); @rule is the
+  // explicit requirement marker. Canonical forms: `@rule @req:<id>` (automatable
+  // requirement, guarded via linked @executable acceptance) and
+  // `@rule @human @req:<id>` (governance/non-programmable requirement).
+  // `@executable @req:<id>` (no @rule) is an acceptance/bindable scenario.
+  return { classification, rule: rule || human, errors };
 }
 
 /** Parse one capability .feature source into the single-track IR. */
@@ -163,6 +180,7 @@ export function parseCapability(source: string, fileName = '<inline>'): Capabili
       tags,
       reqIds,
       classification: kind.classification,
+      rule: kind.rule,
       statement,
       stepCount: stepTexts.length,
       steps,

@@ -19,6 +19,13 @@ export interface ScenarioIR {
   /** `@req:rN` links, normalized to `rN`. */
   reqIds: string[];
   classification: ScenarioClassification;
+  /**
+   * Requirement/rule role. `@rule` tags mark a scenario as a rule; `@human`
+   * implies rule (governance constraints); plain `@executable` scenarios are
+   * acceptance (link to a rule via `@req`). Set by the parser; consumers use
+   * `isRuleScenario()` — never infer from `classification` alone.
+   */
+  rule: boolean;
   /** Rule statement (description lines, trimmed) + step texts for executables. */
   statement: string;
   stepCount: number;
@@ -39,6 +46,16 @@ export interface CapabilityDoc {
   language: string;
   scenarios: ScenarioIR[];
   errors: SpecStructuralError[];
+}
+
+/**
+ * Sharing helper for every rule-set consumer (validation, review, specs
+ * report, context tree): a scenario is a rule when it carries the `@rule` tag
+ * or is a `@human` governance constraint. Plain `@executable` scenarios are
+ * acceptance and MUST NOT be counted as rules.
+ */
+export function isRuleScenario(s: ScenarioIR): boolean {
+  return s.rule === true;
 }
 
 /**
