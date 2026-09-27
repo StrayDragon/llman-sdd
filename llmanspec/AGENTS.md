@@ -47,6 +47,8 @@ llman-sdd:spec 驱动开发(SDD)工作流(TypeScript + Bun),完全接替 Rust ll
 - 不移植(定案维持):`project import` 与 migrate 实现体维持移除;`show --output` 修饰符(meta-only/no-scenarios/reqs-only)以 peripheral-commands r53 为准
 - 锁定哈希门禁(前代 spec-format r135 / sdd-workflow r130)不移植:改/删 `@human` 规则的报告制 WARNING 由 git 分支对比 + `review`/`change diff` 浮现,不经 validate/finalize 报告通道;review 的 `locked` 信号恒 0 系有意(2026-09 定案,close-v1-parity-gaps 核验转正)
 - `llmanspec/AGENTS.md` 托管块:本工具 init 写入 LLMANSPEC:START/END 标记(前代不写),属有意改进,保留
+- `spec add-req` 默认写 `@req:<id> @human`(dedup-human-executable-rules 定案):命令产出的起步条款按治理看待,@human 规则豁免「可自动化规则无守护」ERROR 系有意;需要行为守护的条款应显式改为 `@rule` 并挂验收,或直接落 `@executable`。勿改回默认。
+- Gherkin 原生 `规则:`(Rule)块不启用(2026-09-27 定案,标签轨):规则以顶层 `@req:<id> @rule` 场景 + 标签承载,parser 的 `rule:nested-scenario` 拒绝与 runner 跳过 Rule 容器维持现状;仅当「单场景规则自带步骤」成为常态诉求时再评估启用。
 
 ## Change Proposal Frontmatter SSOT
 
