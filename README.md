@@ -13,7 +13,7 @@
 
 ---
 
-llman-sdd 是一套 spec 驱动开发(SDD)工作流:先写规格,再写代码,规格与实现由门禁对齐。分工明确——`init` 渲染出的 `.agents/skills` 教 AI agent 在每个阶段做什么判断;`llman-sdd` CLI 负责 change 生命周期、校验、依赖图、归档这些确定性操作。规格用 Gherkin 写(locale 可切,本仓用 zh-Hans 关键字),带 `@executable` 标签的场景直接接 bun:test 跑起来。
+llman-sdd 是一套 spec 驱动开发(SDD)工作流:先写规格,再写代码,规格与实现由门禁对齐。分工明确——`init` 渲染出的 `.agents/skills` 教 AI agent 在每个阶段做什么判断;`llman-sdd` CLI 负责 change 生命周期、校验、依赖图、归档这些确定性操作。规格用 Gherkin 原生分层写(locale 可切,本仓用 zh-Hans 关键字):`规则:` 块承载需求,块内嵌套的 `场景:` 直接接 bun:test 跑起来——解析走 Cucumber 官方 parser,人类与 agent 读同一份可执行规格。
 
 本仓库用 llman-sdd 开发 llman-sdd,`llmanspec/` 就是它自身的行为合约。
 
@@ -36,26 +36,21 @@ flowchart LR
 
 ## 规格长什么样
 
-一个能力一个 `.feature` 文件,头部注释写清 purpose 与 scope(映射到源码路径)。需求以 `@req:rNN` 场景表达——编号延续自前代规则号,重写延续的是同一份合约,不是重开一份。场景分两类,分流判据本身也是一条规格(init-generators r66):
-
-- `@executable`:GWT 步骤(假如 / 当 / 那么),`bun test tests/bdd` 真跑。凡是 GWT 能表达的自动化判定行为,必须落这里并挂回对应规则
-- `@human`:一行 MUST 合约,给人和 agent 读。只放 GWT 表达不了的约束;新增时无可配对验收,必须在 proposal / design 里写明不可执行的理由
-
-同一规则常常两类兼有,人读合约配一条机器验收。节选自 [llmanspec/specs/change-lifecycle.feature](llmanspec/specs/change-lifecycle.feature):
+一个能力一个 `.feature` 文件,头部注释写清 capability / purpose / scope(映射到源码路径)。需求以 `规则:` 块表达,`@req:<id>` 是唯一需求句柄,挂在块头标签上——编号延续自前代规则号,重写延续的是同一份合约,不是重开一份。可执行场景优先:`场景:`(假如 / 当 / 那么)是原生 gherkin 鼓励形态,凡是 GWT 可表达、绑定步骤代码的自动化判定行为 `bun test tests/bdd` 真跑;仅当需求无法程序化表达(抽象目标、架构决策、治理/人工约束)或暂不转写时,才以裸 `规则:` 承载并在 proposal / design 记录理由。节选自 [llmanspec/specs/change-lifecycle.feature](llmanspec/specs/change-lifecycle.feature):
 
 ```gherkin
-  @req:r16 @human
-  场景: 默认分支 local-first 解析
-    - 默认分支 MUST 按 main → master → origin/HEAD → origin/* 顺序取第一个本地存在者;四者皆缺 MUST 报错。
+  @req:r14
+  规则: 分支绑定门
+    `change start` MUST 要求干净工作树且当前在默认分支,创建 `<branch_prefix><id>` 分支,
+    不满足门条件 MUST 报错且不产生任何变更。
 
-  @req:r16 @executable
-  场景: 默认分支解析顺序与皆缺报错
-    假如 一个默认分支布局为 main+master 的临时仓库
-    当 运行 change start
-    那么 base_branch 记录为 main
+    场景: start 全链路
+      假如 一个已提交的临时 git 仓库含 change "demo-add-feature" 的 proposal
+      当 对其运行 change start
+      那么 分支 sdd/demo-add-feature 被创建且被检出
 ```
 
-没有配对 `@executable` 验收的规则算 pending,pending 门要求 pending 数不得高于基线、只降不升。本仓三个 executable 化批次落地后基线已归零——新 MUST 规则要么配机器验收,要么留下书面理由,没有第三条路。
+规则描述是自由文本——不再强制 MUST/SHALL 词;历史标签 `@executable` / `@rule` / `@human` / `@manual` 已惰性化(解析不赋予语义、不报错),旧文件用 `llman-sdd spec migrate-native` 一步迁移;顶层 `场景:` 只作功能级示例(无句柄、不告警,孤儿概念已废除)。裸 `规则:` 进入 review 的 pending 计量(pending = 无可执行场景的规则数),pending 门要求不得高于基线、只降不升,压降交由 `specs-compact` 收编。
 
 ## 一个 change 的 git 一生
 
@@ -82,15 +77,15 @@ gitGraph
 
 `llmanspec/` 这个目录形态借自 [OpenSpec](https://github.com/Fission-AI/OpenSpec),早期还带过互导命令;后来方向分开了:OpenSpec 把规格当文档管,llman-sdd 把规格当代码管——可执行、有门禁、绑 git。
 
-|               | OpenSpec                        | llman-sdd                                                                           |
-| ------------- | ------------------------------- | ----------------------------------------------------------------------------------- |
-| 规格格式      | Markdown,Requirement + Scenario | Gherkin `.feature`(Cucumber 官方解析器)                                             |
-| 规格可执行    | 否,规格是文档                   | `@executable` 场景接 bun:test;pending 计量门盯着无 executable 验收的规则数,只降不升 |
-| change 与 git | 目录约定,归档即移动文件夹       | 分支绑定 `sdd/<id>`;finalize 一条命令完成 squash 合并 + specs 改名 + 归档提交       |
-| 阶段与元信息  | —                               | frontmatter 白名单校验,阶段由 CLI 从工件 + git 推断                                 |
-| agent 指引    | 仓库内手写 slash commands       | `init` 从模板渲染 `.agents/skills`,渲染门 + 新鲜度门看守,过期即红                   |
-| 输出口径      | 面向人读                        | stdout = 结果,stderr = 进度;报告缺省 TOON,`--json` 与前代字节兼容                   |
-| 并行开发      | Stores(独立规划仓)              | 一 change 一 worktree + 依赖图                                                      |
+|               | OpenSpec                        | llman-sdd                                                                     |
+| ------------- | ------------------------------- | ----------------------------------------------------------------------------- |
+| 规格格式      | Markdown,Requirement + Scenario | Gherkin `.feature`(Cucumber 官方解析器)                                       |
+| 规格可执行    | 否,规格是文档                   | `规则:` 块内嵌套 `场景:` 接 bun:test;pending 计量门盯着裸规则数,只降不升      |
+| change 与 git | 目录约定,归档即移动文件夹       | 分支绑定 `sdd/<id>`;finalize 一条命令完成 squash 合并 + specs 改名 + 归档提交 |
+| 阶段与元信息  | —                               | frontmatter 白名单校验,阶段由 CLI 从工件 + git 推断                           |
+| agent 指引    | 仓库内手写 slash commands       | `init` 从模板渲染 `.agents/skills`,渲染门 + 新鲜度门看守,过期即红             |
+| 输出口径      | 面向人读                        | stdout = 结果,stderr = 进度;报告缺省 TOON,`--json` 与前代字节兼容             |
+| 并行开发      | Stores(独立规划仓)              | 一 change 一 worktree + 依赖图                                                |
 
 两家哲学也不同。OpenSpec 追求 fluid not rigid;llman-sdd 反着来,把能机械化的全机械化,门禁跑在真实 harness 上,agent 的自由度只留在判断层。
 
