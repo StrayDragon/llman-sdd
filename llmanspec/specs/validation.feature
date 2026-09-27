@@ -21,7 +21,7 @@
   @req:r12
   规则: 规则域(种子缺陷判定)
     缺 `# capability:` 头注释 MUST 判 ERROR;每条 `规则:` MUST 携带全局唯一的 @req:<id> 句柄(缺失或跨 capability 重复 MUST 判
-    ERROR);不含任何 `规则:` 的 capability MUST 判 ERROR;不在任何 `规则:` 内的顶层 `场景:` MUST 被判 WARNING(孤儿场景);无嵌套
+    ERROR);不含任何 `规则:` 的 capability MUST 判 ERROR;顶层 `场景:`(Gherkin 功能级示例,无规则句柄)不告警、不参与规则统计;无嵌套
     `场景:` 的 `规则:`(裸规则)MUST 输出聚合计数 INFO(按 capability 一条,不逐条爆炸,`--include-info` 可见);规则描述为自由文本
     (MUST/SHALL 词不强制);历史标签 `@human/@rule/@executable/@manual` 解析惰性、不再承载语义(旧文件经 `spec migrate-native`
     迁移);跨 specs 全局重复 req_id MUST 对每个涉事 capability 判 ERROR;`# scope:` 声明的路径 MUST 在磁盘存在,缺失在
@@ -38,7 +38,7 @@
       假如 一个每类种子缺陷各占一个 capability 的临时仓库
       当 运行 validate --specs --json
       那么 缺头注释、缺 @req、重复 req_id 与零规则 capability 各 capability 均 valid 为 false 且各含对应 ERROR
-      而且 仅缺 scope 路径与含孤儿场景的 capability 含 WARNING 且 valid 为 true
+      而且 仅缺 scope 路径的 capability 含 WARNING 且 valid 为 true
       当 运行 validate --specs --json --strict
       那么 仅缺 scope 路径的 capability valid 为 false
 
@@ -84,23 +84,6 @@
       假如 一个 changes/archive 下 proposal 含未知字段 "status" 的临时仓库
       当 运行 validate --changes --json
       那么 输出不含 unknown field 相关 issue
-
-  @req:r65
-  规则: 孤儿验收场景
-    不在任何 `规则:` 内的顶层 `场景:` MUST 被 validate 报 WARNING(孤儿场景),path 为
-    `<capability>/acceptance/<场景名>`;原生结构下验收归属由嵌套决定,不再有 @req 悬空链接域。官方解析器语义下,顶层 `场景:`
-    仅能在首个 `规则:` 之前存在(首个规则之后的场景被并入该规则)——`spec migrate-native` 将无归属验收置于规则之前以保持孤儿身份。
-
-    场景: 孤儿场景报 WARNING
-      假如 一个含顶层孤儿场景的 spec 临时仓库
-      当 对该 spec 运行 validate --json
-      那么 孤儿 WARNING 的 path 为 "orph/acceptance/孤儿场景"
-
-
-    场景: 既有验收挂回规则不报错
-      假如 一个验收嵌套于 `规则:` 内的 spec 临时仓库
-      当 对该 spec 运行 validate --json
-      那么 该 spec 条目 valid 为 true 且无孤儿 WARNING
 
   @req:r32
   规则: INFO 级 issue 缺省过滤

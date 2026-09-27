@@ -2,7 +2,7 @@
  * Specs listing (peripheral-commands capability, r20/r21): morphology counts.
  * Native model — rules = `规则:` blocks; enforced = rules with at least one
  * nested executable scenario; pending = bare rules; acceptance = nested
- * scenarios; orphan acceptance = top-level scenarios outside any rule.
+ * scenarios; featureScenarioCount = top-level feature-level examples.
  */
 import { renderMachine } from '../render/machine.ts';
 import { specIdOf } from '../spec/ir.ts';
@@ -15,7 +15,7 @@ export interface SpecMorphology {
   ruleEnforcedCount: number;
   rulePendingCount: number;
   acceptanceCount: number;
-  orphanAcceptanceCount: number;
+  featureScenarioCount: number;
 }
 
 export interface SpecSummary {
@@ -31,7 +31,8 @@ export interface SpecSummary {
 
 /** Morphology counts shared by `list --specs`, `show <spec> --json`, and the
  * CLI text render — rules with executable scenarios are enforced; bare rules
- * without any nested scenario are pending; top-level scenarios are orphans. */
+ * without any nested scenario are pending; top-level examples are counted
+ * separately with no rule accounting. */
 export function morphologyOf(doc: CapabilityDoc): SpecMorphology {
   const rules = doc.rules;
   const acceptance = rules.flatMap((r) => r.scenarios);
@@ -40,7 +41,7 @@ export function morphologyOf(doc: CapabilityDoc): SpecMorphology {
     ruleEnforcedCount: rules.filter((r) => r.scenarios.length > 0).length,
     rulePendingCount: rules.filter((r) => r.scenarios.length === 0).length,
     acceptanceCount: acceptance.length,
-    orphanAcceptanceCount: doc.orphans.length,
+    featureScenarioCount: doc.orphans.length,
   };
 }
 

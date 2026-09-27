@@ -136,15 +136,9 @@ export function validateCapability(
     }
   }
 
-  // r65 (migrated): a top-level scenario not enclosed by any rule is an
-  // orphan acceptance — WARNING.
-  for (const sc of doc.orphans) {
-    push(
-      'WARNING',
-      `${cap}/acceptance/${sc.name}`,
-      `orphan scenario \`${sc.name}\` is not enclosed by any rule`,
-    );
-  }
+  // Top-level `场景:` outside any rule are plain feature-level examples
+  // (native Gherkin); they carry no rule handle, so no warning or signal —
+  // they simply aren't part of rule accounting.
 
   // Bare-rule aggregate (r134 migrated): rules with no nested executable
   // scenario, aggregated per capability (never one issue per rule), INFO so it

@@ -39,7 +39,7 @@ const UNBOUND_SPEC = `# language: zh-CN
 describe('buildReview', () => {
   const io = { exists: () => true };
 
-  test('fully bound spec: zero pending/unbound, exit 0', () => {
+  test('fully bound spec: zero pending, exit 0', () => {
     const entries = [{ fileName: 'a.feature', doc: parseCapability(SPEC('a', 'r1'), 'a.feature') }];
     const result = buildReview({ entries, boundChangeCount: 2 }, io);
     expect(result.exitCode).toBe(0);
@@ -52,13 +52,13 @@ describe('buildReview', () => {
     expect(locked?.detail).toInclude('2 bound change(s)');
   });
 
-  test('unbound acceptance (no matching tag) counts as unbound warning', () => {
+  test('feature-level scenario emits no signal; pending counts bare rules only', () => {
     const entries = [{ fileName: 'l.feature', doc: parseCapability(UNBOUND_SPEC, 'l.feature') }];
-    // unbound = 孤儿验收(无 @req 链接;r23 定案,与 config 绑定配置无关)
+    // 顶层功能级示例(无规则句柄)不产生任何信号(unbound 信号已移除);裸规则计 pending。
     const result = buildReview({ entries, boundChangeCount: 0 }, io);
-    const unbound = result.signals.find((s) => s.kind === 'unbound' && s.capability === 'loose');
-    expect(unbound?.count).toBe(1);
-    expect(result.summary.warningCount).toBe(2); // pending r9 + unbound 1
+    const pending = result.signals.find((s) => s.kind === 'pending' && s.capability === 'loose');
+    expect(pending?.count).toBe(1);
+    expect(result.summary.warningCount).toBe(1); // pending 1
   });
 
   test('validate sweep failure is critical and drives exit code', () => {

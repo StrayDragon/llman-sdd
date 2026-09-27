@@ -1,5 +1,8 @@
 ---
 depends_on: []
+branch: sdd/drop-orphan-concept
+base_branch: main
+base_sha: 213cf8b0263278ab351e746ebf0c6d97e62104a9
 ---
 
 # 废除孤儿场景概念:一切以 Gherkin 原生语义为主

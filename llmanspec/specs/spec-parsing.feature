@@ -40,9 +40,9 @@
   @req:r9
   规则: 原生分层解析语义
     .feature MUST 按 功能→规则→场景 原生分层解析:`规则:` 块的标题与描述(自由文本)+ `@req:<id>` 句柄(块头标签)进 RuleIR,
-    块内嵌套 `场景:` 进该规则的 scenarios(步骤原样);不在任何 `规则:` 内的顶层 `场景:` 进 orphan 列表(官方解析器下,顶层场景仅能在
-    首个 `规则:` 之前存在,之后的场景并入前一规则);规则描述 MUST/SHALL 词不强制。历史标签 `@human/@rule/@executable/@manual`
-    惰性——解析不赋予语义、不报错(旧文件以 `spec migrate-native` 迁移)。
+    块内嵌套 `场景:` 进该规则的 scenarios(步骤原样);不在任何 `规则:` 内的顶层 `场景:` 为功能级示例(Gherkin 原生允许,无规则句柄、
+    不参与规则统计;官方解析器下首个 `规则:` 之后的顶层场景会被并入该规则,即其功能级归属);规则描述 MUST/SHALL 词不强制。
+    历史标签 `@human/@rule/@executable/@manual` 惰性——解析不赋予语义、不报错(旧文件以 `spec migrate-native` 迁移)。
 
     场景: 中文 feature 解析为 IR
       假如 一个使用中文关键字的 feature 内容

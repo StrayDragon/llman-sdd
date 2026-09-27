@@ -582,9 +582,9 @@ describe('T9: pattern compile defense (D8)', () => {
   });
 });
 
-describe('orphan scenario WARNING (r65)', () => {
-  test('top-level scenario not enclosed by a rule reports WARNING at cap/acceptance/<name>', () => {
-    // Gherkin 约束:规则块之前(或全文无规则)的顶层场景才是孤儿。
+describe('feature-level top-level scenarios (orphan concept removed)', () => {
+  test('top-level scenario not enclosed by a rule stays valid with no warning', () => {
+    // 孤儿概念已废除:顶层场景(Gherkin 功能级示例)不产生任何 WARNING/信号。
     const spec = `# language: zh-CN
 # capability: orphan
 # purpose: p
@@ -618,9 +618,8 @@ describe('orphan scenario WARNING (r65)', () => {
     };
     const report = validateAllSpecs(entries, specIo);
     const items = report.verdicts.flatMap((v) => v.items);
-    const orphan = items.find((i) => i.level === 'WARNING' && i.id.includes('/acceptance/'));
-    expect(orphan?.id).toBe('orphan/acceptance/孤儿场景');
-    expect(orphan?.message).toContain('orphan scenario `孤儿场景` is not enclosed by any rule');
+    const orphanWarn = items.find((i) => i.level === 'WARNING' && i.message.includes('orphan'));
+    expect(orphanWarn).toBeUndefined();
     expect(report.failed).toBe(false);
   });
 

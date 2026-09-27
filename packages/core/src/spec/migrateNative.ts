@@ -111,12 +111,6 @@ export function migrateNativeSource(source: string): MigrateResult {
     return { ok: false, message: 'no legacy scenarios found (already native?)' };
   }
 
-  // reqId → rule title, for orphan classification of unbound acceptances
-  const knownRules = new Map<string, string>();
-  for (const b of blocks) {
-    if (b.isRule) for (const rid of b.reqIds) knownRules.set(rid, b.title);
-  }
-
   // preamble: everything before the first top-level tag line (headers,
   // feature line, comments) — cut textually, preserved verbatim.
   const lines = source.split('\n');
@@ -131,22 +125,6 @@ export function migrateNativeSource(source: string): MigrateResult {
   let rules = 0;
   let scenarios = 0;
   const consumed = new Set<number>();
-
-  // Unbound acceptances (no matching rule) MUST be emitted BEFORE the first
-  // rule block: under official Gherkin parsing every scenario after a `规则:`
-  // header is absorbed into that rule, so a true top-level orphan is only
-  // expressible before the first rule. Emitting them here preserves their
-  // orphan identity through the migration.
-  for (const [ai, a] of blocks.entries()) {
-    if (a.isRule || consumed.has(ai)) continue;
-    if (a.reqIds.some((rid) => knownRules.has(rid))) continue;
-    consumed.add(ai);
-    scenarios++;
-    out.push('');
-    if (a.skip) out.push('  @skip');
-    out.push(`  场景: ${a.title}`);
-    for (const s of a.steps) out.push(`    ${s.keyword} ${s.text}`);
-  }
 
   for (const b of blocks) {
     if (!b.isRule) continue;
@@ -167,6 +145,19 @@ export function migrateNativeSource(source: string): MigrateResult {
       out.push(`    场景: ${a.title}`);
       for (const s of a.steps) out.push(`      ${s.keyword} ${s.text}`);
     }
+  }
+  // Unbound acceptance scenarios (no matching rule) are emitted last at
+  // top level — native feature-level examples with no requirement handle.
+  // Under official Gherkin parsing they are absorbed into the preceding rule,
+  // which is their natural functional home; no special signal exists for them.
+  for (const [ai, a] of blocks.entries()) {
+    if (a.isRule || consumed.has(ai)) continue;
+    consumed.add(ai);
+    scenarios++;
+    out.push('');
+    if (a.skip) out.push('  @skip');
+    out.push(`  场景: ${a.title}`);
+    for (const s of a.steps) out.push(`    ${s.keyword} ${s.text}`);
   }
 
   if (rules === 0) {

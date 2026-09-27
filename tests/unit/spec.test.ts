@@ -360,10 +360,9 @@ describe('migrateNativeSource roundtrip', () => {
     expect(doc.orphans).toHaveLength(0);
   });
 
-  test('unbound acceptance migrates to a true pre-rule orphan (Gherkin constraint)', () => {
-    // 官方 Gherkin 语义:规则块开始后,其后的场景概被并入该规则,真正孤儿
-    // 只能在首个规则之前表达(r65 语义)。迁移把无归验收置于所有规则之前,
-    // 保住其孤儿身份——若写在规则之后将被解析为嵌套场景。
+  test('unbound acceptance migrates to natural functional home (no orphan concept)', () => {
+    // 孤儿概念已废除:无归属验收按文件顺序置于末尾,官方解析器将其并入前一
+    // 规则,即其功能级归属;不产生任何孤儿/告警语义。
     const src = `# language: zh-CN
 # capability: demo
 # purpose: p
@@ -386,7 +385,7 @@ describe('migrateNativeSource roundtrip', () => {
     if (!res.ok) return;
     const doc = parseCapability(res.content, 'demo.feature');
     expect(doc.errors).toHaveLength(0);
-    expect(doc.orphans.map((s) => s.name)).toEqual(['无归验收']);
-    expect(doc.rules[0]?.scenarios.map((s) => s.name)).not.toContain('无归验收');
+    expect(doc.orphans).toHaveLength(0);
+    expect(doc.rules[0]?.scenarios.map((s) => s.name)).toContain('无归验收');
   });
 });

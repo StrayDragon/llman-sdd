@@ -7,7 +7,7 @@ import { evaluateStaleness, notApplicableStaleness } from '../validation/stalene
  */
 import { validateAllSpecs, type SpecEntry, type SpecIo } from '../validation/validate.ts';
 
-export type ReviewKind = 'pending' | 'unbound' | 'stale' | 'locked' | 'validate';
+export type ReviewKind = 'pending' | 'stale' | 'locked' | 'validate';
 
 export interface ReviewSignal {
   kind: ReviewKind;
@@ -68,12 +68,11 @@ export function buildReview(input: ReviewInput, io: SpecIo): ReviewResult {
     if (input.capability !== undefined && cap !== input.capability) continue;
     // Native model: rules are `规则:` blocks; a rule without nested scenarios
     // is "bare" (pending — candidate for conversion/compaction). Top-level
-    // scenarios outside any rule are orphans (unbound).
+    // scenarios outside any rule are plain feature-level examples with no
+    // special signal.
     const pending = entry.doc.rules.filter((r) => r.scenarios.length === 0);
-    const unbound = entry.doc.orphans;
 
     push('pending', cap, pending.length);
-    push('unbound', cap, unbound.length);
 
     // staleness (predecessor evaluate): real base-ref/scope evaluation.
     let staleInfo = notApplicableStaleness();
@@ -144,7 +143,7 @@ export function buildReview(input: ReviewInput, io: SpecIo): ReviewResult {
 
   const lines: string[] = [`Review: critical=${criticalCount} warning=${warningCount}`];
   for (const cap of sorted.map((e) => specIdOf(e))) {
-    for (const kind of ['pending', 'unbound', 'stale'] as const) {
+    for (const kind of ['pending', 'stale'] as const) {
       const s = signals.find((x) => x.kind === kind && x.capability === cap);
       if (!s) continue;
       lines.push(`${kind}: ${cap} (${s.count})`);

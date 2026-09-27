@@ -112,11 +112,11 @@ Validation fixes (single-track feature-as-spec):
 # scope: src/
 ```
 
-2) Native layout (`rule must carry an @req:<req_id> tag on the rule header` / `orphan scenario`):
+2) Native layout (`rule must carry an @req:<req_id> tag on the rule header`):
 - One canonical style: `@req:<id>` on the `规则:` block header, nested `场景:` (Given/When/Then) as executable examples — the default preferred shape.
 - Only keep a `规则:` block with no nested scenario (bare rule) for requirements that cannot be expressed programmatically or are not yet converted: free-text description, no MUST/SHALL enforcement; validate reports an aggregate count, the review `pending` signal measures it, specs-compact keeps reducing it.
 - Legacy tags `@executable`/`@rule`/`@human`/`@manual` are gone and parse inert; when old files hit structural problems run `llman-sdd spec migrate-native`.
-- Top-level `场景:` outside any `规则:` are orphan scenarios (WARNING).
+- Top-level `场景:` outside any `规则:` are plain feature-level examples: no rule handle, no warning, not part of rule accounting (native Gherkin).
 
 Branch guardrail:
 - First `change start` / `attach` to bind the branch, then edit `.feature` on the bound non-default branch and commit (land specs).

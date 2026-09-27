@@ -583,37 +583,6 @@ bdd.when('把 frontmatter 改写为六个合法字段后再次运行 validate', 
   ctx.fixtures['命令结果'] = runCliCombined(repo, ['validate', id, '--output', 'human']);
 });
 
-// r65 — orphan scenario WARNING with `<cap>/acceptance/<name>` path.
-bdd.given('一个含顶层孤儿场景的 spec 临时仓库', (ctx) => {
-  const repo = makeTempRepo();
-  // Gherkin 约束:规则块之前的顶层场景才是孤儿(r91:makeTempRepo 的
-  // sample.feature 已占用 r1,撞号会误触重复 ERROR,故规则用 r91)。
-  writeFileSync(
-    join(repo.root, 'llmanspec', 'specs', 'orph.feature'),
-    '# language: zh-CN\n# capability: orph\n# purpose: p\n# scope: llmanspec/\n\n功能: orph\n\n  场景: 孤儿场景\n    假如 前置\n    当 动作\n    那么 结果\n\n  @req:r91\n  规则: 规则\n    系统 MUST x\n',
-  );
-  repo.run('git', ['add', '-A']);
-  repo.run('git', [...gitCommit, 'orphan']);
-  ctx.fixtures['验证仓库'] = { repo, id: 'orph' } satisfies ValidateRepoFixture;
-});
-
-// 审计:非 harness 测试对象;夹具无 bdd 配置,validate 不会执行任何命令
-bdd.when('对该 spec 运行 validate --json', (ctx) => {
-  const { repo, id } = requireValidateRepo(ctx);
-  ctx.fixtures['命令结果'] = runCliCombined(repo, ['validate', id, '--json']);
-});
-
-bdd.thenStep('孤儿 WARNING 的 path 为 "{path}"', (ctx, path) => {
-  const r = ctx.fixtures['命令结果'] as { code: number; stdout: string };
-  if (r.code !== 0) throw new Error(`validate --json failed: ${r.stdout}`);
-  const parsed = JSON.parse(r.stdout) as {
-    items: { id: string; issues: { level: string; path: string }[] }[];
-  };
-  const hit = parsed.items.flatMap((i) => i.issues).find((x) => x.path === path);
-  if (!hit) throw new Error(`no issue with path '${path}' in:\n${r.stdout}`);
-  if (hit.level !== 'WARNING') throw new Error(`expected WARNING at '${path}', got ${hit.level}`);
-});
-
 // r63 — apply 入门以 specs-landed 门表述(不再以 readyToImplement 作为入门条件)
 bdd.thenStep('引导以 specs-landed 门为 apply 入门且不含 "{text}"', (ctx, text) => {
   const hit = requireIssues(ctx).find((x) => x.message.includes('specs not landed'));
@@ -843,7 +812,7 @@ bdd.thenStep(
   },
 );
 
-bdd.thenStep('仅缺 scope 路径与含孤儿场景的 capability 含 WARNING 且 valid 为 true', (ctx) => {
+bdd.thenStep('仅缺 scope 路径的 capability 含 WARNING 且 valid 为 true', (ctx) => {
   const byId = new Map(requireDefectItems(ctx).map((i) => [i.id, i]));
   const noscope = byId.get('noscope');
   if (!noscope) throw new Error('noscope capability missing from items');
@@ -855,11 +824,12 @@ bdd.thenStep('仅缺 scope 路径与含孤儿场景的 capability 含 WARNING �
   ) {
     throw new Error(`missing-scope WARNING expected:\n${JSON.stringify(noscope.issues)}`);
   }
+  // 顶层功能级示例(无规则句柄)不再产生孤儿 WARNING —— 保持 valid 且无告警。
   const orphan = byId.get('orphan');
   if (!orphan) throw new Error('orphan capability missing from items');
   if (orphan.valid !== true) throw new Error('orphan must stay valid without --strict');
-  if (!orphan.issues.some((x) => x.level === 'WARNING' && x.message.includes('orphan scenario'))) {
-    throw new Error(`orphan WARNING expected:\n${JSON.stringify(orphan.issues)}`);
+  if (orphan.issues.some((x) => x.level === 'WARNING' && x.message.includes('orphan scenario'))) {
+    throw new Error(`unexpected orphan WARNING:\n${JSON.stringify(orphan.issues)}`);
   }
 });
 
@@ -882,7 +852,7 @@ bdd.thenStep('仅缺 scope 路径的 capability valid 为 false', (ctx) => {
   if (noscope.valid !== false) {
     throw new Error(`noscope must be invalid under --strict:\n${JSON.stringify(noscope.issues)}`);
   }
-  // 孤儿场景 WARNING 不走 --strict 升级:其余 WARNING 面保持 valid
+  // 顶层功能级示例无告警:--strict 下也保持 valid(不产生孤儿 WARNING)
   const orphan = byId.get('orphan');
   if (orphan !== undefined && orphan.valid !== true) {
     throw new Error(`orphan must stay valid under --strict:\n${JSON.stringify(orphan.issues)}`);

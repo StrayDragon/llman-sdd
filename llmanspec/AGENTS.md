@@ -47,7 +47,7 @@ llman-sdd:spec 驱动开发(SDD)工作流(TypeScript + Bun),完全接替 Rust ll
 - 不移植(定案维持):`project import` 与 migrate 实现体维持移除;`show --output` 修饰符(meta-only/no-scenarios/reqs-only)以 peripheral-commands r53 为准
 - 锁定哈希门禁(前代 spec-format r135 / sdd-workflow r130)不移植:改/删 `规则:` 块的报告制 WARNING 由 git 分支对比 + `review`/`change diff` 浮现,不经 validate/finalize 报告通道;review 的 `locked` 信号恒 0 系有意(2026-09 定案,close-v1-parity-gaps 核验转正)
 - `llmanspec/AGENTS.md` 托管块:本工具 init 写入 LLMANSPEC:START/END 标记(前代不写),属有意改进,保留
-- 原生 Gherkin 分层为**唯一规范样式**(2026-09-27 定案,native-gherkin-format):需求 = `规则:` 块(`@req:<id>` 句柄挂块头 + 自由文本描述,无 MUST 词强制);可执行示例 = 块内嵌套 `场景:`(假如/当/那么);顶层 `场景:` 为孤儿(WARNING);无嵌套场景的 `规则:` 为裸规则(聚合计数 + review pending 计量,交 specs-compact 压降)。历史标签 `@executable`/`@rule`/`@human`/`@manual` 惰性;旧文件用 `spec migrate-native` 迁移。
+- 原生 Gherkin 分层为**唯一规范样式**(2026-09-27 定案,native-gherkin-format / drop-orphan-concept):需求 = `规则:` 块(`@req:<id>` 句柄挂块头 + 自由文本描述,无 MUST 词强制);可执行示例 = 块内嵌套 `场景:`(假如/当/那么);无嵌套场景的 `规则:` 为裸规则(聚合计数 + review pending 计量,交 specs-compact 压降);顶层 `场景:` 为功能级示例(Gherkin 原生允许,无句柄、不告警、不参与规则统计——孤儿概念已废除)。历史标签 `@executable`/`@rule`/`@human`/`@manual` 惰性;旧文件用 `spec migrate-native` 迁移。
 - `spec add-req` 追加原生 `规则:` 块(校验 req 全局唯一,描述自由文本、不校验语义词);`spec add-scenario` 向规则块插入嵌套 `场景:`。勿退回标签轨。
 
 ## Change Proposal Frontmatter SSOT
