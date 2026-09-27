@@ -2,6 +2,12 @@
  * Spec IR (spec-parsing capability): pure data shapes produced by
  * parseCapability() and consumed by validation (Phase 3) and downstream
  * commands. No IO of any kind lives here.
+ *
+ * Native model (v2): a capability feature is `功能:` → `规则:` blocks (the
+ * requirement: title + free-form description + `@req:<id>` handle on the block
+ * header) → nested `场景:` (executable GWT examples). Top-level scenarios that
+ * are not under any rule are orphans. Legacy tags (@human/@rule/@executable)
+ * are inert to parsing; migrate with `spec migrate-native`.
  */
 
 export interface CapabilityHeader {
@@ -10,31 +16,40 @@ export interface CapabilityHeader {
   scope: string | null;
 }
 
-export type ScenarioClassification = 'human' | 'executable' | 'unclassified';
+export type ScenarioStepKind = 'given' | 'when' | 'then';
+
+export interface ScenarioStep {
+  kind: ScenarioStepKind;
+  text: string;
+}
 
 export interface ScenarioIR {
   name: string;
-  /** Tag names without the leading `@`. */
+  /** Non-`@req` tags on this scenario (e.g. `@skip`, `@experimental`). */
   tags: string[];
-  /** `@req:rN` links, normalized to `rN`. */
-  reqIds: string[];
-  classification: ScenarioClassification;
-  /**
-   * Requirement/rule role. `@rule` tags mark a scenario as a rule; `@human`
-   * implies rule (governance constraints); plain `@executable` scenarios are
-   * acceptance (link to a rule via `@req`). Set by the parser; consumers use
-   * `isRuleScenario()` — never infer from `classification` alone.
-   */
-  rule: boolean;
-  /** Rule statement (description lines, trimmed) + step texts for executables. */
-  statement: string;
+  /** Whether the runner should execute this scenario (false for @skip etc.). */
+  runnable: boolean;
   stepCount: number;
-  /** Executable-scenario steps with their keyword kinds (context-index tree). */
-  steps: { kind: 'given' | 'when' | 'then'; text: string }[];
+  steps: ScenarioStep[];
+  /** Step-texts joined (retrieval/context surface); empty for a stepless scenario. */
+  statement: string;
+}
+
+export interface RuleIR {
+  /** The `@req:<id>` handle on the rule block header (global-registry key). */
+  reqId: string;
+  /** The `规则:` block title. */
+  title: string;
+  /** Free-form requirement statement (block description lines, as authored). */
+  description: string;
+  /** Nested executable examples belonging to this rule. */
+  scenarios: ScenarioIR[];
+  /** Non-`@req` tags on the rule block header (legacy @human etc. — inert). */
+  tags: string[];
 }
 
 export interface SpecStructuralError {
-  /** Machine-ish anchor, e.g. `missing-header:purpose` or `scenario:规则样例`. */
+  /** Machine-ish anchor, e.g. `missing-header:purpose` or `scenario:样例`. */
   code: string;
   message: string;
 }
@@ -44,18 +59,11 @@ export interface CapabilityDoc {
   header: CapabilityHeader;
   featureName: string;
   language: string;
-  scenarios: ScenarioIR[];
+  /** Requirement blocks (`规则:`); the canonical rule set. */
+  rules: RuleIR[];
+  /** Top-level scenarios not enclosed by any rule (orphans). */
+  orphans: ScenarioIR[];
   errors: SpecStructuralError[];
-}
-
-/**
- * Sharing helper for every rule-set consumer (validation, review, specs
- * report, context tree): a scenario is a rule when it carries the `@rule` tag
- * or is a `@human` governance constraint. Plain `@executable` scenarios are
- * acceptance and MUST NOT be counted as rules.
- */
-export function isRuleScenario(s: ScenarioIR): boolean {
-  return s.rule === true;
 }
 
 /**
@@ -67,21 +75,3 @@ export function isRuleScenario(s: ScenarioIR): boolean {
 export function specIdOf(entry: { fileName: string; doc: CapabilityDoc }): string {
   return entry.doc.header.capability ?? entry.fileName.replace(/\.feature$/u, '');
 }
-
-/**
- * predecessor wording: constraint statements must contain one of these tokens.
- * Shared by the parser (structural error), validation (verdict gate), and
- * add-req (authoring gate) so all three MUST-word checks are the same
- * caliber: ASCII keywords match on word boundaries (MUSTARD must NOT hit),
- * CJK keywords match literally.
- */
-export const MUST_WORD_TERMS = ['MUST', 'SHALL', '必须', '不得', '禁止'] as const;
-
-const escapeRe = (term: string): string => term.replaceAll(/[.*+?^${}()|[\]\\]/gu, '\\$&');
-
-export const MUST_WORD_RE = new RegExp(
-  MUST_WORD_TERMS.map((term) =>
-    /^[A-Za-z]+$/u.test(term) ? `\\b${escapeRe(term)}\\b` : escapeRe(term),
-  ).join('|'),
-  'u',
-);

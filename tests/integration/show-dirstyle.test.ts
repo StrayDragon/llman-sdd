@@ -19,15 +19,14 @@ const SPEC_BODY = (cap: string): string => `# language: zh-CN
 
 功能: ${cap}
 
-  @req:r1 @human
-  场景: 规则
-    - 系统 MUST x
+  @req:r1
+  规则: 规则
+    系统 MUST x
 
-  @req:r1 @executable
-  场景: 验收
-    假如 状态
-    当 动作
-    那么 结果
+    场景: 验收
+      假如 状态
+      当 动作
+      那么 结果
 `;
 
 function mkRepo(layout: 'flat' | 'dirstyle', cap: string): string {

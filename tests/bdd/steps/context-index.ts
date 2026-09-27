@@ -67,7 +67,7 @@ bdd.given('一个含 specs 但无 .context 索引的临时仓库', (ctx) => {
   mkdirSync(specsDir, { recursive: true });
   writeFileSync(
     join(specsDir, 'demo.feature'),
-    '# language: zh-CN\n# capability: demo\n# purpose: p\n# scope: .\n\n功能: demo\n\n  @req:r1 @human\n  场景: 规则\n    - 系统 MUST x\n',
+    '# language: zh-CN\n# capability: demo\n# purpose: p\n# scope: .\n\n功能: demo\n\n  @req:r1\n  规则: 规则\n    系统 MUST x\n',
   );
   ctx.fixtures['ctx仓库'] = { root };
 });

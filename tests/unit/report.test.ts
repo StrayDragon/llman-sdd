@@ -193,17 +193,17 @@ describe('graphMermaid', () => {
 });
 
 describe('nextReqId', () => {
-  test('reads TAGS only — @req in step text must not count (predecessor parity)', () => {
+  test('reads @req handles on rule headers only — @req in step text must not count (predecessor parity)', () => {
     const io: SpecHelperIo = {
       exists: () => true,
       readText: () =>
-        '# language: zh-CN\n# capability: t\n# purpose: p\n# scope: x/\n\n功能: t\n\n  @req:r5 @human\n  场景: ok\n    - 系统 MUST x\n\n  @req:r5 @executable\n  场景: acc\n    假如 一个 spec 文件都含 @req:r99 标签\n',
+        '# language: zh-CN\n# capability: t\n# purpose: p\n# scope: x/\n\n功能: t\n\n  @req:r5\n  规则: ok\n    系统 MUST x\n\n    场景: acc\n      假如 一个 spec 文件都含 @req:r99 标签\n',
       writeText: () => {},
       mkdirp: () => {},
       isDirectory: () => false,
       listDir: () => ['t.feature'],
     };
-    // predecessor parity: smallest free rN over @human rule ids (r5 only -> r1).
+    // predecessor parity: smallest free rN over rule-header @req ids (r5 only -> r1).
     expect(nextReqId(io, 'llmanspec/specs')).toBe('r1');
   });
 });

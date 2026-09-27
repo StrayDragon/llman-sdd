@@ -65,9 +65,9 @@ test.skipIf(!existsSync(BIN))(
           '# scope: llmanspec/specs',
           '',
           '功能: seed',
-          '  @req:r1 @human',
-          '  场景: 基线',
-          '    - 占位 MUST 存在',
+          '  @req:r1',
+          '  规则: 基线',
+          '    占位 MUST 存在',
           '',
         ].join('\n'),
       );

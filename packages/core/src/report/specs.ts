@@ -1,17 +1,11 @@
 /**
- * Specs listing (peripheral-commands capability, r20/r21): morphology counts
- * aligned with predecessor — rules = `@human` governance or `@rule` automatable
- * requirement scenarios; enforced = rules carrying an @req link
- * that has an executable acceptance scenario; pending = the rest.
+ * Specs listing (peripheral-commands capability, r20/r21): morphology counts.
+ * Native model — rules = `规则:` blocks; enforced = rules with at least one
+ * nested executable scenario; pending = bare rules; acceptance = nested
+ * scenarios; orphan acceptance = top-level scenarios outside any rule.
  */
 import { renderMachine } from '../render/machine.ts';
 import { specIdOf } from '../spec/ir.ts';
-/**
- * Specs listing (peripheral-commands capability, r20/r21): morphology counts
- * aligned with predecessor — rules = `@human` governance or `@rule` automatable
- * requirement scenarios; enforced = rules carrying an @req link
- * that has an executable acceptance scenario; pending = the rest.
- */
 import type { CapabilityDoc } from '../spec/ir.ts';
 import type { SpecEntry } from '../validation/validate.ts';
 import { pad } from './collect.ts';
@@ -36,35 +30,18 @@ export interface SpecSummary {
 }
 
 /** Morphology counts shared by `list --specs`, `show <spec> --json`, and the
- * CLI text render — the single source of the enforced/pending two-state rule
- * (rules = @human or @rule; enforced = @req-linked acceptance
- * coverage; pending = rest). */
-export function morphologyOfScenarios(
-  scenarios: readonly {
-    classification: string;
-    reqIds: readonly string[];
-    rule?: boolean;
-  }[],
-): SpecMorphology {
-  // Rule role is decided by the parser flag (`rule`), with `classification`
-  // joining only as a safety net for consumers passing raw data. `@rule` and
-  // `@executable` are mutually exclusive — a rule is never its own acceptance.
-  const rules = scenarios.filter((s) => s.rule === true || s.classification === 'human');
-  const acceptance = scenarios.filter((s) => s.classification === 'executable' && s.rule !== true);
-  const acceptanceReqIds = new Set(acceptance.flatMap((s) => [...s.reqIds]));
-  const enforced = rules.filter((r) => r.reqIds.some((id) => acceptanceReqIds.has(id)));
-  const orphan = acceptance.filter((s) => s.reqIds.length === 0);
+ * CLI text render — rules with executable scenarios are enforced; bare rules
+ * without any nested scenario are pending; top-level scenarios are orphans. */
+export function morphologyOf(doc: CapabilityDoc): SpecMorphology {
+  const rules = doc.rules;
+  const acceptance = rules.flatMap((r) => r.scenarios);
   return {
     ruleCount: rules.length,
-    ruleEnforcedCount: enforced.length,
-    rulePendingCount: rules.length - enforced.length,
+    ruleEnforcedCount: rules.filter((r) => r.scenarios.length > 0).length,
+    rulePendingCount: rules.filter((r) => r.scenarios.length === 0).length,
     acceptanceCount: acceptance.length,
-    orphanAcceptanceCount: orphan.length,
+    orphanAcceptanceCount: doc.orphans.length,
   };
-}
-
-function morphologyOf(doc: CapabilityDoc): SpecMorphology {
-  return morphologyOfScenarios(doc.scenarios);
 }
 
 export function collectSpecs(entries: readonly SpecEntry[]): SpecSummary[] {

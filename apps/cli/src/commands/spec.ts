@@ -1,10 +1,47 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createInterface } from 'node:readline';
 
-import { addReq, addScenario, nextReqId, resolveReq, scaffoldSpec } from '@llman-sdd/core';
+import {
+  addReq,
+  addScenario,
+  hasNativeRules,
+  migrateNativeSource,
+  nextReqId,
+  resolveReq,
+  scaffoldSpec,
+} from '@llman-sdd/core';
 import type { Command } from 'commander';
 
 import { CliError, loadCliConfig, loadSpecEntries, newIo } from '../cli-shared.ts';
+
+/** Walk paths collecting .feature files (directories recurse). */
+function collectFeatureFiles(paths: string[]): string[] {
+  const files: string[] = [];
+  const walk = (dir: string): void => {
+    for (const name of readdirSync(dir).toSorted()) {
+      const full = join(dir, name);
+      if (statSync(full).isDirectory()) walk(full);
+      else if (name.endsWith('.feature')) files.push(full);
+    }
+  };
+  for (const p of paths) {
+    if (!existsSync(p)) throw new CliError(`path not found: ${p}`);
+    if (statSync(p).isDirectory()) walk(p);
+    else files.push(p);
+  }
+  return files;
+}
+
+function confirmInteractive(question: string): Promise<boolean> {
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise((resolve) => {
+    rl.question(question, (answer) => {
+      rl.close();
+      resolve(answer.trim().toLowerCase() === 'y');
+    });
+  });
+}
 
 export function registerSpec(program: Command): void {
   const spec = program.command('spec').description('Spec authoring helpers');
@@ -39,11 +76,11 @@ export function registerSpec(program: Command): void {
   spec
     .command('add-req')
     .alias('add-requirement')
-    .description('Append a @human rule scenario to a capability spec')
+    .description('Append a 规则: block (with @req handle) to a capability spec')
     .argument('<capability>')
     .argument('<req_id>')
     .requiredOption('--title <title>', 'rule title')
-    .requiredOption('--statement <statement>', 'rule statement (must contain MUST/SHALL)')
+    .requiredOption('--statement <statement>', 'rule statement (free text; multiple lines via \\n)')
     .action((capability: string, reqId: string, options: { title: string; statement: string }) => {
       const io = newIo();
       const path = addReq(io, 'llmanspec/specs', loadSpecEntries(), {
@@ -57,7 +94,7 @@ export function registerSpec(program: Command): void {
 
   spec
     .command('add-scenario')
-    .description('Append an @executable acceptance scenario bound to a req')
+    .description('Insert a nested 场景: under the named rule in a spec')
     .argument('<capability>')
     .argument('<req_id>')
     .argument('<scenario_id>')
@@ -83,6 +120,47 @@ export function registerSpec(program: Command): void {
         console.log(path);
       },
     );
+
+  spec
+    .command('migrate-native')
+    .description('Migrate legacy tag-based .feature files to the native 规则:/场景: layout')
+    .argument('[paths...]', 'feature files or directories (default: llmanspec/specs)')
+    .option('--dry-run', 'print the migration plan without writing')
+    .option('-y, --yes', 'proceed without per-file confirmation')
+    .action(async (paths: string[], options: { dryRun?: boolean; yes?: boolean }) => {
+      const targets = collectFeatureFiles(paths.length > 0 ? paths : ['llmanspec/specs']);
+      const io = newIo();
+      let migrated = 0;
+      let skipped = 0;
+      for (const file of targets) {
+        const source = io.readText(file);
+        // already native? layout detection via the official parser
+        if (hasNativeRules(source)) {
+          skipped++;
+          if (options.dryRun) console.log(`[skip] ${file} (already native)`);
+          continue;
+        }
+        const result = migrateNativeSource(source);
+        if (!result.ok) {
+          console.error(`[error] ${file}: ${result.message}`);
+          continue;
+        }
+        const line = `[migrate] ${file}: ${result.rules} rule(s), ${result.scenarios} scenario(s)`;
+        if (options.dryRun) {
+          console.log(`${line} (dry-run)`);
+          migrated++;
+          continue;
+        }
+        if (options.yes || (await confirmInteractive(`${line}. Write? (y/N) `))) {
+          writeFileSync(file, result.content, 'utf8');
+          console.log(line);
+          migrated++;
+        } else {
+          console.log(`[skip] ${file} (declined)`);
+        }
+      }
+      console.log(`migrate-native: ${migrated} file(s) migrated, ${skipped} already native`);
+    });
 
   spec
     .command('resolve-req')

@@ -1,4 +1,3 @@
-import { isRuleScenario } from '../spec/ir.ts';
 import { localeToGherkinLang, parseCapability } from '../spec/parser.ts';
 import { buildReqRegistry } from '../spec/reqRegistry.ts';
 /**
@@ -39,18 +38,14 @@ function collectSpecEntries(io: SpecHelperIo, specsDir: string): ParsedEntry[] {
 }
 
 /**
- * predecessor parity (`req_registry.rs::next_req_id_from_index`): smallest free rN over
- * the RULE req ids only (`@human` or `@rule`); acceptance-only req tags do
- * not occupy ids. The id set comes from the global req registry (r7 mapping's sibling
- * API in spec/reqRegistry.ts) fed with the rule-scenario view of each spec.
+ * predecessor parity (`req_registry.rs::next_req_id_from_index`): smallest free
+ * rN over the requirement handles (`@req` on `规则:` headers) only. The id set
+ * comes from the global req registry fed with the parsed specs.
  */
 export function nextReqId(io: SpecHelperIo, specsDir: string): string {
-  const ruleOnly = collectSpecEntries(io, specsDir).map((e) => ({
-    fileName: e.fileName,
-    doc: { ...e.doc, scenarios: e.doc.scenarios.filter(isRuleScenario) },
-  }));
+  const entries = collectSpecEntries(io, specsDir);
   const used = new Set(
-    [...buildReqRegistry(ruleOnly).byId.keys()].map((reqId) =>
+    [...buildReqRegistry(entries).byId.keys()].map((reqId) =>
       Math.trunc(Number(reqId.replace(/^r/u, ''))),
     ),
   );
@@ -68,10 +63,17 @@ export function skeletonContent(capability: string, reqId: string, locale: strin
     ? `# language: ${language}\n# capability: ${capability}\n# purpose: TODO: 一句话描述该能力与其目的。\n# scope: llmanspec/`
     : `# language: ${language}\n# capability: ${capability}\n# purpose: TODO: Describe this capability and its purpose.\n# scope: llmanspec/`;
   const feature = zh ? `功能: ${capability}` : `Feature: ${capability}`;
-  const scenario = zh ? '场景: TODO-rule' : 'Scenario: TODO-rule';
-  // keep an ASCII MUST keyword so r9's wording check passes in both locales
-  const rule = zh ? '系统 MUST ...' : 'System MUST ...';
-  return `${header}\n\n${feature}\n\n  @req:${reqId} @human\n  ${scenario}\n    ${rule}\n`;
+  const ruleKw = zh ? '规则' : 'Rule';
+  const scenarioKw = zh ? '场景' : 'Scenario';
+  const ruleTitle = 'TODO-rule';
+  const ruleDesc = zh ? 'TODO: 需求描述(自由文本)。' : 'TODO: requirement statement (free text).';
+  const scTitle = 'TODO-acceptance';
+  // native v2 skeleton: a `规则:` block (with @req handle) + one nested example
+  return (
+    `${header}\n\n${feature}\n\n  @req:${reqId}\n  ${ruleKw}: ${ruleTitle}\n` +
+    `    ${ruleDesc}\n\n    ${scenarioKw}: ${scTitle}\n` +
+    `      假如 TODO 前置\n      当 TODO 动作\n      那么 TODO 断言\n`
+  );
 }
 
 /** `spec skeleton <cap>`: write llmanspec/specs/<cap>.feature (no repo-root src/). */

@@ -5,67 +5,63 @@
 
 功能: spec-parsing
 
-  @req:r7 @rule
-  场景: 解析语言兜底链
+  @req:r7
+  规则: 解析语言兜底链
     .feature 解析 MUST 以 en 匹配器起步(`# language:` 头自动生效),失败后 MUST 回退 zh-CN 匹配器再试,仍失败才报错。config locale
     zh-Hans MUST 映射为 gherkin 语言代码 zh-CN,其余 locale 透传;`spec skeleton` 生成的 `# language:` 头 MUST
     经该映射派生(不得另行硬编码)。
 
-  @req:r8 @rule
-  场景: 头注释契约
+    场景: 语言兜底链与 locale 映射
+      假如 一个无语言头使用中文关键字的 feature 内容
+      当 依次以 en 与 zh-CN 匹配器解析该内容
+      那么 en 起步失败回退 zh-CN 解析成功
+      而且 纯 en 内容以 en 匹配器起步成功
+      而且 双匹配器均失败才报错
+      而且 locale zh-Hans 映射为 zh-CN 且其余透传
+
+
+    场景: skeleton 语言头经映射派生
+      假如 一个 locale 为 zh-Hans 的已初始化临时仓库
+      当 运行 spec skeleton demo-cap
+      那么 生成的 spec 首行为 "# language: zh-CN" 且规则体使用中文
+      当 在 locale 为 en 的已初始化临时仓库运行 spec skeleton demo-cap
+      那么 生成的 spec 首行为 "# language: en"
+
+  @req:r8
+  规则: 头注释契约
     每个 capability .feature MUST 以 `# capability:` 头注释开始;`# purpose:` 与 `# scope:` MUST 同样存在;三者构成
     CapabilityDoc 头部,缺失项 MUST 被逐项报告。
 
-  @req:r7 @executable
-  场景: 语言兜底链与 locale 映射
-    假如 一个无语言头使用中文关键字的 feature 内容
-    当 依次以 en 与 zh-CN 匹配器解析该内容
-    那么 en 起步失败回退 zh-CN 解析成功
-    而且 纯 en 内容以 en 匹配器起步成功
-    而且 双匹配器均失败才报错
-    而且 locale zh-Hans 映射为 zh-CN 且其余透传
+    场景: 头注释缺失逐项报告
+      假如 一个缺失全部头注释的 feature 内容
+      当 解析该 feature
+      那么 错误逐项报告三处缺失头注释
 
-  @req:r7 @executable
-  场景: skeleton 语言头经映射派生
-    假如 一个 locale 为 zh-Hans 的已初始化临时仓库
-    当 运行 spec skeleton demo-cap
-    那么 生成的 spec 首行为 "# language: zh-CN" 且规则体使用中文
-    当 在 locale 为 en 的已初始化临时仓库运行 spec skeleton demo-cap
-    那么 生成的 spec 首行为 "# language: en"
+  @req:r9
+  规则: 原生分层解析语义
+    .feature MUST 按 功能→规则→场景 原生分层解析:`规则:` 块的标题与描述(自由文本)+ `@req:<id>` 句柄(块头标签)进 RuleIR,
+    块内嵌套 `场景:` 进该规则的 scenarios(步骤原样);不在任何 `规则:` 内的顶层 `场景:` 进 orphan 列表(官方解析器下,顶层场景仅能在
+    首个 `规则:` 之前存在,之后的场景并入前一规则);规则描述 MUST/SHALL 词不强制。历史标签 `@human/@rule/@executable/@manual`
+    惰性——解析不赋予语义、不报错(旧文件以 `spec migrate-native` 迁移)。
 
-  @req:r8 @executable
-  场景: 头注释缺失逐项报告
-    假如 一个缺失全部头注释的 feature 内容
-    当 解析该 feature
-    那么 错误逐项报告三处缺失头注释
+    场景: 中文 feature 解析为 IR
+      假如 一个使用中文关键字的 feature 内容
+      当 解析该 feature
+      那么 IR 含带描述与嵌套场景的规则块且 req 句柄为 r9
+      而且 该规则块内嵌套场景步骤按关键字保留
 
-  @req:r9 @rule
-  场景: 标签分层语义
-    场景标签中的 @req:rN MUST 被提取为需求链接;残留 @manual tag MUST 被报为迁移 ERROR(0.3.0 起移除该 tag,判定语义由 @human
-    承担,不得静默忽略);@human 与 @executable 互斥,违反 MUST 被报告;`@rule` tag MUST 声明场景的规则角色(`@rule` 与 @executable
-    互斥,违反 MUST 被报告);@human 规则场景描述 MUST 含 MUST/SHALL 语义词。
 
-  @req:r9 @executable
-  场景: 中文 feature 解析为 IR
-    假如 一个使用中文关键字的 feature 内容
-    当 解析该 feature
-    那么 IR 中规则场景分类为 human
-    而且 req 链接为 r9
+    场景: 历史标签惰性与原生结构
+      假如 一个含 `规则:` 块与嵌套场景、且带历史 @human/@executable 标签的 feature 内容
+      当 解析该 feature
+      那么 解析不报标签语义错误
+      而且 规则块与其嵌套场景按结构进入 IR
 
-  @req:r9 @executable
-  场景: 标签分层违例逐项报告
-    假如 一组分别含残留 @manual、@human 与 @executable 同用、@human 描述缺语义词的 feature 内容
-    当 逐个解析这些 feature
-    那么 残留 @manual 报迁移错误且信息含 "@manual"
-    而且 同用报互斥错误
-    而且 缺语义词报 MUST/SHALL 缺失错误
-
-  @req:r10 @rule
-  场景: 全局 rN 注册表
+  @req:r10
+  规则: 全局 rN 注册表
     跨全部 specs 的 @req:rN MUST 构成全局唯一注册表;重复 id MUST 被报告且报告 MUST 含冲突文件对。
 
-  @req:r10 @executable
-  场景: 重复 req id 被发现
-    假如 两个 spec 文件都含 @req:r99 标签
-    当 构建全局注册表
-    那么 报告包含重复对 r99
+    场景: 重复 req id 被发现
+      假如 两个 spec 文件都含 @req:r99 标签
+      当 构建全局注册表
+      那么 报告包含重复对 r99

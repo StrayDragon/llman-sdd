@@ -4,22 +4,29 @@ import {
   addReq,
   addScenario,
   buildReqRegistry,
+  hasNativeRules,
   localeToGherkinLang,
+  migrateNativeSource,
   parseCapability,
   planDedupe,
   resolveReq,
 } from '@llman-sdd/core';
 
-const HUMAN_RULE = (req: string, capability = 'sample') => `# language: zh-CN
+const NATIVE_RULE = (req: string, capability = 'sample') => `# language: zh-CN
 # capability: ${capability}
 # purpose: 测试用途
 # scope: x/
 
 功能: ${capability}
 
-  @req:${req} @human
-  场景: 规则样例
-    - 系统 MUST 提供某能力
+  @req:${req}
+  规则: 规则样例
+    系统 MUST 提供某能力
+
+    场景: 验收样例
+      假如 一个初始状态
+      当 执行一个动作
+      那么 得到一个结果
 `;
 
 describe('localeToGherkinLang', () => {
@@ -29,74 +36,23 @@ describe('localeToGherkinLang', () => {
   });
 });
 
-describe('parseCapability', () => {
+describe('parseCapability (native v2)', () => {
   test('parses zh-CN keywords via fallback chain (no header language)', () => {
-    const doc = parseCapability(HUMAN_RULE('r1').replace('# language: zh-CN\n', ''));
+    const doc = parseCapability(NATIVE_RULE('r1').replace('# language: zh-CN\n', ''));
     expect(doc.featureName).toBe('sample');
-    expect(doc.scenarios).toHaveLength(1);
-    expect(doc.scenarios[0]?.classification).toBe('human');
-    expect(doc.scenarios[0]?.reqIds).toEqual(['r1']);
+    expect(doc.rules).toHaveLength(1);
+    expect(doc.rules[0]?.reqId).toBe('r1');
+    expect(doc.rules[0]?.title).toBe('规则样例');
+    expect(doc.rules[0]?.description).toInclude('系统 MUST 提供某能力');
+    expect(doc.rules[0]?.scenarios).toHaveLength(1);
+    expect(doc.rules[0]?.scenarios[0]?.name).toBe('验收样例');
+    expect(doc.orphans).toHaveLength(0);
     expect(doc.errors).toHaveLength(0);
   });
 
-  test('executable scenario keeps steps; human keeps description statement', () => {
-    const src = `${HUMAN_RULE('r1')}
-  @req:r1 @executable
-  场景: 验收样例
-    假如 一个初始状态
-    当 一个动作
-    那么 一个结果
-`;
-    const doc = parseCapability(src);
-    const rule = doc.scenarios.find((s) => s.classification === 'human');
-    const acc = doc.scenarios.find((s) => s.classification === 'executable');
-    expect(rule?.statement).toInclude('MUST');
-    expect(rule?.stepCount).toBe(0);
-    expect(acc?.stepCount).toBe(3);
-    expect(doc.errors).toHaveLength(0);
-  });
-
-  test('missing header comments are reported per key', () => {
-    const doc = parseCapability(
-      `功能: sample\n\n  @human\n  场景: rule\n    - System MUST x\n`,
-      'a.feature',
-    );
-    const codes = doc.errors.map((e) => e.code);
-    expect(codes).toContain('missing-header:capability');
-    expect(codes).toContain('missing-header:purpose');
-    expect(codes).toContain('missing-header:scope');
-  });
-
-  test('@human without MUST/SHALL word is reported', () => {
-    const doc = parseCapability(HUMAN_RULE('r1').replace('MUST 提供', '提供'));
-    expect(doc.errors.map((e) => e.code)).toContain('rule:missing-must-word');
-  });
-
-  test('@human and @executable are mutually exclusive; residual @manual is a migration ERROR', () => {
-    const src = `${HUMAN_RULE('r1')}
-  @req:r1 @human @executable
-  场景: 互斥违规
-    - 必须 x
-
-  @manual
-  场景: 残留 manual
-    - 人工检查
-
-  @req:r1 @human @manual
-  场景: 与 human 同用的残留 manual
-    - 必须 人工评审 x
-`;
-    const doc = parseCapability(src);
-    const codes = doc.errors.map((e) => e.code);
-    expect(codes).toContain('tag:mutually-exclusive');
-    // removed in 0.3.0: the tag itself is rejected, with or without @human
-    expect(codes.filter((c) => c === 'tag:manual-removed')).toHaveLength(2);
-    expect(doc.errors.find((e) => e.code === 'tag:manual-removed')?.message).toContain(
-      'removed in 0.3.0',
-    );
-  });
-
-  test('Rule-block nested scenarios are rejected', () => {
+  test('nested scenario keeps steps by keyword; top-level scenario becomes an orphan', () => {
+    // Gherkin 语法约束:规则块之后的顶层场景会被官方解析器并入该规则,
+    // 真正的孤儿只能出现在首个规则块之前(或全文无规则时)。
     const src = `# language: zh-CN
 # capability: sample
 # purpose: 测试用途
@@ -104,14 +60,83 @@ describe('parseCapability', () => {
 
 功能: sample
 
-  规则: 某规则
-    @human
-    场景: 被嵌套
-      - 系统 MUST x
+  场景: 孤儿场景
+    假如 孤前提
+    当 孤动作
+    那么 孤结论
+
+  @req:r1
+  规则: 规则样例
+    系统 MUST 提供某能力
+
+    场景: 验收样例
+      假如 一个初始状态
+      当 执行一个动作
+      那么 得到一个结果
 `;
     const doc = parseCapability(src);
-    expect(doc.scenarios).toHaveLength(0);
-    expect(doc.errors.map((e) => e.code)).toContain('rule:nested-scenario');
+    const nested = doc.rules[0]?.scenarios.find((s) => s.name === '验收样例');
+    expect(nested?.stepCount).toBe(3);
+    expect(nested?.steps.map((s) => s.kind)).toEqual(['given', 'when', 'then']);
+    expect(doc.orphans.map((s) => s.name)).toEqual(['孤儿场景']);
+    expect(doc.errors).toHaveLength(0);
+  });
+
+  test('missing header comments are reported per key', () => {
+    const doc = parseCapability(`功能: sample\n\n  @req:r1\n  规则: 规则\n    描述\n`, 'a.feature');
+    const codes = doc.errors.map((e) => e.code);
+    expect(codes).toContain('missing-header:capability');
+    expect(codes).toContain('missing-header:purpose');
+    expect(codes).toContain('missing-header:scope');
+  });
+
+  test('rule description is free text: MUST words are not enforced', () => {
+    const src = `# language: zh-CN
+# capability: demo
+# purpose: p
+# scope: x/
+
+功能: demo
+
+  @req:r1
+  规则: 自由文本规则
+    没有 MUST/SHALL 词的自由描述
+`;
+    const doc = parseCapability(src);
+    expect(doc.errors).toHaveLength(0);
+    expect(doc.rules[0]?.description).toBe('没有 MUST/SHALL 词的自由描述');
+  });
+
+  test('legacy tags are inert: no tag semantics errors, structure still enters IR', () => {
+    const src = `# language: zh-CN
+# capability: demo
+# purpose: p
+# scope: x/
+
+功能: demo
+
+  @req:r1 @human @executable
+  规则: 带历史标签的规则
+    系统 MUST x
+
+    场景: 嵌套验收
+      假如 前置
+      当 动作
+      那么 结果
+`;
+    const doc = parseCapability(src);
+    expect(doc.errors).toHaveLength(0);
+    expect(doc.rules[0]?.reqId).toBe('r1');
+    expect(doc.rules[0]?.tags).not.toContain('human');
+    expect(doc.rules[0]?.scenarios.map((s) => s.name)).toEqual(['嵌套验收']);
+  });
+
+  test('bare rule (no nested scenario) parses with empty scenarios', () => {
+    const doc = parseCapability(
+      `# language: zh-CN\n# capability: demo\n# purpose: p\n# scope: x/\n\n功能: demo\n\n  @req:r1\n  规则: 裸规则\n    描述\n`,
+    );
+    expect(doc.rules[0]?.scenarios).toHaveLength(0);
+    expect(doc.errors).toHaveLength(0);
   });
 
   test('parse failure surfaces SpecParseError after fallback', () => {
@@ -121,11 +146,11 @@ describe('parseCapability', () => {
   });
 });
 
-describe('buildReqRegistry', () => {
+describe('buildReqRegistry (native @req handles on rule headers)', () => {
   test('collects global ids and reports duplicate file pairs', () => {
-    const a = parseCapability(HUMAN_RULE('r99', 'alpha'), 'alpha.feature');
-    const b = parseCapability(HUMAN_RULE('r99', 'beta'), 'beta.feature');
-    const c = parseCapability(HUMAN_RULE('r1', 'gamma'), 'gamma.feature');
+    const a = parseCapability(NATIVE_RULE('r99', 'alpha'), 'alpha.feature');
+    const b = parseCapability(NATIVE_RULE('r99', 'beta'), 'beta.feature');
+    const c = parseCapability(NATIVE_RULE('r1', 'gamma'), 'gamma.feature');
     const reg = buildReqRegistry([
       { fileName: 'alpha.feature', doc: a },
       { fileName: 'beta.feature', doc: b },
@@ -133,6 +158,15 @@ describe('buildReqRegistry', () => {
     ]);
     expect(reg.byId.get('r99')).toEqual(['alpha.feature', 'beta.feature']);
     expect(reg.duplicates).toEqual([{ reqId: 'r99', files: ['alpha.feature', 'beta.feature'] }]);
+  });
+
+  test('rule header without @req yields an empty reqId (not registered)', () => {
+    const doc = parseCapability(
+      `# language: zh-CN\n# capability: demo\n# purpose: p\n# scope: x/\n\n功能: demo\n\n  规则: 无句柄规则\n    描述\n`,
+    );
+    expect(doc.rules[0]?.reqId).toBe('');
+    const reg = buildReqRegistry([{ fileName: 'demo.feature', doc }]);
+    expect(reg.byId.size).toBe(0);
   });
 });
 
@@ -143,12 +177,12 @@ const HEAD = `# language: zh-CN
 
 功能: a
 
-  @req:r1 @human
-  场景: 规则
-    - 系统 MUST x
+  @req:r1
+  规则: 规则
+    系统 MUST x
 `;
 
-describe('spec authoring helpers (r41-r43)', () => {
+describe('spec authoring helpers (r41-r43, native v2)', () => {
   const memIo = (files: Record<string, string>) => {
     const store = { ...files };
     return {
@@ -166,7 +200,7 @@ describe('spec authoring helpers (r41-r43)', () => {
   const entriesOf = (...docs: ReturnType<typeof parseCapability>[]) =>
     docs.map((doc, i) => ({ fileName: `${['a', 'b'][i] ?? i}.feature`, doc }));
 
-  test('addReq appends rule; duplicate id and missing keyword rejected', () => {
+  test('addReq appends a native rule block; duplicate id rejected; free-text statement allowed', () => {
     const { io, store } = memIo({ 'llmanspec/specs/a.feature': HEAD });
     const entries = entriesOf(parse(HEAD));
     const path = addReq(io, 'llmanspec/specs', entries, {
@@ -176,7 +210,8 @@ describe('spec authoring helpers (r41-r43)', () => {
       statement: '系统 MUST x',
     });
     expect(path).toBe('llmanspec/specs/a.feature');
-    expect(store['llmanspec/specs/a.feature']).toInclude('@req:r9 @human');
+    expect(store['llmanspec/specs/a.feature']).toInclude('@req:r9');
+    expect(store['llmanspec/specs/a.feature']).toInclude('规则: t');
     expect(() =>
       addReq(
         io,
@@ -190,17 +225,17 @@ describe('spec authoring helpers (r41-r43)', () => {
         },
       ),
     ).toThrow(/already in use/u);
-    expect(() =>
-      addReq(io, 'llmanspec/specs', entries, {
-        capability: 'a',
-        reqId: 'r10',
-        title: 't',
-        statement: '没有关键词',
-      }),
-    ).toThrow(/keyword/u);
+    // 自由文本:无 MUST/SHALL 词强制
+    addReq(io, 'llmanspec/specs', entries, {
+      capability: 'a',
+      reqId: 'r10',
+      title: 't2',
+      statement: '没有关键词的自由描述',
+    });
+    expect(store['llmanspec/specs/a.feature']).toInclude('没有关键词的自由描述');
   });
 
-  test('addScenario requires existing req and appends executable', () => {
+  test('addScenario inserts a nested scenario under the target rule and stays parseable', () => {
     const { io, store } = memIo({ 'llmanspec/specs/a.feature': HEAD });
     const entries = entriesOf(parse(HEAD));
     expect(() =>
@@ -216,13 +251,14 @@ describe('spec authoring helpers (r41-r43)', () => {
       capability: 'a',
       reqId: 'r1',
       scenarioId: 's1',
-      when: '当条件',
-      thenText: '那么结果',
+      when: '执行动作',
+      thenText: '得到结果',
     });
-    expect(store['llmanspec/specs/a.feature']).toInclude('@req:r1 @executable');
-    expect(
-      resolveReq(entriesOf(parse(store['llmanspec/specs/a.feature'] as string)), 'r1')?.harness,
-    ).toEqual(['a.feature:s1']);
+    const doc = parseCapability(store['llmanspec/specs/a.feature'] as string, 'a.feature');
+    expect(doc.errors).toHaveLength(0);
+    const sc = doc.rules[0]?.scenarios.find((x) => x.name === 's1');
+    expect(sc?.steps.map((s) => s.kind)).toEqual(['when', 'then']);
+    expect(resolveReq(entriesOf(doc), 'r1')?.harness).toEqual(['a.feature:s1']);
   });
 
   test('write target resolution: directory-style entry hit, flat-first, miss errors', () => {
@@ -237,7 +273,7 @@ describe('spec authoring helpers (r41-r43)', () => {
       statement: '系统 MUST x',
     });
     expect(p).toBe(dirPath);
-    expect(store[dirPath]).toInclude('@req:r9 @human');
+    expect(store[dirPath]).toInclude('@req:r9');
     expect(store['llmanspec/specs/a.feature']).toBeUndefined();
     // 均未命中:报错且零副作用
     const before = store[dirPath];
@@ -263,11 +299,11 @@ describe('spec authoring helpers (r41-r43)', () => {
       capability: 'a',
       reqId: 'r1',
       scenarioId: 's1',
-      when: '当条件',
-      thenText: '那么结果',
+      when: '执行动作',
+      thenText: '得到结果',
     });
     expect(p2).toBe('llmanspec/specs/a.feature');
-    expect(store['llmanspec/specs/a.feature']).toInclude('@req:r1 @executable');
+    expect(store['llmanspec/specs/a.feature']).toInclude('场景: s1');
   });
 
   test('resolveReq returns null for unknown id; planDedupe remaps conflicts', () => {
@@ -284,5 +320,73 @@ describe('spec authoring helpers (r41-r43)', () => {
     const plan = planDedupe(dup, io, 'llmanspec/specs', registry.duplicates);
     expect(plan[0]?.reqId).toBe('r1');
     expect(io.readText('llmanspec/specs/b.feature')).toInclude(`@req:${plan[0]?.newReqId}`);
+  });
+});
+
+describe('migrateNativeSource roundtrip', () => {
+  const LEGACY = `# language: zh-CN
+# capability: demo
+# purpose: p
+# scope: x/
+
+功能: demo
+
+  @req:r1 @human
+  场景: 历史规则
+    - 系统 MUST x
+
+  @req:r1 @executable
+  场景: 历史验收
+    假如 前置
+    当 动作
+    那么 结果
+`;
+
+  test('legacy source is detected as non-native; migrated output parses to equivalent structure', () => {
+    expect(hasNativeRules(LEGACY)).toBe(false);
+    const res = migrateNativeSource(LEGACY);
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(hasNativeRules(res.content)).toBe(true);
+    const doc = parseCapability(res.content, 'demo.feature');
+    expect(doc.errors).toHaveLength(0);
+    expect(doc.rules).toHaveLength(1);
+    expect(doc.rules[0]?.reqId).toBe('r1');
+    expect(doc.rules[0]?.title).toBe('历史规则');
+    expect(doc.rules[0]?.description.replaceAll('- ', '')).toContain('系统 MUST x');
+    const sc = doc.rules[0]?.scenarios[0];
+    expect(sc?.name).toBe('历史验收');
+    expect(sc?.steps.map((s) => s.kind)).toEqual(['given', 'when', 'then']);
+    expect(doc.orphans).toHaveLength(0);
+  });
+
+  test('unbound acceptance migrates to a true pre-rule orphan (Gherkin constraint)', () => {
+    // 官方 Gherkin 语义:规则块开始后,其后的场景概被并入该规则,真正孤儿
+    // 只能在首个规则之前表达(r65 语义)。迁移把无归验收置于所有规则之前,
+    // 保住其孤儿身份——若写在规则之后将被解析为嵌套场景。
+    const src = `# language: zh-CN
+# capability: demo
+# purpose: p
+# scope: x/
+
+功能: demo
+
+  @req:r1 @human
+  场景: 历史规则
+    系统 MUST x
+
+  @req:r2 @executable
+  场景: 无归验收
+    假如 前置
+    当 动作
+    那么 结果
+`;
+    const res = migrateNativeSource(src);
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const doc = parseCapability(res.content, 'demo.feature');
+    expect(doc.errors).toHaveLength(0);
+    expect(doc.orphans.map((s) => s.name)).toEqual(['无归验收']);
+    expect(doc.rules[0]?.scenarios.map((s) => s.name)).not.toContain('无归验收');
   });
 });

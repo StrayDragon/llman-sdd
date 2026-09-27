@@ -1,5 +1,8 @@
 ---
 depends_on: []
+branch: sdd/native-gherkin-format
+base_branch: main
+base_sha: 3db37d956f632847efa356e9e59bdd9ee13bc531
 ---
 
 # 原生 Gherkin 规范格式:规则块 + 嵌套场景,移除装饰性标签

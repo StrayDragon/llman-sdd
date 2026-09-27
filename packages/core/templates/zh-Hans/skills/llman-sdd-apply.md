@@ -72,7 +72,7 @@ flowchart LR
 ### 5) 验证与自修复循环（每个 task 或每批 task 后跑一次）
 按项目实际跑门禁：
 - 测试集：`just test` 或 `cargo test --all`；格式/lint：`just check` 或 `just lint` + `just fmt`
-- 分支上按需编辑 `llmanspec/specs/<capability>.feature`（扁平或目录主文件；规则 `@req:<id> @rule`/`@rule @human`，验收/可执行 `@executable`——`@rule` 与 `@executable` 互斥），spec 改动后跑 `llman-sdd validate --specs`；分支上可自由提交。
+- 分支上按需编辑 `llmanspec/specs/<capability>.feature`（扁平或目录主文件；统一原生分层：`@req:<id>` 挂 `规则:` 块头、嵌套 `场景:` 为可执行示例），spec 改动后跑 `llman-sdd validate --specs`；分支上可自由提交。
 - SDD 校验：`llman-sdd validate <id> --strict`
 
 **门禁证据**：

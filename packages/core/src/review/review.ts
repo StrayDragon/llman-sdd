@@ -1,5 +1,5 @@
 import type { GitLike } from '../git/spawnGit.ts';
-import { isRuleScenario, specIdOf } from '../spec/ir.ts';
+import { specIdOf } from '../spec/ir.ts';
 import { evaluateStaleness, notApplicableStaleness } from '../validation/staleness.ts';
 /**
  * Review aggregation (review-freeze capability, r23): five-signal review over
@@ -66,16 +66,11 @@ export function buildReview(input: ReviewInput, io: SpecIo): ReviewResult {
     // r33: per-capability signals honor the --capability filter; locked and
     // validate stay global regardless.
     if (input.capability !== undefined && cap !== input.capability) continue;
-    const rules = entry.doc.scenarios.filter(isRuleScenario);
-    // `@rule` and `@executable` are mutually exclusive — a rule is never its
-    // own acceptance and must not satisfy its own pending/unbound signals.
-    const acceptance = entry.doc.scenarios.filter(
-      (s) => s.classification === 'executable' && !isRuleScenario(s),
-    );
-    const acceptanceReqIds = new Set(acceptance.flatMap((s) => s.reqIds));
-    const pending = rules.filter((r) => !r.reqIds.some((id) => acceptanceReqIds.has(id)));
-    // predecessor r5: unbound = orphan acceptance scenarios (no @req link).
-    const unbound = acceptance.filter((s) => s.reqIds.length === 0);
+    // Native model: rules are `规则:` blocks; a rule without nested scenarios
+    // is "bare" (pending — candidate for conversion/compaction). Top-level
+    // scenarios outside any rule are orphans (unbound).
+    const pending = entry.doc.rules.filter((r) => r.scenarios.length === 0);
+    const unbound = entry.doc.orphans;
 
     push('pending', cap, pending.length);
     push('unbound', cap, unbound.length);

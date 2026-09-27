@@ -205,6 +205,10 @@ let counter = 0;
  * Load step definitions from a module (side-effect import), then run every
  * scenario in the feature file as a bun:test test().
  *
+ * Native model: scenarios nested under `规则:` containers are runnable like any
+ * top-level scenario; stepless scenarios (legacy rule placeholders / empty
+ * examples) are skipped silently; `@skip`/`@experimental` produce test.skip.
+ *
  * Step modules must be imported before runFeature is called so the registry
  * is populated. A typical entry file:
  *
@@ -215,22 +219,41 @@ let counter = 0;
 export function runFeature(
   featurePath: string,
   makeContext: () => TestContext,
-  options: { skipScenarios?: RegExp; onlyTagged?: string } = {},
+  options: { skipScenarios?: RegExp } = {},
 ) {
   const doc = parseFeature(featurePath);
   const feature = doc.feature;
   if (!feature) return;
 
   describe(feature.name, () => {
+    // Collect every scenario: top-level and those nested under `规则:` rules.
+    const scenarios: {
+      scenario: {
+        name: string;
+        tags: readonly { name: string }[];
+        steps: readonly {
+          keyword: string;
+          text: string;
+          docString?: { content?: string } | null;
+        }[];
+      };
+    }[] = [];
+    const featureBackgrounds = feature.children
+      .filter((c) => c.background)
+      .flatMap((c) => c.background?.steps ?? []);
     for (const child of feature.children) {
-      const scenario = child.scenario;
-      if (!scenario) continue; // skip Background / Rule containers
-
-      // onlyTagged: register nothing for scenarios lacking the tag (used when
-      // driving capability specs whose @human rule scenarios have no steps).
-      if (options.onlyTagged && !(scenario.tags ?? []).some((t) => t.name === options.onlyTagged)) {
-        continue;
+      if (child.rule) {
+        for (const rc of child.rule.children) {
+          if (rc.scenario) scenarios.push({ scenario: rc.scenario });
+        }
+      } else if (child.scenario) {
+        scenarios.push({ scenario: child.scenario });
       }
+    }
+
+    for (const { scenario } of scenarios) {
+      // stepless scenarios carry no runnable behavior (legacy rule placeholders)
+      if ((scenario.steps ?? []).length === 0) continue;
 
       const shouldSkip =
         options.skipScenarios?.test(scenario.name) ||
@@ -240,16 +263,12 @@ export function runFeature(
         const ctx = makeContext();
         let prevKind: StepKind = 'given';
 
-        // Background steps (if any) run before each scenario.
-        for (const bg of feature.children) {
-          if (bg.background) {
-            for (const step of bg.background.steps) {
-              prevKind = keywordToKind(step.keyword, prevKind);
-              const def = matchStep(prevKind, step.text);
-              if (!def) throw new Error(`No step definition for: ${step.keyword}${step.text}`);
-              await runStep(def, step.text, step.docString?.content ?? null, ctx);
-            }
-          }
+        // Feature-level Background steps (if any) run before each scenario.
+        for (const step of featureBackgrounds) {
+          prevKind = keywordToKind(step.keyword, prevKind);
+          const def = matchStep(prevKind, step.text);
+          if (!def) throw new Error(`No step definition for: ${step.keyword}${step.text}`);
+          await runStep(def, step.text, step.docString?.content ?? null, ctx);
         }
 
         for (const step of scenario.steps) {

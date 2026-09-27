@@ -19,9 +19,9 @@ const MOCK_SPEC = `# language: zh-CN
 
 功能: alpha
 
-  @req:r1 @human
-  场景: 规则甲
-    - 系统 MUST 甲
+  @req:r1
+  规则: 规则甲
+    系统 MUST 甲
 `;
 
 type MockMode = 'final-dup' | 'always-tools' | 'http-500';

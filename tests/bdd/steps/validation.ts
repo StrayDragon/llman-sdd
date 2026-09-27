@@ -25,11 +25,11 @@ interface ValidateResult {
   lines: string[];
 }
 
-bdd.given('一个含互斥 tag 与重复 req_id 缺陷的 specs 目录', (ctx) => {
+bdd.given('一个含缺 @req 与重复 req_id 缺陷的 specs 目录', (ctx) => {
   const files: Record<string, string> = {
-    'llmanspec/specs/mutual.feature': `# language: zh-CN\n# capability: mutual\n# purpose: p\n# scope: llmanspec/\n\n功能: mutual\n\n  @req:r11 @human @executable\n  场景: 互斥\n    - 系统 MUST x\n`,
-    'llmanspec/specs/dupa.feature': `# language: zh-CN\n# capability: dupa\n# purpose: p\n# scope: llmanspec/\n\n功能: dupa\n\n  @req:r20 @human\n  场景: ok\n    - 系统 MUST x\n`,
-    'llmanspec/specs/dupb.feature': `# language: zh-CN\n# capability: dupb\n# purpose: p\n# scope: llmanspec/\n\n功能: dupb\n\n  @req:r20 @human\n  场景: ok\n    - 系统 MUST x\n`,
+    'llmanspec/specs/noreq.feature': `# language: zh-CN\n# capability: noreq\n# purpose: p\n# scope: llmanspec/\n\n功能: noreq\n\n  规则: 缺句柄\n    系统 MUST x\n`,
+    'llmanspec/specs/dupa.feature': `# language: zh-CN\n# capability: dupa\n# purpose: p\n# scope: llmanspec/\n\n功能: dupa\n\n  @req:r20\n  规则: ok\n    系统 MUST x\n`,
+    'llmanspec/specs/dupb.feature': `# language: zh-CN\n# capability: dupb\n# purpose: p\n# scope: llmanspec/\n\n功能: dupb\n\n  @req:r20\n  规则: ok\n    系统 MUST x\n`,
   };
   const io: DiscoveryIo = {
     exists: (p) => p.startsWith('llmanspec/'),
@@ -51,16 +51,16 @@ bdd.when('运行 specs 校验', (ctx) => {
   ctx.fixtures['校验结果'] = { failed: report.failed, lines: report.lines };
 });
 
-bdd.thenStep('FAIL 集合恰为互斥 tag 与重复 req_id 涉事的 capability', (ctx) => {
+bdd.thenStep('FAIL 集合恰为缺 @req 与重复 req_id 涉事的 capability', (ctx) => {
   const result = ctx.fixtures['校验结果'] as ValidateResult | undefined;
   const failCaps = (result?.lines ?? [])
     .filter((l) => l.startsWith('FAIL spec/'))
     .map((l) => l.slice('FAIL spec/'.length))
     .toSorted();
-  const expected = ['dupa', 'dupb', 'mutual'].toSorted();
+  const expected = ['dupa', 'dupb', 'noreq'].toSorted();
   if (JSON.stringify(failCaps) !== JSON.stringify(expected)) {
     throw new Error(
-      `FAIL set must be exactly ${expected.join(', ')} (互斥 tag + 重复 req_id 涉事 capability), got: ${failCaps.join(', ')}`,
+      `FAIL set must be exactly ${expected.join(', ')} (缺 @req + 重复 req_id 涉事 capability), got: ${failCaps.join(', ')}`,
     );
   }
 });
@@ -119,7 +119,7 @@ bdd.thenStep('退出码非零且按产物报阶段强制缺失(前代语义)', (
 // exit-code proxies). The run_command fixtures write deterministic marker
 // files instead of running a real test suite.
 const harnessSpec = (cap: string, req: string): string =>
-  `# language: zh-CN\n# capability: ${cap}\n# purpose: p\n# scope: llmanspec/\n\n功能: ${cap}\n\n  @req:${req} @human\n  场景: 规则\n    - 系统 MUST x\n`;
+  `# language: zh-CN\n# capability: ${cap}\n# purpose: p\n# scope: llmanspec/\n\n功能: ${cap}\n\n  @req:${req}\n  规则: 规则\n    系统 MUST x\n`;
 
 function harnessRepo(runCommand: string): TempRepo {
   const repo = makeTempRepo();
@@ -317,10 +317,10 @@ bdd.thenStep('help 文案说明缺省执行 harness 且 --no-check 跳过', (ctx
 bdd.given('一个含 pending 规则的有效 spec 工作区', (ctx) => {
   const repo = makeTempRepo();
   mkdirSync(join(repo.root, 'llmanspec', 'specs'), { recursive: true });
-  // @human 规则无可执行验收覆盖 → 稳定产生一条 INFO 级 pending 提示,spec 仍 valid
+  // 裸规则(无嵌套场景)→ 稳定产生一条 INFO 级 pending 提示,spec 仍 valid
   writeFileSync(
     join(repo.root, 'llmanspec', 'specs', 'auth.feature'),
-    '# language: zh-CN\n# capability: auth\n# purpose: p\n# scope: llmanspec/\n\n功能: auth\n\n  @req:r2 @human\n  场景: 规则\n    - 系统 MUST x\n',
+    '# language: zh-CN\n# capability: auth\n# purpose: p\n# scope: llmanspec/\n\n功能: auth\n\n  @req:r2\n  规则: 规则\n    系统 MUST x\n',
   );
   repo.run('git', ['add', '-A']);
   repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'init']);
@@ -419,7 +419,7 @@ bdd.given('一个含种子缺陷 spec 的临时仓库', (ctx) => {
   const repo = makeTempRepo();
   writeFileSync(
     join(repo.root, 'llmanspec', 'specs', 'broken.feature'),
-    '# language: zh-CN\n# capability: broken\n# purpose: p\n# scope: llmanspec/\n\n功能: broken\n\n  @req:r11 @human @executable\n  场景: 互斥\n    - 系统 MUST x\n',
+    '# language: zh-CN\n# capability: broken\n# purpose: p\n# scope: llmanspec/\n\n功能: broken\n\n  规则: 缺句柄\n    系统 MUST x\n',
   );
   repo.run('git', ['add', '-A']);
   repo.run('git', [...gitCommit, 'seed defect']);
@@ -583,14 +583,14 @@ bdd.when('把 frontmatter 改写为六个合法字段后再次运行 validate', 
   ctx.fixtures['命令结果'] = runCliCombined(repo, ['validate', id, '--output', 'human']);
 });
 
-// r65 — orphan acceptance scenario WARNING with `<cap>/acceptance/<name>` path.
-bdd.given('一个含孤儿验收场景的 spec 临时仓库', (ctx) => {
+// r65 — orphan scenario WARNING with `<cap>/acceptance/<name>` path.
+bdd.given('一个含顶层孤儿场景的 spec 临时仓库', (ctx) => {
   const repo = makeTempRepo();
-  // r91: makeTempRepo 的 sample.feature 已占用 r1 — req_id 全局唯一,撞号会误触
-  // 重复 ERROR 使 spec 失真,r65 只观察孤儿 WARNING。
+  // Gherkin 约束:规则块之前的顶层场景才是孤儿(r91:makeTempRepo 的
+  // sample.feature 已占用 r1,撞号会误触重复 ERROR,故规则用 r91)。
   writeFileSync(
     join(repo.root, 'llmanspec', 'specs', 'orph.feature'),
-    '# language: zh-CN\n# capability: orph\n# purpose: p\n# scope: llmanspec/\n\n功能: orph\n\n  @req:r91 @human\n  场景: 规则\n    - 系统 MUST x\n\n  @executable\n  场景: 孤儿验收\n    假如 前置\n    当 动作\n    那么 结果\n',
+    '# language: zh-CN\n# capability: orph\n# purpose: p\n# scope: llmanspec/\n\n功能: orph\n\n  场景: 孤儿场景\n    假如 前置\n    当 动作\n    那么 结果\n\n  @req:r91\n  规则: 规则\n    系统 MUST x\n',
   );
   repo.run('git', ['add', '-A']);
   repo.run('git', [...gitCommit, 'orphan']);
@@ -603,7 +603,7 @@ bdd.when('对该 spec 运行 validate --json', (ctx) => {
   ctx.fixtures['命令结果'] = runCliCombined(repo, ['validate', id, '--json']);
 });
 
-bdd.thenStep('孤儿验收 WARNING 的 path 为 "{path}"', (ctx, path) => {
+bdd.thenStep('孤儿 WARNING 的 path 为 "{path}"', (ctx, path) => {
   const r = ctx.fixtures['命令结果'] as { code: number; stdout: string };
   if (r.code !== 0) throw new Error(`validate --json failed: ${r.stdout}`);
   const parsed = JSON.parse(r.stdout) as {
@@ -772,29 +772,26 @@ bdd.given('一个 stage=full 已绑定但 specs 未 landed 且正文含 "{text}"
 // 全部走 CLI 子进程,夹具无 bdd 配置 → 显式 --no-check。
 // ---------------------------------------------------------------------------
 
+// r12 — per-defect verdicts (native v2): each defect type owns a capability.
+// 保留缺陷:nocheader(缺头注释)、noreq(规则块缺 @req)、dupca/dupcb(重复
+// req_id)、norule(零规则);WARNING 面:noscope(缺 scope 路径)、orphan
+// (顶层孤儿场景)。已删除门(@human/@executable 互斥、@manual、缺 MUST 词、
+// automatable guard @rule、dangling @req)不再出现在夹具中。
 const mixedDefectSpecs: Record<string, string> = {
   'noheader.feature':
-    '# language: zh-CN\n功能: noheader\n\n  @req:r101 @human\n  场景: ok\n    - 系统 MUST x\n',
-  'nomust.feature':
-    '# language: zh-CN\n# capability: nomust\n# purpose: p\n# scope: llmanspec/\n\n功能: nomust\n\n  @req:r102 @human\n  场景: ok\n    - 系统 可以直接使用,无需变更\n',
+    '# language: zh-CN\n功能: noheader\n\n  @req:r101\n  规则: ok\n    系统 MUST x\n',
   'noreq.feature':
-    '# language: zh-CN\n# capability: noreq\n# purpose: p\n# scope: llmanspec/\n\n功能: noreq\n\n  @human\n  场景: ok\n    - 系统 MUST x\n',
-  'mutual.feature':
-    '# language: zh-CN\n# capability: mutual\n# purpose: p\n# scope: llmanspec/\n\n功能: mutual\n\n  @req:r104 @human @executable\n  场景: 互斥\n    - 系统 MUST x\n',
-  'manual.feature':
-    '# language: zh-CN\n# capability: manual\n# purpose: p\n# scope: llmanspec/\n\n功能: manual\n\n  @req:r105 @human @manual\n  场景: ok\n    - 系统 MUST x\n',
+    '# language: zh-CN\n# capability: noreq\n# purpose: p\n# scope: llmanspec/\n\n功能: noreq\n\n  规则: ok\n    系统 MUST x\n',
   'dupca.feature':
-    '# language: zh-CN\n# capability: dupca\n# purpose: p\n# scope: llmanspec/\n\n功能: dupca\n\n  @req:r106 @human\n  场景: ok\n    - 系统 MUST x\n',
+    '# language: zh-CN\n# capability: dupca\n# purpose: p\n# scope: llmanspec/\n\n功能: dupca\n\n  @req:r106\n  规则: ok\n    系统 MUST x\n',
   'dupcb.feature':
-    '# language: zh-CN\n# capability: dupcb\n# purpose: p\n# scope: llmanspec/\n\n功能: dupcb\n\n  @req:r106 @human\n  场景: ok\n    - 系统 MUST x\n',
+    '# language: zh-CN\n# capability: dupcb\n# purpose: p\n# scope: llmanspec/\n\n功能: dupcb\n\n  @req:r106\n  规则: ok\n    系统 MUST x\n',
   'noscope.feature':
-    '# language: zh-CN\n# capability: noscope\n# purpose: p\n# scope: packages/core/src/does-not-exist-xyz/\n\n功能: noscope\n\n  @req:r107 @human\n  场景: ok\n    - 系统 MUST x\n',
-  'rulenoguard.feature':
-    '# language: zh-CN\n# capability: rulenoguard\n# purpose: p\n# scope: llmanspec/\n\n功能: rulenoguard\n\n  @req:r108 @rule\n  场景: ok\n    - 系统 MUST x\n',
-  'ruleexec.feature':
-    '# language: zh-CN\n# capability: ruleexec\n# purpose: p\n# scope: llmanspec/\n\n功能: ruleexec\n\n  @req:r109 @rule @executable\n  场景: ok\n    假如 一个有效工作区\n    当 运行校验\n    那么 退出码为 0\n',
+    '# language: zh-CN\n# capability: noscope\n# purpose: p\n# scope: packages/core/src/does-not-exist-xyz/\n\n功能: noscope\n\n  @req:r107\n  规则: ok\n    系统 MUST x\n',
+  'orphan.feature':
+    '# language: zh-CN\n# capability: orphan\n# purpose: p\n# scope: llmanspec/\n\n功能: orphan\n\n  场景: 孤儿场景\n    假如 前置\n    当 动作\n    那么 结果\n\n  @req:r108\n  规则: ok\n    系统 MUST x\n',
   'norule.feature':
-    '# language: zh-CN\n# capability: norule\n# purpose: p\n# scope: llmanspec/\n\n功能: norule\n\n  @executable\n  场景: acc\n    假如 一个有效工作区\n    当 运行校验\n    那么 退出码为 0\n',
+    '# language: zh-CN\n# capability: norule\n# purpose: p\n# scope: llmanspec/\n\n功能: norule\n\n  场景: acc\n    假如 一个有效工作区\n    当 运行校验\n    那么 退出码为 0\n',
 };
 
 bdd.given('一个每类种子缺陷各占一个 capability 的临时仓库', (ctx) => {
@@ -823,20 +820,15 @@ const requireDefectItems = (ctx: { fixtures: Record<string, unknown> }): DefectJ
 };
 
 bdd.thenStep(
-  '缺头注释、缺 MUST、缺 @req、互斥 tag、残留 @manual、重复 req_id、可执行规则无守护、规则与可执行同用与零规则 capability 各 capability 均 valid 为 false 且各含对应 ERROR',
+  '缺头注释、缺 @req、重复 req_id 与零规则 capability 各 capability 均 valid 为 false 且各含对应 ERROR',
   (ctx) => {
     const byId = new Map(requireDefectItems(ctx).map((i) => [i.id, i]));
     const checks: [string, string][] = [
       ['llmanspec/specs/noheader', 'missing `# capability:` header comment'],
-      ['nomust', 'constraint statement must contain MUST/SHALL'],
-      ['noreq', 'rule scenario must carry an @req'],
-      ['mutual', '@human 与 @executable 互斥'],
-      ['manual', '@manual was removed in 0.3.0'],
+      ['noreq', 'rule must carry an @req'],
       ['dupca', 'global duplicate req_id'],
       ['dupcb', 'global duplicate req_id'],
-      ['rulenoguard', 'automatable rule `ok` is not guarded'],
-      ['ruleexec', '@rule 与 @executable 互斥'],
-      ['norule', 'spec must define at least one rule scenario'],
+      ['norule', 'spec must define at least one rule'],
     ];
     for (const [cap, marker] of checks) {
       const item = byId.get(cap);
@@ -851,14 +843,24 @@ bdd.thenStep(
   },
 );
 
-bdd.thenStep('仅缺 scope 路径的 capability 含 WARNING 且 valid 为 true', (ctx) => {
-  const item = requireDefectItems(ctx).find((i) => i.id === 'noscope');
-  if (!item) throw new Error('noscope capability missing from items');
-  if (item.valid !== true) throw new Error('noscope must stay valid without --strict');
-  const warn = item.issues.find(
-    (x) => x.level === 'WARNING' && x.message.includes('valid_scope path(s) do not exist'),
-  );
-  if (!warn) throw new Error(`missing-scope WARNING expected:\n${JSON.stringify(item.issues)}`);
+bdd.thenStep('仅缺 scope 路径与含孤儿场景的 capability 含 WARNING 且 valid 为 true', (ctx) => {
+  const byId = new Map(requireDefectItems(ctx).map((i) => [i.id, i]));
+  const noscope = byId.get('noscope');
+  if (!noscope) throw new Error('noscope capability missing from items');
+  if (noscope.valid !== true) throw new Error('noscope must stay valid without --strict');
+  if (
+    !noscope.issues.some(
+      (x) => x.level === 'WARNING' && x.message.includes('valid_scope path(s) do not exist'),
+    )
+  ) {
+    throw new Error(`missing-scope WARNING expected:\n${JSON.stringify(noscope.issues)}`);
+  }
+  const orphan = byId.get('orphan');
+  if (!orphan) throw new Error('orphan capability missing from items');
+  if (orphan.valid !== true) throw new Error('orphan must stay valid without --strict');
+  if (!orphan.issues.some((x) => x.level === 'WARNING' && x.message.includes('orphan scenario'))) {
+    throw new Error(`orphan WARNING expected:\n${JSON.stringify(orphan.issues)}`);
+  }
 });
 
 // 审计:非 harness 测试对象;夹具无 bdd 配置,validate 不会执行任何命令
@@ -874,10 +876,16 @@ bdd.when('运行 validate --specs --json --strict', (ctx) => {
 });
 
 bdd.thenStep('仅缺 scope 路径的 capability valid 为 false', (ctx) => {
-  const item = requireDefectItems(ctx).find((i) => i.id === 'noscope');
-  if (!item) throw new Error('noscope capability missing from items');
-  if (item.valid !== false) {
-    throw new Error(`noscope must be invalid under --strict:\n${JSON.stringify(item.issues)}`);
+  const byId = new Map(requireDefectItems(ctx).map((i) => [i.id, i]));
+  const noscope = byId.get('noscope');
+  if (!noscope) throw new Error('noscope capability missing from items');
+  if (noscope.valid !== false) {
+    throw new Error(`noscope must be invalid under --strict:\n${JSON.stringify(noscope.issues)}`);
+  }
+  // 孤儿场景 WARNING 不走 --strict 升级:其余 WARNING 面保持 valid
+  const orphan = byId.get('orphan');
+  if (orphan !== undefined && orphan.valid !== true) {
+    throw new Error(`orphan must stay valid under --strict:\n${JSON.stringify(orphan.issues)}`);
   }
 });
 
@@ -886,7 +894,7 @@ bdd.given('一个仅含缺 scope 路径 WARNING 的临时仓库', (ctx) => {
   const repo = makeTempRepo();
   writeFileSync(
     join(repo.root, 'llmanspec', 'specs', 'noscope.feature'),
-    '# language: zh-CN\n# capability: noscope\n# purpose: p\n# scope: packages/core/src/does-not-exist-xyz/\n\n功能: noscope\n\n  @req:r107 @human\n  场景: ok\n    - 系统 MUST x\n',
+    '# language: zh-CN\n# capability: noscope\n# purpose: p\n# scope: packages/core/src/does-not-exist-xyz/\n\n功能: noscope\n\n  @req:r107\n  规则: ok\n    系统 MUST x\n',
   );
   repo.run('git', ['add', '-A']);
   repo.run('git', [...gitCommit, 'scope-warning fixture']);
@@ -969,7 +977,7 @@ bdd.given('一个同时存在名为 "dual" 的 spec 与 change 的临时仓库',
   const repo = makeTempRepo();
   writeFileSync(
     join(repo.root, 'llmanspec', 'specs', 'dual.feature'),
-    '# language: zh-CN\n# capability: dual\n# purpose: p\n# scope: llmanspec/\n\n功能: dual\n\n  @req:r200 @human\n  场景: 规则\n    - 系统 MUST x\n',
+    '# language: zh-CN\n# capability: dual\n# purpose: p\n# scope: llmanspec/\n\n功能: dual\n\n  @req:r200\n  规则: 规则\n    系统 MUST x\n',
   );
   const dir = join(repo.root, 'llmanspec', 'changes', 'dual');
   mkdirSync(dir, { recursive: true });
@@ -1084,28 +1092,30 @@ bdd.thenStep('输出不含 "duplicate change id"', (ctx) => {
   }
 });
 
-// r65 — 悬空 @req 链接报 ERROR(指向不存在的规则)
-bdd.given('一个验收场景挂接不存在规则 id 的 spec 临时仓库', (ctx) => {
+// r65 — 既有验收挂回规则不报错:原生结构下验收归属由嵌套决定,无孤儿/悬空域。
+bdd.given('一个验收嵌套于 `规则:` 内的 spec 临时仓库', (ctx) => {
   const repo = makeTempRepo();
   writeFileSync(
-    join(repo.root, 'llmanspec', 'specs', 'dangling.feature'),
-    '# language: zh-CN\n# capability: dangling\n# purpose: p\n# scope: llmanspec/\n\n功能: dangling\n\n  @req:r91 @human\n  场景: 规则\n    - 系统 MUST x\n\n  @req:r92 @executable\n  场景: 验收\n    假如 前置\n    当 动作\n    那么 结果\n',
+    join(repo.root, 'llmanspec', 'specs', 'nested.feature'),
+    '# language: zh-CN\n# capability: nested\n# purpose: p\n# scope: llmanspec/\n\n功能: nested\n\n  @req:r91\n  规则: 规则\n    系统 MUST x\n\n    场景: 验收\n      假如 前置\n      当 动作\n      那么 结果\n',
   );
   repo.run('git', ['add', '-A']);
-  repo.run('git', [...gitCommit, 'dangling acceptance']);
-  ctx.fixtures['验证仓库'] = { repo, id: 'dangling' } satisfies ValidateRepoFixture;
+  repo.run('git', [...gitCommit, 'nested acceptance']);
+  ctx.fixtures['验证仓库'] = { repo, id: 'nested' } satisfies ValidateRepoFixture;
 });
 
-bdd.thenStep('该 spec 条目 valid 为 false 且含悬空链接 ERROR', (ctx) => {
+bdd.thenStep('该 spec 条目 valid 为 true 且无孤儿 WARNING', (ctx) => {
   const r = ctx.fixtures['命令结果'] as { stdout: string };
   const parsed = JSON.parse(r.stdout) as { items?: DefectJsonItem[] };
   const item = (parsed.items ?? [])[0];
   if (!item) throw new Error(`no item in output:\n${r.stdout}`);
-  if (item.valid !== false) throw new Error(`dangling link must invalidate the spec`);
-  const err = item.issues.find(
-    (x) => x.level === 'ERROR' && x.message.includes('has no matching rule'),
-  );
-  if (!err) throw new Error(`dangling-link ERROR missing:\n${JSON.stringify(item.issues)}`);
+  if (item.valid !== true) throw new Error(`nested acceptance must keep the spec valid`);
+  if (item.issues.some((x) => x.message.includes('orphan scenario'))) {
+    throw new Error(`unexpected orphan WARNING:\n${JSON.stringify(item.issues)}`);
+  }
+  if (item.issues.some((x) => x.message.includes('has no matching rule'))) {
+    throw new Error(`dangling-link ERROR must not fire:\n${JSON.stringify(item.issues)}`);
+  }
 });
 
 // align-report-cli-surface D9/B23: 收口伪任务 WARNING(r78)。夹具:已绑定 change

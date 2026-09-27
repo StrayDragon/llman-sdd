@@ -53,7 +53,7 @@ Read: `stage`, `specsLanded`, `needsSpecsChange`, `readyToImplement`, `gateCheck
    - When diagnosing structural issues (Gherkin parse / `@req` linkage / dual-write / req_id uniqueness), run the structural validation first (when `bdd.run_command` is configured, validate executes that harness by default — `--no-check` skips it; a harness failure lands as an ERROR on its spec item). Failing items are listed one by one in the default TOON output's `items[].issues[]` (`--output human` prints `FAIL <item_type>/<id>` lines above the `Totals` line).
 3. Read: `llmanspec/specs/**` (`<capability>.feature`, the single source of truth) on the branch, `proposal.md` and `design.md` (if present), `tasks.md`; ignore residual old docs under `changes/<id>/specs/`.
 4. **Dual-axis review (kept separate so neither masks the other)** — diff against `git diff <merge-base>...HEAD` (merge-base is COMPUTED via `git merge-base <local-default> HEAD`; the stored base_sha is audit-only and MUST NOT feed range math):
-   - **Spec axis**: does the implementation satisfy the `@rule`/`@human` rule MUST/SHALL and the `@executable` GWT? Missing/partial behaviors, wrong implementations, and scope creep not asked for by the spec → suggest minimal fixes or artifact updates. Check where before/after evidence (counts, baselines) was taken: it MUST be measured on the change branch (against the freshly computed merge-base); a value measured on the default branch is usually trivially the baseline and proves nothing.
+   - **Spec axis**: does the implementation satisfy the `规则:` block requirement statement (free-text description, judged by its semantics) and the nested `场景:` GWT steps? Missing/partial behaviors, wrong implementations, and scope creep not asked for by the spec → suggest minimal fixes or artifact updates. Check where before/after evidence (counts, baselines) was taken: it MUST be measured on the change branch (against the freshly computed merge-base); a value measured on the default branch is usually trivially the baseline and proves nothing.
    - **Standards axis**: does the code follow `AGENTS.md` + the smell baseline? Authority priority: `AGENTS.md` > smell baseline; skip anything tooling already enforces. Smells are **judgement heuristics** ("possible Feature Envy"), not hard violations:
 
      | Smell | Fix |
@@ -112,15 +112,15 @@ Validation fixes (single-track feature-as-spec):
 # scope: src/
 ```
 
-2) Tag grammar (`rule scenario must carry an @req:<req_id> tag` / `@rule and @executable are mutually exclusive` / `orphan acceptance scenario`):
-- Rules: `@req:<id> @rule` — statement verbatim in the scenario description; pure human constraints use `@req:<id> @rule @human` (MUST/SHALL required).
-- Acceptance/executable: `@executable` + at least one `@req:<id>` linking a rule — the default preferred shape; steps are bound to BDD code.
-- Pairing triage (**prefer executable, minimize @rule definitions**): any GWT-expressible automatable behavior bound to step code MUST land as an `@executable` and link back to the rule (prose-only rules guard nothing); abstract goals/architecture decisions — non-automatable human judgment — use `@rule @human` and record the justification in proposal/design when no pairing is possible; not-yet-converted requirements use a `@rule` anchor that MUST link an `@executable` acceptance.
-- Never combine `@rule` with `@executable`; never combine `@human` with `@executable`; `@manual` was removed in 0.3.0 — leftovers report a migration ERROR, just drop the tag.
+2) Native layout (`rule must carry an @req:<req_id> tag on the rule header` / `orphan scenario`):
+- One canonical style: `@req:<id>` on the `规则:` block header, nested `场景:` (Given/When/Then) as executable examples — the default preferred shape.
+- Only keep a `规则:` block with no nested scenario (bare rule) for requirements that cannot be expressed programmatically or are not yet converted: free-text description, no MUST/SHALL enforcement; validate reports an aggregate count, the review `pending` signal measures it, specs-compact keeps reducing it.
+- Legacy tags `@executable`/`@rule`/`@human`/`@manual` are gone and parse inert; when old files hit structural problems run `llman-sdd spec migrate-native`.
+- Top-level `场景:` outside any `规则:` are orphan scenarios (WARNING).
 
 Branch guardrail:
 - First `change start` / `attach` to bind the branch, then edit `.feature` on the bound non-default branch and commit (land specs).
-- Locked rules (report-only): editing/removing an existing `@rule`/`@human` rule scenario yields a WARNING and never blocks validate / finalize / `change diff`; the report names the rule by `@req:<id>`. Control points: git branch diff plus `llman-sdd review` / `change diff`. Legacy lock-ack metadata (frontmatter `rules_touched` / `agent_acked`, the `@agent` tag, the `--yes` ack semantics) is fully removed — no aliases, no compat layer.
+- Locked rules (report-only): editing/removing an existing `规则:` block yields a WARNING and never blocks validate / finalize / `change diff`; the report names the rule by `@req:<id>`. Control points: git branch diff plus `llman-sdd review` / `change diff`. Legacy lock-ack metadata (frontmatter `rules_touched` / `agent_acked`, the `@agent` tag, the `--yes` ack semantics) is fully removed — no aliases, no compat layer.
 - Enter apply when `stage=full` and the specs-landed gate passes (specsLanded ∨ `needs_specs_change: false`); verify/finalize require `readyToImplement=true` (completion signal). Close-out prefers `change finalize`.
 
 ## Context

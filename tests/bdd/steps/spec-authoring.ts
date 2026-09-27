@@ -1,6 +1,6 @@
-// Domain step definitions: spec 编写辅助能力 — 覆盖 r41-r43(spec add-req /
-// add-scenario / resolve-req / project dedupe-req-ids)与 r42(追加验收场景
-// 成功 + 缺失 req 零副作用)。
+// Domain step definitions: spec 编写辅助能力 — 覆盖 r41-r43(native v2:
+// spec add-req 追加 `规则:` 块 / add-scenario 插入嵌套 `场景:` / resolve-req /
+// project dedupe-req-ids)。
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -12,7 +12,7 @@ import { bdd } from '../runner.ts';
 import { CLI, runCli } from './shared.ts';
 
 // ---------------------------------------------------------------------------
-// r41-r43 — spec authoring helpers (acceptance)
+// r41-r43 — spec authoring helpers (acceptance, native v2)
 // ---------------------------------------------------------------------------
 
 const AUTHORING_HEAD = `# language: zh-CN
@@ -22,9 +22,9 @@ const AUTHORING_HEAD = `# language: zh-CN
 
 功能: auth
 
-  @req:r1 @human
-  场景: 规则甲
-    - 系统 MUST 校验令牌
+  @req:r1
+  规则: 规则甲
+    系统 MUST 校验令牌
 `;
 
 bdd.given('一个含单一 capability spec 的临时 specs 目录', (ctx) => {
@@ -75,8 +75,13 @@ bdd.thenStep('spec 可被解析且 resolve-req 反查一致', (ctx) => {
   }
   const content = readFileSync(join(root, 'llmanspec', 'specs', 'auth.feature'), 'utf8');
   const doc = parseCapability(content, 'auth.feature');
-  if (doc.scenarios.length < 3) throw new Error(`appended scenarios not parseable: ${content}`);
-  if (!content.includes('@req:r5 @executable')) throw new Error('acceptance scenario missing');
+  if (doc.errors.length !== 0) {
+    throw new Error(`appended spec must stay parseable: ${JSON.stringify(doc.errors)}`);
+  }
+  const r5 = doc.rules.find((r) => r.reqId === 'r5');
+  if (!r5 || r5.scenarios.map((s) => s.name).join(',') !== '令牌场景') {
+    throw new Error(`appended native rule/scenario not parseable:\n${content}`);
+  }
 });
 
 bdd.given('一个两个 spec 含相同 rN 的临时 specs 目录', (ctx) => {
@@ -113,7 +118,83 @@ bdd.thenStep('后一个文件的 rN 被重映射为空闲 id', (ctx) => {
   if (code !== 0) throw new Error(`dedupe failed: ${out}`);
   const billing = readFileSync(join(root, 'llmanspec', 'specs', 'billing.feature'), 'utf8');
   if (billing.includes('@req:r1')) throw new Error('billing still carries the colliding r1');
-  if (!/ @req:r\d+ @human/u.test(billing)) throw new Error(`no remapped id found: ${billing}`);
+  if (!/^  @req:r\d+$/mu.test(billing)) throw new Error(`no remapped id found: ${billing}`);
+});
+
+bdd.given('一个目录式布局的临时 specs 目录', (ctx) => {
+  const root = mkdtempSync(join(tmpdir(), 'llman-dir-author-'));
+  mkdirSync(join(root, 'llmanspec', 'specs', 'auth'), { recursive: true });
+  writeFileSync(join(root, 'llmanspec', 'specs', 'auth', 'auth.feature'), AUTHORING_HEAD);
+  ctx.fixtures['authoring工作区'] = { root };
+});
+
+// ---------------------------------------------------------------------------
+// r41 — add-req appends a native 规则: block (+@req handle), free-text statement
+// ---------------------------------------------------------------------------
+
+interface AddReqNativeResult {
+  code: number;
+  out: string;
+  before: string;
+  after: string;
+}
+
+bdd.when('以 statement 运行 spec add-req', (ctx) => {
+  const { root } = ctx.fixtures['authoring工作区'] as { root: string };
+  const specPath = join(root, 'llmanspec', 'specs', 'auth.feature');
+  const before = readFileSync(specPath, 'utf8');
+  const proc = spawnSync(
+    'bun',
+    [
+      CLI,
+      'spec',
+      'add-req',
+      'auth',
+      'r5',
+      '--title',
+      '新增规则',
+      '--statement',
+      '系统必须校验令牌有效期(自由文本)',
+    ],
+    { cwd: root, encoding: 'utf8' },
+  );
+  ctx.fixtures['addreq结果'] = {
+    code: proc.status ?? 1,
+    out: `${proc.stdout ?? ''}${proc.stderr ?? ''}`,
+    before,
+    after: readFileSync(specPath, 'utf8'),
+  } satisfies AddReqNativeResult;
+});
+
+bdd.thenStep('目标 spec 含 `规则:` 块与 `@req:` 句柄且可被解析', (ctx) => {
+  const r = ctx.fixtures['addreq结果'] as AddReqNativeResult;
+  if (r.code !== 0) throw new Error(`add-req failed: ${r.out}`);
+  if (!r.after.includes('@req:r5') || !r.after.includes('规则: 新增规则')) {
+    throw new Error(`native rule block missing:\n${r.after}`);
+  }
+  const doc = parseCapability(r.after, 'auth.feature');
+  const added = doc.rules.find((x) => x.reqId === 'r5');
+  if (!added) throw new Error(`appended rule not parseable:\n${r.after}`);
+  if (!added.description.includes('校验令牌有效期')) {
+    throw new Error(`free-text statement must land in the description:\n${r.after}`);
+  }
+});
+
+bdd.thenStep('重复 req 报错且 spec 文件零副作用', (ctx) => {
+  const r = ctx.fixtures['addreq结果'] as AddReqNativeResult;
+  const { root } = ctx.fixtures['authoring工作区'] as { root: string };
+  const specPath = join(root, 'llmanspec', 'specs', 'auth.feature');
+  const dup = spawnSync(
+    'bun',
+    [CLI, 'spec', 'add-req', 'auth', 'r5', '--title', '再次新增', '--statement', '另一条描述'],
+    { cwd: root, encoding: 'utf8' },
+  );
+  const out = `${dup.stdout ?? ''}${dup.stderr ?? ''}`;
+  if ((dup.status ?? 1) === 0) throw new Error(`duplicate req must be rejected: ${out}`);
+  if (!out.includes('r5')) throw new Error(`error must name the duplicated req: ${out}`);
+  if (readFileSync(specPath, 'utf8') !== r.after) {
+    throw new Error('failed duplicate add-req must not touch the spec file');
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -170,17 +251,12 @@ bdd.when('运行 spec add-scenario 指向存在的 req 与不存在的 req', (ct
   } satisfies AddScenarioResult;
 });
 
-bdd.thenStep('存在的 req 追加 @executable 验收场景且 given 缺省为空', (ctx) => {
+bdd.thenStep('存在的 req 追加嵌套场景且 given 缺省为空', (ctx) => {
   const r = ctx.fixtures['addscenario结果'] as AddScenarioResult;
   if (r.okCode !== 0) throw new Error(`add-scenario failed: ${r.okOut}`);
-  if (!r.afterFail.includes('@req:r1 @executable')) {
-    throw new Error(`acceptance scenario tag missing:\n${r.afterFail}`);
-  }
   const doc = parseCapability(r.afterFail, 'auth.feature');
-  const acc = doc.scenarios.find(
-    (s) => s.classification === 'executable' && s.reqIds.includes('r1'),
-  );
-  if (!acc) throw new Error(`appended scenario not parseable:\n${r.afterFail}`);
+  const acc = doc.rules[0]?.scenarios.find((s) => s.name === '令牌验收');
+  if (!acc) throw new Error(`appended nested scenario not parseable:\n${r.afterFail}`);
   const kinds = acc.steps.map((s) => s.kind);
   if (JSON.stringify(kinds) !== JSON.stringify(['when', 'then'])) {
     throw new Error(`given must default to empty; got steps [${kinds.join(', ')}]`);
@@ -199,41 +275,6 @@ bdd.thenStep('不存在的 req 报错且文件零副作用', (ctx) => {
 });
 
 // ---------------------------------------------------------------------------
-// r41 — rule-keyword caliber: word boundaries (MUSTARD must not pass)
-// ---------------------------------------------------------------------------
-
-interface WordCaliberResult {
-  code: number;
-  out: string;
-  unchanged: boolean;
-}
-
-bdd.when('以 statement "{statement}" 运行 spec add-req', (ctx, statement) => {
-  const { root } = ctx.fixtures['authoring工作区'] as { root: string };
-  const specPath = join(root, 'llmanspec', 'specs', 'auth.feature');
-  const before = readFileSync(specPath, 'utf8');
-  const proc = spawnSync(
-    'bun',
-    [CLI, 'spec', 'add-req', 'auth', 'r5', '--title', '词边界', '--statement', statement],
-    { cwd: root, encoding: 'utf8' },
-  );
-  ctx.fixtures['mustard结果'] = {
-    code: proc.status ?? 1,
-    out: `${proc.stdout ?? ''}${proc.stderr ?? ''}`,
-    unchanged: before === readFileSync(specPath, 'utf8'),
-  } satisfies WordCaliberResult;
-});
-
-bdd.thenStep('报错含 "rule keyword" 且 spec 文件零副作用', (ctx) => {
-  const r = ctx.fixtures['mustard结果'] as WordCaliberResult;
-  if (r.code === 0) throw new Error(`MUSTARD statement must be rejected: ${r.out}`);
-  if (!r.out.includes('rule keyword')) {
-    throw new Error(`error must name the rule keyword: ${r.out}`);
-  }
-  if (!r.unchanged) throw new Error('rejected add-req must not touch the spec file');
-});
-
-// ---------------------------------------------------------------------------
 // r41/r42 — directory-style layout auto-discovery (write-target caliber)
 // ---------------------------------------------------------------------------
 
@@ -249,13 +290,6 @@ const dirLayoutRun = (root: string, args: string[]): { code: number; out: string
   const proc = runCli(args, root);
   return { code: proc.status ?? 1, out: `${proc.stdout ?? ''}${proc.stderr ?? ''}` };
 };
-
-bdd.given('一个目录式布局的临时 specs 目录', (ctx) => {
-  const root = mkdtempSync(join(tmpdir(), 'llman-dir-author-'));
-  mkdirSync(join(root, 'llmanspec', 'specs', 'auth'), { recursive: true });
-  writeFileSync(join(root, 'llmanspec', 'specs', 'auth', 'auth.feature'), AUTHORING_HEAD);
-  ctx.fixtures['authoring工作区'] = { root };
-});
 
 bdd.when('运行 spec add-req 指向该 capability 与指向不存在的 capability', (ctx) => {
   const { root } = ctx.fixtures['authoring工作区'] as { root: string };
@@ -289,12 +323,14 @@ bdd.when('运行 spec add-req 指向该 capability 与指向不存在的 capabil
   };
 });
 
-bdd.thenStep('规则场景追加进目录式主文件且无扁平文件被创建', (ctx) => {
+bdd.thenStep('规则块追加进目录式主文件且无扁平文件被创建', (ctx) => {
   const r = ctx.fixtures['dirlayout结果'] as DirLayoutResult;
   const { root } = ctx.fixtures['authoring工作区'] as { root: string };
   if (r.okCode !== 0) throw new Error(`add-req failed on directory layout: ${r.okOut}`);
   const content = readFileSync(join(root, 'llmanspec', 'specs', 'auth', 'auth.feature'), 'utf8');
-  if (!content.includes('@req:r5 @human')) throw new Error(`rule scenario missing:\n${content}`);
+  if (!content.includes('@req:r5') || !content.includes('规则: 用户规则')) {
+    throw new Error(`native rule block missing:\n${content}`);
+  }
   if (existsSync(join(root, 'llmanspec', 'specs', 'auth.feature'))) {
     throw new Error('flat spec file must not be created');
   }
@@ -329,8 +365,9 @@ bdd.thenStep('验收场景追加进目录式主文件且无扁平文件被创建
   const { root } = ctx.fixtures['authoring工作区'] as { root: string };
   if (r.code !== 0) throw new Error(`add-scenario failed on directory layout: ${r.out}`);
   const content = readFileSync(join(root, 'llmanspec', 'specs', 'auth', 'auth.feature'), 'utf8');
-  if (!content.includes('@req:r1 @executable')) {
-    throw new Error(`acceptance scenario missing:\n${content}`);
+  const doc = parseCapability(content, 'auth.feature');
+  if (!doc.rules[0]?.scenarios.some((s) => s.name === '令牌验收')) {
+    throw new Error(`nested acceptance scenario missing:\n${content}`);
   }
   if (existsSync(join(root, 'llmanspec', 'specs', 'auth.feature'))) {
     throw new Error('flat spec file must not be created');

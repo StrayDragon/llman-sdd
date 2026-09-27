@@ -22,15 +22,14 @@ const SPEC_A = `# language: zh-CN
 
 功能: alpha
 
-  @req:r1 @human
-  场景: 规则甲
-    - 系统 MUST 甲
+  @req:r1
+  规则: 规则甲
+    系统 MUST 甲
 
-  @req:r1 @executable
-  场景: 验收甲
-    假如 初始状态
-    当 执行动作
-    那么 得到结果
+    场景: 验收甲
+      假如 初始状态
+      当 执行动作
+      那么 得到结果
 `;
 
 const hashIo: HashIo = {

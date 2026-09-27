@@ -1,7 +1,7 @@
 /**
- * Global rN registry (spec-parsing capability): @req:rN ids form a single
- * global namespace across all capability specs; duplicates are reported with
- * the conflicting file pairs.
+ * Global rN registry (spec-parsing capability): @req:rN ids on `规则:` blocks
+ * form a single global namespace across all capability specs; duplicates are
+ * reported with the conflicting file pairs.
  */
 import type { CapabilityDoc } from './ir.ts';
 
@@ -21,12 +21,11 @@ export function buildReqRegistry(
 ): ReqRegistry {
   const byId = new Map<string, string[]>();
   for (const { fileName, doc } of docs) {
-    for (const scenario of doc.scenarios) {
-      for (const reqId of scenario.reqIds) {
-        const files = byId.get(reqId) ?? [];
-        if (!files.includes(fileName)) files.push(fileName);
-        byId.set(reqId, files);
-      }
+    for (const rule of doc.rules) {
+      if (rule.reqId === '') continue;
+      const files = byId.get(rule.reqId) ?? [];
+      if (!files.includes(fileName)) files.push(fileName);
+      byId.set(rule.reqId, files);
     }
   }
   const duplicates: RegistryDuplicate[] = [];

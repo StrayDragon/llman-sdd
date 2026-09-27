@@ -18,7 +18,8 @@ describe('project migrate collaboration notes (peripheral-commands r35: explain,
       const flatten = migrateNoteFor('specs-flatten', locale) ?? '';
       expect(toon).toContain('validate --specs --strict');
       expect(toon).toContain('spec.toon');
-      expect(toon).toContain('@executable');
+      expect(toon).toContain('@req:<id>');
+      expect(toon).toContain('规则:');
       expect(flatten).toContain('validate --specs');
       expect(flatten).toContain('git mv');
     }

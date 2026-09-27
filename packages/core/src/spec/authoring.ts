@@ -1,12 +1,12 @@
 /**
- * Programming-style spec authoring helpers (r41-r43, predecessor parity):
- * append rules / acceptance scenarios, resolve req ids, dedupe conflicts.
+ * Programming-style spec authoring helpers (r41-r43, native v2):
+ * append `规则:` blocks / nested scenarios, resolve req ids, dedupe conflicts.
  * Appends are text-level so existing file content (formatting, comments)
  * stays untouched.
  */
 
-import type { CapabilityDoc } from './ir.ts';
-import { MUST_WORD_RE, MUST_WORD_TERMS, isRuleScenario, specIdOf } from './ir.ts';
+import type { CapabilityDoc, RuleIR } from './ir.ts';
+import { specIdOf } from './ir.ts';
 
 export class AuthoringError extends Error {}
 
@@ -21,66 +21,44 @@ export interface WriteIo {
   writeText(path: string, content: string): void;
 }
 
-function keywordsOf(content: string): {
+interface KeywordSet {
+  rule: string;
   scenario: string;
   given: string;
   when: string;
   thenText: string;
-} {
+}
+
+function keywordsOf(content: string): KeywordSet {
   return content.includes('功能:')
-    ? { scenario: '场景', given: '假如', when: '当', thenText: '那么' }
-    : { scenario: 'Scenario', given: 'Given', when: 'When', thenText: 'Then' };
+    ? { rule: '规则', scenario: '场景', given: '假如', when: '当', thenText: '那么' }
+    : { rule: 'Rule', scenario: 'Scenario', given: 'Given', when: 'When', thenText: 'Then' };
 }
 
-/**
- * r41 caliber = r9 caliber: MUST_WORD_RE (built from MUST_WORD_TERMS) with
- * word boundaries — `MUSTARD` must NOT count as a hit.
- */
-function assertRuleWording(statement: string): void {
-  if (!MUST_WORD_RE.test(statement)) {
-    throw new AuthoringError(
-      `statement must contain a rule keyword (${MUST_WORD_TERMS.join('/')}): ${statement}`,
-    );
-  }
-}
-
-function findReq(
+function findRule(
   entries: readonly SpecEntryLike[],
   reqId: string,
-): { entry: SpecEntryLike; scenarioName: string; statement: string } | null {
+): { entry: SpecEntryLike; rule: RuleIR } | null {
   for (const entry of entries) {
-    for (const scenario of entry.doc.scenarios) {
-      // Rules are `@human` governance or `@rule` requirement scenarios —
-      // acceptance (`@executable`) req tags do not define a requirement.
-      if (scenario.reqIds.includes(reqId) && isRuleScenario(scenario)) {
-        return { entry, scenarioName: scenario.name, statement: scenario.statement };
-      }
-    }
+    const rule = entry.doc.rules.find((r) => r.reqId === reqId);
+    if (rule !== undefined) return { entry, rule };
   }
   return null;
 }
 
-/** predecessor parity: only rule req ids (`@human` or `@rule`) participate in the dedupe registry. */
+/** Requirement handles (`@req` on `规则:` headers) participate in the dedupe registry. */
 export function ruleReqIds(entries: readonly SpecEntryLike[]): Set<string> {
   const ids = new Set<string>();
   for (const entry of entries) {
-    for (const scenario of entry.doc.scenarios) {
-      if (isRuleScenario(scenario)) {
-        for (const id of scenario.reqIds) ids.add(id);
-      }
+    for (const rule of entry.doc.rules) {
+      if (rule.reqId !== '') ids.add(rule.reqId);
     }
   }
   return ids;
 }
 
 export function allReqIds(entries: readonly SpecEntryLike[]): Set<string> {
-  const ids = new Set<string>();
-  for (const entry of entries) {
-    for (const scenario of entry.doc.scenarios) {
-      for (const id of scenario.reqIds) ids.add(id);
-    }
-  }
-  return ids;
+  return ruleReqIds(entries);
 }
 
 export interface AddReqOpts {
@@ -109,7 +87,7 @@ export function resolveWriteTarget(
   return hit !== undefined ? hit.fileName : flat;
 }
 
-/** Append `@req:<id> @human` rule scenario to the resolved target spec (r41). */
+/** Append a `规则:` block (with @req handle) to the resolved target spec (r41). */
 export function addReq(
   io: WriteIo,
   specsRoot: string,
@@ -121,9 +99,12 @@ export function addReq(
   if (allReqIds(entries).has(opts.reqId)) {
     throw new AuthoringError(`req id already in use: ${opts.reqId}`);
   }
-  assertRuleWording(opts.statement);
   const kw = keywordsOf(io.readText(path));
-  const block = `\n  @req:${opts.reqId} @human\n  ${kw.scenario}: ${opts.title}\n    ${opts.statement}\n`;
+  const desc = opts.statement
+    .split('\n')
+    .map((l) => `    ${l.trim()}`)
+    .join('\n');
+  const block = `\n  @req:${opts.reqId}\n  ${kw.rule}: ${opts.title}\n${desc}\n`;
   io.writeText(path, `${io.readText(path).replace(/\n+$/u, '')}${block}`);
   return path;
 }
@@ -137,7 +118,11 @@ export interface AddScenarioOpts {
   thenText: string;
 }
 
-/** Append `@req:<id> @executable` acceptance scenario to the resolved target (r42). */
+/**
+ * Insert a nested `场景:` under the target rule's block (r42). Finds the
+ * rule block boundary in the raw text (next 2-space top-level element) and
+ * inserts the scenario before it, keeping existing formatting untouched.
+ */
 export function addScenario(
   io: WriteIo,
   specsRoot: string,
@@ -146,16 +131,34 @@ export function addScenario(
 ): string {
   const path = resolveWriteTarget(io, specsRoot, opts.capability, entries);
   if (!io.exists(path)) throw new AuthoringError(`spec not found: ${path}`);
-  if (findReq(entries, opts.reqId) === null) {
-    throw new AuthoringError(`req id not found: ${opts.reqId}`);
+  const found = findRule(entries, opts.reqId);
+  if (found === null) throw new AuthoringError(`req id not found: ${opts.reqId}`);
+  const content = io.readText(path);
+  const lines = content.split('\n');
+  const tagIdx = lines.findIndex((l) => l.trim() === `@req:${opts.reqId}`);
+  if (tagIdx === -1) throw new AuthoringError(`req id not found in file: ${opts.reqId}`);
+  // block end = first line after the tag's own `规则:` header at 2-space top-level
+  // indent that is a tag line or a `规则:/场景:` keyword line (2-space + keyword
+  // immediately). The rule header directly following the tag opens the block, so
+  // the scan starts after it — otherwise the header itself is mistaken for the
+  // boundary and the scenario is inserted before the `规则:` line (broken output).
+  let end = lines.length;
+  for (let i = tagIdx + 2; i < lines.length; i++) {
+    const l = lines[i] ?? '';
+    if (l.startsWith('  @') || /^  (规则|Rule|场景|Scenario|功能|Feature):/u.test(l)) {
+      end = i;
+      break;
+    }
   }
-  const kw = keywordsOf(io.readText(path));
+  const kw = keywordsOf(content);
   const givenLine =
-    opts.given !== undefined && opts.given !== '' ? `    ${kw.given} ${opts.given}\n` : '';
-  const block =
-    `\n  @req:${opts.reqId} @executable\n  ${kw.scenario}: ${opts.scenarioId}\n` +
-    `${givenLine}    ${kw.when} ${opts.when}\n    ${kw.thenText} ${opts.thenText}\n`;
-  io.writeText(path, `${io.readText(path).replace(/\n+$/u, '')}${block}`);
+    opts.given !== undefined && opts.given !== '' ? `      ${kw.given} ${opts.given}\n` : '';
+  const scenarioBlock =
+    `    ${kw.scenario}: ${opts.scenarioId}\n` +
+    `${givenLine}      ${kw.when} ${opts.when}\n      ${kw.thenText} ${opts.thenText}\n`;
+  // insert with a leading blank separator so the file stays readable
+  lines.splice(end, 0, '', scenarioBlock.trimEnd());
+  io.writeText(path, lines.join('\n'));
   return path;
 }
 
@@ -169,24 +172,17 @@ export interface ResolvedReq {
 
 /** Resolve an rN to capability/statement plus bound harness scenarios (r43). */
 export function resolveReq(entries: readonly SpecEntryLike[], reqId: string): ResolvedReq | null {
-  const rule = findReq(entries, reqId);
-  if (rule === null) return null;
-  const capability = specIdOf(rule.entry);
-  const harness: string[] = [];
-  for (const entry of entries) {
-    for (const scenario of entry.doc.scenarios) {
-      // Harness = acceptance scenarios bound to this req; rule scenarios
-      // (`@human`/`@rule`) are not themselves harness (they anchor the req).
-      if (
-        scenario.classification === 'executable' &&
-        !isRuleScenario(scenario) &&
-        scenario.reqIds.includes(reqId)
-      ) {
-        harness.push(`${entry.fileName}:${scenario.name}`);
-      }
-    }
-  }
-  return { reqId, capability, title: rule.scenarioName, statement: rule.statement, harness };
+  const found = findRule(entries, reqId);
+  if (found === null) return null;
+  const { entry, rule } = found;
+  const harness = rule.scenarios.map((s) => `${entry.fileName}:${s.name}`);
+  return {
+    reqId,
+    capability: specIdOf(entry),
+    title: rule.title,
+    statement: rule.description,
+    harness,
+  };
 }
 
 export interface DedupePlanItem {

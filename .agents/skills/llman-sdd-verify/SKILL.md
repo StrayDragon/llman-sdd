@@ -53,7 +53,7 @@ llman-sdd show <id> --output json --type change
    - 诊断结构问题（Gherkin 解析 / `@req` 链接 / 双写 / req_id 唯一性）先跑结构校验（配置 `bdd.run_command` 时 validate 缺省执行该 harness，`--no-check` 跳过；harness 失败以 ERROR 落在对应 spec 条目）。失败项在缺省 TOON 输出的 `items[].issues[]` 逐条列出（`--output human` 输出 `FAIL <item_type>/<id>` 行，位于 `Totals` 上方）。
 3. 阅读：分支上的 `llmanspec/specs/**`（`<capability>.feature`，唯一事实来源）、`proposal.md` 与 `design.md`（如有）、`tasks.md`；`changes/<id>/specs/` 若有残留旧文档可忽略。
 4. **双轴审查（两轴分离，互不掩盖）**——对比 diff（`git diff <merge-base>...HEAD`，merge-base 现算 `git merge-base <本地默认分支> HEAD`；存储的 base_sha 仅审计、MUST NOT 参与范围计算）：
-   - **合约轴**：实现是否满足 `@rule`/`@human` 规则的 MUST/SHALL 与 `@executable` 的 GWT？缺失/部分实现、错误实现、spec 未要求的超范围改动 → 给最小修复建议或建议更新工件。前后对比类证据（计数、基线）核对测量位置：MUST 在 change 分支上测量（相对现算 merge-base）；默认分支测得的值通常恒为基线，不构成证据。
+   - **合约轴**：实现是否满足 `规则:` 块的需求表述(描述为自由文本,以其语义为准)与嵌套 `场景:` 的 GWT 步骤？缺失/部分实现、错误实现、spec 未要求的超范围改动 → 给最小修复建议或建议更新工件。前后对比类证据（计数、基线）核对测量位置：MUST 在 change 分支上测量（相对现算 merge-base）；默认分支测得的值通常恒为基线，不构成证据。
    - **标准轴**：代码是否符合 `AGENTS.md` 规范 + 常见坏味清单。权威优先级：`AGENTS.md` > 坏味清单；工具已强制的跳过。坏味是**判断性提示**（「可能是 Feature Envy」），不是硬性违规：
 
      | 坏味 | 怎么修 |
@@ -112,15 +112,15 @@ llman-sdd show <id> --output json --type change
 # scope: src/
 ```
 
-2）tag 语法（`rule scenario must carry an @req:<req_id> tag` / `@rule 与 @executable 互斥` / `orphan acceptance scenario`）：
-- 规则：`@req:<id> @rule`——statement 全文放场景描述；纯人工约束用 `@req:<id> @rule @human`（须含 MUST/SHALL）。
-- 验收/可执行：`@executable` + 至少一个 `@req:<id>` 挂回规则——默认首选形态，步骤绑定 BDD 代码。
-- 分流判据（**优先 executable、尽可能减少 @rule 定义**）：凡 GWT（假如/当/那么）可表达、绑定步骤代码的自动化判定行为 MUST 落 `@executable` 并挂回规则（纯文字规则无行为守护）；抽象目标/架构决策等不可自动化的人工约束用 `@rule @human`，无法配对时在 proposal/design 记录理由；暂不转写用 `@rule` 锚点并 MUST 挂 `@executable` 验收。
-- 禁止 `@rule` 与 `@executable` 同场景；禁止 `@human` 与 `@executable` 同场景；`@manual` 已在 0.3.0 移除——残留报迁移 ERROR，删掉即可。
+2）原生分层格式（`rule must carry an @req:<req_id> tag on the rule header` / `orphan scenario`）：
+- 规范样式只有一种：`@req:<id>` 挂在 `规则:` 块头标签,块内嵌套 `场景:`(假如/当/那么)是可执行示例——默认首选。
+- 仅当需求无法程序化表达或暂不转写时才保留无嵌套场景的 `规则:`(裸规则):描述自由文本,无 MUST/SHALL 强制;validate 以聚合计数提示,review `pending` 信号计量,specs-compact 负责压降。
+- 历史标签 `@executable`/`@rule`/`@human`/`@manual` 不再使用、解析惰性;旧文件报结构问题时运行 `llman-sdd spec migrate-native` 迁移。
+- 不在任何 `规则:` 内的顶层 `场景:` 是孤儿场景(WARNING)。
 
 分支护栏：
 - 先 `change start` / `attach` 绑定分支，再在绑定的非默认分支编辑 `.feature` 并 commit（落地 specs）。
-- 锁定规则（报告制）：改/删既有 `@rule`/`@human` 规则场景只出 WARNING，不阻断 validate / finalize / `change diff`；报告按 `@req:<id>` 指明被改规则。控制点：git 分支对比 + `llman-sdd review` / `change diff`。旧锁定确认元数据（frontmatter `rules_touched` / `agent_acked`、`@agent` tag、`--yes` 确认语义）已全部删除，无别名无兼容层。
+- 锁定规则（报告制）：改/删既有 `规则:` 块只出 WARNING，不阻断 validate / finalize / `change diff`；报告按 `@req:<id>` 指明被改规则。控制点：git 分支对比 + `llman-sdd review` / `change diff`。旧锁定确认元数据（frontmatter `rules_touched` / `agent_acked`、`@agent` tag、`--yes` 确认语义）已全部删除，无别名无兼容层。
 - `stage=full` 且 specs-landed 门通过（specsLanded ∨ `needs_specs_change: false`）即可进 apply；verify/finalize 须 `readyToImplement=true`（完成信号）。收口优先 `change finalize`。
 
 ## Context

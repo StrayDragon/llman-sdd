@@ -97,7 +97,7 @@ llman-sdd show <id> --output json --type change
 ### 5) 验证与自修复循环（每个 task 或每批 task 后跑一次）
 按项目实际跑门禁：
 - 测试集：`just test` 或 `cargo test --all`；格式/lint：`just check` 或 `just lint` + `just fmt`
-- 分支上按需编辑 `llmanspec/specs/<capability>.feature`（扁平或目录主文件；规则 `@req:<id> @rule`/`@rule @human`，验收/可执行 `@executable`——`@rule` 与 `@executable` 互斥），spec 改动后跑 `llman-sdd validate --specs`；分支上可自由提交。
+- 分支上按需编辑 `llmanspec/specs/<capability>.feature`（扁平或目录主文件；统一原生分层：`@req:<id>` 挂 `规则:` 块头、嵌套 `场景:` 为可执行示例），spec 改动后跑 `llman-sdd validate --specs`；分支上可自由提交。
 - SDD 校验：`llman-sdd validate <id> --strict`
 
 **门禁证据**：
@@ -139,15 +139,15 @@ llman-sdd show <id> --output json --type change
 # scope: src/
 ```
 
-2）tag 语法（`rule scenario must carry an @req:<req_id> tag` / `@rule 与 @executable 互斥` / `orphan acceptance scenario`）：
-- 规则：`@req:<id> @rule`——statement 全文放场景描述；纯人工约束用 `@req:<id> @rule @human`（须含 MUST/SHALL）。
-- 验收/可执行：`@executable` + 至少一个 `@req:<id>` 挂回规则——默认首选形态，步骤绑定 BDD 代码。
-- 分流判据（**优先 executable、尽可能减少 @rule 定义**）：凡 GWT（假如/当/那么）可表达、绑定步骤代码的自动化判定行为 MUST 落 `@executable` 并挂回规则（纯文字规则无行为守护）；抽象目标/架构决策等不可自动化的人工约束用 `@rule @human`，无法配对时在 proposal/design 记录理由；暂不转写用 `@rule` 锚点并 MUST 挂 `@executable` 验收。
-- 禁止 `@rule` 与 `@executable` 同场景；禁止 `@human` 与 `@executable` 同场景；`@manual` 已在 0.3.0 移除——残留报迁移 ERROR，删掉即可。
+2）原生分层格式（`rule must carry an @req:<req_id> tag on the rule header` / `orphan scenario`）：
+- 规范样式只有一种：`@req:<id>` 挂在 `规则:` 块头标签,块内嵌套 `场景:`(假如/当/那么)是可执行示例——默认首选。
+- 仅当需求无法程序化表达或暂不转写时才保留无嵌套场景的 `规则:`(裸规则):描述自由文本,无 MUST/SHALL 强制;validate 以聚合计数提示,review `pending` 信号计量,specs-compact 负责压降。
+- 历史标签 `@executable`/`@rule`/`@human`/`@manual` 不再使用、解析惰性;旧文件报结构问题时运行 `llman-sdd spec migrate-native` 迁移。
+- 不在任何 `规则:` 内的顶层 `场景:` 是孤儿场景(WARNING)。
 
 分支护栏：
 - 先 `change start` / `attach` 绑定分支，再在绑定的非默认分支编辑 `.feature` 并 commit（落地 specs）。
-- 锁定规则（报告制）：改/删既有 `@rule`/`@human` 规则场景只出 WARNING，不阻断 validate / finalize / `change diff`；报告按 `@req:<id>` 指明被改规则。控制点：git 分支对比 + `llman-sdd review` / `change diff`。旧锁定确认元数据（frontmatter `rules_touched` / `agent_acked`、`@agent` tag、`--yes` 确认语义）已全部删除，无别名无兼容层。
+- 锁定规则（报告制）：改/删既有 `规则:` 块只出 WARNING，不阻断 validate / finalize / `change diff`；报告按 `@req:<id>` 指明被改规则。控制点：git 分支对比 + `llman-sdd review` / `change diff`。旧锁定确认元数据（frontmatter `rules_touched` / `agent_acked`、`@agent` tag、`--yes` 确认语义）已全部删除，无别名无兼容层。
 - `stage=full` 且 specs-landed 门通过（specsLanded ∨ `needs_specs_change: false`）即可进 apply；verify/finalize 须 `readyToImplement=true`（完成信号）。收口优先 `change finalize`。
 
 ## Context

@@ -2,22 +2,21 @@ import { describe, expect, test } from 'bun:test';
 
 import { buildReview, parseCapability } from '@llman-sdd/core';
 
-const SPEC = (cap: string, req: string, extraTags = ''): string => `# language: zh-CN
+const SPEC = (cap: string, req: string): string => `# language: zh-CN
 # capability: ${cap}
 # purpose: p
 # scope: x/
 
 功能: ${cap}
 
-  @req:${req} @human${extraTags}
-  场景: 规则
-    - 系统 MUST x
+  @req:${req}
+  规则: 规则
+    系统 MUST x
 
-  @req:${req} @executable
-  场景: 验收
-    假如 状态
-    当 动作
-    那么 结果
+    场景: 验收
+      假如 状态
+      当 动作
+      那么 结果
 `;
 
 const UNBOUND_SPEC = `# language: zh-CN
@@ -27,15 +26,14 @@ const UNBOUND_SPEC = `# language: zh-CN
 
 功能: loose
 
-  @req:r9 @human
-  场景: 规则
-    - 系统 MUST y
-
-  @executable
   场景: 孤儿验收
     假如 状态
     当 动作
     那么 结果
+
+  @req:r9
+  规则: 规则
+    系统 MUST y
 `;
 
 describe('buildReview', () => {
@@ -64,7 +62,7 @@ describe('buildReview', () => {
   });
 
   test('validate sweep failure is critical and drives exit code', () => {
-    const broken = `功能: broken\n\n  @req:r1 @human\n  场景: 缺头\n    - 系统 MUST x\n`;
+    const broken = `功能: broken\n\n  @req:r1\n  规则: 缺头\n    系统 MUST x\n`;
     const entries = [
       { fileName: 'broken.feature', doc: parseCapability(broken, 'broken.feature') },
     ];
@@ -74,7 +72,7 @@ describe('buildReview', () => {
   });
 
   test('sweep-only failure: validate detail points at llman-sdd validate --all', () => {
-    const broken = `功能: broken\n\n  @req:r1 @human\n  场景: 缺头\n    - 系统 MUST x\n`;
+    const broken = `功能: broken\n\n  @req:r1\n  规则: 缺头\n    系统 MUST x\n`;
     const entries = [
       { fileName: 'broken.feature', doc: parseCapability(broken, 'broken.feature') },
     ];
@@ -103,7 +101,7 @@ describe('buildReview', () => {
   });
 
   test('sweep + strict failures: detail reports both sources', () => {
-    const broken = `功能: broken\n\n  @req:r1 @human\n  场景: 缺头\n    - 系统 MUST x\n`;
+    const broken = `功能: broken\n\n  @req:r1\n  规则: 缺头\n    系统 MUST x\n`;
     const entries = [
       { fileName: 'broken.feature', doc: parseCapability(broken, 'broken.feature') },
     ];

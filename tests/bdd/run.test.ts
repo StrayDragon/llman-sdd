@@ -25,7 +25,7 @@ import { runFeature, type TestContext } from './runner.ts';
 import './steps/meta-foundation.ts';
 
 const FEATURES_DIR = join(import.meta.dirname, 'features');
-// Capability specs (@executable scenarios drive the real core APIs).
+// Capability specs (nested 场景: scenarios drive the real core APIs).
 const SPECS_DIR = join(import.meta.dirname, '..', '..', 'llmanspec', 'specs');
 
 function collectFeatures(dir: string): string[] {
@@ -50,5 +50,5 @@ for (const featurePath of collectFeatures(FEATURES_DIR)) {
 }
 
 for (const featurePath of collectFeatures(SPECS_DIR)) {
-  runFeature(featurePath, makeContext, { onlyTagged: '@executable' });
+  runFeature(featurePath, makeContext);
 }

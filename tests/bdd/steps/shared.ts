@@ -38,7 +38,7 @@ export function makeTempRepo(opts: { branch?: string; prefix?: string } = {}): T
   writeFileSync(join(root, 'llmanspec', 'config.yaml'), 'schema: spec-driven\n');
   writeFileSync(
     join(root, 'llmanspec', 'specs', 'sample.feature'),
-    '# language: zh-CN\n# capability: sample\n# purpose: p\n# scope: llmanspec/\n\n功能: sample\n\n  @req:r1 @human\n  场景: ok\n    - 系统 MUST x\n',
+    '# language: zh-CN\n# capability: sample\n# purpose: p\n# scope: llmanspec/\n\n功能: sample\n\n  @req:r1\n  规则: 示例规则\n    系统 MUST x\n',
   );
   run('git', ['add', '-A']);
   run('git', ['commit', '-qm', 'init']);

@@ -45,10 +45,10 @@ llman-sdd:spec 驱动开发(SDD)工作流(TypeScript + Bun),完全接替 Rust ll
 
 - 输出对齐口径(2026-09 定案,toon-default-output 修订):与前代对齐收窄为**兼容别名面**——`--json`/`--compact-json` 的输出结构与退出码保持前代字节一致;报告型命令(review/validate/list/show/config skills/index check)的**缺省输出自 0.4.0 起为 TOON**(`--output <toon|json|compact-json|human>`,human 为前代人读形态唯一入口),主动 divergence;其余人读文案细节(init 输出行、list 时间戳精度、start/finalize 文案、skeleton 头注释 locale 文案)不做逐字节对齐
 - 不移植(定案维持):`project import` 与 migrate 实现体维持移除;`show --output` 修饰符(meta-only/no-scenarios/reqs-only)以 peripheral-commands r53 为准
-- 锁定哈希门禁(前代 spec-format r135 / sdd-workflow r130)不移植:改/删 `@human` 规则的报告制 WARNING 由 git 分支对比 + `review`/`change diff` 浮现,不经 validate/finalize 报告通道;review 的 `locked` 信号恒 0 系有意(2026-09 定案,close-v1-parity-gaps 核验转正)
+- 锁定哈希门禁(前代 spec-format r135 / sdd-workflow r130)不移植:改/删 `规则:` 块的报告制 WARNING 由 git 分支对比 + `review`/`change diff` 浮现,不经 validate/finalize 报告通道;review 的 `locked` 信号恒 0 系有意(2026-09 定案,close-v1-parity-gaps 核验转正)
 - `llmanspec/AGENTS.md` 托管块:本工具 init 写入 LLMANSPEC:START/END 标记(前代不写),属有意改进,保留
-- `spec add-req` 默认写 `@req:<id> @human`(dedup-human-executable-rules 定案):命令产出的起步条款按治理看待,@human 规则豁免「可自动化规则无守护」ERROR 系有意;需要行为守护的条款应显式改为 `@rule` 并挂验收,或直接落 `@executable`。勿改回默认。
-- Gherkin 原生 `规则:`(Rule)块不启用(2026-09-27 定案,标签轨):规则以顶层 `@req:<id> @rule` 场景 + 标签承载,parser 的 `rule:nested-scenario` 拒绝与 runner 跳过 Rule 容器维持现状;仅当「单场景规则自带步骤」成为常态诉求时再评估启用。
+- 原生 Gherkin 分层为**唯一规范样式**(2026-09-27 定案,native-gherkin-format):需求 = `规则:` 块(`@req:<id>` 句柄挂块头 + 自由文本描述,无 MUST 词强制);可执行示例 = 块内嵌套 `场景:`(假如/当/那么);顶层 `场景:` 为孤儿(WARNING);无嵌套场景的 `规则:` 为裸规则(聚合计数 + review pending 计量,交 specs-compact 压降)。历史标签 `@executable`/`@rule`/`@human`/`@manual` 惰性;旧文件用 `spec migrate-native` 迁移。
+- `spec add-req` 追加原生 `规则:` 块(校验 req 全局唯一,描述自由文本、不校验语义词);`spec add-scenario` 向规则块插入嵌套 `场景:`。勿退回标签轨。
 
 ## Change Proposal Frontmatter SSOT
 
@@ -71,7 +71,7 @@ llman-sdd:spec 驱动开发(SDD)工作流(TypeScript + Bun),完全接替 Rust ll
 
 - `stage` 不是 frontmatter 字段:实时推断 draft/designed/planned/full(绑定参与升级)。
 - `checkpointed`/`checkpoint_sha`/`skip_specs_landing`/`rules_edit_acked`/`rules_touched`/`agent_acked` 已随 checkpoint/锁定确认机制移除——出现即 ERROR,无兼容读取。
-- 锁定 `@human` 规则改动为报告制(见范围决策);改动经 git 分支对比与 `review`/`change diff` 审视。
+- 锁定 `规则:` 块改动为报告制(见范围决策);改动经 git 分支对比与 `review`/`change diff` 审视。
 
 ## 工程规则
 
@@ -80,7 +80,7 @@ llman-sdd:spec 驱动开发(SDD)工作流(TypeScript + Bun),完全接替 Rust ll
 - 验收基线:行为合约 SSOT 为 `llmanspec/specs/*.feature`;skills 生成物与
   自有快照基线(tests/golden/baseline)在相同 config(locale/bdd)下归一化 diff 为空
 - BDD:Gherkin→bun:test runner(`tests/bdd/`,源自 crystalith 移植);
-  带 `@executable` 标签的场景必须可被 `bun test tests/bdd` 执行
+  带步骤的 `场景:`(含 `规则:` 内嵌套)必须可被 `bun test tests/bdd` 执行
 - specs 写法:zh-CN Gherkin 关键字(功能/场景/规则),与 `locale: zh-Hans` 一致
 - 门禁 verbosity:`just qa` 默认 L0 静默(只用工具原生安静开关:`bun test
   --only-failures` / `oxlint --quiet` / `bun run --silent`,每步一行

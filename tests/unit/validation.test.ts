@@ -30,7 +30,7 @@ const io: DiscoveryIo = {
         : [],
   readText: (p) => {
     const body = (cap: string, req: string): string =>
-      `# language: zh-CN\n# capability: ${cap}\n# purpose: p\n# scope: llmanspec/\n\n功能: ${cap}\n\n  @req:${req} @human\n  场景: ok\n    - 系统 MUST x\n`;
+      `# language: zh-CN\n# capability: ${cap}\n# purpose: p\n# scope: llmanspec/\n\n功能: ${cap}\n\n  @req:${req}\n  规则: ok\n    系统 MUST x\n\n    场景: acc\n      假如 状态\n      当 动作\n      那么 结果\n`;
     if (p.endsWith('a.feature')) return body('a', 'r1');
     if (p.endsWith('b.feature')) return body('b', 'r2');
     return body('c', 'r3');
@@ -48,7 +48,10 @@ describe('discoverSpecs', () => {
   });
 });
 
-describe('validateAllSpecs', () => {
+describe('validateAllSpecs (native v2)', () => {
+  const native = (cap: string, body: string): string =>
+    `# language: zh-CN\n# capability: ${cap}\n# purpose: p\n# scope: llmanspec/\n\n${body}`;
+
   test('clean specs pass with predecessor-style report lines', () => {
     const entries: SpecEntry[] = [
       { fileName: 'a.feature', doc: parseCapability(io.readText('a.feature'), 'a.feature') },
@@ -59,75 +62,66 @@ describe('validateAllSpecs', () => {
     expect(report.lines[0]).toBe('OK spec/a');
   });
 
-  test('@human without MUST word fails (predecessor parity)', () => {
+  test('rule description is free text: no MUST/SHALL enforcement (predecessor MUST gate removed)', () => {
     const doc = parseCapability(
-      `# language: zh-CN\n# capability: t\n# purpose: p\n# scope: llmanspec/\n\n功能: t\n\n  @req:r1 @human\n  场景: ok\n    - 系统提供 x\n`,
+      native('t', `功能: t\n\n  @req:r1\n  规则: ok\n    系统 可以直接使用,无需变更\n`),
     );
     const report = validateAllSpecs([{ fileName: 't.feature', doc }], io);
-    expect(report.failed).toBe(true);
-    expect(report.lines).toContain('FAIL spec/t');
-    expect(report.lines.join('\n')).toInclude('constraint statement must contain MUST/SHALL');
+    expect(report.failed).toBe(false);
+    expect(report.lines.join('\n')).not.toInclude('MUST/SHALL');
   });
 
-  test('@human without @req tag fails (predecessor parity)', () => {
-    const doc = parseCapability(
-      `# language: zh-CN\n# capability: t\n# purpose: p\n# scope: llmanspec/\n\n功能: t\n\n  @human\n  场景: ok\n    - 系统 MUST x\n`,
-    );
+  test('rule block without @req tag fails', () => {
+    const doc = parseCapability(native('t', `功能: t\n\n  规则: ok\n    系统 MUST x\n`));
     const report = validateAllSpecs([{ fileName: 't.feature', doc }], io);
-    expect(report.lines.join('\n')).toInclude('rule scenario must carry an @req:<req_id> tag');
+    expect(report.lines.join('\n')).toInclude(
+      'rule must carry an @req:<req_id> tag on the rule header',
+    );
   });
 
-  test('@rule @executable on one scenario is rejected (mutual exclusion)', () => {
+  test('legacy tags on rule blocks are inert: no mutual-exclusion error', () => {
     const doc = parseCapability(
-      `# language: zh-CN\n# capability: t\n# purpose: p\n# scope: llmanspec/\n\n功能: t\n\n  @req:r1 @rule @executable\n  场景: ok\n    - 系统 MUST x\n`,
+      native('t', `功能: t\n\n  @req:r1 @human @executable\n  规则: ok\n    系统 MUST x\n`),
     );
-    expect(doc.errors.map((e) => e.code)).toContain('tag:rule-exec-exclusive');
-  });
-
-  test('automatable rule without steps or linked acceptance fails', () => {
-    const doc = parseCapability(
-      `# language: zh-CN\n# capability: t\n# purpose: p\n# scope: llmanspec/\n\n功能: t\n\n  @req:r1 @rule\n  场景: ok\n    - 系统 MUST x\n`,
-    );
-    const report = validateAllSpecs([{ fileName: 't.feature', doc }], io);
-    expect(report.failed).toBe(true);
-    expect(report.lines.join('\n')).toInclude('automatable rule `ok` is not guarded');
-  });
-
-  test('automatable rule with a linked acceptance passes', () => {
-    const doc = parseCapability(
-      `# language: zh-CN\n# capability: t\n# purpose: p\n# scope: llmanspec/\n\n功能: t\n\n  @req:r1 @rule\n  场景: ok\n    - 系统 MUST x\n\n  @req:r1 @executable\n  场景: acc\n    假如 一个有效工作区\n    当 运行校验\n    那么 退出码为 0\n`,
-    );
-    const report = validateAllSpecs([{ fileName: 't.feature', doc }], io);
-    expect(report.lines.join('\n')).not.toInclude('automatable rule `ok` is not guarded');
-  });
-
-  test('acceptance may link an @rule requirement (no dangling ERROR)', () => {
-    const doc = parseCapability(
-      `# language: zh-CN\n# capability: t\n# purpose: p\n# scope: llmanspec/\n\n功能: t\n\n  @req:r1 @rule\n  场景: rule\n    - 系统 MUST x\n\n  @req:r1 @executable\n  场景: acc\n    假如 一个有效工作区\n    当 运行校验\n    那么 退出码为 0\n`,
-    );
-    const report = validateAllSpecs([{ fileName: 't.feature', doc }], io);
-    expect(report.lines.join('\n')).not.toInclude('has no matching rule');
-  });
-
-  test('governance rule (@rule @human) without acceptance stays valid', () => {
-    const doc = parseCapability(
-      `# language: zh-CN\n# capability: t\n# purpose: p\n# scope: llmanspec/\n\n功能: t\n\n  @req:r1 @rule @human\n  场景: ok\n    - 系统 MUST x\n`,
-    );
+    expect(doc.errors.map((e) => e.code)).not.toContain('tag:rule-exec-exclusive');
     const report = validateAllSpecs([{ fileName: 't.feature', doc }], io);
     expect(report.failed).toBe(false);
   });
 
-  test('capability with zero rules fails even with only acceptance scenarios', () => {
+  test('bare rule (no nested scenario) is not guarded: validation stays valid', () => {
+    const doc = parseCapability(native('t', `功能: t\n\n  @req:r1\n  规则: ok\n    系统 MUST x\n`));
+    const report = validateAllSpecs([{ fileName: 't.feature', doc }], io);
+    expect(report.failed).toBe(false);
+    expect(report.lines.join('\n')).not.toInclude('not guarded');
+  });
+
+  test('rule with a nested linked acceptance passes without dangling-link errors', () => {
     const doc = parseCapability(
-      `# language: zh-CN\n# capability: t\n# purpose: p\n# scope: llmanspec/\n\n功能: t\n\n  @executable\n  场景: acc\n    假如 一个有效工作区\n    当 运行校验\n    那么 退出码为 0\n`,
+      native(
+        't',
+        `功能: t\n\n  @req:r1\n  规则: ok\n    系统 MUST x\n\n    场景: acc\n      假如 一个有效工作区\n      当 运行校验\n      那么 退出码为 0\n`,
+      ),
     );
     const report = validateAllSpecs([{ fileName: 't.feature', doc }], io);
-    expect(report.lines.join('\n')).toInclude('spec must define at least one rule scenario');
+    expect(report.failed).toBe(false);
+    expect(report.lines.join('\n')).not.toInclude('has no matching rule');
+    expect(report.lines.join('\n')).not.toInclude('orphan scenario');
+  });
+
+  test('capability with zero rules fails even with only acceptance scenarios', () => {
+    const doc = parseCapability(
+      native(
+        't',
+        `功能: t\n\n  场景: acc\n    假如 一个有效工作区\n    当 运行校验\n    那么 退出码为 0\n`,
+      ),
+    );
+    const report = validateAllSpecs([{ fileName: 't.feature', doc }], io);
+    expect(report.lines.join('\n')).toInclude('spec must define at least one rule');
   });
 
   test('valid_scope missing on disk fails', () => {
     const doc = parseCapability(
-      `# language: zh-CN\n# capability: t\n# purpose: p\n# scope: nope/\n\n功能: t\n\n  @req:r1 @human\n  场景: ok\n    - 系统 MUST x\n`,
+      `# language: zh-CN\n# capability: t\n# purpose: p\n# scope: nope/\n\n功能: t\n\n  @req:r1\n  规则: ok\n    系统 MUST x\n`,
     );
     const report = validateAllSpecs([{ fileName: 't.feature', doc }], io);
     expect(report.lines.join('\n')).toInclude('valid_scope path(s) do not exist on disk: nope/');
@@ -137,7 +131,7 @@ describe('validateAllSpecs', () => {
     const mk = (cap: string): SpecEntry => ({
       fileName: `${cap}.feature`,
       doc: parseCapability(
-        `# language: zh-CN\n# capability: ${cap}\n# purpose: p\n# scope: llmanspec/\n\n功能: ${cap}\n\n  @req:r9 @human\n  场景: ok\n    - 系统 MUST x\n`,
+        `# language: zh-CN\n# capability: ${cap}\n# purpose: p\n# scope: llmanspec/\n\n功能: ${cap}\n\n  @req:r9\n  规则: ok\n    系统 MUST x\n`,
         `${cap}.feature`,
       ),
     });
@@ -149,7 +143,7 @@ describe('validateAllSpecs', () => {
 
   test('missing capability header fails (predecessor short-circuit); missing purpose is ERROR', () => {
     const doc = parseCapability(
-      `# scope: llmanspec/\n\n功能: t\n\n  @req:r1 @human\n  场景: ok\n    - 系统 MUST x\n`,
+      `# scope: llmanspec/\n\n功能: t\n\n  @req:r1\n  规则: ok\n    系统 MUST x\n`,
     );
     const report = validateAllSpecs([{ fileName: 't.feature', doc }], io);
     expect(report.failed).toBe(true);
@@ -158,7 +152,7 @@ describe('validateAllSpecs', () => {
     expect(joined).toInclude('missing `# capability:` header comment');
 
     const withCap = parseCapability(
-      `# capability: t\n# scope: llmanspec/\n\n功能: t\n\n  @req:r1 @human\n  场景: ok\n    - 系统 MUST x\n`,
+      `# capability: t\n# scope: llmanspec/\n\n功能: t\n\n  @req:r1\n  规则: ok\n    系统 MUST x\n`,
     );
     const report2 = validateAllSpecs([{ fileName: 't.feature', doc: withCap }], io);
     const joined2 = report2.lines.join('\n');
@@ -588,8 +582,9 @@ describe('T9: pattern compile defense (D8)', () => {
   });
 });
 
-describe('orphan acceptance WARNING (r65)', () => {
-  test('acceptance scenario without @req reports WARNING', () => {
+describe('orphan scenario WARNING (r65)', () => {
+  test('top-level scenario not enclosed by a rule reports WARNING at cap/acceptance/<name>', () => {
+    // Gherkin 约束:规则块之前(或全文无规则)的顶层场景才是孤儿。
     const spec = `# language: zh-CN
 # capability: orphan
 # purpose: p
@@ -597,15 +592,19 @@ describe('orphan acceptance WARNING (r65)', () => {
 
 功能: orphan
 
-  @req:r1 @human
-  场景: 规则
-    - 系统 MUST x
-
-  @executable
-  场景: 孤儿验收
+  场景: 孤儿场景
     假如 a
     当 b
     那么 c
+
+  @req:r1
+  规则: 规则
+    系统 MUST x
+
+    场景: 挂回的验收
+      假如 a2
+      当 b2
+      那么 c2
 `;
     const entries: SpecEntry[] = [
       { fileName: 'llmanspec/specs/orphan.feature', doc: parseCapability(spec, 'orphan.feature') },
@@ -620,6 +619,43 @@ describe('orphan acceptance WARNING (r65)', () => {
     const report = validateAllSpecs(entries, specIo);
     const items = report.verdicts.flatMap((v) => v.items);
     const orphan = items.find((i) => i.level === 'WARNING' && i.id.includes('/acceptance/'));
-    expect(orphan?.message).toContain('orphan acceptance scenario');
+    expect(orphan?.id).toBe('orphan/acceptance/孤儿场景');
+    expect(orphan?.message).toContain('orphan scenario `孤儿场景` is not enclosed by any rule');
+    expect(report.failed).toBe(false);
+  });
+
+  test('scenario nested in a rule produces no orphan WARNING', () => {
+    const spec = `# language: zh-CN
+# capability: clean
+# purpose: p
+# scope: llmanspec/
+
+功能: clean
+
+  @req:r1
+  规则: 规则
+    系统 MUST x
+
+    场景: 挂回的验收
+      假如 a2
+      当 b2
+      那么 c2
+`;
+    const entries: SpecEntry[] = [
+      { fileName: 'llmanspec/specs/clean.feature', doc: parseCapability(spec, 'clean.feature') },
+    ];
+    const specIo = {
+      exists: (p: string) => p === 'llmanspec/' || p.startsWith('llmanspec/specs'),
+      isDirectory: (p: string) => p === 'llmanspec/',
+      listDir: (p: string) =>
+        p === 'llmanspec/specs' || p === 'llmanspec/specs/' ? ['clean.feature'] : [],
+      readText: (): string => spec,
+    };
+    const report = validateAllSpecs(entries, specIo);
+    const items = report.verdicts.flatMap((v) => v.items);
+    expect(items.some((i) => i.level === 'WARNING' && i.message.includes('orphan scenario'))).toBe(
+      false,
+    );
+    expect(report.failed).toBe(false);
   });
 });

@@ -113,7 +113,7 @@ bdd.given('一个含多条规则的 spec 工作区', (ctx) => {
   mkdirSync(join(root, 'llmanspec', 'specs'), { recursive: true });
   writeFileSync(
     join(root, 'llmanspec', 'specs', 'multi.feature'),
-    '# language: zh-CN\n# capability: multi\n# purpose: p\n# scope: llmanspec/\n\n功能: multi\n\n  @req:r1 @human\n  场景: 规则一\n    - 系统 MUST 一\n\n  @req:r2 @human\n  场景: 规则二\n    - 系统 MUST 二\n',
+    '# language: zh-CN\n# capability: multi\n# purpose: p\n# scope: llmanspec/\n\n功能: multi\n\n  @req:r1\n  规则: 规则一\n    系统 MUST 一\n\n  @req:r2\n  规则: 规则二\n    系统 MUST 二\n',
   );
   writeFileSync(join(root, 'llmanspec', 'config.yaml'), 'schema: spec-driven\n');
   ctx.fixtures['showspec工作区'] = { root };
@@ -215,7 +215,12 @@ bdd.thenStep('show JSON 字段集完整覆盖 change 合同字段', (ctx) => {
 bdd.thenStep('show spec 直出头注释与 gherkin 原文', (ctx) => {
   const r = ctx.fixtures['showgraph结果'] as ShowGraphResult;
   if (r.showSpec.code !== 0) throw new Error(`show sample failed`);
-  for (const marker of ['# language: zh-CN', '# capability: sample', '功能: sample', '场景: ok']) {
+  for (const marker of [
+    '# language: zh-CN',
+    '# capability: sample',
+    '功能: sample',
+    '规则: 示例规则',
+  ]) {
     if (!r.showSpec.stdout.includes(marker)) {
       throw new Error(`show spec output missing raw marker "${marker}":\n${r.showSpec.stdout}`);
     }
@@ -301,8 +306,11 @@ bdd.thenStep('skeleton 产物过单轨校验且 next-req-id 输出下一空闲 i
   }
   // makeTempRepo 的 sample.feature 占 r1:skeleton 领走下一空闲 id r2,
   // 随后 next-req-id 扫描全局注册表应报再下一个空闲 id r3。
-  if (!r.skeletonContent.includes('@req:r2 @human')) {
+  if (!r.skeletonContent.includes('@req:r2')) {
     throw new Error(`skeleton did not claim the next free id r2:\n${r.skeletonContent}`);
+  }
+  if (!/\n  (规则|Rule): TODO-rule\n/u.test(r.skeletonContent)) {
+    throw new Error(`skeleton lacks the native rule header:\n${r.skeletonContent}`);
   }
   if (r.nextReqId !== 'r3') {
     throw new Error(`expected next free id r3, got "${r.nextReqId}"`);

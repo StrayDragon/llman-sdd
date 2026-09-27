@@ -22,8 +22,9 @@ export { renderConfigOverview, skillsJson } from './config/surface.ts';
 export type {
   CapabilityDoc,
   CapabilityHeader,
-  ScenarioClassification,
+  RuleIR,
   ScenarioIR,
+  ScenarioStep,
   SpecStructuralError,
 } from './spec/ir.ts';
 export { specIdOf } from './spec/ir.ts';
@@ -34,6 +35,13 @@ export {
   parseFeatureSource,
 } from './spec/parser.ts';
 export { buildReqRegistry, type ReqRegistry, type RegistryDuplicate } from './spec/reqRegistry.ts';
+export {
+  analyzeLegacy,
+  hasNativeRules,
+  migrateNativeSource,
+  type MigrateBlock,
+  type MigrateResult,
+} from './spec/migrateNative.ts';
 export {
   MIGRATE_KINDS,
   isMigrateKind,
@@ -182,7 +190,7 @@ export { showChangeJson, type ShowDeps, type ShowFsIo } from './report/show.ts';
 export { nextReqId, scaffoldSpec, type SpecHelperIo } from './report/specHelpers.ts';
 export {
   collectSpecs,
-  morphologyOfScenarios,
+  morphologyOf,
   renderSpecsJson,
   renderSpecsList,
   type SpecMorphology,

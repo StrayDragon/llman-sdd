@@ -1,6 +1,6 @@
-// Domain step definitions: spec 解析能力 — 覆盖 r9(中文关键字 IR 分类)、
-// r10(req 全局注册表重复对)、r7(语言兜底链与 locale 映射 + skeleton 语言头)、
-// r8(capability 头注释逐项缺失报告)。
+// Domain step definitions: spec 解析能力 — 覆盖 r7(语言兜底链与 locale 映射 +
+// skeleton 语言头)、r8(capability 头注释逐项缺失报告)、r9(原生 功能→规则→场景
+// 分层解析 IR + 历史标签惰性)、r10(req 全局注册表重复对)。
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -31,9 +31,14 @@ const SAMPLE_FEATURE = `# language: zh-CN
 
 功能: 样例能力
 
-  @req:r9 @human
-  场景: 规则样例
-    - 系统 MUST 提供样例能力
+  @req:r9
+  规则: 规则样例
+    系统 MUST 提供样例能力(自由文本描述)
+
+    场景: 验收样例
+      假如 一个初始状态
+      当 执行一个动作
+      那么 得到一个结果
 `;
 
 bdd.given('一个使用中文关键字的 feature 内容', (ctx) => {
@@ -48,18 +53,71 @@ bdd.when('解析该 feature', (ctx) => {
   } satisfies ParseResult;
 });
 
-bdd.thenStep('IR 中规则场景分类为 {classification}', (ctx, classification) => {
+bdd.thenStep('IR 含带描述与嵌套场景的规则块且 req 句柄为 {reqId}', (ctx, reqId) => {
   const doc = (ctx.fixtures['解析结果'] as ParseResult | undefined)?.doc;
-  const rule = doc?.scenarios.find((s) => s.classification === 'human');
-  if (!rule) throw new Error('no human-classified scenario in IR');
-  if (classification !== 'human')
-    throw new Error(`unexpected classification arg: ${classification}`);
+  const rule = doc?.rules[0];
+  if (!rule) throw new Error('no rule block in IR');
+  if (rule.reqId !== reqId) {
+    throw new Error(`expected req handle ${reqId}, got ${rule.reqId}`);
+  }
+  if (rule.description === '') {
+    throw new Error(`rule block must carry its description, got nothing`);
+  }
+  if (rule.scenarios.length === 0) {
+    throw new Error('rule block must carry at least one nested scenario');
+  }
 });
 
-bdd.thenStep('req 链接为 {reqId}', (ctx, reqId) => {
+bdd.thenStep('该规则块内嵌套场景步骤按关键字保留', (ctx) => {
   const doc = (ctx.fixtures['解析结果'] as ParseResult | undefined)?.doc;
-  const ids = doc?.scenarios.flatMap((s) => s.reqIds) ?? [];
-  if (!ids.includes(reqId)) throw new Error(`expected req link ${reqId}, got [${ids.join(', ')}]`);
+  const rule = doc?.rules[0];
+  const nested = rule?.scenarios.find((s) => s.name === '验收样例');
+  if (!nested) throw new Error('nested acceptance scenario missing from IR');
+  const kinds = nested.steps.map((s) => s.kind);
+  if (JSON.stringify(kinds) !== JSON.stringify(['given', 'when', 'then'])) {
+    throw new Error(`steps must keep their keywords, got [${kinds.join(', ')}]`);
+  }
+});
+
+bdd.thenStep('解析不报标签语义错误', (ctx) => {
+  const doc = (ctx.fixtures['解析结果'] as ParseResult | undefined)?.doc;
+  const errors = doc?.errors ?? [];
+  const tagErrors = errors.filter((e) => e.code.startsWith('tag:') || e.code.startsWith('rule:'));
+  if (tagErrors.length > 0) {
+    throw new Error(`legacy tags must be inert, got: ${JSON.stringify(tagErrors)}`);
+  }
+});
+
+bdd.thenStep('规则块与其嵌套场景按结构进入 IR', (ctx) => {
+  const doc = (ctx.fixtures['解析结果'] as ParseResult | undefined)?.doc;
+  const rule = doc?.rules[0];
+  if (!rule || rule.title !== '带历史标签的规则') {
+    throw new Error(`rule block did not enter IR:\n${JSON.stringify(doc?.rules)}`);
+  }
+  if (rule.scenarios.map((s) => s.name).join(',') !== '嵌套验收') {
+    throw new Error('nested scenario did not enter IR under its rule');
+  }
+});
+
+bdd.given('一个含 `规则:` 块与嵌套场景、且带历史 @human/@executable 标签的 feature 内容', (ctx) => {
+  ctx.fixtures['feature'] = {
+    源文本: `# language: zh-CN
+# capability: 样例能力
+# purpose: p
+# scope: x/
+
+功能: 样例能力
+
+  @req:r9 @human @executable
+  规则: 带历史标签的规则
+    系统 MUST 提供样例能力
+
+    场景: 嵌套验收
+      假如 前置
+      当 动作
+      那么 结果
+`,
+  };
 });
 
 bdd.given('两个 spec 文件都含 @req:{reqId} 标签', (ctx, reqId) => {
@@ -70,9 +128,9 @@ bdd.given('两个 spec 文件都含 @req:{reqId} 标签', (ctx, reqId) => {
 
 功能: ${capability}
 
-  @req:${reqId} @human
-  场景: 规则
-    - 系统 MUST 提供能力
+  @req:${reqId}
+  规则: 规则
+    系统 MUST 提供能力
 `;
   ctx.fixtures['重复样本'] = {
     docs: [
@@ -118,9 +176,9 @@ const LANG_EN_SAMPLE = `Feature: en capability
 bdd.given('一个无语言头使用中文关键字的 feature 内容', (ctx) => {
   const zhOnly = `功能: 中文能力
 
-  @req:r7 @human
-  场景: 规则
-    - 系统 MUST 提供兜底
+  @req:r7
+  规则: 规则
+    系统 MUST 提供兜底
 `;
   ctx.fixtures['语言样本'] = {
     zhOnly,
@@ -193,9 +251,9 @@ bdd.thenStep('locale zh-Hans 映射为 zh-CN 且其余透传', (ctx) => {
 
 const NO_HEADER_FEATURE = `功能: 裸能力
 
-  @req:r8 @human
-  场景: 规则
-    - 系统 MUST 报告缺失
+  @req:r8
+  规则: 规则
+    系统 MUST 报告缺失
 `;
 
 bdd.given('一个缺失全部头注释的 feature 内容', (ctx) => {
@@ -250,7 +308,11 @@ bdd.thenStep('生成的 spec 首行为 "# language: zh-CN" 且规则体使用中
   if (!content.startsWith('# language: zh-CN\n')) {
     throw new Error(`zh-Hans skeleton must start with the zh-CN header:\n${content}`);
   }
-  if (!content.includes('功能: demo-cap') || !content.includes('系统 MUST')) {
+  if (
+    !content.includes('功能: demo-cap') ||
+    !content.includes('规则:') ||
+    !content.includes('假如')
+  ) {
     throw new Error(`zh skeleton body must be localized:\n${content}`);
   }
 });
@@ -273,60 +335,5 @@ bdd.thenStep('生成的 spec 首行为 "# language: en"', (ctx) => {
   const content = r.content ?? '';
   if (!content.startsWith('# language: en\n')) {
     throw new Error(`en skeleton must start with the en header:\n${content}`);
-  }
-});
-
-// ---------------------------------------------------------------------------
-// r9 — tag-layer violations reported item by item (acceptance)
-// ---------------------------------------------------------------------------
-
-interface ViolationFixture {
-  docs: CapabilityDoc[];
-}
-
-bdd.given(
-  '一组分别含残留 @manual、@human 与 @executable 同用、@human 描述缺语义词的 feature 内容',
-  (ctx) => {
-    const make = (tags: string, statement: string): string =>
-      `# language: zh-CN\n# capability: 标签违例\n# purpose: p\n# scope: x/\n\n功能: 标签违例\n\n  @req:r9 ${tags}\n  场景: ${tags.replaceAll('@', '')}\n    - ${statement}\n`;
-    ctx.fixtures['违例样本'] = {
-      sources: [
-        make('@manual @executable', '系统提供能力'), // 残留 @manual
-        make('@human @executable', '系统 MUST 提供能力'), // 互斥
-        make('@human', '系统提供能力'), // 缺语义词
-      ],
-    };
-  },
-);
-
-bdd.when('逐个解析这些 feature', (ctx) => {
-  const { sources } = ctx.fixtures['违例样本'] as { sources: string[] };
-  ctx.fixtures['违例样本'] = {
-    docs: sources.map((src) => parseCapability(src, 'violation.feature')),
-  } satisfies ViolationFixture;
-});
-
-bdd.thenStep('残留 @manual 报迁移错误且信息含 "@manual"', (ctx) => {
-  const { docs } = ctx.fixtures['违例样本'] as ViolationFixture;
-  const hit = docs.flatMap((d) => d.errors).find((e) => e.code === 'tag:manual-removed');
-  if (!hit) throw new Error('tag:manual-removed not reported');
-  if (!hit.message.includes('@manual')) {
-    throw new Error(`message must name @manual: ${hit.message}`);
-  }
-});
-
-bdd.thenStep('同用报互斥错误', (ctx) => {
-  const { docs } = ctx.fixtures['违例样本'] as ViolationFixture;
-  if (!docs.flatMap((d) => d.errors).some((e) => e.code === 'tag:mutually-exclusive')) {
-    throw new Error('tag:mutually-exclusive not reported');
-  }
-});
-
-bdd.thenStep('缺语义词报 MUST/SHALL 缺失错误', (ctx) => {
-  const { docs } = ctx.fixtures['违例样本'] as ViolationFixture;
-  const hit = docs.flatMap((d) => d.errors).find((e) => e.code === 'rule:missing-must-word');
-  if (!hit) throw new Error('rule:missing-must-word not reported');
-  if (!hit.message.includes('MUST/SHALL')) {
-    throw new Error(`message must mention MUST/SHALL: ${hit.message}`);
   }
 });

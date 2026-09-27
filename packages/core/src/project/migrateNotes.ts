@@ -23,7 +23,7 @@ const TOON2FEATURES_ZH = `llman-sdd project migrate --kind toon2features — 遗
 
 Agent 该做什么:
 1. 逐 capability 确认真的存在 spec.toon(无则跳过)。
-2. 读 spec.toon 表格并转换:requirements 表每行 → 在 <cap>.feature 写一条 @req:<id> @human 规则场景(id 进 tag,statement 全文放描述,须含 MUST/SHALL);scenarios 表每行:有 GWT(假如/当/那么)且 req_id 已定义 → 写 @executable 验收场景并以 @req:<req_id> 挂回规则;无 GWT 或 req 未定义 → 在 proposal/design 记录理由后舍弃,不可静默丢弃。
+2. 读 spec.toon 表格并转换:requirements 表每行 → 在 <cap>.feature 写一个 @req:<id> + 规则: 块(id 进块头标签,statement 全文放描述);scenarios 表每行:有 GWT(假如/当/那么)且 req_id 已定义 → 作为嵌套 场景: 挂回该规则;无 GWT 或 req 未定义 → 在 proposal/design 记录理由后舍弃,不可静默丢弃。
 3. 目标 <cap>.feature 已存在时勿覆盖——人工合并两侧内容后再删除 spec.toon。
 4. 迁移后运行 llman-sdd validate --specs --strict 与项目 BDD 套件,全绿为收口标准。
 
@@ -40,7 +40,7 @@ Background: v1 (Rust ≤0.0.78) stored specs dual-track — specs/<cap>/spec.too
 
 What the agent does:
 1. Per capability, confirm a spec.toon actually exists (skip otherwise).
-2. Read the spec.toon tables and convert: each requirements row → an @req:<id> @human rule scenario in <cap>.feature (id in the tag, statement verbatim in the description, MUST/SHALL required); each scenarios row: GWT-bearing (Given/When/Then) with a defined req_id → an @executable acceptance scenario linked back via @req:<req_id>; no GWT or undefined req_id → record the justification in proposal/design and drop — never silently.
+2. Read the spec.toon tables and convert: each requirements row → a @req:<id> 规则: block in <cap>.feature (id in the block header tag, statement verbatim in the description); each scenarios row: GWT-bearing (Given/When/Then) with a defined req_id → a nested 场景: under that rule; no GWT or undefined req_id → record the justification in proposal/design and drop — never silently.
 3. Never overwrite an existing <cap>.feature — merge both sides by hand, then delete spec.toon.
 4. After migration run llman-sdd validate --specs --strict and the project BDD suite; all-green is the bar.
 

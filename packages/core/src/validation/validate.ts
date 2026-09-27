@@ -5,7 +5,7 @@
  * injected via SpecIo.
  */
 import type { CapabilityDoc } from '../spec/ir.ts';
-import { MUST_WORD_RE, isRuleScenario, specIdOf } from '../spec/ir.ts';
+import { specIdOf } from '../spec/ir.ts';
 import { buildReqRegistry } from '../spec/reqRegistry.ts';
 
 export type ValidationLevel = 'ERROR' | 'WARNING' | 'INFO';
@@ -41,7 +41,6 @@ export interface ValidationReport {
 }
 
 const rulesPath = (cap: string): string => `${cap}/rules`;
-const acceptanceReqPath = (cap: string, name: string): string => `${cap}/acceptance/${name}/@req`;
 const coveragePath = (cap: string): string => `${cap}/coverage`;
 
 export function validateCapability(
@@ -108,115 +107,56 @@ export function validateCapability(
     push('ERROR', `${cap}/feature`, 'Feature line must carry a title');
   }
 
-  // Parser-level structural errors (mutual exclusion, removed-tag migration,
-  // nested rule scenarios). Header gates and the MUST-word gate are owned here
-  // (mapped below), so the parser's duplicate findings are skipped.
-  const OWNED_BY_THIS_LAYER = ['missing-header:', 'rule:missing-must-word'];
+  // Parser-level structural errors. Header gates are owned here (mapped below);
+  // the parser's duplicate header findings are skipped.
+  const OWNED_BY_THIS_LAYER = ['missing-header:'];
   for (const err of doc.errors) {
     if (OWNED_BY_THIS_LAYER.some((prefix) => err.code.startsWith(prefix))) continue;
     push('ERROR', err.code.startsWith('file') ? 'file' : `${cap}/${err.code}`, err.message);
   }
 
-  // Single-track gates (predecessor validate_single_track order). Roles are
-  // mutually exclusive: `@rule`/`@human` mark RULES (a rule is never its own
-  // acceptance), `@executable` marks ACCEPTANCE; the parser rejects a scenario
-  // tagged with both. isRuleScenario stays as belt-and-braces.
-  const acceptance = doc.scenarios.filter(
-    (s) => s.classification === 'executable' && !isRuleScenario(s),
-  );
-  // Rules = `@human` governance constraints ∪ `@rule` automatable requirements
-  // (`@rule`/`@human` both set the rule role in the parser).
-  const rules = doc.scenarios.filter(isRuleScenario);
+  // Native single-track gates: `规则:` blocks with `@req` handles; nested
+  // `场景:` are their executable examples; top-level scenarios are orphans.
+  const rules = doc.rules;
 
   if (rules.length === 0) {
+    push('ERROR', rulesPath(cap), 'spec must define at least one rule');
+  }
+
+  for (const rule of rules) {
+    const anchor = `${cap}/rule/${rule.title}`;
+    if (rule.reqId === '') {
+      push('ERROR', anchor, 'rule must carry an @req:<req_id> tag on the rule header');
+    } else if (duplicatesFor(rule.reqId)) {
+      push(
+        'ERROR',
+        `${cap}/registry/${rule.reqId}`,
+        `global duplicate req_id \`${rule.reqId}\` used by multiple capabilities`,
+      );
+    }
+  }
+
+  // r65 (migrated): a top-level scenario not enclosed by any rule is an
+  // orphan acceptance — WARNING.
+  for (const sc of doc.orphans) {
     push(
-      'ERROR',
-      rulesPath(cap),
-      'spec must define at least one rule scenario (`@human` or `@rule`)',
+      'WARNING',
+      `${cap}/acceptance/${sc.name}`,
+      `orphan scenario \`${sc.name}\` is not enclosed by any rule`,
     );
   }
 
-  for (const scenario of doc.scenarios) {
-    const anchor = `${cap}/rule/${scenario.name}`;
-    if (scenario.rule) {
-      if (scenario.reqIds.length === 0) {
-        push('ERROR', anchor, 'rule scenario must carry an @req:<req_id> tag');
-      }
-      if (scenario.classification === 'human' && !MUST_WORD_RE.test(scenario.statement)) {
-        push('ERROR', anchor, 'constraint statement must contain MUST/SHALL (or 必须/不得/禁止)');
-      }
-    } else if (scenario.classification === 'executable') {
-      // (pairing handled below, after all rule req ids are known)
-    } else {
-      push(
-        'WARNING',
-        `${cap}/scenario/${scenario.name}`,
-        `scenario \`${scenario.name}\` carries neither @human nor @executable; tag it or drop it`,
-      );
-    }
-    for (const reqId of scenario.reqIds) {
-      if (duplicatesFor(reqId)) {
-        push(
-          'ERROR',
-          `${cap}/registry/${reqId}`,
-          `global duplicate req_id \`${reqId}\` used by multiple capabilities`,
-        );
-      }
-    }
-  }
-
-  // Dangling acceptance @req links (predecessor order: acceptance/@req then coverage).
-  // Acceptance `@req:<rid>` must resolve to a rule — `@human` governance or
-  // `@rule` automatable requirement.
-  const ruleReqIds = new Set(rules.flatMap((s) => s.reqIds));
-  const acceptanceReqIds = new Set(acceptance.flatMap((s) => s.reqIds));
-  for (const sc of acceptance) {
-    // r65: orphan acceptance scenario — no @req link at all (predecessor r132 WARNING).
-    if (sc.reqIds.length === 0) {
-      push(
-        'WARNING',
-        `${cap}/acceptance/${sc.name}`,
-        `orphan acceptance scenario \`${sc.name}\` has no @req:<req_id> link`,
-      );
-    }
-    for (const rid of sc.reqIds) {
-      if (!ruleReqIds.has(rid)) {
-        push(
-          'ERROR',
-          acceptanceReqPath(cap, sc.name),
-          `@req:${rid} on acceptance scenario \`${sc.name}\` has no matching rule (@human or @rule)`,
-        );
-      }
-    }
-  }
-
-  // An automatable rule (`@rule` not classified `@human`) MUST be guarded:
-  // either it ships its own steps or at least one acceptance links back to it.
-  // A rule with no guard would protect nothing; this pushes conversion toward
-  // @executable BDD features (the encouraged shape), leaving @rule only for
-  // genuinely non-programmable requirements (abstract/architecture/governance).
-  for (const sc of rules) {
-    if (sc.classification === 'human') continue;
-    if (sc.stepCount > 0 || sc.reqIds.some((rid) => acceptanceReqIds.has(rid))) continue;
+  // Bare-rule aggregate (r134 migrated): rules with no nested executable
+  // scenario, aggregated per capability (never one issue per rule), INFO so it
+  // never blocks anything. The real accountability lives in the review
+  // `pending` signal and the specs-compact workflow.
+  const bare = rules.filter((r) => r.scenarios.length === 0).length;
+  if (bare > 0) {
     push(
-      'ERROR',
-      `${cap}/rule/${sc.name}`,
-      `automatable rule \`${sc.name}\` is not guarded — add steps or link an @executable acceptance scenario, or mark it \`@rule @human\` if it cannot be automated`,
+      'INFO',
+      coveragePath(cap),
+      `${bare} bare rule(s) without any executable scenario — convert to 场景: or compact`,
     );
-  }
-
-  // Rule coverage INFO (r134 pending rules).
-  for (const sc of rules) {
-    for (const rid of sc.reqIds) {
-      const covered = acceptance.some((a) => a.reqIds.includes(rid));
-      if (!covered) {
-        push(
-          'INFO',
-          coveragePath(cap),
-          `rule ${rid} is pending: no @executable acceptance scenario`,
-        );
-      }
-    }
   }
 
   return {

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import {
   collectChanges,
   collectSpecs,
-  morphologyOfScenarios,
+  morphologyOf,
   renderMachine,
   showChangeJson,
   specIdOf,
@@ -37,24 +37,22 @@ function renderSpecJson(
   const doc = entry?.doc as
     | {
         header: { capability: string | null; purpose: string | null };
-        scenarios: {
-          name: string;
-          classification: string;
-          reqIds: string[];
-          rule?: boolean;
-          statement: string;
-          steps: { kind: string; text: string }[];
+        rules: {
+          reqId: string;
+          title: string;
+          description: string;
+          scenarios: {
+            name: string;
+            steps: { kind: string; text: string }[];
+          }[];
         }[];
+        orphans: { name: string; steps: { kind: string; text: string }[] }[];
       }
     | undefined;
   const cap = entry ? (doc?.header.capability ?? item) : item;
   const purpose = doc?.header.purpose ?? '';
-  // Requirements = rules (`@human` or `@rule`); acceptance scenarios exclude
-  // rule anchors (`@rule` and `@executable` are mutually exclusive).
-  const rules = doc?.scenarios.filter((s) => s.rule === true || s.classification === 'human') ?? [];
-  const acceptances =
-    doc?.scenarios.filter((s) => s.classification === 'executable' && s.rule !== true) ?? [];
-  const morphology = morphologyOfScenarios(doc?.scenarios ?? []);
+  const rules = doc?.rules ?? [];
+  const morphology = morphologyOf(entry?.doc as never);
   if (opts.metaOnly) {
     return {
       id: item,
@@ -67,28 +65,26 @@ function renderSpecJson(
     };
   }
   const requirements = rules.map((rule) => ({
-    reqId: rule.reqIds[0] ?? '',
-    title: rule.name,
-    text: rule.statement,
+    reqId: rule.reqId,
+    title: rule.title,
+    text: rule.description,
     scenarios: opts.noScenarios
       ? []
-      : acceptances
-          .filter((a) => a.reqIds.some((rid) => rule.reqIds.includes(rid)))
-          .map((a) => ({
-            id: a.name,
-            rawText: `GIVEN: ${a.steps
-              .filter((s) => s.kind === 'given')
-              .map((s) => s.text)
-              .join('\n')}\nWHEN: ${a.steps
-              .filter((s) => s.kind === 'when')
-              .map((s) => s.text)
-              .join('\n')}\nTHEN: ${a.steps
-              .filter((s) => s.kind === 'then')
-              .map((s) => s.text)
-              .join('\n')}`,
-            source: 'acceptance',
-            reqIds: a.reqIds,
-          })),
+      : rule.scenarios.map((a) => ({
+          id: a.name,
+          rawText: `GIVEN: ${a.steps
+            .filter((s) => s.kind === 'given')
+            .map((s) => s.text)
+            .join('\n')}\nWHEN: ${a.steps
+            .filter((s) => s.kind === 'when')
+            .map((s) => s.text)
+            .join('\n')}\nTHEN: ${a.steps
+            .filter((s) => s.kind === 'then')
+            .map((s) => s.text)
+            .join('\n')}`,
+          source: 'acceptance',
+          reqIds: [rule.reqId],
+        })),
   }));
   return {
     id: item,

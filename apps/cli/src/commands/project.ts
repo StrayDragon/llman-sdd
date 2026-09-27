@@ -11,17 +11,15 @@ export function registerProject(program: Command): void {
     .description('Remap globally duplicated req ids (report with --dry-run)')
     .option('--dry-run', 'report the remap plan without writing')
     .action((options: { dryRun?: boolean }) => {
-      // predecessor parity: dedupe registry covers @human (rule) req ids only.
+      // dedupe registry covers requirement handles (`@req` on 规则: headers) only.
       const entries = loadSpecEntries();
       const owners = new Map<string, string[]>();
       for (const e of entries) {
-        for (const sc of e.doc.scenarios) {
-          if (sc.classification !== 'human') continue;
-          for (const rid of sc.reqIds) {
-            const list = owners.get(rid) ?? [];
-            if (!list.includes(e.fileName)) list.push(e.fileName);
-            owners.set(rid, list);
-          }
+        for (const rule of e.doc.rules) {
+          if (rule.reqId === '') continue;
+          const list = owners.get(rule.reqId) ?? [];
+          if (!list.includes(e.fileName)) list.push(e.fileName);
+          owners.set(rule.reqId, list);
         }
       }
       const duplicates = [...owners.entries()]

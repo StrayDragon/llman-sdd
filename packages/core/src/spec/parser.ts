@@ -1,19 +1,22 @@
 /**
  * Single-track capability .feature parsing (spec-parsing capability).
  *
- * Language fallback chain (r7): start with the `en` matcher — a
- * `# language:` header switches dialect automatically mid-scan; on failure
- * retry with the zh-CN matcher (Chinese keywords without a header); only then
- * surface a parse error. locale zh-Hans maps to gherkin zh-CN.
+ * Native v2 model: `功能:` → `规则:` blocks (requirement: title + free-form
+ * description + `@req:<id>` handle) → nested `场景:` (executable examples).
+ * Top-level `场景:` outside any rule become orphans. Legacy role tags
+ * (@human/@rule/@executable/@manual) are inert — the parser only reads
+ * `@req` (handle) and `@skip`/`@experimental` (runner opt-out). Files in the
+ * legacy flat layout must be migrated with `spec migrate-native`.
  */
 import { AstBuilder, GherkinClassicTokenMatcher, Parser } from '@cucumber/gherkin';
 import type { GherkinDocument } from '@cucumber/messages';
 
 import {
-  MUST_WORD_RE,
   type CapabilityDoc,
   type CapabilityHeader,
+  type RuleIR,
   type ScenarioIR,
+  type ScenarioStepKind,
   type SpecStructuralError,
 } from './ir.ts';
 
@@ -52,13 +55,14 @@ export function parseFeatureSource(source: string): { doc: GherkinDocument; lang
 const REQ_TAG_RE = /^@?req:(r\d+)$/u;
 
 /** Gherkin keyword (zh-CN + en) → step kind; And/But/* inherit via fallback. */
-function stepKeywordToKind(keyword: string): 'given' | 'when' | 'then' {
+function stepKeywordToKind(keyword: string): ScenarioStepKind {
   const kw = keyword.trim();
   if (/^(假如|Given)/iu.test(kw)) return 'given';
   if (/^(当|When)/iu.test(kw)) return 'when';
   if (/^(那么|Then)/iu.test(kw)) return 'then';
   return 'given';
 }
+
 const HEADER_RE = /^#\s*(capability|purpose|scope):\s*(.*)$/u;
 
 function extractHeader(source: string): CapabilityHeader {
@@ -75,54 +79,47 @@ function extractHeader(source: string): CapabilityHeader {
   return header;
 }
 
-function classify(tags: string[]): {
-  classification: ScenarioIR['classification'];
-  rule: boolean;
-  errors: SpecStructuralError[];
-} {
-  const errors: SpecStructuralError[] = [];
-  const has = (t: string): boolean => tags.includes(t);
-  const human = has('human');
-  const executable = has('executable');
-  const rule = has('rule');
-  const label = tags.join(',');
-
-  if (has('manual')) {
-    errors.push({
-      code: 'tag:manual-removed',
-      message: `@manual was removed in 0.3.0 — drop the tag (@human already carries the human-judgement semantics) (tags: ${label})`,
-    });
-  }
-  if (human && executable) {
-    errors.push({
-      code: 'tag:mutually-exclusive',
-      message: `@human 与 @executable 互斥(tags: ${label})`,
-    });
-  }
-  // `@rule` marks a requirement that is NOT (yet) expressed as runnable steps:
-  // abstract goals, architecture decisions, governance or not-yet-converted
-  // clauses. `@executable` marks runnable BDD requirements/acceptances bound to
-  // step code. They are exclusive roles — a rule is never its own acceptance.
-  if (rule && executable) {
-    errors.push({
-      code: 'tag:rule-exec-exclusive',
-      message: `@rule 与 @executable 互斥——规则场景不携带 @executable(tags: ${label})`,
-    });
-  }
-  const classification: ScenarioIR['classification'] = human
-    ? 'human'
-    : executable
-      ? 'executable'
-      : 'unclassified';
-  // @human implies the rule role (legacy governance constraints); @rule is the
-  // explicit requirement marker. Canonical forms: `@rule @req:<id>` (automatable
-  // requirement, guarded via linked @executable acceptance) and
-  // `@rule @human @req:<id>` (governance/non-programmable requirement).
-  // `@executable @req:<id>` (no @rule) is an acceptance/bindable scenario.
-  return { classification, rule: rule || human, errors };
+interface RawTags {
+  names: string[]; // without leading '@'
+  reqId: string;
 }
 
-/** Parse one capability .feature source into the single-track IR. */
+function parseTags(tags: readonly { name: string }[]): RawTags {
+  const names = tags.map((t) => t.name.replace(/^@/u, ''));
+  const req = tags.map((t) => t.name.match(REQ_TAG_RE)?.[1]).find((v): v is string => !!v);
+  return { names, reqId: req ?? '' };
+}
+
+function collectScenario(sc: {
+  tags: readonly { name: string }[];
+  name: string;
+  steps: readonly { keyword: string; text: string }[];
+}): ScenarioIR {
+  const { names, reqId: _ignored } = parseTags(sc.tags);
+  const skipTokens = new Set(['skip', 'experimental']);
+  const runnable = !names.some((n) => skipTokens.has(n));
+  const steps = sc.steps.map((s) => ({
+    kind: stepKeywordToKind(s.keyword),
+    text: s.text.trim(),
+  }));
+  return {
+    name: sc.name,
+    tags: names.filter(
+      (n) =>
+        !n.startsWith('req') &&
+        !skipTokens.has(n) &&
+        !n.startsWith('rule') &&
+        !n.startsWith('human') &&
+        !n.startsWith('executable'),
+    ),
+    runnable,
+    stepCount: steps.length,
+    steps,
+    statement: steps.map((s) => s.text).join('\n'),
+  };
+}
+
+/** Parse one capability .feature source into the native single-track IR. */
 export function parseCapability(source: string, fileName = '<inline>'): CapabilityDoc {
   const errors: SpecStructuralError[] = [];
   const header = extractHeader(source);
@@ -135,57 +132,38 @@ export function parseCapability(source: string, fileName = '<inline>'): Capabili
   const { doc, language } = parseFeatureSource(source);
   const feature = doc.feature;
   const featureName = feature?.name ?? '';
-  const scenarios: ScenarioIR[] = [];
+  const rules: RuleIR[] = [];
+  const orphans: ScenarioIR[] = [];
 
   for (const child of feature?.children ?? []) {
     const rule = child.rule;
-    if (rule && rule.children.some((c) => c.scenario)) {
-      errors.push({
-        code: 'rule:nested-scenario',
-        message: `Rule 块内嵌场景被拒绝(rule: ${rule.name})`,
+    if (rule) {
+      const { names, reqId } = parseTags(rule.tags);
+      const description = (rule.description ?? '')
+        .split('\n')
+        .map((l) => l.trim())
+        .filter((l) => l !== '')
+        .join('\n');
+      const scenarios: ScenarioIR[] = [];
+      for (const rc of rule.children) {
+        if (rc.scenario) scenarios.push(collectScenario(rc.scenario));
+      }
+      rules.push({
+        reqId,
+        title: rule.name,
+        description,
+        scenarios,
+        tags: names.filter(
+          (n) => !n.startsWith('req') && !n.startsWith('rule') && !n.startsWith('human'),
+        ),
       });
       continue;
     }
     const scenario = child.scenario;
-    if (!scenario) continue;
-
-    const tags = scenario.tags.map((t) => t.name.replace(/^@/u, ''));
-    const reqIds = scenario.tags
-      .map((t) => t.name.match(REQ_TAG_RE)?.[1])
-      .filter((v): v is string => v !== undefined);
-
-    const kind = classify(tags);
-    errors.push(...kind.errors);
-
-    const description = (scenario.description ?? '')
-      .split('\n')
-      .map((l) => l.trim())
-      .filter((l) => l !== '');
-    const stepTexts = scenario.steps.map((s) => s.text.trim());
-    const statement = [...description, ...stepTexts].join('\n');
-    const steps = scenario.steps.map((s) => ({
-      kind: stepKeywordToKind(s.keyword),
-      text: s.text.trim(),
-    }));
-
-    if (kind.classification === 'human' && !MUST_WORD_RE.test(statement)) {
-      errors.push({
-        code: 'rule:missing-must-word',
-        message: `@human 规则场景描述必须含 MUST/SHALL(scenario: ${scenario.name})`,
-      });
+    if (scenario) {
+      orphans.push(collectScenario(scenario));
     }
-
-    scenarios.push({
-      name: scenario.name,
-      tags,
-      reqIds,
-      classification: kind.classification,
-      rule: kind.rule,
-      statement,
-      stepCount: stepTexts.length,
-      steps,
-    });
   }
 
-  return { fileName, header, featureName, language, scenarios, errors };
+  return { fileName, header, featureName, language, rules, orphans, errors };
 }

@@ -45,8 +45,10 @@ function enforceCloseOutHarness(id: string, noCheck: boolean): void {
   const proposalPath = `llmanspec/changes/${id}/proposal.md`;
   const proposal = existsSync(proposalPath) ? readFileSync(proposalPath, 'utf8') : '';
   const needsSpecsChange = readNeedsSpecsChange(extractFrontmatter(proposal));
-  const hasExecutable = loadSpecEntries().some((entry) =>
-    entry.doc.scenarios.some((scenario) => scenario.classification === 'executable'),
+  const hasExecutable = loadSpecEntries().some(
+    (entry) =>
+      entry.doc.rules.some((r) => r.scenarios.some((s) => s.runnable && s.stepCount > 0)) ||
+      entry.doc.orphans.some((s) => s.runnable && s.stepCount > 0),
   );
   const runCommand = loadCliConfig()?.bdd?.run_command ?? null;
   const decision = decideCloseOutHarness({

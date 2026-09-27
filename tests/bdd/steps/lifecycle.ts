@@ -1315,7 +1315,7 @@ bdd.given('一个已完成 start 并在特性分支有新提交且 live specs �
   repo.run('bun', [CLI, 'change', 'start', id]);
   writeFileSync(
     join(repo.root, 'llmanspec', 'specs', 'broken.feature'),
-    '# language: zh-CN\n# capability: broken\n# purpose: p\n# scope: llmanspec/\n\n功能: broken\n\n  @req:r1 @human @executable\n  场景: 互斥\n    - 系统 MUST x\n',
+    '# language: zh-CN\n# capability: broken\n# purpose: p\n# scope: llmanspec/\n\n功能: broken\n\n  规则: 缺句柄\n    系统 MUST x\n',
   );
   repo.run('git', ['add', '-A']);
   repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'feat']);
@@ -1524,15 +1524,14 @@ const EXEC_SPEC = `# language: zh-CN
 
 功能: tip
 
-  @req:r9 @human
-  场景: 规则
-    - 计算 MUST 给出整数
+  @req:r9
+  规则: 规则
+    计算 MUST 给出整数
 
-  @req:r9 @executable
-  场景: 跑一下
-    假如 有账单
-    当 计算
-    那么 得到整数
+    场景: 跑一下
+      假如 有账单
+      当 计算
+      那么 得到整数
 `;
 
 function seedCloseOutHarness(
@@ -1564,25 +1563,22 @@ function seedCloseOutHarness(
 }
 
 bdd.given(
-  '一个已完成 start、活规格含 @executable 且 run_command 写标记文件并成功的临时仓库',
+  '一个已完成 start、活规格含可执行场景且 run_command 写标记文件并成功的临时仓库',
   (ctx) => {
     seedCloseOutHarness(ctx, { command: 'echo ran >> .harness.log', needsSpecsChange: true });
   },
 );
 
-bdd.given(
-  '一个已完成 start、活规格含 @executable 且 run_command 以退出码 1 失败的临时仓库',
-  (ctx) => {
-    seedCloseOutHarness(ctx, { command: 'exit 1', needsSpecsChange: true });
-  },
-);
+bdd.given('一个已完成 start、活规格含可执行场景且 run_command 以退出码 1 失败的临时仓库', (ctx) => {
+  seedCloseOutHarness(ctx, { command: 'exit 1', needsSpecsChange: true });
+});
 
-bdd.given('一个已完成 start、活规格含 @executable 且未配置 run_command 的临时仓库', (ctx) => {
+bdd.given('一个已完成 start、活规格含可执行场景且未配置 run_command 的临时仓库', (ctx) => {
   seedCloseOutHarness(ctx, { command: null, needsSpecsChange: true });
 });
 
 bdd.given(
-  '一个已完成 start、needs_specs_change 为 false、活规格含 @executable 且未配置 run_command 的临时仓库',
+  '一个已完成 start、needs_specs_change 为 false、活规格含可执行场景且未配置 run_command 的临时仓库',
   (ctx) => {
     seedCloseOutHarness(ctx, { command: null, needsSpecsChange: false });
   },
