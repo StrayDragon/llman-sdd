@@ -7,7 +7,12 @@
 
   @req:r5 @rule
   场景: 顶层字段域
-    - llmanspec/config.yaml MUST 位于项目根 llmanspec/ 目录;顶层字段 MUST 仅由 schema/locale/extra_skills/archive/bdd/sdd/change_id 组成,未知字段 SHALL 宽松放行(不报错)。schema 字段必填且 MUST 为 "spec-driven"。extra_skills 取值域 MUST 限于 llman-sdd-continue/llman-sdd-ff/llman-sdd-validate/llman-sdd-arch-review/llman-sdd-wayfinder/llman-sdd-research。bdd 段 MUST 仅由 framework/run_command/verify_prompt 组成(bindings 键已不消费,旧配置残留该键 SHALL 被宽松剥离,解析结果不含该键)。bdd 段 MUST NOT 声明无消费方的字段(default_language、feature_dir 已移除),旧配置残留这两个键 SHALL 被宽松忽略(与未知字段同口径,解析结果不含该键)。
+    llmanspec/config.yaml MUST 位于项目根 llmanspec/ 目录;顶层字段 MUST 仅由
+    schema/locale/extra_skills/archive/bdd/sdd/change_id 组成,未知字段 SHALL 宽松放行(不报错)。schema 字段必填且 MUST 为
+    "spec-driven"。extra_skills 取值域 MUST 限于
+    llman-sdd-continue/llman-sdd-ff/llman-sdd-validate/llman-sdd-arch-review/llman-sdd-wayfinder/llman-sdd-research。
+    bdd 段 MUST 仅由 framework/run_command/verify_prompt 组成(bindings 键已不消费,旧配置残留该键 SHALL 被宽松剥离,解析结果不含该键)。
+    bdd 段 MUST NOT 声明无消费方的字段(default_language、feature_dir 已移除),旧配置残留这两个键 SHALL 被宽松忽略(与未知字段同口径,解析结果不含该键)。
 
   @req:r5 @executable
   场景: 顶层字段域与未知字段宽松
@@ -30,7 +35,9 @@
 
   @req:r6 @rule
   场景: 校验失败报告与 artifact 漂移门
-    - config 校验失败 MUST 报错且错误明细 MUST 截断至前 5 条;locale 缺省 MUST 为 "en"。schema artifact(artifacts/schema/configs/en/llmanspec-config.schema.json)MUST 可由 zod schema 确定性再生成,漂移 MUST 被 gen-schema --check 以非零退出码拒绝。
+    config 校验失败 MUST 报错且错误明细 MUST 截断至前 5 条;locale 缺省 MUST 为 "en"。schema
+    artifact(artifacts/schema/configs/en/llmanspec-config.schema.json)MUST 可由 zod schema 确定性再生成,漂移 MUST
+    被 gen-schema --check 以非零退出码拒绝。
 
   @req:r6 @executable
   场景: 非法配置被拒绝
@@ -50,7 +57,10 @@
 
   @req:r59 @rule
   场景: change_id pattern 契约
-    - config `change_id.pattern` MUST 在加载期编译校验(非法正则 MUST 报错;该编译 MUST 由 core 配置加载完成,读取配置的所有命令路径均受其约束);pattern 的强制点 MUST 为 validate 的 change 域(对活跃 change 目录名违反 pattern 者判 ERROR,归档/legacy 不回溯,与前代一致);`change new` 对显式 id 与派生 id MUST NOT 因 pattern 拒绝;pattern 缺省 MUST 为宽松 kebab 兼容(等价 ^[a-z0-9][a-z0-9-]*$)。
+    config `change_id.pattern` MUST 在加载期编译校验(非法正则 MUST 报错;该编译 MUST 由 core
+    配置加载完成,读取配置的所有命令路径均受其约束);pattern 的强制点 MUST 为 validate 的 change 域(对活跃 change 目录名违反 pattern 者判
+    ERROR,归档/legacy 不回溯,与前代一致);`change new` 对显式 id 与派生 id MUST NOT 因 pattern 拒绝;pattern 缺省 MUST 为宽松
+    kebab 兼容(等价 ^[a-z0-9][a-z0-9-]*$)。
 
   @req:r59 @executable
   场景: pattern 在 validate 域强制

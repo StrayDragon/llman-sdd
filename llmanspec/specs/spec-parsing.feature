@@ -7,11 +7,14 @@
 
   @req:r7 @rule
   场景: 解析语言兜底链
-    - .feature 解析 MUST 以 en 匹配器起步(`# language:` 头自动生效),失败后 MUST 回退 zh-CN 匹配器再试,仍失败才报错。config locale zh-Hans MUST 映射为 gherkin 语言代码 zh-CN,其余 locale 透传;`spec skeleton` 生成的 `# language:` 头 MUST 经该映射派生(不得另行硬编码)。
+    .feature 解析 MUST 以 en 匹配器起步(`# language:` 头自动生效),失败后 MUST 回退 zh-CN 匹配器再试,仍失败才报错。config locale
+    zh-Hans MUST 映射为 gherkin 语言代码 zh-CN,其余 locale 透传;`spec skeleton` 生成的 `# language:` 头 MUST
+    经该映射派生(不得另行硬编码)。
 
   @req:r8 @rule
   场景: 头注释契约
-    - 每个 capability .feature MUST 以 `# capability:` 头注释开始;`# purpose:` 与 `# scope:` MUST 同样存在;三者构成 CapabilityDoc 头部,缺失项 MUST 被逐项报告。
+    每个 capability .feature MUST 以 `# capability:` 头注释开始;`# purpose:` 与 `# scope:` MUST 同样存在;三者构成
+    CapabilityDoc 头部,缺失项 MUST 被逐项报告。
 
   @req:r7 @executable
   场景: 语言兜底链与 locale 映射
@@ -38,7 +41,9 @@
 
   @req:r9 @rule
   场景: 标签分层语义
-    - 场景标签中的 @req:rN MUST 被提取为需求链接;残留 @manual tag MUST 被报为迁移 ERROR(0.3.0 起移除该 tag,判定语义由 @human 承担,不得静默忽略);@human 与 @executable 互斥,违反 MUST 被报告;`@rule` tag MUST 声明场景的规则角色(`@rule` 与 @executable 互斥,违反 MUST 被报告);@human 规则场景描述 MUST 含 MUST/SHALL 语义词。
+    场景标签中的 @req:rN MUST 被提取为需求链接;残留 @manual tag MUST 被报为迁移 ERROR(0.3.0 起移除该 tag,判定语义由 @human
+    承担,不得静默忽略);@human 与 @executable 互斥,违反 MUST 被报告;`@rule` tag MUST 声明场景的规则角色(`@rule` 与 @executable
+    互斥,违反 MUST 被报告);@human 规则场景描述 MUST 含 MUST/SHALL 语义词。
 
   @req:r9 @executable
   场景: 中文 feature 解析为 IR
@@ -57,7 +62,7 @@
 
   @req:r10 @rule
   场景: 全局 rN 注册表
-    - 跨全部 specs 的 @req:rN MUST 构成全局唯一注册表;重复 id MUST 被报告且报告 MUST 含冲突文件对。
+    跨全部 specs 的 @req:rN MUST 构成全局唯一注册表;重复 id MUST 被报告且报告 MUST 含冲突文件对。
 
   @req:r10 @executable
   场景: 重复 req id 被发现

@@ -7,15 +7,22 @@
 
   @req:r17 @rule
   场景: 模板渲染语义
-    - 模板变量 MUST 全部为字符串注入,未定义变量 MUST 渲染为空(Lenient);`unit(id)` MUST 递归展开对应单元内容(同环境同变量),嵌套深度 MUST 以 32 为上限,缺失 id MUST 报错;渲染产物 MUST 去除尾随空白,落盘时 MUST 以单一换行结尾。
+    模板变量 MUST 全部为字符串注入,未定义变量 MUST 渲染为空(Lenient);`unit(id)` MUST 递归展开对应单元内容(同环境同变量),嵌套深度 MUST 以 32
+    为上限,缺失 id MUST 报错;渲染产物 MUST 去除尾随空白,落盘时 MUST 以单一换行结尾。
 
   @req:r18 @rule
   场景: locale 兜底链
-    - locale MUST 先归一化(zh/zh-cn/zh-hans 前缀 → zh-Hans,en 前缀 → en,空值 → en),回退链 MUST 为 [归一化值, 语言主部, en] 去重序列;单元资源 MUST 按 unit 级独立回退(首个命中 locale 生效)。
+    locale MUST 先归一化(zh/zh-cn/zh-hans 前缀 → zh-Hans,en 前缀 → en,空值 → en),回退链 MUST 为 [归一化值, 语言主部, en]
+    去重序列;单元资源 MUST 按 unit 级独立回退(首个命中 locale 生效)。
 
   @req:r19 @rule
   场景: init 产物面与命名空间治理
-    - `init` MUST 产出 llmanspec/config.yaml(含 $schema 头行与 locale 缺省)、specs/.gitkeep、changes/archive/.gitkeep,并以托管块方式写根与 llmanspec 的 AGENTS.md(已有内容保留);`init --update` MUST 渲染默认 10 个 skills 加 extra_skills 扩展到 `.agents/skills/<stem>/SKILL.md`,且 MUST 仅清理 `llman-sdd-` 前缀内候选集外的目录;每个渲染产物 MUST 通过 ethics 治理门(5 个 ethics 键齐全)。渲染产物与 golden 基线(tests/golden/baseline/)的版本号归一化比对 MUST 同时覆盖 zh-Hans 与 en 两个 locale,且 MUST 随 bun test 套件运行;比对失败 MUST 报出差异文件名并区分缺失、多余与内容不同。
+    `init` MUST 产出 llmanspec/config.yaml(含 $schema 头行与 locale 缺省)、specs/.gitkeep、
+    changes/archive/.gitkeep,并以托管块方式写根与 llmanspec 的 AGENTS.md(已有内容保留);`init --update` MUST 渲染默认 10 个
+    skills 加 extra_skills 扩展到 `.agents/skills/<stem>/SKILL.md`,且 MUST 仅清理 `llman-sdd-`
+    前缀内候选集外的目录;每个渲染产物 MUST 通过 ethics 治理门(5 个 ethics 键齐全)。渲染产物与 golden
+    基线(tests/golden/baseline/)的版本号归一化比对 MUST 同时覆盖 zh-Hans 与 en 两个 locale,且 MUST 随 bun test 套件运行;比对失败
+    MUST 报出差异文件名并区分缺失、多余与内容不同。
 
   @req:r19 @executable
   场景: 渲染与基线归一化一致
@@ -33,15 +40,19 @@
 
   @req:r49 @rule
   场景: init 目标路径
-    - `init [path]` MUST 支持位置参数指定目标目录(相对或绝对,不存在 MUST 自动创建),全部产物(llmanspec/、根 AGENTS.md、.agents/skills/)MUST 落在该目录下;缺省 MUST 为当前目录。
+    `init [path]` MUST 支持位置参数指定目标目录(相对或绝对,不存在 MUST 自动创建),全部产物(llmanspec/、根 AGENTS.md、
+    .agents/skills/)MUST 落在该目录下;缺省 MUST 为当前目录。
 
   @req:r50 @rule
   场景: init locale 选项别名
-    - `init` MUST 接受 `--lang <locale>` 作为 `--locale` 的别名(渲染语义完全等效);两者同给 MUST 报错。
+    `init` MUST 接受 `--lang <locale>` 作为 `--locale` 的别名(渲染语义完全等效);两者同给 MUST 报错。
 
   @req:r66 @rule
   场景: spec 撰写配对引导判据
-    - skills 撰写引导(单轨 feature 撰写节与 tag 语法节)MUST 含 executable/@rule 分流判据并附带使用示例:凡 GWT(假如/当/那么)可表达、绑定步骤代码的自动化判定行为 MUST 落成 @executable 场景(经典 gherkin 鼓励形态,尽可能减少 @rule 定义);仅当需求无法程序化表达(抽象目标、架构决策、治理/人工约束)或暂不转写为 executable 时,才以 @rule 场景承载——可自动化锚点 @rule MUST 挂 @executable 验收,纯人工约束用 `@rule @human` 并在 proposal/design 记录不可执行理由;判据与示例 MUST 在 zh-Hans 与 en 双 locale 模板中同语义存在。
+    skills 撰写引导(单轨 feature 撰写节与 tag 语法节)MUST 含 executable/@rule 分流判据并附带使用示例:凡 GWT(假如/当/那么)可表达、
+    绑定步骤代码的自动化判定行为 MUST 落成 @executable 场景(经典 gherkin 鼓励形态,尽可能减少 @rule 定义);仅当需求无法程序化表达(抽象目标、架构决策、
+    治理/人工约束)或暂不转写为 executable 时,才以 @rule 场景承载——可自动化锚点 @rule MUST 挂 @executable 验收,纯人工约束用 `@rule @human`
+    并在 proposal/design 记录不可执行理由;判据与示例 MUST 在 zh-Hans 与 en 双 locale 模板中同语义存在。
 
   @req:r49 @executable
   场景: init 子目录目标
@@ -80,11 +91,25 @@
 
   @req:r70 @rule
   场景: 模板指引语义对齐
-    - 模板 skills 与 units(zh-Hans 与 en 双 locale)中对 CLI 的行为性指引 MUST 与实际值域与行为一致:review 人审检查点 MUST 用无旗标调用(--capability 值域仅限 spec id)、已删除的兼容旗标 MUST NOT 再被推荐、change archive 收口 MUST 表述为与 finalize 同样的自动提交、context unavailable 修复指引 MUST 覆盖 index stale 与 chat model 未设双分支、引用不存在的 JSON 字段 MUST NOT 出现;propose「写 tasks.md」一节与 apply「勾选」一节 MUST 含约束句——tasks.md 只列实现与验证任务,收口(change finalize/change archive)是流水线步骤 MUST NOT 列为任务;apply 模板 MUST 含门禁证据约束句——门禁结论 MUST 来自真实 harness(MUST NOT 以 `--no-check` 取得通过、harness 失败 MUST 先查根因)、编辑与验证 MUST 串行(MUST NOT 同批并行工具调用)、前后对比类判据 MUST 在 change 分支上测量、重构类 task MUST 对比测试用例数;verify 模板 MUST 含审查者亲自复跑门禁(MUST NOT 采信实现者报告,不符与 `--no-check` 证据均为 CRITICAL)与前后对比测量位置核对;propose「写 tasks.md」一节 MUST 要求前后对比类完成判据注明在 change 分支上测量;对账 MUST 以自动门禁纳入 bun test 套件(随 qa 运行),以禁用模式与必含标记声明(模式 MUST 覆盖已移除命令 checkpoint/change delta/feature_delta/solidify/project import 与已删除旗标及修饰符),违例 MUST 逐条报出来源模板与违例原因,缺失必含标记 MUST 同样报出模板与缺失标记;对账面为 packages/core/templates/** 模板源头,渲染产物与 golden 基线为下游,模板字面对账不在下游重复设门(仓库自带产物的新鲜度比对是独立门禁,见 r80)。apply 与 verify 模板(zh-Hans 与 en)MUST 声明:收口会执行已配置的 `bdd.run_command`,因此收口前不必再跑一遍该命令;`--no-check` 打出的跳过说明不是通过。
+    模板 skills 与 units(zh-Hans 与 en 双 locale)中对 CLI 的行为性指引 MUST 与实际值域与行为一致:review 人审检查点 MUST
+    用无旗标调用(--capability 值域仅限 spec id)、已删除的兼容旗标 MUST NOT 再被推荐、change archive 收口 MUST 表述为与 finalize
+    同样的自动提交、context unavailable 修复指引 MUST 覆盖 index stale 与 chat model 未设双分支、引用不存在的 JSON 字段 MUST NOT
+    出现;propose「写 tasks.md」一节与 apply「勾选」一节 MUST 含约束句——tasks.md 只列实现与验证任务,收口(change finalize/change
+    archive)是流水线步骤 MUST NOT 列为任务;apply 模板 MUST 含门禁证据约束句——门禁结论 MUST 来自真实 harness(MUST NOT 以 `--no-check`
+    取得通过、harness 失败 MUST 先查根因)、编辑与验证 MUST 串行(MUST NOT 同批并行工具调用)、前后对比类判据 MUST 在 change 分支上测量、重构类 task
+    MUST 对比测试用例数;verify 模板 MUST 含审查者亲自复跑门禁(MUST NOT 采信实现者报告,不符与 `--no-check` 证据均为
+    CRITICAL)与前后对比测量位置核对;propose「写 tasks.md」一节 MUST 要求前后对比类完成判据注明在 change 分支上测量;对账 MUST 以自动门禁纳入 bun
+    test 套件(随 qa 运行),以禁用模式与必含标记声明(模式 MUST 覆盖已移除命令 checkpoint/change
+    delta/feature_delta/solidify/project import 与已删除旗标及修饰符),违例 MUST 逐条报出来源模板与违例原因,缺失必含标记 MUST
+    同样报出模板与缺失标记;对账面为 packages/core/templates/** 模板源头,渲染产物与 golden
+    基线为下游,模板字面对账不在下游重复设门(仓库自带产物的新鲜度比对是独立门禁,见 r80)。apply 与 verify 模板(zh-Hans 与 en)MUST 声明:收口会执行已配置的
+    `bdd.run_command`,因此收口前不必再跑一遍该命令;`--no-check` 打出的跳过说明不是通过。
 
   @req:r71 @rule
   场景: authoring helpers 撰写引导
-    - propose 撰写引导 MUST 将 spec authoring helpers 声明为结构化新增首选(next-req-id 全局 id 分配、add-req/add-scenario 追加规则与验收、skeleton 新建 capability、resolve-req 反查),手改 .feature MUST 保留为逃生门;引导 MUST 在 zh-Hans 与 en 双 locale 模板中同语义存在。
+    propose 撰写引导 MUST 将 spec authoring helpers 声明为结构化新增首选(next-req-id 全局 id 分配、add-req/add-scenario
+    追加规则与验收、skeleton 新建 capability、resolve-req 反查),手改 .feature MUST 保留为逃生门;引导 MUST 在 zh-Hans 与 en 双
+    locale 模板中同语义存在。
 
   @req:r70 @executable
   场景: 指引语义对齐门禁通过
@@ -100,7 +125,10 @@
 
   @req:r80 @rule
   场景: 仓库自带 skills 新鲜度
-    - 本仓库已提交的 `.agents/skills` 中 `llman-sdd-` 前缀产物 MUST 与 golden 基线 zh-Hans 集(tests/golden/baseline/skills)版本号归一化后一致,非该前缀的目录 MUST NOT 参与比对;比对 MUST 随 check:skills-template-render(qa)运行,比对前 MUST 断言仓库 llmanspec/config.yaml 的 locale 与 bdd.run_command 与 golden 等价 config 一致;失败 MUST 报出差异文件名并区分缺失、多余与内容不同,且 MUST 提示运行 `init --update`。
+    本仓库已提交的 `.agents/skills` 中 `llman-sdd-` 前缀产物 MUST 与 golden 基线 zh-Hans
+    集(tests/golden/baseline/skills)版本号归一化后一致,非该前缀的目录 MUST NOT 参与比对;比对 MUST 随
+    check:skills-template-render(qa)运行,比对前 MUST 断言仓库 llmanspec/config.yaml 的 locale 与 bdd.run_command 与
+    golden 等价 config 一致;失败 MUST 报出差异文件名并区分缺失、多余与内容不同,且 MUST 提示运行 `init --update`。
 
   @req:r80 @executable
   场景: 仓库自带 skills 与基线一致

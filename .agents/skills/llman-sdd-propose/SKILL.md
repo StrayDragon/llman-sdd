@@ -145,6 +145,7 @@ MUST 通过才能继续；失败项在 validate 输出的 `items[].issues[]` 逐
 ### 4b) 单轨 feature 撰写
 - 规划文档可短暂留在默认分支；**不要**在默认分支编辑 `llmanspec/specs/**`。绑定分支后，落地 specs 与实现都在绑定分支上。
 - **单轨**：每个 capability 只有一个 `<capability>.feature`。行为以 `@executable` 场景表达（`假如/当/那么` 步骤绑定 runner 步骤代码并被执行——**默认首选形态**）；仅当需求无法程序化表达（抽象目标、架构决策、治理/人工约束）或暂不转写时，才以 `@req:<id> @rule` 规则场景承载（statement 全文放描述；可自动化锚点 MUST 挂 `@executable` 验收；纯人工约束用 `@req:<id> @rule @human` 并在 proposal/design 记录理由）。`@rule` 与 `@executable` 同场景互斥。绝不把场景嵌进 `Rule:` 块（runner 静默跳过其中场景）。
+- **statement 可读性**：`@rule`/`@rule @human` 的 statement 较长时拆成多行描述便于审查（解析器按行保留）；描述行不加 `- ` 列表前缀（会原样进入 statement），也不得以 `假如/当/那么/而且`（en `Given/When/Then/And/But`）开头——会被 Gherkin 解析为步骤。
 - **结构化新增首选**：向既有 capability 追加规则/验收，优先 `llman-sdd spec next-req-id`（全局 rN 分配）+ `spec add-req` / `spec add-scenario`（配对 tag 语法内建；写入路径自动解析扁平/目录布局）。新建 capability 用 `spec skeleton <capability>`；rN 反查用 `spec resolve-req <rN>`。手改 `.feature` 保留为逃生门（适合改既有条款）。
 - **executable/@rule 分流判据**（写新条款前先判定，**优先 executable、尽可能减少 @rule 定义**）：凡 GWT（假如/当/那么）可表达、绑定步骤代码的自动化判定行为 MUST 落成 `@executable` 验收场景并挂回对应规则——纯文字规则无法守护行为。用例如下：行为可程序判定（如「当 运行 validate 后,那么 stdout 为 TOON 且退出码为 0」）→ `@executable`；抽象目标/架构决策不可程序判定 → `@rule @human`（statement 含 MUST/SHALL）；暂不转写 → `@rule` 锚点并 MUST 挂 `@executable` 验收。新增 `@rule @human` 无可配对验收时 MUST 在 proposal/design 记录理由。
 

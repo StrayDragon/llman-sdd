@@ -18,7 +18,9 @@ Each capability is ONE Gherkin file: flat `llmanspec/specs/<capability>.feature`
 
   @req:r2 @rule
   场景: Rule title
-    System MUST do something (not yet converted to steps).
+    System MUST do something (not yet converted to steps). Longer requirement
+    clauses span multiple description lines without any list marker — the
+    statement is read verbatim, so multi-line prose keeps it reviewable.
 
   @req:r3 @rule @human
   场景: Governance constraint
@@ -28,6 +30,7 @@ Each capability is ONE Gherkin file: flat `llmanspec/specs/<capability>.feature`
 - Header comments (`# capability:` / `# purpose:` / `# scope:`) are REQUIRED; `scope` drives staleness checks.
 - **Prefer `@executable`**: express behavior as `Given/When/Then` steps bound to BDD step code and executed by the runner — the default preferred shape; minimize `@rule` definitions.
 - `@rule` scenarios carry requirements that cannot be expressed programmatically (abstract goals, architecture decisions, governance) or are not yet converted: the statement lives verbatim in the description; an automatable anchor MUST link an `@executable` acceptance. `@rule @human` is a pure human constraint (statement MUST contain MUST/SHALL). `@rule` and `@executable` are mutually exclusive on one scenario.
+- Long statements (`@rule`/`@rule @human`/`@human` descriptions) MUST be split into multiple description lines for reviewability, with no `- ` list marker (no bullets — the text feeds the statement verbatim); a description line MUST NOT begin with a step keyword (`假如/当/那么/而且` or `Given/When/Then/And/But` — it would be parsed as a step).
 - Editing/removing an existing `@rule`/`@human` rule scenario yields a WARNING only (report-only, never blocks a gate) — compare via git branch diff; the legacy lock-ack metadata `rules_touched` / `agent_acked` / `@agent` is removed with no aliases and no compat layer.
 - `@executable` scenarios are runner-bound acceptance; they link rules via `@req:<req_id>`.
 - Coverage tiers: enforced (has acceptance) / pending — `list --specs` reports both.

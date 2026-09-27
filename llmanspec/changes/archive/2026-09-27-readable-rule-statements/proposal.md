@@ -1,5 +1,8 @@
 ---
 depends_on: []
+branch: sdd/readable-rule-statements
+base_branch: main
+base_sha: 7650cec896ca0b159f00a8e354af8912a494e416
 ---
 
 # 规则 statement 可审查性:多行描述与 `- ` 前缀清理
