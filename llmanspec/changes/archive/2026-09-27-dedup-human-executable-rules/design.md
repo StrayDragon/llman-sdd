@@ -39,7 +39,7 @@
 
 ## 3. specs 转换清单（13 文件，85 → `@rule`，2 → `@rule @human`）
 
-按 capability（triage 分类见 `docs/research/dedup-human-triage-plan.md` §3）：全部 A/A+ 规则的标签改为 `@req:<id> @rule`；A+ 同时补验收；仅 eval-playbook r84/r85 改为 `@req:<id> @rule @human`。转换后 `@human` 仅剩 2 条；`@rule` 85 条；验收总数不变（+新增补验收）。`@rule` 与 `@executable` 互斥，规则场景不携带 `@executable`。
+全部 A/A+ 规则的标签改为 `@req:<id> @rule`；A+ 同时补验收（逐条处置见 §4）；仅 eval-playbook r84/r85 改为 `@req:<id> @rule @human`。转换后 `@human` 仅剩 2 条；`@rule` 85 条；验收总数不变（+新增补验收）。`@rule` 与 `@executable` 互斥，规则场景不携带 `@executable`。
 
 ## 4. 验收补足设计（A+ 15 条）
 

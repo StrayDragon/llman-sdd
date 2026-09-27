@@ -9,7 +9,7 @@ base_sha: abf120770a35599a90e76ee88fc0b34998bc4ae6
 
 仓库 13 个 capability 的 87 条 `@human` 规则中，85 条是确定性 CLI/引擎行为（可 GWT 判定），仅 2 条（eval-playbook r84/r85）是纯治理/外部事实。但现行验证引擎强制「规则只能是 `@human` 场景、每 capability 至少 1 条 `@human`、`@executable` 验收必须挂回 `@human` 规则」，导致可自动化行为长期挂着 `@human` 标签，与 llman-sdd-verify 技能分流条款（「凡 GWT 可表达的自动化判定行为 MUST 落 `@executable` 验收；`@human` 仅用于不可自动化的人工约束」）语义相悖。
 
-用户已决策（2026-09-27,路线定策于当日,详见 design.md §1）：**路线 H**——改造验证引擎，使规则可声明为 `@executable`；**合并为一个 change**；缺口 G1（change-lifecycle r35 符号链接）**补实现+验收**；本次**不运行** specs-compact；意外问题**全部当场修**。规划/triage 全量依据见 `docs/research/dedup-human-triage-plan.md`（阶段 0 产物，已提交 main）。
+用户已决策（2026-09-27,路线定策于当日,详见 design.md §1）：**路线 H**——改造验证引擎，使规则可声明为 `@executable`；**合并为一个 change**；缺口 G1（change-lifecycle r35 符号链接）**补实现+验收**；本次**不运行** specs-compact；意外问题**全部当场修**。阶段 0 的逐规则分流与基线不复保留为独立文档（过程性结论不落独立文档，见根 AGENTS.md）；triage 依据以本 proposal Why 段与 design.md 各节为准。
 
 ## What Changes
 
@@ -32,5 +32,5 @@ base_sha: abf120770a35599a90e76ee88fc0b34998bc4ae6
 - **SDD 引擎自身**：parser/validate/review/runner 语义扩展（向后兼容：`@human` 仍为规则）；`list --specs` morphology 的 ruleCount 口径不变（规则数不变）。
 - **测试**：引擎单测扩展；BDD 步骤新增（约 17 条验收的锚定步骤）。
 - **模板/golden**：技能文本与基线更新，`bun run generate:skills-template-baseline` + `check:skills-template-render` 必须过（漂移=失败）。
-- **文档**：`llmanspec/AGENTS.md` 工程规则不改；本 proposal/design 引用 `docs/research/dedup-human-triage-plan.md`。
+- **文档**：`llmanspec/AGENTS.md` 工程规则不改；本 change 未新建独立规划文档（阶段 0 的一切依据以本 proposal/design 为准）。
 - 无破坏性移除字段/命令/tag（`@rule` 为新增，`@human`/`@executable`/`@req` 语义不变），无需迁移文档。
