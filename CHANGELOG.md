@@ -2,6 +2,48 @@
 
 本项目遵循语义化版本（SemVer）。breaking 变更随大版本/次版本标注迁移说明。
 
+## 0.5.0 (2026-09-27)
+
+**breaking**：`.feature` 规范格式收束为 Gherkin **原生分层**（change 系列
+`drop-orphan-concept` → `native-gherkin-format` → `readable-rule-statements` →
+`dedup-human-executable-rules` + 注释对齐批次）。
+
+- **唯一样式** = `规则:` 块（`@req:<id>` 为唯一需求句柄，挂块头标签；描述为自由
+  文本需求）+ 块内**嵌套** `场景:`（可执行 GWT，默认首选）；顶层 `场景:` 为
+  功能级示例（无句柄、不告警）。
+- **孤儿概念废除**：validate 不再对顶层验收场景报孤儿 WARNING；review 的
+  `unbound` 信号移除（信号集收窄为 `pending / stale / locked / validate`）；
+  顶层场景并入 morphology 的 `featureScenarioCount`（原 `orphanAcceptanceCount`）；
+  迁移工具对无归属验收按文件末尾自然排序，不再前置。
+- **历史标签惰性**：`@executable`/`@rule`/`@human`/`@manual` 不再承载语义
+  （解析不报错、不教学；旧文件经迁移工具剥离）。`@manual` 移除语义（v0.3）延续。
+- **规则描述不再强制 MUST/SHALL 词**；不再有互斥/豁免/悬空链接等旧机制。
+  裸规则（无嵌套场景）= 聚合 INFO（`--include-info` 可见）+ review pending 计量，
+  交 specs-compact 压降，不做治理豁免。
+
+### 迁移说明（详见 `migrations/v0.4-v0.5/README.md`）
+
+- 旧标签轨 `.feature` **必须**先迁移：`llman-sdd spec migrate-native --dry-run
+<specs-dir>` 预览 → `llman-sdd spec migrate-native --yes <specs-dir>` 执行
+  （或 `bash migrations/v0.4-v0.5/migrate-spec-format.sh`）。规则→`规则:` 块、
+  验收按 `@req` 嵌套、剥除旧标签、无归属验收转为功能级示例。
+- 新增结构门（validate ERROR）：`spec must define at least one rule`、
+  `rule must carry an @req:<req_id> tag`、全局重复 `req_id`。
+- 作者命令原生化：`spec add-req` 追加 `规则:` 块（不再校验 MUST 词）；
+  `spec add-scenario` 向规则块插入嵌套 `场景:`；`spec skeleton` 输出原生骨架。
+- 输出口径（`--json`/TOON/退出码）与生命周期命令（`change *`/`init`/`graph`/
+  `project *`）不变；`@req` 句柄机制（registry / next-req-id / resolve-req /
+  dedupe / 条款引用）完整保留。
+
+### 其它
+
+- change 归档存储：50 个历史归档冻结为平铺卡 + 7z 冷备（仓库内部，下游无感知）。
+- `--max-scan-depth` 缺省与边界收口（graph/review 实际生效）。
+- skill 模板指引对齐批次（readyToImplement 语义归位、authoring helpers 覆盖率、
+  双 locale golden 基线入守、模块依赖对账门禁 r72、门禁证据约束 r70/r80）。
+- BDD 验收基线：全部规则配对可执行验收（pending 基线 0），新增 rewardkit 校验
+  与测试框架、eval playbook 基座、模板 token 压缩。
+
 ## 0.4.0 (2026-09-24)
 
 **breaking**：报告型命令（`review` / `validate` / `list` / `show` / `config skills` /
