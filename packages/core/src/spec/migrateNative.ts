@@ -135,6 +135,16 @@ export function migrateNativeSource(source: string): MigrateResult {
       const text = stripBullet(line);
       if (text !== '') out.push(`    ${text}`);
     }
+    // A legacy rule scenario may carry its own acceptance steps inline
+    // (description + steps in one block). They become the rule's first
+    // nested scenario — file-order semantics, never dropped.
+    if (b.steps.length > 0) {
+      out.push('');
+      if (b.skip) out.push('    @skip');
+      out.push('    场景: 验收示例');
+      for (const s of b.steps) out.push(`      ${s.keyword} ${s.text}`);
+      scenarios++;
+    }
     for (const [ai, a] of blocks.entries()) {
       if (a.isRule || consumed.has(ai)) continue;
       if (!a.reqIds.some((rid) => b.reqIds.includes(rid))) continue;

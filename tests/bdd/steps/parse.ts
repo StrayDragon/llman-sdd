@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import {
   buildReqRegistry,
   localeToGherkinLang,
+  migrateNativeSource,
   parseCapability,
   parseFeatureSource,
   SpecParseError,
@@ -335,5 +336,93 @@ bdd.thenStep('生成的 spec 首行为 "# language: en"', (ctx) => {
   const content = r.content ?? '';
   if (!content.startsWith('# language: en\n')) {
     throw new Error(`en skeleton must start with the en header:\n${content}`);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// r65 — migration keeps a rule scenario's own inline steps (acceptance)
+// ---------------------------------------------------------------------------
+
+type MigrateOutcome = ReturnType<typeof migrateNativeSource>;
+
+const SAME_BODY_LEGACY = `# language: zh-CN
+# capability: 同体迁移
+# purpose: p
+# scope: x/
+
+功能: 同体迁移
+
+  @req:r1 @human
+  场景: 稳定输出
+    - 系统 MUST 输出稳定结果。
+    假如 输入为 \`1\`
+    当 系统执行
+    那么 输出 MUST 为 \`1\`
+`;
+
+const SAME_BODY_LEGACY_SKIP = SAME_BODY_LEGACY.replace(
+  '  @req:r1 @human',
+  '  @req:r1 @human @skip',
+);
+
+bdd.given('一个「描述与验收步骤同体」的 zh-CN legacy feature 内容', (ctx) => {
+  ctx.fixtures['同体迁移'] = { 源文本: SAME_BODY_LEGACY };
+});
+
+bdd.given('一个带 @skip 的「描述与验收步骤同体」legacy feature 内容', (ctx) => {
+  ctx.fixtures['同体迁移'] = { 源文本: SAME_BODY_LEGACY_SKIP };
+});
+
+bdd.when('迁移该 feature 为原生格式', (ctx) => {
+  const f = ctx.fixtures['同体迁移'] as { 源文本: string } | undefined;
+  if (!f) throw new Error('missing 同体迁移 fixture');
+  ctx.fixtures['迁移结果'] = migrateNativeSource(f.源文本) satisfies MigrateOutcome;
+});
+
+bdd.thenStep('迁移产物为含自动嵌套场景的规则块且步骤关键字序列原样保留', (ctx) => {
+  const res = ctx.fixtures['迁移结果'] as MigrateOutcome | undefined;
+  if (!res?.ok) throw new Error(`migration failed: ${res?.message}`);
+  const doc = parseCapability(res.content, '同体迁移.feature');
+  const rule = doc.rules[0];
+  if (!rule) throw new Error('no rule block in migrated output');
+  const nested = rule.scenarios[0];
+  if (nested?.name !== '验收示例') {
+    throw new Error(`inline steps must nest as 验收示例, got ${JSON.stringify(nested?.name)}`);
+  }
+  const kinds = nested.steps.map((s) => s.kind);
+  if (JSON.stringify(kinds) !== JSON.stringify(['given', 'when', 'then'])) {
+    throw new Error(`inline steps must keep their keywords, got [${kinds.join(', ')}]`);
+  }
+});
+
+bdd.thenStep('迁移产物以官方解析器解析无错误', (ctx) => {
+  const res = ctx.fixtures['迁移结果'] as MigrateOutcome | undefined;
+  if (!res?.ok) throw new Error(`migration failed: ${res?.message}`);
+  const doc = parseCapability(res.content, '同体迁移.feature');
+  if (doc.errors.length > 0) {
+    throw new Error(`migrated output must parse cleanly, got: ${JSON.stringify(doc.errors)}`);
+  }
+});
+
+bdd.thenStep('摘要计数含该自动嵌套场景', (ctx) => {
+  const res = ctx.fixtures['迁移结果'] as MigrateOutcome | undefined;
+  if (!res?.ok) throw new Error(`migration failed: ${res?.message}`);
+  if (res.rules !== 1 || res.scenarios !== 1) {
+    throw new Error(
+      `summary must count the auto-nested scenario, got ${res.rules} rule(s), ${res.scenarios} scenario(s)`,
+    );
+  }
+});
+
+bdd.thenStep('自动嵌套场景带 @skip 标签', (ctx) => {
+  const res = ctx.fixtures['迁移结果'] as MigrateOutcome | undefined;
+  if (!res?.ok) throw new Error(`migration failed: ${res?.message}`);
+  const doc = parseCapability(res.content, '同体迁移.feature');
+  const nested = doc.rules[0]?.scenarios[0];
+  // IR 消费规则:@skip 不留在 tags,折叠为 runnable=false
+  if (!nested || nested.runnable) {
+    throw new Error(
+      `auto-nested scenario must inherit @skip (runnable=false), got ${JSON.stringify(nested)}`,
+    );
   }
 });

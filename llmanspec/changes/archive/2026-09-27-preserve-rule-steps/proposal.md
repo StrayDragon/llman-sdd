@@ -1,5 +1,8 @@
 ---
 depends_on: []
+branch: sdd/preserve-rule-steps
+base_branch: main
+base_sha: 7481da6f67c6e05a2a1d853591ada855a2c890c3
 ---
 
 # 迁移保留规则场景自身的验收步骤

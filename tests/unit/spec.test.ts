@@ -360,6 +360,37 @@ describe('migrateNativeSource roundtrip', () => {
     expect(doc.orphans).toHaveLength(0);
   });
 
+  test('rule scenario with inline steps keeps them as a nested acceptance scenario', () => {
+    // issue #2: 描述与步骤同体的 legacy 规则场景,其自身 steps 不得被静默丢弃,
+    // 合成为该规则块内紧跟描述之后的自动嵌套场景,关键字与文本原样保留。
+    const src = `# language: zh-CN
+# capability: demo
+# purpose: p
+# scope: x/
+
+功能: demo
+
+  @req:r1 @human
+  场景: 稳定输出
+    - 系统 MUST 输出稳定结果。
+    假如 输入为 \`1\`
+    当 系统执行
+    那么 输出 MUST 为 \`1\`
+`;
+    const res = migrateNativeSource(src);
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.rules).toBe(1);
+    expect(res.scenarios).toBe(1);
+    const doc = parseCapability(res.content, 'demo.feature');
+    expect(doc.errors).toHaveLength(0);
+    const sc = doc.rules[0]?.scenarios[0];
+    expect(sc?.name).toBe('验收示例');
+    expect(sc?.steps.map((s) => s.kind)).toEqual(['given', 'when', 'then']);
+    expect(sc?.steps[0]?.text).toBe('输入为 `1`');
+    expect(doc.rules[0]?.description).toContain('系统 MUST 输出稳定结果。');
+  });
+
   test('unbound acceptance migrates to natural functional home (no orphan concept)', () => {
     // 孤儿概念已废除:无归属验收按文件顺序置于末尾,官方解析器将其并入前一
     // 规则,即其功能级归属;不产生任何孤儿/告警语义。
