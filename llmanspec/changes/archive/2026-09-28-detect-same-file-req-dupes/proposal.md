@@ -1,5 +1,8 @@
 ---
 depends_on: []
+branch: sdd/detect-same-file-req-dupes
+base_branch: main
+base_sha: 08f274d1ffaf68fa293ff54dbc8c8310d16a7ce8
 ---
 
 # 同文件 @req 碰撞检出与重映射

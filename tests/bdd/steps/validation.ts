@@ -65,6 +65,35 @@ bdd.thenStep('FAIL 集合恰为缺 @req 与重复 req_id 涉事的 capability', 
   }
 });
 
+// r12 — 同一文件内两条规则挂同一 @req 也判 ERROR(issue #4)
+bdd.given('一个单 capability 文件内两条规则挂同一 @req 的 specs 目录', (ctx) => {
+  const files: Record<string, string> = {
+    'llmanspec/specs/dupsame.feature': `# language: zh-CN\n# capability: dupsame\n# purpose: p\n# scope: llmanspec/\n\n功能: dupsame\n\n  @req:r21\n  规则: 甲\n    系统 MUST x\n\n  @req:r21\n  规则: 乙\n    系统 MUST y\n`,
+  };
+  const io: DiscoveryIo = {
+    exists: (p) => p.startsWith('llmanspec/'),
+    isDirectory: (p) => p === 'llmanspec/' || p === 'llmanspec/specs' || p === 'llmanspec/specs/',
+    listDir: (p) => {
+      const names = Object.keys(files).map((f) => f.slice('llmanspec/specs/'.length));
+      return p === 'llmanspec/specs' || p === 'llmanspec/specs/' ? names : [];
+    },
+    readText: (p) => files[p] ?? '',
+  };
+  ctx.fixtures['缺陷目录'] = { io, specsDir: 'llmanspec/specs' };
+});
+
+bdd.thenStep('FAIL 集合恰为该 capability', (ctx) => {
+  const result = ctx.fixtures['校验结果'] as ValidateResult | undefined;
+  const failCaps = (result?.lines ?? [])
+    .filter((l) => l.startsWith('FAIL spec/'))
+    .map((l) => l.slice('FAIL spec/'.length));
+  if (JSON.stringify(failCaps) !== JSON.stringify(['dupsame'])) {
+    throw new Error(
+      `FAIL set must be exactly dupsame (同文件重复 req_id 涉事 capability), got: ${failCaps.join(', ')}`,
+    );
+  }
+});
+
 bdd.thenStep('退出码非零', (ctx) => {
   // CLI-subprocess runs report {code}; the in-process validation fixture
   // reports {failed} — the same Then serves both shapes.

@@ -13,6 +13,7 @@ import {
   parseFeatureSource,
   SpecParseError,
   type CapabilityDoc,
+  type RegistryDuplicate,
 } from '@llman-sdd/core';
 
 import { bdd } from '../runner.ts';
@@ -23,7 +24,7 @@ interface ParseResult {
 }
 
 interface RegistryResult {
-  duplicates: { reqId: string; files: string[] }[];
+  duplicates: RegistryDuplicate[];
 }
 
 const SAMPLE_FEATURE = `# language: zh-CN
@@ -149,6 +150,42 @@ bdd.when('构建全局注册表', (ctx) => {
   ctx.fixtures['注册表'] = {
     duplicates: reg.duplicates,
   } satisfies RegistryResult;
+});
+
+// r10 — 同文件内多条规则共用同一 id 同样构成重复(issue #4)。
+// 注意:本 then 必须注册在通用 '报告包含重复对 {reqId}' 之前——matchStep
+// 取首个匹配模式,通用模式的字符串参数会贪婪吞掉本步骤的后缀文本。
+bdd.given('一个 spec 文件的两条规则都挂 @req:{reqId} 标签', (ctx, reqId) => {
+  const src = `# language: zh-CN
+# capability: 单文件重复
+# purpose: 验证同文件重复
+# scope: x/
+
+功能: 单文件重复
+
+  @req:${reqId}
+  规则: 规则甲
+    系统 MUST 提供能力
+
+  @req:${reqId}
+  规则: 规则乙
+    系统 MUST 提供另一能力
+`;
+  ctx.fixtures['重复样本'] = {
+    docs: [{ fileName: 'single.feature', doc: parseCapability(src, 'single.feature') }],
+  };
+});
+
+bdd.thenStep('报告包含重复对 {reqId} 且两个出现位于同一文件', (ctx, reqId) => {
+  const reg = ctx.fixtures['注册表'] as RegistryResult | undefined;
+  const dup = reg?.duplicates.find((d) => d.reqId === reqId);
+  if (!dup) {
+    throw new Error(`expected duplicate pair for ${reqId}, got ${JSON.stringify(reg?.duplicates)}`);
+  }
+  const fileNames = dup.occurrences.map((o) => o.fileName);
+  if (dup.occurrences.length !== 2 || new Set(fileNames).size !== 1) {
+    throw new Error(`expected two same-file occurrences, got ${JSON.stringify(dup)}`);
+  }
 });
 
 bdd.thenStep('报告包含重复对 {reqId}', (ctx, reqId) => {

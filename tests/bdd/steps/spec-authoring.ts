@@ -121,6 +121,64 @@ bdd.thenStep('后一个文件的 rN 被重映射为空闲 id', (ctx) => {
   if (!/^  @req:r\d+$/mu.test(billing)) throw new Error(`no remapped id found: ${billing}`);
 });
 
+// r43 — 同文件冲突重映射 + 标签边界精确替换(issue #4)
+bdd.given('一个同文件内两条规则挂相同 rN 的临时 specs 目录', (ctx) => {
+  const root = mkdtempSync(join(tmpdir(), 'llman-dedupe-same-'));
+  mkdirSync(join(root, 'llmanspec', 'specs'), { recursive: true });
+  const same = `${AUTHORING_HEAD}\n  @req:r1\n  规则: 规则乙\n    系统 MUST 刷新令牌\n`;
+  writeFileSync(join(root, 'llmanspec', 'specs', 'auth.feature'), same);
+  ctx.fixtures['authoring工作区'] = { root };
+});
+
+bdd.thenStep('文件内首处 rN 保留且后一处被重映射为空闲 id', (ctx) => {
+  const { code, out, root } = ctx.fixtures['dedupe结果'] as {
+    code: number;
+    out: string;
+    root: string;
+  };
+  if (code !== 0) throw new Error(`dedupe failed: ${out}`);
+  const auth = readFileSync(join(root, 'llmanspec', 'specs', 'auth.feature'), 'utf8');
+  const ids = [...auth.matchAll(/@req:(r\d+)/gu)].map((m) => m[1] ?? '');
+  if (ids.length !== 2 || ids[0] !== 'r1' || ids[1] === 'r1') {
+    throw new Error(
+      `first r1 must be kept and the second remapped, got [${ids.join(', ')}]:\n${auth}`,
+    );
+  }
+});
+
+bdd.given('一个两个 spec 含相同 r1 且其一文件含 @req:r10 的临时 specs 目录', (ctx) => {
+  const root = mkdtempSync(join(tmpdir(), 'llman-dedupe-prefix-'));
+  mkdirSync(join(root, 'llmanspec', 'specs'), { recursive: true });
+  writeFileSync(join(root, 'llmanspec', 'specs', 'auth.feature'), AUTHORING_HEAD);
+  const billing =
+    AUTHORING_HEAD.replace('capability: auth', 'capability: billing').replace(
+      '功能: auth',
+      '功能: billing',
+    ) + '\n  @req:r10\n  规则: 规则丙\n    系统 MUST 出账\n';
+  writeFileSync(join(root, 'llmanspec', 'specs', 'billing.feature'), billing);
+  ctx.fixtures['authoring工作区'] = { root };
+});
+
+bdd.thenStep('r10 句柄原样保留且冲突 r1 被重映射', (ctx) => {
+  const { code, out, root } = ctx.fixtures['dedupe结果'] as {
+    code: number;
+    out: string;
+    root: string;
+  };
+  if (code !== 0) throw new Error(`dedupe failed: ${out}`);
+  const billing = readFileSync(join(root, 'llmanspec', 'specs', 'billing.feature'), 'utf8');
+  if (!billing.includes('@req:r10')) {
+    throw new Error(`prefix-similar @req:r10 must survive the remap:\n${billing}`);
+  }
+  if (/@req:r1(?!\d)/u.test(billing)) {
+    throw new Error(`colliding r1 in billing must be remapped:\n${billing}`);
+  }
+  const auth = readFileSync(join(root, 'llmanspec', 'specs', 'auth.feature'), 'utf8');
+  if (!/@req:r1(?!\d)/u.test(auth)) {
+    throw new Error(`kept occurrence r1 in auth must survive:\n${auth}`);
+  }
+});
+
 bdd.given('一个目录式布局的临时 specs 目录', (ctx) => {
   const root = mkdtempSync(join(tmpdir(), 'llman-dir-author-'));
   mkdirSync(join(root, 'llmanspec', 'specs', 'auth'), { recursive: true });

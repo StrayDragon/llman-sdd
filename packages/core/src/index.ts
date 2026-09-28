@@ -43,7 +43,12 @@ export {
   STEP_KIND_BY_KEYWORD,
   type GherkinKeywords,
 } from './spec/keywords.ts';
-export { buildReqRegistry, type ReqRegistry, type RegistryDuplicate } from './spec/reqRegistry.ts';
+export {
+  buildReqRegistry,
+  type RegistryDuplicate,
+  type RegistryOccurrence,
+  type ReqRegistry,
+} from './spec/reqRegistry.ts';
 export {
   analyzeLegacy,
   hasNativeRules,

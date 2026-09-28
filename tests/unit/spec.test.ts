@@ -159,8 +159,51 @@ describe('buildReqRegistry (native @req handles on rule headers)', () => {
       { fileName: 'beta.feature', doc: b },
       { fileName: 'gamma.feature', doc: c },
     ]);
-    expect(reg.byId.get('r99')).toEqual(['alpha.feature', 'beta.feature']);
-    expect(reg.duplicates).toEqual([{ reqId: 'r99', files: ['alpha.feature', 'beta.feature'] }]);
+    expect(reg.byId.get('r99')?.map((o) => o.fileName)).toEqual(['alpha.feature', 'beta.feature']);
+    expect(reg.duplicates).toEqual([
+      {
+        reqId: 'r99',
+        files: ['alpha.feature', 'beta.feature'],
+        occurrences: [
+          { fileName: 'alpha.feature', ruleIndex: 0, title: a.rules[0]?.title ?? '' },
+          { fileName: 'beta.feature', ruleIndex: 0, title: b.rules[0]?.title ?? '' },
+        ],
+      },
+    ]);
+  });
+
+  // issue #4:同文件内多条规则共用同一 id 同样构成重复(按规则条数 > 1 判定)
+  test('same-file collision is reported with in-file occurrences', () => {
+    const src = `# language: zh-CN\n# capability: demo\n# purpose: p\n# scope: x/\n\n功能: demo\n\n  @req:r1\n  规则: 第一条\n    描述 A。\n\n  @req:r1\n  规则: 第二条\n    描述 B。\n`;
+    const doc = parseCapability(src, 'demo.feature');
+    const reg = buildReqRegistry([{ fileName: 'demo.feature', doc }]);
+    expect(reg.duplicates).toEqual([
+      {
+        reqId: 'r1',
+        files: ['demo.feature'],
+        occurrences: [
+          { fileName: 'demo.feature', ruleIndex: 0, title: '第一条' },
+          { fileName: 'demo.feature', ruleIndex: 1, title: '第二条' },
+        ],
+      },
+    ]);
+  });
+
+  test('mixed same-file + cross-file collision reports all occurrences', () => {
+    const two = parseCapability(
+      `# language: zh-CN\n# capability: demo\n# purpose: p\n# scope: x/\n\n功能: demo\n\n  @req:r7\n  规则: 甲\n    描述\n\n  @req:r7\n  规则: 乙\n    描述\n`,
+      'demo.feature',
+    );
+    const other = parseCapability(NATIVE_RULE('r7', 'other'), 'other.feature');
+    const reg = buildReqRegistry([
+      { fileName: 'demo.feature', doc: two },
+      { fileName: 'other.feature', doc: other },
+    ]);
+    expect(reg.duplicates[0]?.files).toEqual(['demo.feature', 'other.feature']);
+    expect(reg.duplicates[0]?.occurrences).toHaveLength(3);
+    expect(
+      reg.duplicates[0]?.occurrences.filter((o) => o.fileName === 'demo.feature'),
+    ).toHaveLength(2);
   });
 
   test('rule header without @req yields an empty reqId (not registered)', () => {
@@ -323,6 +366,63 @@ describe('spec authoring helpers (r41-r43, native v2)', () => {
     const plan = planDedupe(dup, io, 'llmanspec/specs', registry.duplicates);
     expect(plan[0]?.reqId).toBe('r1');
     expect(io.readText('llmanspec/specs/b.feature')).toInclude(`@req:${plan[0]?.newReqId}`);
+  });
+
+  // issue #4:同文件内第 2+ 次出现进入 remap 计划,首现保留
+  test('planDedupe remaps same-file collisions keeping the first occurrence', () => {
+    const two = `# language: zh-CN
+# capability: a
+# purpose: p
+# scope: x/
+
+功能: a
+
+  @req:r1
+  规则: 甲
+    系统 MUST x
+
+  @req:r1
+  规则: 乙
+    系统 MUST y
+`;
+    const { io, store } = memIo({ 'llmanspec/specs/a.feature': two });
+    const entries = entriesOf(parse(two));
+    const registry = buildReqRegistry(entries);
+    expect(registry.duplicates).toHaveLength(1);
+    const plan = planDedupe(entries, io, 'llmanspec/specs', registry.duplicates);
+    expect(plan).toHaveLength(1);
+    expect(plan[0]?.remapFile).toBe('a.feature');
+    expect(plan[0]?.occurrenceOrdinal).toBe(2);
+    const after = store['llmanspec/specs/a.feature'] as string;
+    expect(after).toInclude('@req:r1');
+    expect(after).toInclude(`@req:${plan[0]?.newReqId}`);
+    // 重映射后注册表干净且句柄各归其位
+    const reparsed = buildReqRegistry(entriesOf(parseCapability(after, 'a.feature')));
+    expect(reparsed.duplicates).toHaveLength(0);
+    const doc = parseCapability(after, 'a.feature');
+    expect(doc.rules[0]?.reqId).toBe('r1');
+    expect(doc.rules[1]?.reqId).toBe(plan[0]?.newReqId);
+  });
+
+  // issue #4 潜伏缺陷:整串替换会误伤前缀相近句柄(@req:r1 → @req:r10 被改)
+  test('planDedupe tag replacement is boundary-exact (r1 remap spares r10)', () => {
+    const withR10 = HEAD + '\n  @req:r10\n  规则: 丙\n    系统 MUST z\n';
+    const { io, store } = memIo({
+      'llmanspec/specs/a.feature': HEAD,
+      'llmanspec/specs/b.feature': withR10,
+    });
+    const entries = [
+      { fileName: 'llmanspec/specs/a.feature', doc: parse(HEAD) },
+      { fileName: 'llmanspec/specs/b.feature', doc: parseCapability(withR10, 'b.feature') },
+    ];
+    const registry = buildReqRegistry(entries);
+    expect(registry.duplicates.map((d) => d.reqId)).toEqual(['r1']);
+    planDedupe(entries, io, 'llmanspec/specs', registry.duplicates);
+    const after = store['llmanspec/specs/b.feature'] as string;
+    expect(after).toInclude('@req:r10');
+    expect(after).toInclude('@req:r2');
+    expect(after).not.toInclude('@req:r20');
+    expect(after).not.toMatch(/@req:r1(?!\d)/u);
   });
 
   test('fr spec files get official fr keywords for appended blocks and scenarios', () => {

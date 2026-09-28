@@ -56,7 +56,7 @@
   @req:r43
   规则: resolve-req 反查与注册表去重
     `spec resolve-req <req_id>` MUST 输出该 req 的 capability 与 statement,未命中 MUST
-    报错;`project dedupe-req-ids` MUST 扫描主库(非归档 specs)冲突 rN 并重映射为空闲短 id,`--dry-run` MUST 仅输出映射计划且零副作用。
+    报错;`project dedupe-req-ids` MUST 扫描主库(非归档 specs)冲突 rN(同文件内多条规则共用或跨文件)并重映射为空闲短 id,重映射语义为按出现顺序首现保留、其余出现逐个重取号,替换 MUST 精确匹配 `@req:<id>` 标签边界(不得误伤前缀相近的 id);`--dry-run` MUST 仅输出映射计划且零副作用。
 
     场景: resolve-req 输出 statement 与未命中报错
       假如 一个含单一 capability spec 的临时 specs 目录
@@ -76,3 +76,13 @@
       假如 一个两个 spec 含相同 rN 的临时 specs 目录
       当 运行 project dedupe-req-ids
       那么 后一个文件的 rN 被重映射为空闲 id
+
+    场景: dedupe 重映射同文件冲突
+      假如 一个同文件内两条规则挂相同 rN 的临时 specs 目录
+      当 运行 project dedupe-req-ids
+      那么 文件内首处 rN 保留且后一处被重映射为空闲 id
+
+    场景: dedupe 重映射不误伤前缀相近句柄
+      假如 一个两个 spec 含相同 r1 且其一文件含 @req:r10 的临时 specs 目录
+      当 运行 project dedupe-req-ids
+      那么 r10 句柄原样保留且冲突 r1 被重映射

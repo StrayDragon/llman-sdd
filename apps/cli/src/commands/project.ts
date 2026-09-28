@@ -1,4 +1,4 @@
-import { migrateNoteFor, migrateOverviewFor, planDedupe } from '@llman-sdd/core';
+import { buildReqRegistry, migrateNoteFor, migrateOverviewFor, planDedupe } from '@llman-sdd/core';
 import type { Command } from 'commander';
 
 import { CliError, loadCliConfig, loadSpecEntries, newIo } from '../cli-shared.ts';
@@ -11,20 +11,10 @@ export function registerProject(program: Command): void {
     .description('Remap globally duplicated req ids (report with --dry-run)')
     .option('--dry-run', 'report the remap plan without writing')
     .action((options: { dryRun?: boolean }) => {
-      // dedupe registry covers requirement handles (`@req` on 规则: headers) only.
+      // dedupe registry covers requirement handles (`@req` on 规则: headers) only;
+      // duplicates follow the occurrence model (同文件内共用或跨文件均算)
       const entries = loadSpecEntries();
-      const owners = new Map<string, string[]>();
-      for (const e of entries) {
-        for (const rule of e.doc.rules) {
-          if (rule.reqId === '') continue;
-          const list = owners.get(rule.reqId) ?? [];
-          if (!list.includes(e.fileName)) list.push(e.fileName);
-          owners.set(rule.reqId, list);
-        }
-      }
-      const duplicates = [...owners.entries()]
-        .filter(([, files]) => files.length > 1)
-        .map(([reqId, files]) => ({ reqId, files }));
+      const { duplicates } = buildReqRegistry(entries);
       if (duplicates.length === 0) {
         console.log('No colliding req_id values in llmanspec/specs.');
         return;

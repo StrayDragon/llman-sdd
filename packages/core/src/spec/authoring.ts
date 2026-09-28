@@ -9,6 +9,7 @@ import type { CapabilityDoc, RuleIR } from './ir.ts';
 import { specIdOf } from './ir.ts';
 import { BLOCK_KEYWORD_LINE_RE, officialKeywordsOrEn } from './keywords.ts';
 import { sourceDialect } from './parser.ts';
+import type { RegistryDuplicate } from './reqRegistry.ts';
 
 export class AuthoringError extends Error {}
 
@@ -195,21 +196,44 @@ export function resolveReq(entries: readonly SpecEntryLike[], reqId: string): Re
 
 export interface DedupePlanItem {
   reqId: string;
+  /** File of the kept (first) occurrence. */
   keepFile: string;
   remapFile: string;
   newReqId: string;
+  /** 1-based ordinal of the remapped `@req:<id>` occurrence within remapFile's text. */
+  occurrenceOrdinal: number;
 }
 
 /**
- * Plan (and optionally apply) a re-map of globally duplicated rN ids: the
- * first file keeps the id, later files get the next free id (r43). `apply:
- * false` (`--dry-run`) returns the plan without writing anything.
+ * Replace the ordinal-th `@req:<id>` tag in raw text. The tag match is
+ * boundary-exact (`@req:r1` never matches inside `@req:r10`), and only the
+ * target ordinal is rewritten so a kept first occurrence in the same file
+ * stays untouched (r43: 按出现顺序首现保留、其余出现逐个重取号).
+ */
+function replaceNthReqTag(
+  content: string,
+  reqId: string,
+  newReqId: string,
+  ordinal: number,
+): string {
+  const pattern = new RegExp(`@req:${reqId}(?!\\d)`, 'gu');
+  let seen = 0;
+  return content.replace(pattern, (tag) => {
+    seen += 1;
+    return seen === ordinal ? `@req:${newReqId}` : tag;
+  });
+}
+
+/**
+ * Plan (and optionally apply) a re-map of globally duplicated rN ids
+ * (r43: 同文件内共用或跨文件,按出现顺序首现保留、其余出现逐个重取号).
+ * `apply: false` (`--dry-run`) returns the plan without writing anything.
  */
 export function planDedupe(
   entries: readonly SpecEntryLike[],
   io: WriteIo,
   specsRoot: string,
-  duplicates: readonly { reqId: string; files: string[] }[],
+  duplicates: readonly RegistryDuplicate[],
   opts: { apply?: boolean } = {},
 ): DedupePlanItem[] {
   const used = ruleReqIds(entries);
@@ -221,12 +245,25 @@ export function planDedupe(
   };
   const plan: DedupePlanItem[] = [];
   for (const dup of duplicates) {
-    const [keep, ...rest] = dup.files;
-    for (const remapFile of rest) {
-      const newReqId = fresh();
-      if (keep !== undefined) {
-        plan.push({ reqId: dup.reqId, keepFile: keep, remapFile, newReqId });
+    // occurrences are in scan order (sorted files, in-file rule order); the
+    // per-file ordinal counts every occurrence so kept ones hold their slot
+    // in the text and remapped ones target the exact `@req:` tag to rewrite.
+    const perFileOrdinal = new Map<string, number>();
+    let keepFile: string | null = null;
+    for (const occ of dup.occurrences) {
+      const ordinal = (perFileOrdinal.get(occ.fileName) ?? 0) + 1;
+      perFileOrdinal.set(occ.fileName, ordinal);
+      if (keepFile === null) {
+        keepFile = occ.fileName;
+        continue;
       }
+      plan.push({
+        reqId: dup.reqId,
+        keepFile,
+        remapFile: occ.fileName,
+        newReqId: fresh(),
+        occurrenceOrdinal: ordinal,
+      });
     }
   }
   if (opts.apply === false) return plan;
@@ -236,7 +273,10 @@ export function planDedupe(
       ? item.remapFile
       : `${specsRoot}/${item.remapFile}`;
     const content = io.readText(path);
-    io.writeText(path, content.replaceAll(`@req:${item.reqId}`, `@req:${item.newReqId}`));
+    io.writeText(
+      path,
+      replaceNthReqTag(content, item.reqId, item.newReqId, item.occurrenceOrdinal),
+    );
   }
   return plan;
 }

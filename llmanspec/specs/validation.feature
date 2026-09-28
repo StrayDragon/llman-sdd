@@ -20,17 +20,23 @@
 
   @req:r12
   规则: 规则域(种子缺陷判定)
-    缺 `# capability:` 头注释 MUST 判 ERROR;每条 `规则:` MUST 携带全局唯一的 @req:<id> 句柄(缺失或跨 capability 重复 MUST 判
-    ERROR);不含任何 `规则:` 的 capability MUST 判 ERROR;顶层 `场景:`(Gherkin 功能级示例,无规则句柄)不告警、不参与规则统计;无嵌套
+    缺 `# capability:` 头注释 MUST 判 ERROR;每条 `规则:` MUST 携带全局唯一的 @req:<id> 句柄(缺失或重复——同一文件内多条规则
+    共用或跨 capability——MUST 判 ERROR);不含任何 `规则:` 的 capability MUST 判 ERROR;顶层 `场景:`(Gherkin 功能级示例,无规则句柄)不告警、不参与规则统计;无嵌套
     `场景:` 的 `规则:`(裸规则)MUST 输出聚合计数 INFO(按 capability 一条,不逐条爆炸,`--include-info` 可见);规则描述为自由文本
     (MUST/SHALL 词不强制);历史标签 `@human/@rule/@executable/@manual` 解析惰性、不再承载语义(旧文件经 `spec migrate-native`
-    迁移);跨 specs 全局重复 req_id MUST 对每个涉事 capability 判 ERROR;`# scope:` 声明的路径 MUST 在磁盘存在,缺失在
+    迁移);全局重复 req_id(同文件内或跨文件,按携带该 id 的规则条数 > 1 判定)MUST 对每个涉事 capability 判 ERROR;`# scope:` 声明的路径 MUST 在磁盘存在,缺失在
     `--strict` 下判 ERROR、否则 WARNING(前代 r42 语义)。staleness(git scope 漂移)SHALL 在 change 生命周期阶段接入,本能力不判定。
 
     场景: 种子缺陷被判 FAIL
       假如 一个含缺 @req 与重复 req_id 缺陷的 specs 目录
       当 运行 specs 校验
       那么 FAIL 集合恰为缺 @req 与重复 req_id 涉事的 capability
+      而且 退出码非零
+
+    场景: 同文件内重复 req_id 判 ERROR
+      假如 一个单 capability 文件内两条规则挂同一 @req 的 specs 目录
+      当 运行 specs 校验
+      那么 FAIL 集合恰为该 capability
       而且 退出码非零
 
 
