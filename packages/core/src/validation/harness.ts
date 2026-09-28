@@ -1,6 +1,6 @@
 /**
- * BDD harness execution for validate (validation capability, r13/r48):
- * expands bdd.run_command per capability, executes each expanded command
+ * Spec verification check execution for validate (validation capability, r13/r48):
+ * expands specs.check_command per capability, executes each expanded command
  * string at most once per validate invocation (batch-once), and maps results
  * to per-capability issues. Pure — the subprocess runs through the injected
  * HarnessRunner; this module never reads the environment or the wall clock
@@ -10,7 +10,7 @@
 import type { ValidationItem } from './validate.ts';
 
 /**
- * Harness runner port (r13/r48): executes one expanded bdd.run_command
+ * Harness runner port (r13/r48): executes one expanded specs.check_command
  * string; the CLI adapter owns the subprocess (and the nested-invocation
  * guard env it exports). exitCode is null only when the command could not
  * start (spawnError then carries the reason). Lives here rather than in
@@ -39,7 +39,7 @@ export interface HarnessGate {
   /** LLMAN_SDD_HARNESS_ACTIVE=1 was set by an enclosing validate invocation. */
   nested: boolean;
   check: 'default' | 'on' | 'off';
-  /** Undefined when bdd.run_command is not configured (non-empty string). */
+  /** Undefined when specs.check_command is not configured (non-empty string). */
   runner: HarnessRunner | undefined;
   runCommand: string | null;
   /** Project root — the cwd every harness subprocess runs in. */
@@ -75,7 +75,7 @@ const OUTPUT_TAIL = 200;
 
 /**
  * Trigger matrix (r13): --no-check skips silently; a nested invocation skips
- * with a per-spec INFO; an explicit --check without a configured run_command
+ * with a per-spec INFO; an explicit --check without a configured check_command
  * yields a single INFO on the first spec; otherwise every expanded command
  * executes at most once (cache keyed by the expanded string).
  */
@@ -91,7 +91,7 @@ export function runHarnessForSpecs(
         {
           level: 'INFO',
           id: target.featurePath,
-          message: 'bdd harness skipped: nested invocation',
+          message: 'spec check skipped: nested invocation',
         },
       ]);
     }
@@ -104,7 +104,7 @@ export function runHarnessForSpecs(
         {
           level: 'INFO',
           id: first.featurePath,
-          message: '--check has no effect: bdd.run_command is not configured',
+          message: '--check has no effect: specs.check_command is not configured',
         },
       ]);
     }
@@ -123,14 +123,14 @@ export function runHarnessForSpecs(
             {
               level: 'INFO',
               id: target.featurePath,
-              message: `bdd harness passed (cached): ${expanded}`,
+              message: `spec check passed (cached): ${expanded}`,
             },
           ]
         : [
             {
               level: 'ERROR',
               id: target.featurePath,
-              message: `bdd harness failed (cached result of ${expanded}): ${cached.failureSummary}`,
+              message: `spec check failed (cached result of ${expanded}): ${cached.failureSummary}`,
             },
           ];
     } else {
@@ -142,13 +142,13 @@ export function runHarnessForSpecs(
       const result = gate.runner.run(expanded, gate.cwd);
       const firstError =
         result.spawnError !== undefined
-          ? `bdd harness could not start: ${expanded}: ${result.spawnError}`
+          ? `spec check could not start: ${expanded}: ${result.spawnError}`
           : result.exitCode === 0
             ? null
-            : `bdd harness failed (exit ${result.exitCode}): ${expanded}: ${result.output.slice(-OUTPUT_TAIL)}`;
+            : `spec check failed (exit ${result.exitCode}): ${expanded}: ${result.output.slice(-OUTPUT_TAIL)}`;
       issues =
         firstError === null
-          ? [{ level: 'INFO', id: target.featurePath, message: `bdd harness passed: ${expanded}` }]
+          ? [{ level: 'INFO', id: target.featurePath, message: `spec check passed: ${expanded}` }]
           : [{ level: 'ERROR', id: target.featurePath, message: firstError }];
       cache.set(expanded, {
         success: firstError === null,

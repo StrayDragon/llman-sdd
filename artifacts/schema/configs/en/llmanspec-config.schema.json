@@ -56,19 +56,19 @@
         }
       ]
     },
-    "bdd": {
-      "description": "BDD integration settings. When defined, enables feature-as-spec mode and BDD-aware verify prompts.",
+    "specs": {
+      "description": "Spec verification integration settings. When defined, enables feature-as-spec mode and verification-aware verify prompts. Legacy `bdd` section is elevated onto this field at load time.",
       "anyOf": [
         {
           "type": "object",
           "properties": {
             "framework": {
               "default": "",
-              "description": "BDD framework identifier (optional). Only used to derive a default run_command when run_command is unset.",
+              "description": "BDD framework identifier (optional). Only used to derive a default check_command when check_command is unset.",
               "type": "string"
             },
-            "run_command": {
-              "description": "Harness command executed by validate for spec targets (skip with --no-check). Placeholders: {feature_path}, {feature_dir}, {feature_name}; without placeholders it runs once per validate invocation (batch-once).",
+            "check_command": {
+              "description": "Spec verification command executed by validate for spec targets (skip with --no-check). Placeholders: {feature_path}, {feature_dir}, {feature_name}; without placeholders it runs once per validate invocation (batch-once). Legacy `bdd.run_command` is elevated onto this key at load time.",
               "type": [
                 "string",
                 "null"

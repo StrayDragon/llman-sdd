@@ -145,7 +145,7 @@ bdd.thenStep('退出码非零且按产物报阶段强制缺失(前代语义)', (
 });
 
 // r48/r13 — harness execution acceptance (marker-file assertions, no
-// exit-code proxies). The run_command fixtures write deterministic marker
+// exit-code proxies). The check_command fixtures write deterministic marker
 // files instead of running a real test suite.
 const harnessSpec = (cap: string, req: string): string =>
   `# language: zh-CN\n# capability: ${cap}\n# purpose: p\n# scope: llmanspec/\n\n功能: ${cap}\n\n  @req:${req}\n  规则: 规则\n    系统 MUST x\n`;
@@ -158,24 +158,24 @@ function harnessRepo(runCommand: string): TempRepo {
   writeFileSync(join(repo.root, 'llmanspec', 'specs', 'beta.feature'), harnessSpec('beta', 'r8'));
   writeFileSync(
     join(repo.root, 'llmanspec', 'config.yaml'),
-    `schema: spec-driven\nbdd:\n  run_command: '${runCommand}'\n`,
+    `schema: spec-driven\nspecs:\n  check_command: '${runCommand}'\n`,
   );
   repo.run('git', ['add', '-A']);
   repo.run('git', [...gitCommit, 'harness fixture']);
   return repo;
 }
 
-bdd.given('一个含两个 capability 且 run_command 按 feature_name 写标记文件的临时仓库', (ctx) => {
+bdd.given('一个含两个 capability 且 check_command 按 feature_name 写标记文件的临时仓库', (ctx) => {
   const repo = harnessRepo('echo {feature_name} >> .harness.log');
   ctx.fixtures['validate仓库'] = { repo, id: 'alpha' } satisfies ValidateRepoFixture;
 });
 
-bdd.given('一个含两个 capability 且 run_command 无占位符并写标记文件的临时仓库', (ctx) => {
+bdd.given('一个含两个 capability 且 check_command 无占位符并写标记文件的临时仓库', (ctx) => {
   const repo = harnessRepo('echo run >> .harness.log');
   ctx.fixtures['validate仓库'] = { repo, id: 'alpha' } satisfies ValidateRepoFixture;
 });
 
-bdd.given('一个含两个 capability 且 run_command 以退出码 3 失败的临时仓库', (ctx) => {
+bdd.given('一个含两个 capability 且 check_command 以退出码 3 失败的临时仓库', (ctx) => {
   const repo = harnessRepo('exit 3');
   ctx.fixtures['validate仓库'] = { repo, id: 'alpha' } satisfies ValidateRepoFixture;
 });
@@ -335,7 +335,7 @@ bdd.thenStep('输出含 "{text}" 的 INFO', (ctx, text: string) => {
 
 bdd.thenStep('help 文案说明缺省执行 harness 且 --no-check 跳过', (ctx) => {
   const out = (ctx.fixtures['命令结果'] as { stdout: string }).stdout;
-  if (!out.includes('run the bdd harness') || !out.includes('skip the bdd harness')) {
+  if (!out.includes('run the spec check') || !out.includes('skip the spec check')) {
     throw new Error(`help text must state default execution + --no-check skip:\n${out}`);
   }
 });
@@ -467,7 +467,7 @@ bdd.when('在该仓库运行 validate --specs --output human', (ctx) => {
   ]);
 });
 
-// r13 — 未配置 run_command 的仓库:--check 只产出 INFO 提示(default 配置无 bdd 段)
+// r13 — 未配置 check_command 的仓库:--check 只产出 INFO 提示(default 配置无 bdd 段)
 bdd.given('一个含有效 specs 的临时仓库', (ctx) => {
   const repo = makeTempRepo();
   ctx.fixtures['验证仓库'] = { repo, id: 'sample' } satisfies ValidateRepoFixture;

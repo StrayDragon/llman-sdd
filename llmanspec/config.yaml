@@ -2,9 +2,9 @@
 schema: spec-driven
 locale: zh-Hans
 
-# BDD-on (feature-as-spec): .feature 即可执行规格。
+# Spec verification (feature-as-spec): .feature 即可执行规格。
 # runner = 移植 ../crystalith 的 Gherkin→bun:test 桥接 runner(tests/bdd/),
 # 无 {feature_*} 占位符 → validate --all/--specs 对该命令 batch-once(整批至多一次)。
-# list --specs / show 以 @executable tag 拆分已绑定计数。
-bdd:
-  run_command: "bun test tests/bdd"
+# list --specs / show 以嵌套场景拆分已绑定计数。
+specs:
+  check_command: "bun test tests/bdd"

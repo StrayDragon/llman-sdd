@@ -1542,7 +1542,7 @@ function seedCloseOutHarness(
   if (opts.command !== null) {
     writeFileSync(
       join(repo.root, 'llmanspec', 'config.yaml'),
-      `schema: spec-driven\nbdd:\n  run_command: "${opts.command}"\n`,
+      `schema: spec-driven\nspecs:\n  check_command: "${opts.command}"\n`,
     );
   }
   writeFileSync(join(repo.root, 'llmanspec', 'specs', 'tip.feature'), EXEC_SPEC);
@@ -1563,22 +1563,25 @@ function seedCloseOutHarness(
 }
 
 bdd.given(
-  '一个已完成 start、活规格含可执行场景且 run_command 写标记文件并成功的临时仓库',
+  '一个已完成 start、活规格含可执行场景且 check_command 写标记文件并成功的临时仓库',
   (ctx) => {
     seedCloseOutHarness(ctx, { command: 'echo ran >> .harness.log', needsSpecsChange: true });
   },
 );
 
-bdd.given('一个已完成 start、活规格含可执行场景且 run_command 以退出码 1 失败的临时仓库', (ctx) => {
-  seedCloseOutHarness(ctx, { command: 'exit 1', needsSpecsChange: true });
-});
+bdd.given(
+  '一个已完成 start、活规格含可执行场景且 check_command 以退出码 1 失败的临时仓库',
+  (ctx) => {
+    seedCloseOutHarness(ctx, { command: 'exit 1', needsSpecsChange: true });
+  },
+);
 
-bdd.given('一个已完成 start、活规格含可执行场景且未配置 run_command 的临时仓库', (ctx) => {
+bdd.given('一个已完成 start、活规格含可执行场景且未配置 check_command 的临时仓库', (ctx) => {
   seedCloseOutHarness(ctx, { command: null, needsSpecsChange: true });
 });
 
 bdd.given(
-  '一个已完成 start、needs_specs_change 为 false、活规格含可执行场景且未配置 run_command 的临时仓库',
+  '一个已完成 start、needs_specs_change 为 false、活规格含可执行场景且未配置 check_command 的临时仓库',
   (ctx) => {
     seedCloseOutHarness(ctx, { command: null, needsSpecsChange: false });
   },
@@ -1616,5 +1619,12 @@ bdd.thenStep('标准错误含 "{text}"', (ctx, text: string) => {
   }
   if (!(r.stderr ?? '').includes(text)) {
     throw new Error(`stderr must contain "${text}": ${r.stderr ?? ''}`);
+  }
+});
+
+bdd.thenStep('标准错误不含 "{text}"', (ctx, text: string) => {
+  const r = ctx.fixtures['finalize结果'] as CliResult;
+  if ((r.stderr ?? '').includes(text)) {
+    throw new Error(`stderr must not contain "${text}": ${r.stderr ?? ''}`);
   }
 });

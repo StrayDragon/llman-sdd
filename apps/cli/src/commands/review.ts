@@ -26,7 +26,7 @@ import { makeCliGit } from '../io.ts';
 export function registerReview(program: Command): void {
   const review = program
     .command('review')
-    .description('Aggregate review: pending/unbound/stale signals plus a validate sweep');
+    .description('Aggregate review: unbound/stale signals plus a validate sweep');
 
   review.option('--capability <capability>', 'restrict the sweep to one capability/spec id');
   addReportOutputOptions(review);

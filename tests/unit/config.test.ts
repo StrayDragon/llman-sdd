@@ -5,6 +5,7 @@ import {
   compileChangeIdPattern,
   ConfigValidationError,
   loadConfig,
+  loadConfigDetail,
   renderChangeIdTemplate,
   renderConfigOverview,
 } from '@llman-sdd/core';
@@ -23,12 +24,49 @@ describe('loadConfig', () => {
     expect(cfg.schema).toBe('spec-driven');
   });
 
-  test('repo config shape parses (zh-Hans + bdd run_command)', () => {
+  test('repo config shape parses (zh-Hans + specs check_command)', () => {
     const cfg = loadConfig(
-      `schema: spec-driven\nlocale: zh-Hans\nbdd:\n  run_command: "bun test tests/bdd"\n`,
+      `schema: spec-driven\nlocale: zh-Hans\nspecs:\n  check_command: "bun test tests/bdd"\n`,
     );
     expect(cfg.locale).toBe('zh-Hans');
-    expect(cfg.bdd?.run_command).toBe('bun test tests/bdd');
+    expect(cfg.specs?.check_command).toBe('bun test tests/bdd');
+  });
+
+  test('legacy bdd section is elevated to specs (run_command → check_command)', () => {
+    const detail = loadConfigDetail(
+      `schema: spec-driven\nbdd:\n  run_command: "bun test tests/bdd"\n  framework: pytest-bdd\n`,
+    );
+    expect(detail.legacyBddElevated).toBe(true);
+    expect(detail.config.specs?.check_command).toBe('bun test tests/bdd');
+    expect(detail.config.specs?.framework).toBe('pytest-bdd');
+    expect((detail.config as { bdd?: unknown }).bdd).toBeUndefined();
+  });
+
+  test('new-form specs wins over legacy bdd on key conflicts', () => {
+    const detail = loadConfigDetail(
+      `schema: spec-driven\nspecs:\n  check_command: "bun test tests/specs"\nbdd:\n  run_command: "bun test tests/bdd"\n`,
+    );
+    expect(detail.legacyBddElevated).toBe(true);
+    expect(detail.config.specs?.check_command).toBe('bun test tests/specs');
+  });
+
+  test('legacy bdd without run_command still elevates declared fields only', () => {
+    const detail = loadConfigDetail(
+      `schema: spec-driven\nbdd:\n  verify_prompt: extra\n  bindings:\n    - kind: tags\n      tags: [executable]\n`,
+    );
+    expect(detail.legacyBddElevated).toBe(true);
+    expect(detail.config.specs?.verify_prompt).toBe('extra');
+    expect(detail.config.specs?.check_command).toBeUndefined();
+    // legacy-only + undeclared subkeys are dropped from the parsed result
+    expect(
+      (detail.config.specs as Record<string, unknown> | undefined)?.['bindings'],
+    ).toBeUndefined();
+  });
+
+  test('no bdd key means no elevation flag', () => {
+    const detail = loadConfigDetail(`schema: spec-driven\nspecs:\n  check_command: "x"\n`);
+    expect(detail.legacyBddElevated).toBe(false);
+    expect(detail.config.specs?.check_command).toBe('x');
   });
 
   test('invalid extra_skills value rejected with field path', () => {
@@ -88,15 +126,16 @@ change_id:
     }
   });
 
-  test('legacy removed bdd key is tolerated and stripped (B14)', () => {
+  test('legacy removed bdd subkeys are dropped during elevation (B14)', () => {
     // 旧配置残留键由 zod 按未知键剥离;键名拼接避免字面命中 T6 rg。
     const legacyKey = ['bind', 'ings'].join('');
     const cfg = loadConfig(
       `schema: spec-driven\nbdd:\n  run_command: "bun test tests/bdd"\n  ${legacyKey}:\n    - kind: tags\n      tags: [executable]\n`,
     );
-    expect(cfg.bdd?.run_command).toBe('bun test tests/bdd');
-    const bdd = cfg.bdd as Record<string, unknown>;
-    expect(bdd[legacyKey]).toBeUndefined();
+    expect(cfg.specs?.check_command).toBe('bun test tests/bdd');
+    const specs = cfg.specs as Record<string, unknown> | undefined;
+    expect(specs?.[legacyKey]).toBeUndefined();
+    expect((cfg as unknown as { bdd?: unknown }).bdd).toBeUndefined();
   });
 });
 
@@ -109,7 +148,7 @@ describe('config command surface (r37/r38)', () => {
       'schema: spec-driven',
       'locale: en',
       'extra_skills (enabled/total): 0 / 6',
-      'bdd: off',
+      'specs: off',
       'archive: default',
     ]);
     const full = renderConfigOverview(`schema: spec-driven
@@ -118,14 +157,14 @@ extra_skills:
   - llman-sdd-ff
 archive:
   strict_defer: true
-bdd:
+specs:
   framework: pytest-bdd
 `);
     expect(full).toEqual([
       'schema: spec-driven',
       'locale: zh-Hans',
       'extra_skills (enabled/total): 1 / 6',
-      'bdd: on',
+      'specs: on',
       'archive: configured',
     ]);
   });

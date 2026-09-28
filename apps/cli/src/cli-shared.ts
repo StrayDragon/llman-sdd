@@ -9,6 +9,7 @@ import {
   discoverSpecs,
   embeddedTemplates,
   loadConfig,
+  loadConfigDetail,
   makeEmbeddedTemplateIo,
   resolveChangeId,
   type TemplateIo,
@@ -74,10 +75,29 @@ export function loadSpecEntries(): ReturnType<typeof discoverSpecs> {
   return discoverSpecs('llmanspec/specs', newIo());
 }
 
+/** One-time legacy `bdd:` migration warning — printed to stderr by the first
+ * config-reading command of a process (specs-check-config-and-unbound-feed). */
+let legacyBddWarningShown = false;
+
+function warnLegacyBdd(elevated: boolean): void {
+  if (!elevated || legacyBddWarningShown) return;
+  legacyBddWarningShown = true;
+  console.error(
+    '[WARNING] llmanspec/config.yaml uses the legacy `bdd:` section — migrate to `specs:` (`bdd.run_command` → `specs.check_command`). See migrations/v0.5-v0.6/README.md.',
+  );
+}
+
+/** Surface the legacy-section warning from a raw config source (config command). */
+export function warnLegacyBddOnce(source: string): void {
+  if (legacyBddWarningShown) return;
+  warnLegacyBdd(loadConfigDetail(source).legacyBddElevated);
+}
+
 export function loadCliConfig(): ReturnType<typeof loadConfig> | null {
-  return existsSync('llmanspec/config.yaml')
-    ? loadConfig(readFileSync('llmanspec/config.yaml', 'utf8'))
-    : null;
+  if (!existsSync('llmanspec/config.yaml')) return null;
+  const detail = loadConfigDetail(readFileSync('llmanspec/config.yaml', 'utf8'));
+  warnLegacyBdd(detail.legacyBddElevated);
+  return detail.config;
 }
 
 export function cliMaxScanDepth(program: Command): number {

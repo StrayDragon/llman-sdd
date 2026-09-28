@@ -33,13 +33,13 @@ const templateIo: TemplateIo = {
   readText: (p) => readFileSync(p, 'utf8'),
 };
 
-/** Equivalent to the repo's llmanspec/config.yaml (locale zh-Hans + bdd-on). */
+/** Equivalent to the repo's llmanspec/config.yaml (locale zh-Hans + specs-on). */
 export const CONFIG_YAML = `# yaml-language-server: $schema=https://raw.githubusercontent.com/StrayDragon/llman/main/artifacts/schema/configs/en/llmanspec-config.schema.json
 schema: spec-driven
 locale: zh-Hans
 
-bdd:
-  run_command: "bun test tests/bdd"
+specs:
+  check_command: "bun test tests/bdd"
 `;
 
 /** Same shape as CONFIG_YAML modulo locale — the en baseline exercises the same
@@ -121,9 +121,9 @@ export function formatTreeDiffs(diffs: readonly TreeDiff[]): string {
 export function assertRepoConfigMatchesGolden(): void {
   const repo = loadConfig(readFileSync(join(REPO_ROOT, 'llmanspec', 'config.yaml'), 'utf8'));
   const golden = loadConfig(CONFIG_YAML);
-  if (repo.locale !== golden.locale || repo.bdd?.run_command !== golden.bdd?.run_command) {
+  if (repo.locale !== golden.locale || repo.specs?.check_command !== golden.specs?.check_command) {
     throw new Error(
-      'golden CONFIG_YAML drifted from llmanspec/config.yaml (locale / bdd.run_command)',
+      'golden CONFIG_YAML drifted from llmanspec/config.yaml (locale / specs.check_command)',
     );
   }
 }

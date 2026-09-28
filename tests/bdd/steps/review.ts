@@ -35,7 +35,7 @@ bdd.when('运行 review', (ctx) => {
 
 bdd.thenStep('signals 覆盖四种 kind', (ctx) => {
   const kinds = (ctx.fixtures['review'] as { kinds: Set<string> }).kinds;
-  for (const kind of ['pending', 'stale', 'locked', 'validate']) {
+  for (const kind of ['unbound', 'stale', 'locked', 'validate']) {
     if (!kinds.has(kind)) throw new Error(`missing signal kind: ${kind}`);
   }
 });

@@ -57,6 +57,8 @@
   规则: resolve-req 反查与注册表去重
     `spec resolve-req <req_id>` MUST 输出该 req 的 capability 与 statement,未命中 MUST
     报错;`project dedupe-req-ids` MUST 扫描主库(非归档 specs)冲突 rN(同文件内多条规则共用或跨文件)并重映射为空闲短 id,重映射语义为按出现顺序首现保留、其余出现逐个重取号,替换 MUST 精确匹配 `@req:<id>` 标签边界(不得误伤前缀相近的 id);`--dry-run` MUST 仅输出映射计划且零副作用。
+    `spec unbound` 未绑定需求检索(同属 spec 命令组,命令契约见 peripheral-commands r89):与 resolve-req 共用共享判定
+    (ruleHasRunnableScenario,见 spec-parsing r9)与注册表句柄,检索面不新增独立定义。
 
     场景: resolve-req 输出 statement 与未命中报错
       假如 一个含单一 capability spec 的临时 specs 目录

@@ -5,15 +5,25 @@ import { createInterface } from 'node:readline';
 import {
   addReq,
   addScenario,
+  buildUnboundFeed,
   hasNativeRules,
   migrateNativeSource,
   nextReqId,
+  renderMachine,
   resolveReq,
   scaffoldSpec,
+  type UnboundFeed,
 } from '@llman-sdd/core';
 import type { Command } from 'commander';
 
-import { CliError, loadCliConfig, loadSpecEntries, newIo } from '../cli-shared.ts';
+import {
+  addReportOutputOptions,
+  CliError,
+  loadCliConfig,
+  loadSpecEntries,
+  newIo,
+  resolveOutMode,
+} from '../cli-shared.ts';
 
 /** Walk paths collecting .feature files (directories recurse). */
 function collectFeatureFiles(paths: string[]): string[] {
@@ -178,4 +188,31 @@ export function registerSpec(program: Command): void {
       console.log('harness:');
       for (const h of resolved.harness) console.log(`  - ${h}`);
     });
+
+  const unbound = spec
+    .command('unbound')
+    .description('List unbound requirements (no runnable nested scenario) for implementation')
+    .option('--limit <N>', 'max entries to return (default 1; 0 = all)');
+  addReportOutputOptions(unbound);
+  unbound.action(
+    (options: { limit?: string; output?: string; json?: boolean; compactJson?: boolean }) => {
+      const raw = options.limit ?? '1';
+      if (!/^\d+$/u.test(raw)) {
+        throw new CliError(`invalid --limit: ${raw} (non-negative integer)`, 2);
+      }
+      const limit = Number(raw);
+      const feed: UnboundFeed = buildUnboundFeed(loadSpecEntries(), limit);
+      const mode = resolveOutMode(options.output, options.json, options.compactJson);
+      if (mode !== 'human') {
+        console.log(renderMachine(feed, mode));
+        return;
+      }
+      console.log(`spec unbound: ${feed.returned} shown of ${feed.total} total`);
+      for (const r of feed.requirements) {
+        console.log(`  - [${r.reqId}] ${r.featurePath} :: ${r.title}`);
+        for (const line of r.statement.split('\n')) console.log(`      ${line}`);
+      }
+      if (feed.hint !== '') console.log(feed.hint);
+    },
+  );
 }

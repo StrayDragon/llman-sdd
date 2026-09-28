@@ -3,7 +3,12 @@ import { readFileSync } from 'node:fs';
 import { renderConfigOverview, renderMachine, skillsJson } from '@llman-sdd/core';
 import type { Command } from 'commander';
 
-import { addReportOutputOptions, resolveOutMode, skillDesc } from '../cli-shared.ts';
+import {
+  addReportOutputOptions,
+  resolveOutMode,
+  skillDesc,
+  warnLegacyBddOnce,
+} from '../cli-shared.ts';
 
 export function registerConfig(program: Command): void {
   const configCmd = program
@@ -12,6 +17,7 @@ export function registerConfig(program: Command): void {
 
   configCmd.description('Print a read-only llmanspec/config.yaml overview').action(() => {
     const source = readFileSync('llmanspec/config.yaml', 'utf8');
+    warnLegacyBddOnce(source);
     console.log(renderConfigOverview(source).join('\n'));
   });
 
@@ -19,7 +25,9 @@ export function registerConfig(program: Command): void {
   addReportOutputOptions(skills);
   skills.action((options: { json?: boolean; output?: string; compactJson?: boolean }) => {
     const path = 'llmanspec/config.yaml';
-    const info = skillsJson(readFileSync(path, 'utf8'));
+    const source = readFileSync(path, 'utf8');
+    warnLegacyBddOnce(source);
+    const info = skillsJson(source);
     const mode = resolveOutMode(options.output, options.json, options.compactJson);
     if (mode !== 'human') {
       console.log(renderMachine(info, mode));

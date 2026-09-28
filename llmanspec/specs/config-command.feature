@@ -8,7 +8,7 @@
   @req:r37
   规则: config 只读概览
     `config`(无子命令)MUST 只读输出 llmanspec/config.yaml 概览,内容 MUST 覆盖
-    schema/locale/extra_skills(启用数与总数)/bdd(开或关)/archive 五要素;config 缺失或非法 MUST 报错且退出码非零;本命令 MUST NOT
+    schema/locale/extra_skills(启用数与总数)/specs(开或关,含经旧 bdd 兼容提升)/archive 五要素;config 缺失或非法 MUST 报错且退出码非零;本命令 MUST NOT
     修改任何文件。
 
     场景: config 概览只读

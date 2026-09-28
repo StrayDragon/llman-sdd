@@ -269,7 +269,7 @@ describe('validateChange completeness WARNINGs (r63)', () => {
   });
 });
 
-describe('T5: bdd harness core (r13/r48)', () => {
+describe('T5: spec check core (r13/r48)', () => {
   const gateWith = (runner: HarnessRunner | undefined, runCommand: string | null): HarnessGate => ({
     nested: false,
     check: 'default',
@@ -311,7 +311,7 @@ describe('T5: bdd harness core (r13/r48)', () => {
     expect(calls).toBe(1);
     expect(outcome.executed).toBe(true);
     expect(outcome.issuesByCapability.get('b')?.[0]?.message).toBe(
-      'bdd harness passed (cached): echo run',
+      'spec check passed (cached): echo run',
     );
   });
 
@@ -322,7 +322,7 @@ describe('T5: bdd harness core (r13/r48)', () => {
     );
     const issue = outcome.issuesByCapability.get('a')?.[0];
     expect(issue?.level).toBe('INFO');
-    expect(issue?.message).toStartWith('bdd harness passed: true');
+    expect(issue?.message).toStartWith('spec check passed: true');
   });
 
   test('result mapping: non-zero exit → ERROR failed (exit N) with output tail', () => {
@@ -332,7 +332,7 @@ describe('T5: bdd harness core (r13/r48)', () => {
     );
     const issue = outcome.issuesByCapability.get('a')?.[0];
     expect(issue?.level).toBe('ERROR');
-    expect(issue?.message).toStartWith('bdd harness failed (exit 3): false: boom');
+    expect(issue?.message).toStartWith('spec check failed (exit 3): false: boom');
   });
 
   test('result mapping: cached failure keeps ERROR and points at the original summary', () => {
@@ -346,7 +346,7 @@ describe('T5: bdd harness core (r13/r48)', () => {
     const issue = outcome.issuesByCapability.get('b')?.[0];
     expect(issue?.level).toBe('ERROR');
     expect(issue?.message).toStartWith(
-      'bdd harness failed (cached result of false): bdd harness failed (exit 3)',
+      'spec check failed (cached result of false): spec check failed (exit 3)',
     );
   });
 
@@ -360,7 +360,7 @@ describe('T5: bdd harness core (r13/r48)', () => {
     );
     const issue = outcome.issuesByCapability.get('a')?.[0];
     expect(issue?.level).toBe('ERROR');
-    expect(issue?.message).toStartWith('bdd harness could not start: anything: sh not found');
+    expect(issue?.message).toStartWith('spec check could not start: anything: sh not found');
   });
 
   test('trigger matrix: --no-check and nested guard never run the runner', () => {
@@ -377,7 +377,7 @@ describe('T5: bdd harness core (r13/r48)', () => {
     expect(off.executed).toBe(false);
     const nested = runHarnessForSpecs(targets, { ...gateWith(runner, 'x'), nested: true });
     expect(nested.issuesByCapability.get('a')?.[0]?.message).toBe(
-      'bdd harness skipped: nested invocation',
+      'spec check skipped: nested invocation',
     );
     expect(nested.issuesByCapability.get('a')?.[0]?.level).toBe('INFO');
     expect(calls).toBe(0);
@@ -392,7 +392,7 @@ describe('T5: bdd harness core (r13/r48)', () => {
       { ...gateWith(undefined, null), check: 'on' },
     );
     expect(outcome.issuesByCapability.get('a')?.[0]?.message).toBe(
-      '--check has no effect: bdd.run_command is not configured',
+      '--check has no effect: specs.check_command is not configured',
     );
     expect(outcome.issuesByCapability.has('b')).toBe(false);
     expect(outcome.executed).toBe(false);

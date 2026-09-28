@@ -258,7 +258,7 @@ let harnessBannerShown = false;
  * --check → check=true, --no-check → check=false, absent → undefined.
  */
 function makeHarnessGate(options: { check?: boolean }): HarnessGate {
-  const runCommand = loadCliConfig()?.bdd?.run_command ?? null;
+  const runCommand = loadCliConfig()?.specs?.check_command ?? null;
   const configured = runCommand !== null && runCommand !== '';
   return {
     nested: process.env.LLMAN_SDD_HARNESS_ACTIVE === '1',
@@ -269,7 +269,7 @@ function makeHarnessGate(options: { check?: boolean }): HarnessGate {
     onBeforeFirstRun: (expanded: string): void => {
       if (harnessBannerShown) return;
       harnessBannerShown = true;
-      console.error(`running bdd harness: ${expanded} (use --no-check to skip)`);
+      console.error(`running spec check: ${expanded} (use --no-check to skip)`);
     },
   };
 }
@@ -286,8 +286,8 @@ export function registerValidate(program: Command): void {
     .option('--stage <stage>', 'change stage gate: draft | designed | planned | full')
     .option('--strict', 'warnings also make the exit code non-zero')
     .option('--include-info', 'keep INFO-level issues (default: WARNING and above)')
-    .option('--no-check', 'skip the bdd harness')
-    .option('--check', 'run the bdd harness (default when bdd.run_command is configured)');
+    .option('--no-check', 'skip the spec check')
+    .option('--check', 'run the spec check (default when specs.check_command is configured)');
   addReportOutputOptions(validate);
   validate.action(
     (

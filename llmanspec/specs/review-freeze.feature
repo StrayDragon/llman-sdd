@@ -9,10 +9,10 @@
   规则: review 四信号聚合合同
     `review` MUST 支持 `--output <toon|json|compact-json|human>` 且缺省(无输出 flag)输出 TOON(IR 与 json
     同载荷);`--json`/`--compact-json` 为兼容别名,其 JSON 输出与前代字节一致;`--output human` 输出前代人读行形态;退出码语义不随输出格式变化。
-    `review` MUST 输出 signals 数组,元素字段 MUST 为 kind/capability/count/detail;kind MUST 覆盖 pending(裸规则,无嵌套
-    场景)、stale(前代语义:基于 base-ref/scope 的真实 staleness 计算)、locked(恒 0)、
+    `review` MUST 输出 signals 数组,元素字段 MUST 为 kind/capability/count/detail;kind MUST 覆盖 unbound(未绑定需求,即无 runnable
+    嵌套场景的规则:0 场景或嵌套场景全部带 @skip/@experimental)、stale(前代语义:基于 base-ref/scope 的真实 staleness 计算)、locked(恒 0)、
     validate(sweep FAIL 汇总;前代快照内部 sweep 的恒失败缺陷不复制);JSON MUST 含 summary{criticalCount,
-    warningCount},warningCount MUST 等于 pending、stale 两类信号计数之和,criticalCount MUST 等于 sweep FAIL
+    warningCount},warningCount MUST 等于 unbound、stale 两类信号计数之和,criticalCount MUST 等于 sweep FAIL
     的 capability 数;退出码 MUST 仅在 criticalCount > 0 时非零;`--capability` MUST 限定单一
     capability;`--export-html <path>` MUST 写出自包含 HTML 报告。
 
@@ -99,7 +99,7 @@
 
   @req:r33
   规则: review --capability 过滤口径
-    `review --capability <C>` MUST 将 pending/stale 两类信号限定为 C(其余 capability 的信号 MUST NOT
+    `review --capability <C>` MUST 将 unbound/stale 两类信号限定为 C(其余 capability 的信号 MUST NOT
     输出),locked 与 validate 汇总 MUST 保持全局口径,退出码语义不变;`--json` 输出 MUST 同样过滤;未提供 `--capability` 时 MUST 保持全量信号。
 
     场景: capability 过滤生效

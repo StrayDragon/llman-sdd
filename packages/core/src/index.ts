@@ -3,14 +3,20 @@ export * from './ports.ts';
 export {
   EXTRA_SKILLS,
   archiveSchema,
-  bddSchema,
   changeIdSchema,
   sddConfigSchema,
+  specsSchema,
   sddSchema,
   type SddConfig,
   type SddConfigInput,
 } from './config/schema.ts';
-export { ConfigValidationError, MAX_REPORTED_ISSUES, loadConfig } from './config/load.ts';
+export {
+  ConfigValidationError,
+  MAX_REPORTED_ISSUES,
+  elevateLegacyBdd,
+  loadConfig,
+  loadConfigDetail,
+} from './config/load.ts';
 export {
   ChangeIdError,
   compileChangeIdPattern,
@@ -27,7 +33,7 @@ export type {
   ScenarioStep,
   SpecStructuralError,
 } from './spec/ir.ts';
-export { specIdOf } from './spec/ir.ts';
+export { ruleHasRunnableScenario, specIdOf } from './spec/ir.ts';
 export {
   SpecParseError,
   localeToGherkinLang,
@@ -164,7 +170,7 @@ export {
 export {
   ETHICS_KEYS,
   buildTemplateVars,
-  effectiveRunCommand,
+  effectiveCheckCommand,
   enforceEthicsGovernance,
   loadLocaleResource,
   loadSkillTemplates,
@@ -197,6 +203,12 @@ export {
   type ChangeSummary,
 } from './change/collect.ts';
 export { renderChangesJson, renderChangesList } from './report/collect.ts';
+export {
+  buildUnboundFeed,
+  collectUnboundRequirements,
+  type UnboundFeed,
+  type UnboundRequirement,
+} from './report/unbound.ts';
 export { graphData, graphMermaid, type GraphDataIr, type GraphFsIo } from './report/graph.ts';
 export { parseDeps } from './report/graph.ts';
 export { renderMachine, type MachineFormat } from './render/machine.ts';

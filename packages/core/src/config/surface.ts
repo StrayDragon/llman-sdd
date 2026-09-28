@@ -18,7 +18,7 @@ export function renderConfigOverview(source: string): string[] {
     `schema: ${config.schema}`,
     `locale: ${config.locale}`,
     `extra_skills (enabled/total): ${enabled} / ${EXTRA_SKILLS.length}`,
-    `bdd: ${config.bdd ? 'on' : 'off'}`,
+    `specs: ${config.specs ? 'on' : 'off'}`,
     `archive: ${archiveConfigured ? 'configured' : 'default'}`,
   ];
 }

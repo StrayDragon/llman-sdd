@@ -96,7 +96,7 @@ bdd.thenStep('概览五要素输出且文件未被修改', (ctx) => {
     'schema:',
     'locale:',
     'extra_skills (enabled/total): 1 / 6',
-    'bdd: off',
+    'specs: off',
     'archive: default',
   ]) {
     if (!out.includes(marker)) throw new Error(`overview missing ${marker}:\n${out}`);
@@ -127,6 +127,46 @@ bdd.thenStep('JSON 输出 {enabled, available} 且 --set 为未知选项', (ctx)
     throw new Error(`--set must be an unknown option (rc=2), got ${set.status}`);
   const after = readFileSync(join(root, 'llmanspec', 'config.yaml'), 'utf8');
   if (after !== original) throw new Error('--set must not write config');
+});
+
+// ---------------------------------------------------------------------------
+// r76 (cli) — legacy `bdd:` section elevation triggers a one-time migration
+// WARNING on the CLI config-loading boundary.
+// ---------------------------------------------------------------------------
+
+bdd.given('一个含 legacy bdd 配置的临时仓库', (ctx) => {
+  const repo = makeTempRepo();
+  writeFileSync(
+    join(repo.root, 'llmanspec', 'config.yaml'),
+    'schema: spec-driven\nlocale: zh-Hans\n\nbdd:\n  run_command: "bun test tests/bdd"\n',
+  );
+  ctx.fixtures['migrate仓库'] = { repo };
+  return ctx.fixtures['migrate仓库'];
+});
+
+bdd.when('运行 config', (ctx) => {
+  const { repo } = ctx.fixtures['migrate仓库'] as { repo: TempRepo };
+  const proc = runCli(['config'], repo.root);
+  ctx.fixtures['migrate结果'] = {
+    code: proc.status ?? 1,
+    stdout: proc.stdout ?? '',
+    stderr: proc.stderr ?? '',
+  };
+});
+
+bdd.thenStep('config 标准错误含 "{text}"', (ctx, text: string) => {
+  const r = ctx.fixtures['migrate结果'] as { stderr: string };
+  if (!r.stderr.includes(text)) {
+    throw new Error(`stderr must contain "${text}": ${r.stderr}`);
+  }
+});
+
+bdd.thenStep('迁移 WARNING 恰好出现一次', (ctx) => {
+  const r = ctx.fixtures['migrate结果'] as { stderr: string };
+  const occurrences = r.stderr.split('[WARNING]').length - 1;
+  if (occurrences !== 1) {
+    throw new Error(`expected exactly one migration WARNING, got ${occurrences}:\n${r.stderr}`);
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -212,8 +252,8 @@ extra_skills:
   - llman-sdd-ff
 archive:
   strict_defer: true
-bdd:
-  run_command: "bun test tests/bdd"
+specs:
+  check_command: "bun test tests/bdd"
 sdd:
   merge_method: squash
 change_id:
@@ -273,13 +313,17 @@ bdd.thenStep('加载成功且解析结果的 bdd 段不含未经声明的键', (
     throw new Error(`legacy key must be tolerated & stripped, got:\n${result.error}`);
   }
   const source = String(field(ctx.fixtures['config'], '源文本') ?? '');
-  const bdd = loadConfig(source).bdd as Record<string, unknown> | undefined;
-  if (bdd !== undefined) {
-    for (const key of Object.keys(bdd)) {
-      if (key !== 'framework' && key !== 'run_command' && key !== 'verify_prompt') {
-        throw new Error(`parsed bdd contains undeclared key \`${key}\``);
+  // legacy bdd inputs are elevated onto specs; only declared fields survive.
+  const specs = loadConfig(source).specs as Record<string, unknown> | undefined;
+  if (specs !== undefined) {
+    for (const key of Object.keys(specs)) {
+      if (key !== 'framework' && key !== 'check_command' && key !== 'verify_prompt') {
+        throw new Error(`parsed specs contains undeclared key \`${key}\``);
       }
     }
+  }
+  if ((loadConfig(source) as unknown as { bdd?: unknown }).bdd !== undefined) {
+    throw new Error('parsed config must not retain the legacy bdd key');
   }
 });
 
@@ -297,9 +341,9 @@ bdd.thenStep('加载成功且解析结果的 bdd 段不含 default_language 与 
     throw new Error(`removed bdd keys must be tolerated, got:\n${result.error}`);
   }
   const source = String(field(ctx.fixtures['config'], '源文本') ?? '');
-  const bdd = loadConfig(source).bdd as Record<string, unknown> | undefined;
-  if (bdd !== undefined && ('default_language' in bdd || 'feature_dir' in bdd)) {
-    throw new Error(`parsed bdd section must not carry removed keys: ${JSON.stringify(bdd)}`);
+  const specs = loadConfig(source).specs as Record<string, unknown> | undefined;
+  if (specs !== undefined && ('default_language' in specs || 'feature_dir' in specs)) {
+    throw new Error(`parsed specs must not carry removed keys: ${JSON.stringify(specs)}`);
   }
 });
 

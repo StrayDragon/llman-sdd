@@ -40,21 +40,15 @@ function runValidateSweep(): boolean {
   return report.verdicts.some((v) => !v.ok);
 }
 
-/** r81: run or refuse the acceptance command before any merge or rename. */
+/** r81: run or refuse the spec verification command before any merge or rename. */
 function enforceCloseOutHarness(id: string, noCheck: boolean): void {
   const proposalPath = `llmanspec/changes/${id}/proposal.md`;
   const proposal = existsSync(proposalPath) ? readFileSync(proposalPath, 'utf8') : '';
   const needsSpecsChange = readNeedsSpecsChange(extractFrontmatter(proposal));
-  const hasExecutable = loadSpecEntries().some(
-    (entry) =>
-      entry.doc.rules.some((r) => r.scenarios.some((s) => s.runnable && s.stepCount > 0)) ||
-      entry.doc.orphans.some((s) => s.runnable && s.stepCount > 0),
-  );
-  const runCommand = loadCliConfig()?.bdd?.run_command ?? null;
+  const runCommand = loadCliConfig()?.specs?.check_command ?? null;
   const decision = decideCloseOutHarness({
     noCheck,
     needsSpecsChange,
-    hasExecutable,
     runCommand,
     nested: process.env.LLMAN_SDD_HARNESS_ACTIVE === '1',
   });
@@ -62,13 +56,14 @@ function enforceCloseOutHarness(id: string, noCheck: boolean): void {
     throw new CliError(`close-out aborted: ${decision.message}`);
   }
   if (decision.kind === 'skip') {
-    if (decision.announce) console.error('bdd harness skipped: --no-check');
+    if (decision.announce) console.error('spec check skipped: --no-check');
+    if (decision.warning !== undefined) console.error(`[WARNING] ${decision.warning}`);
     return;
   }
   const result = makeCliHarnessRunner().run(decision.command, process.cwd());
   if (result.spawnError !== undefined || result.exitCode !== 0) {
     const why = result.spawnError ?? `exit ${result.exitCode}`;
-    throw new CliError(`close-out aborted: bdd harness failed (${why})`);
+    throw new CliError(`close-out aborted: spec check failed (${why})`);
   }
 }
 

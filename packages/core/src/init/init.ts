@@ -26,7 +26,7 @@ import {
   prependSchemaHeader,
 } from './defaultConfig.ts';
 
-export { effectiveRunCommand } from '../templates/skills.ts';
+export { effectiveCheckCommand } from '../templates/skills.ts';
 
 const MARKER_START = '<!-- LLMANSPEC:START -->';
 const MARKER_END = '<!-- LLMANSPEC:END -->';

@@ -136,11 +136,11 @@ llman-sdd validate <change-id> --strict
 ```
 This MUST pass before proceeding; failing items are listed one by one in the validate output's `items[].issues[]` — fix each and re-run.
 
-### 4a) Optional BDD runner (`bdd:` block)
-- Read `llmanspec/config.yaml`. Is there a `bdd:` block?
-  - **Yes**: `bdd.run_command` declares the project's BDD execution entry; validate executes it by default when its target set includes specs (`--no-check` skips). Authoring follows 4b regardless.
-  - **No**: if this change involves executable behavior scenarios (Given/When/Then the user will want to run), ask **once, up front** whether to enable a `bdd:` runner block (adds a `bdd:` block to `config.yaml` — runner only, does not change the lifecycle). If **yes**: show the exact `bdd:` block to add (pick a `run_command` matching the project's test framework — `cargo test --features bdd` for rstest-bdd, `pytest {feature_dir} -k {feature_name} -v` for pytest-bdd), let the user confirm or edit, write it to `config.yaml`, then proceed with 4b. If **no**: features still validate structurally; BDD execution responsibility stays with the project test suite.
-- **Do NOT silently add the `bdd:` block** — always ask first. Adding it declares the project-wide BDD execution entry.
+### 4a) Optional BDD runner (`specs:` block)
+- Read `llmanspec/config.yaml`. Is there a `specs:` block?
+  - **Yes**: `specs.check_command` declares the project's BDD execution entry; validate executes it by default when its target set includes specs (`--no-check` skips). Authoring follows 4b regardless.
+  - **No**: if this change involves executable behavior scenarios (Given/When/Then the user will want to run), ask **once, up front** whether to enable a `specs:` verification runner block (adds a `specs:` block to `config.yaml` — runner only, does not change the lifecycle). If **yes**: show the exact `specs:` block to add (pick a `check_command` matching the project's test framework — `cargo test --features bdd` for rstest-bdd, `pytest {feature_dir} -k {feature_name} -v` for pytest-bdd), let the user confirm or edit, write it to `config.yaml`, then proceed with 4b. If **no**: features still validate structurally; BDD execution responsibility stays with the project test suite.
+- **Do NOT silently add the `specs:` block** — always ask first. Adding it declares the project-wide BDD execution entry.
 
 ### 4b) Single-track feature authoring
 - Planning docs may briefly live on the default branch; **do not** edit `llmanspec/specs/**` on the default branch. After binding, landing specs and implementation happen on the bound branch.

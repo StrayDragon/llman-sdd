@@ -21,8 +21,8 @@
   @req:r12
   规则: 规则域(种子缺陷判定)
     缺 `# capability:` 头注释 MUST 判 ERROR;每条 `规则:` MUST 携带全局唯一的 @req:<id> 句柄(缺失或重复——同一文件内多条规则
-    共用或跨 capability——MUST 判 ERROR);不含任何 `规则:` 的 capability MUST 判 ERROR;顶层 `场景:`(Gherkin 功能级示例,无规则句柄)不告警、不参与规则统计;无嵌套
-    `场景:` 的 `规则:`(裸规则)MUST 输出聚合计数 INFO(按 capability 一条,不逐条爆炸,`--include-info` 可见);规则描述为自由文本
+    共用或跨 capability——MUST 判 ERROR);不含任何 `规则:` 的 capability MUST 判 ERROR;顶层 `场景:`(Gherkin 功能级示例,无规则句柄)不告警、不参与规则统计;无 runnable
+    嵌套场景的 `规则:`(0 场景或嵌套场景全部带 @skip/@experimental)MUST 输出聚合计数 INFO(按 capability 一条,不逐条爆炸,`--include-info` 可见);规则描述为自由文本
     (MUST/SHALL 词不强制);历史标签 `@human/@rule/@executable/@manual` 解析惰性、不再承载语义(旧文件经 `spec migrate-native`
     迁移);全局重复 req_id(同文件内或跨文件,按携带该 id 的规则条数 > 1 判定)MUST 对每个涉事 capability 判 ERROR;`# scope:` 声明的路径 MUST 在磁盘存在,缺失在
     `--strict` 下判 ERROR、否则 WARNING(前代 r42 语义)。staleness(git scope 漂移)SHALL 在 change 生命周期阶段接入,本能力不判定。
@@ -103,15 +103,15 @@
       而且 两次运行的 valid 判定与退出码一致
 
   @req:r13
-  规则: BDD harness 执行与 check 旗标
-    配置了非空 `bdd.run_command` 时,`validate` 的目标集含 spec 即 MUST 缺省执行该 harness,`--no-check` MUST
+  规则: spec 验证命令执行与 check 旗标
+    配置了非空 `specs.check_command`(含经旧 `bdd.check_command` 兼容提升的等价配置)时,`validate` 的目标集含 spec 即 MUST 缺省执行该 harness,`--no-check` MUST
     跳过执行,`--check` MUST 作为兼容别名(给与不给等价);未配置时显式 `--check` MUST 追加 INFO 提示其无效且 MUST NOT 执行任何命令;环境变量
     `LLMAN_SDD_HARNESS_ACTIVE=1` 存在时 MUST NOT 执行并 MUST 为每个 spec 条目追加 INFO(嵌套调用守卫),harness 子进程 MUST
     继承该变量;review 的校验 sweep 与 show 的 validate 门 MUST NOT 执行 harness;finalize/archive 的预合并验收由
-    change-lifecycle r81 规定,本条不再禁止收口执行;`bdd.framework` 派生的缺省命令 MUST NOT 被执行;CLI help 与模板文案 MUST 与该语义一致。
+    change-lifecycle r81 规定,本条不再禁止收口执行;`specs.framework` 派生的缺省命令 MUST NOT 被执行;CLI help 与模板文案 MUST 与该语义一致。
 
-    场景: 配置 run_command 时缺省执行且 no-check 跳过
-      假如 一个含两个 capability 且 run_command 无占位符并写标记文件的临时仓库
+    场景: 配置 check_command 时缺省执行且 no-check 跳过
+      假如 一个含两个 capability 且 check_command 无占位符并写标记文件的临时仓库
       当 运行 validate --specs --no-check
       那么 标记文件不存在
       当 运行 validate --specs
@@ -121,13 +121,13 @@
 
 
     场景: 嵌套调用守卫
-      假如 一个含两个 capability 且 run_command 无占位符并写标记文件的临时仓库
+      假如 一个含两个 capability 且 check_command 无占位符并写标记文件的临时仓库
       当 在设置 LLMAN_SDD_HARNESS_ACTIVE=1 的环境下运行 validate --specs --json --include-info
       那么 标记文件不存在
       而且 输出含 "nested invocation" 的 INFO
 
 
-    场景: 未配置 run_command 时 check 无效提示
+    场景: 未配置 check_command 时 check 无效提示
       假如 一个含有效 specs 的临时仓库
       当 运行 validate --specs --check --json --include-info
       那么 输出含 "--check has no effect" 的 INFO
@@ -135,7 +135,7 @@
 
 
     场景: review 与 show 不执行 harness
-      假如 一个含两个 capability 且 run_command 无占位符并写标记文件的临时仓库
+      假如 一个含两个 capability 且 check_command 无占位符并写标记文件的临时仓库
       当 运行 review 与 show 任一 capability
       那么 标记文件不存在
 
@@ -175,29 +175,29 @@
       那么 items 仅含 type 为 spec 的条目
 
   @req:r48
-  规则: bdd run_command 占位符与结果映射
-    `bdd.run_command` MUST 支持 `{feature_path}`(capability 主 .feature 文件的仓库根相对路径,扁平或目录式布局)、
+  规则: specs.check_command 占位符与结果映射
+    `specs.check_command`(经旧 `bdd.check_command` 兼容提升等价生效)MUST 支持 `{feature_path}`(capability 主 .feature 文件的仓库根相对路径,扁平或目录式布局)、
     `{feature_dir}`(该文件的父目录)与 `{feature_name}`(capability id)占位符,并 MUST 按待校验 capability 逐项替换后执行;同一次
     validate 内展开后相同的命令串 MUST 至多执行一次(无占位符即整批一次,batch-once);执行 cwd MUST 为项目根;退出码 0 MUST 对该 capability 产出
     INFO,非零 MUST 产出 ERROR(消息含退出码与展开后的命令)并使该 capability FAIL,无法启动 MUST 产出 ERROR;复用缓存结果时 MUST 保持原判定级别。
 
     场景: 占位符按 capability 逐项执行
-      假如 一个含两个 capability 且 run_command 按 feature_name 写标记文件的临时仓库
+      假如 一个含两个 capability 且 check_command 按 feature_name 写标记文件的临时仓库
       当 运行 validate --specs
       那么 标记文件行集合等于全部 capability id
       而且 退出码为 0
 
 
     场景: 无占位符整批只执行一次
-      假如 一个含两个 capability 且 run_command 无占位符并写标记文件的临时仓库
+      假如 一个含两个 capability 且 check_command 无占位符并写标记文件的临时仓库
       当 运行 validate --specs
       那么 标记文件恰有 1 行
 
 
     场景: harness 失败映射为 capability FAIL
-      假如 一个含两个 capability 且 run_command 以退出码 3 失败的临时仓库
+      假如 一个含两个 capability 且 check_command 以退出码 3 失败的临时仓库
       当 运行 validate --specs --json
-      那么 每个 spec 条目 valid 为 false 且含 "bdd harness failed (exit 3)" 的 ERROR
+      那么 每个 spec 条目 valid 为 false 且含 "spec check failed (exit 3)" 的 ERROR
       而且 退出码非零
 
   @req:r78

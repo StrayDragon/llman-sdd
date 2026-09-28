@@ -1,5 +1,5 @@
 import type { GitLike } from '../git/spawnGit.ts';
-import { specIdOf } from '../spec/ir.ts';
+import { ruleHasRunnableScenario, specIdOf } from '../spec/ir.ts';
 import { evaluateStaleness, notApplicableStaleness } from '../validation/staleness.ts';
 /**
  * Review aggregation (review-freeze capability, r23): five-signal review over
@@ -7,7 +7,7 @@ import { evaluateStaleness, notApplicableStaleness } from '../validation/stalene
  */
 import { validateAllSpecs, type SpecEntry, type SpecIo } from '../validation/validate.ts';
 
-export type ReviewKind = 'pending' | 'stale' | 'locked' | 'validate';
+export type ReviewKind = 'unbound' | 'stale' | 'locked' | 'validate';
 
 export interface ReviewSignal {
   kind: ReviewKind;
@@ -66,13 +66,13 @@ export function buildReview(input: ReviewInput, io: SpecIo): ReviewResult {
     // r33: per-capability signals honor the --capability filter; locked and
     // validate stay global regardless.
     if (input.capability !== undefined && cap !== input.capability) continue;
-    // Native model: rules are `规则:` blocks; a rule without nested scenarios
-    // is "bare" (pending — candidate for conversion/compaction). Top-level
-    // scenarios outside any rule are plain feature-level examples with no
-    // special signal.
-    const pending = entry.doc.rules.filter((r) => r.scenarios.length === 0);
+    // Native model: rules are `规则:` blocks; a rule without any runnable
+    // nested scenario is unbound (not bound to real logic — 0 scenarios or
+    // all @skip/@experimental/stepless). Top-level scenarios outside any rule
+    // are plain feature-level examples with no special signal.
+    const unbound = entry.doc.rules.filter((r) => !ruleHasRunnableScenario(r)).length;
 
-    push('pending', cap, pending.length);
+    push('unbound', cap, unbound);
 
     // staleness (predecessor evaluate): real base-ref/scope evaluation.
     let staleInfo = notApplicableStaleness();
@@ -143,7 +143,7 @@ export function buildReview(input: ReviewInput, io: SpecIo): ReviewResult {
 
   const lines: string[] = [`Review: critical=${criticalCount} warning=${warningCount}`];
   for (const cap of sorted.map((e) => specIdOf(e))) {
-    for (const kind of ['pending', 'stale'] as const) {
+    for (const kind of ['unbound', 'stale'] as const) {
       const s = signals.find((x) => x.kind === kind && x.capability === cap);
       if (!s) continue;
       lines.push(`${kind}: ${cap} (${s.count})`);

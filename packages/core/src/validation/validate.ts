@@ -5,7 +5,7 @@
  * injected via SpecIo.
  */
 import type { CapabilityDoc } from '../spec/ir.ts';
-import { specIdOf } from '../spec/ir.ts';
+import { ruleHasRunnableScenario, specIdOf } from '../spec/ir.ts';
 import { buildReqRegistry } from '../spec/reqRegistry.ts';
 
 export type ValidationLevel = 'ERROR' | 'WARNING' | 'INFO';
@@ -140,16 +140,17 @@ export function validateCapability(
   // (native Gherkin); they carry no rule handle, so no warning or signal —
   // they simply aren't part of rule accounting.
 
-  // Bare-rule aggregate (r134 migrated): rules with no nested executable
-  // scenario, aggregated per capability (never one issue per rule), INFO so it
-  // never blocks anything. The real accountability lives in the review
-  // `pending` signal and the specs-compact workflow.
-  const bare = rules.filter((r) => r.scenarios.length === 0).length;
-  if (bare > 0) {
+  // Unbound-requirement aggregate (r12/r90): rules without any runnable nested
+  // scenario (@skip/@experimental-only or stepless included), aggregated per
+  // capability (never one issue per rule), INFO so it never blocks anything.
+  // The real accountability lives in the review `unbound` signal, the
+  // `spec unbound` feed and the specs-compact workflow.
+  const unbound = rules.filter((r) => !ruleHasRunnableScenario(r)).length;
+  if (unbound > 0) {
     push(
       'INFO',
       coveragePath(cap),
-      `${bare} bare rule(s) without any executable scenario — convert to 场景: or compact`,
+      `${unbound} unbound requirement(s) without any runnable scenario — bind via 场景: or compact`,
     );
   }
 

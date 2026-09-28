@@ -44,7 +44,7 @@ describe('buildReview', () => {
     const result = buildReview({ entries, boundChangeCount: 2 }, io);
     expect(result.exitCode).toBe(0);
     expect(result.summary.criticalCount).toBe(0);
-    const pendingA = result.signals.find((s) => s.kind === 'pending' && s.capability === 'a');
+    const pendingA = result.signals.find((s) => s.kind === 'unbound' && s.capability === 'a');
     expect(pendingA?.count).toBe(0);
     // locked 信号:count 恒 0(前代的锁定确认概念已移除),detail 带绑定数
     const locked = result.signals.find((s) => s.kind === 'locked');
@@ -52,13 +52,13 @@ describe('buildReview', () => {
     expect(locked?.detail).toInclude('2 bound change(s)');
   });
 
-  test('feature-level scenario emits no signal; pending counts bare rules only', () => {
+  test('feature-level scenario emits no signal; unbound counts requirements without runnable scenarios', () => {
     const entries = [{ fileName: 'l.feature', doc: parseCapability(UNBOUND_SPEC, 'l.feature') }];
-    // 顶层功能级示例(无规则句柄)不产生任何信号(unbound 信号已移除);裸规则计 pending。
+    // 顶层功能级示例(无规则句柄)不产生任何信号(unbound 信号已移除,孤儿场景不参与规则计量);无可运行场景的裸规则计 unbound。
     const result = buildReview({ entries, boundChangeCount: 0 }, io);
-    const pending = result.signals.find((s) => s.kind === 'pending' && s.capability === 'loose');
-    expect(pending?.count).toBe(1);
-    expect(result.summary.warningCount).toBe(1); // pending 1
+    const unbound = result.signals.find((s) => s.kind === 'unbound' && s.capability === 'loose');
+    expect(unbound?.count).toBe(1);
+    expect(result.summary.warningCount).toBe(1); // unbound 1
   });
 
   test('validate sweep failure is critical and drives exit code', () => {
@@ -130,7 +130,7 @@ describe('buildReview', () => {
     const entries = [{ fileName: 'a.feature', doc: parseCapability(SPEC('a', 'r1'), 'a.feature') }];
     const result = buildReview({ entries, boundChangeCount: 0 }, io);
     expect(result.lines[0]).toBe('Review: critical=0 warning=0');
-    expect(result.lines).toContain('pending: a (0)');
+    expect(result.lines).toContain('unbound: a (0)');
     expect(result.lines).toContain('stale: a (0)');
     expect(result.lines.some((l) => l.startsWith('locked: - ('))).toBe(true);
     expect(result.lines.some((l) => l.startsWith('validate: - (0)'))).toBe(true);

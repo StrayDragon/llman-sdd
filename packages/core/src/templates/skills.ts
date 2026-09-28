@@ -49,10 +49,10 @@ export const ETHICS_KEYS: readonly string[] = [
   'ethics.escalation_policy',
 ];
 
-/** Framework-derived run_command (predecessor config.rs effective_run_command). */
-export function effectiveRunCommand(bdd: NonNullable<SddConfig['bdd']>): string {
-  if (bdd.run_command) return bdd.run_command;
-  switch (bdd.framework ?? '') {
+/** Framework-derived check_command (predecessor config.rs effective_run_command). */
+export function effectiveCheckCommand(specs: NonNullable<SddConfig['specs']>): string {
+  if (specs.check_command) return specs.check_command;
+  switch (specs.framework ?? '') {
     case 'pytest-bdd':
       return 'pytest {feature_dir} -k {feature_name} -v';
     case 'rstest-bdd':
@@ -62,18 +62,18 @@ export function effectiveRunCommand(bdd: NonNullable<SddConfig['bdd']>): string 
     case 'behave':
       return 'behave {feature_path}';
     default:
-      return "echo 'No run_command configured. Set bdd.run_command in config.yaml'";
+      return "echo 'No check_command configured. Set specs.check_command in config.yaml'";
   }
 }
 
 /** All-string globals (predecessor BTreeMap<String, String> semantics). */
 export function buildTemplateVars(config: SddConfig, version: string): Record<string, string> {
   const vars: Record<string, string> = { llman_version: version };
-  if (config.bdd) {
-    vars['bdd_enabled'] = 'true';
-    vars['bdd_framework'] = config.bdd.framework ?? '';
-    vars['bdd_run_command'] = effectiveRunCommand(config.bdd);
-    if (config.bdd.verify_prompt) vars['bdd_verify_prompt'] = config.bdd.verify_prompt;
+  if (config.specs) {
+    vars['specs_enabled'] = 'true';
+    vars['specs_framework'] = config.specs.framework ?? '';
+    vars['specs_check_command'] = effectiveCheckCommand(config.specs);
+    if (config.specs.verify_prompt) vars['specs_verify_prompt'] = config.specs.verify_prompt;
   }
   const extras = new Set<string>(config.extra_skills ?? []);
   for (const name of OPTIONAL_SKILL_FILES) {

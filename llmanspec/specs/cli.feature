@@ -29,6 +29,8 @@
     报告命令 list/show/validate/review/index check/config skills 的输出旗标 MUST 由共享注册函数统一挂载,旗标面 MUST 一致为
     `--output <toon|json|compact-json|human>`、`--json` 与 `--compact-json` 三个(缺省无输出旗标时输出 TOON);各命令文件
     MUST NOT 自行重复注册 `--output`;`show --output compact-json` MUST 输出可 `JSON.parse` 的单行 JSON,不得回落人读文本。
+    CLI 配置加载共享入口(loadCliConfig)在检测到 legacy `bdd:` 段被兼容提升为新 `specs:` 语义时 MUST 向 stderr 输出一次
+    迁移 WARNING(每进程至多一次、非阻断),内容 MUST 指向 `specs.check_command` 与迁移指引;兼容提升契约见 config-schema r5。
 
     场景: show compact-json 为真实单行 JSON
       假如 一个含活跃 change 的临时仓库
@@ -40,6 +42,13 @@
       假如 一个含 specs 且已 rebuild 索引的临时仓库
       当 运行 index check --json 与 index check --output compact-json
       那么 两输出均含同载荷 JSON 且 compact-json 为单行
+
+
+    场景: legacy bdd 配置触发迁移 WARNING
+      假如 一个含 legacy bdd 配置的临时仓库
+      当 运行 config
+      那么 config 标准错误含 "specs.check_command"
+      而且 迁移 WARNING 恰好出现一次
 
   @req:r77
   规则: 全局旗标面

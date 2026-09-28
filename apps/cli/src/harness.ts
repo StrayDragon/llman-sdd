@@ -1,6 +1,6 @@
 /**
  * CLI HarnessRunner adapter (validation r13/r48): executes the expanded
- * bdd.run_command through `sh -c` in the project root, exporting
+ * specs.check_command through `sh -c` in the project root, exporting
  * LLMAN_SDD_HARNESS_ACTIVE=1 so harness-spawned validate invocations skip
  * execution (nested guard). Windows (no sh) is out of scope for this change —
  * the spawnError branch surfaces it as an ERROR. stdout and stderr are merged;

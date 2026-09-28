@@ -8,11 +8,12 @@
   @req:r5
   规则: 顶层字段域
     llmanspec/config.yaml MUST 位于项目根 llmanspec/ 目录;顶层字段 MUST 仅由
-    schema/locale/extra_skills/archive/bdd/sdd/change_id 组成,未知字段 SHALL 宽松放行(不报错)。schema 字段必填且 MUST 为
+    schema/locale/extra_skills/archive/specs/sdd/change_id 组成(specs 承接前代 bdd 段的 spec 验证配置角色;旧 bdd 段在兼容期经兼容提升消费,见旧配置兼容条),未知字段 SHALL 宽松放行(不报错)。schema 字段必填且 MUST 为
     "spec-driven"。extra_skills 取值域 MUST 限于
     llman-sdd-continue/llman-sdd-ff/llman-sdd-validate/llman-sdd-arch-review/llman-sdd-wayfinder/llman-sdd-research。
-    bdd 段 MUST 仅由 framework/run_command/verify_prompt 组成(bindings 键已不消费,旧配置残留该键 SHALL 被宽松剥离,解析结果不含该键)。
-    bdd 段 MUST NOT 声明无消费方的字段(default_language、feature_dir 已移除),旧配置残留这两个键 SHALL 被宽松忽略(与未知字段同口径,解析结果不含该键)。
+    specs 段 MUST 仅由 framework/check_command/verify_prompt 组成(语义为「整个 spec 验证」的 harness:check_command 承接前代
+    run_command,支持占位符与 batch-once,由 validate 执行并可被 --no-check 跳过);specs 段 MUST NOT 声明无消费方的字段(bindings、default_language、feature_dir 已移除或归入兼容处理)。
+    旧配置的 bdd 段(framework/run_command/verify_prompt)在加载期 MUST 被识别并兼容提升为新 specs 语义(run_command → check_command 字段级映射,framework/verify_prompt 同名随迁):解析结果 MUST 以 specs 呈现、旧 bdd 段内无消费方字段 SHALL 保持宽松剥离/忽略,且 MUST 向 stderr 输出 WARNING 提示改用新形。
 
     场景: 顶层字段域与未知字段宽松
       假如 一个含全部顶层字段与未知字段的 config 内容

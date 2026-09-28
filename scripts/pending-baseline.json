@@ -1,4 +1,4 @@
 {
   "maxPending": 2,
-  "note": "原生格式基线(2026-09-27 native-gherkin-format):当前 0 裸规则(13 capability 全部规则含嵌套场景);maxPending 保留 2 作为治理类余量——新增规则优先嵌套 场景:,无法程序化才留裸规则并在 proposal/design 记录理由,否则 pending-gate 失败"
+  "note": "原生格式基线(2026-09-27 native-gherkin-format;2026 updated to runnable口径):当前 0 未绑定需求(13 capability 全部规则含可运行嵌套场景);maxPending 保留 2 作为治理类余量——新增需求优先嵌套可运行 场景:,无法程序化才留未绑定并在 proposal/design 记录理由,否则 pending-gate 失败"
 }

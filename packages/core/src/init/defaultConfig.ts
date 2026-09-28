@@ -23,13 +23,13 @@ locale: en
 #   - llman-sdd-wayfinder
 #   - llman-sdd-research
 
-# BDD integration (optional, uncomment to enable)
-# bdd:
+# Spec verification (optional, uncomment to enable)
+# specs:
 #   framework: pytest-bdd
 #   # Filtered runners: include {feature_*} so validate --all/--specs runs per capability.
-#   # run_command: "pytest {feature_dir} -k {feature_name} -v"
+#   # check_command: "pytest {feature_dir} -k {feature_name} -v"
 #   # Project-wide runners (no placeholders): validate --all/--specs runs the suite once (batch-once).
-#   # run_command: "cargo test --features bdd"
+#   # check_command: "cargo test --features bdd"
 #   # verify_prompt: |
 #   #   Map test failures to requirement IDs.
 `;
@@ -51,13 +51,13 @@ locale: zh-Hans
 #   - llman-sdd-wayfinder
 #   - llman-sdd-research
 
-# BDD 集成（可选，取消注释以启用）
-# bdd:
+# Spec 验证（可选，取消注释以启用）
+# specs:
 #   framework: pytest-bdd
 #   # 过滤型 runner：写 {feature_*}，validate --all/--specs 按 capability 分别执行。
-#   # run_command: "pytest {feature_dir} -k {feature_name} -v"
+#   # check_command: "pytest {feature_dir} -k {feature_name} -v"
 #   # 项目级 runner（无占位符）：validate --all/--specs 整批只跑一次（batch-once）。
-#   # run_command: "cargo test --features bdd"
+#   # check_command: "cargo test --features bdd"
 #   # verify_prompt: |
 #   #   将测试失败映射到对应的 requirement ID。
 `;

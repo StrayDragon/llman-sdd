@@ -203,3 +203,47 @@
       那么 review 信号不含该深层 change 且 graph 输出不含该深层 change 节点
       当 运行 review --max-scan-depth 8 与 graph --max-scan-depth 8
       那么 review 信号含该深层 change 且 graph 输出含该深层 change 节点
+  @req:r89
+  规则: spec unbound 未绑定需求检索
+    `spec unbound [--limit N]` MUST 输出未绑定需求(无 runnable 嵌套场景的规则,与 review unbound 信号、validate 聚合 INFO 同口径),缺省 --limit 1,`--limit 0` 输出全部,`--limit N` 输出前 N 条;排序 MUST 确定性(按 capability 文件扫描序与文件内规则出现序)。limit 语义对缺省 TOON/--output human/json/compact-json 所有输出模式 MUST 一致生效。每条 MUST 含 requirement 句柄、标题、描述、capability id 与 capability 主文件的仓库根相对路径;输出 MUST 含 total/returned/remaining 与提示字段(提示引导 `--limit 0` 列出全部);非数字或负数的 `--limit` 值 MUST 以退出码 2 报 usage 错误;无未绑定需求时 MUST 输出 total 为 0 且退出码为 0。
+
+    场景: 缺省返回一条并提示剩余
+      假如 一个含未绑定需求的临时 specs 目录
+      当 运行 spec unbound
+      那么 unbound 输出含 "returned: 1"
+      而且 unbound 输出含 "remaining: 2"
+      而且 unbound 输出含 "用 --limit 0 列出全部"
+      而且 退出码为 0
+
+
+    场景: --limit 0 返回全部且排序确定
+      假如 一个含未绑定需求的临时 specs 目录
+      当 运行 spec unbound --limit 0 --json
+      那么 unbound JSON 的 total 为 3 且 requirements 为 3 条
+      而且 unbound JSON 的 reqId 序列恰为 "r2,r3,r4"
+      而且 退出码为 0
+
+
+    场景: human 输出给出剩余数与提示
+      假如 一个含未绑定需求的临时 specs 目录
+      当 运行 spec unbound --output human
+      那么 unbound 输出含 "1 shown of 3 total"
+      而且 unbound 输出含 "用 --limit 0 列出全部"
+      而且 退出码为 0
+
+
+    场景: 全 @skip 场景的规则计入未绑定
+      假如 一个含未绑定需求的临时 specs 目录
+      当 运行 spec unbound --limit 0 --json
+      那么 unbound JSON 的 reqId 序列恰为 "r2,r3,r4"
+      而且 退出码为 0
+
+
+    场景: 无未绑定需求时 total 为 0
+      假如 一个全部绑定需求的临时 specs 目录
+      当 运行 spec unbound --limit 0 --json
+      那么 unbound JSON 的 remaining 与 hint 为空且 total 为 0
+      而且 退出码为 0
+  @req:r90
+  规则: 绑定计量字段与术语口径
+    `list --specs` 与 `show <spec> --json` 的 morphology 计量字段 MUST 以 requirement 系命名:`requirementBoundCount`(有至少一个 runnable 嵌套场景的规则数)与 `requirementUnboundCount`(无 runnable 嵌套场景的规则数);「未绑定」全局唯一定义为无 runnable 嵌套场景(0 场景或嵌套场景全部带 @skip/@experimental),与 review unbound 信号、validate 聚合 INFO、spec unbound 检索 MUST 同口径;历史字段名 ruleEnforcedCount/rulePendingCount MUST 不再产出(human 形态词汇随之人读口径收敛)。

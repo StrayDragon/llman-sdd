@@ -28,7 +28,52 @@ export class ConfigValidationError extends Error {
   }
 }
 
-export function loadConfig(source: string): SddConfig {
+/**
+ * Legacy `bdd:` section elevation (specs-check-config-and-unbound-feed):
+ * a present `bdd` block is recognised at load time and elevated onto the new
+ * `specs` semantics (`run_command` → `check_command`, `framework`/`verify_prompt`
+ * carried under the same names). The new-form `specs` block wins on key conflicts;
+ * the legacy block only fills gaps. Any undeclared legacy subkeys (bindings,
+ * default_language, feature_dir …) are dropped. Pure — never mutates the input;
+ * the caller decides how to surface the migration warning.
+ */
+export function elevateLegacyBdd(data: unknown): { data: unknown; legacyBddElevated: boolean } {
+  if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+    return { data, legacyBddElevated: false };
+  }
+  const rec: Record<string, unknown> = { ...(data as Record<string, unknown>) };
+  const bdd = rec['bdd'];
+  if (bdd === undefined || bdd === null || typeof bdd !== 'object' || Array.isArray(bdd)) {
+    return { data, legacyBddElevated: false };
+  }
+  const legacy = bdd as Record<string, unknown>;
+  const specs =
+    typeof rec['specs'] === 'object' && rec['specs'] !== null && !Array.isArray(rec['specs'])
+      ? (rec['specs'] as Record<string, unknown>)
+      : {};
+  const merged: Record<string, unknown> = { ...specs };
+  if (merged['check_command'] === undefined && typeof legacy['run_command'] === 'string') {
+    merged['check_command'] = legacy['run_command'];
+  }
+  if (merged['framework'] === undefined && typeof legacy['framework'] === 'string') {
+    merged['framework'] = legacy['framework'];
+  }
+  if (merged['verify_prompt'] === undefined && typeof legacy['verify_prompt'] === 'string') {
+    merged['verify_prompt'] = legacy['verify_prompt'];
+  }
+  delete rec['bdd'];
+  rec['specs'] = merged;
+  return { data: rec, legacyBddElevated: true };
+}
+
+/**
+ * Load + validate, returning the parsed config and whether a legacy `bdd:`
+ * section was elevated. The CLI surfaces the migration warning from the flag.
+ */
+export function loadConfigDetail(source: string): {
+  config: SddConfig;
+  legacyBddElevated: boolean;
+} {
   let data: unknown;
   try {
     data = parse(source);
@@ -37,7 +82,8 @@ export function loadConfig(source: string): SddConfig {
       `YAML parse error: ${error instanceof Error ? error.message : String(error)}`,
     ]);
   }
-  const result = sddConfigSchema.safeParse(data);
+  const elevated = elevateLegacyBdd(data);
+  const result = sddConfigSchema.safeParse(elevated.data);
   if (!result.success) {
     const issues = result.error.issues.map((iss) => {
       const path = iss.path.map(String).join('/');
@@ -58,5 +104,9 @@ export function loadConfig(source: string): SddConfig {
       throw new ConfigValidationError([(error as Error).message]);
     }
   }
-  return result.data;
+  return { config: result.data, legacyBddElevated: elevated.legacyBddElevated };
+}
+
+export function loadConfig(source: string): SddConfig {
+  return loadConfigDetail(source).config;
 }

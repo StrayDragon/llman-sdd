@@ -59,21 +59,21 @@ describe('locale chain', () => {
 });
 
 describe('buildTemplateVars', () => {
-  test('bdd vars and extra_skill key naming', () => {
+  test('specs vars and extra_skill key naming', () => {
     const cfg = loadConfig(
-      `schema: spec-driven\nextra_skills:\n  - llman-sdd-arch-review\nbdd:\n  framework: ""\n  run_command: bun test\n`,
+      `schema: spec-driven\nextra_skills:\n  - llman-sdd-arch-review\nspecs:\n  framework: ""\n  check_command: bun test\n`,
     );
     const vars = buildTemplateVars(cfg, '9.9.9');
     expect(vars['llman_version']).toBe('9.9.9');
-    expect(vars['bdd_enabled']).toBe('true');
-    expect(vars['bdd_run_command']).toBe('bun test');
+    expect(vars['specs_enabled']).toBe('true');
+    expect(vars['specs_check_command']).toBe('bun test');
     expect(vars['extra_skill_arch_review']).toBe('true');
     expect(vars['extra_skill_continue']).toBeUndefined();
   });
-  test('effectiveRunCommand derives from framework', () => {
-    const cfg = loadConfig(`schema: spec-driven\nbdd:\n  framework: pytest-bdd\n`);
+  test('effectiveCheckCommand derives from framework', () => {
+    const cfg = loadConfig(`schema: spec-driven\nspecs:\n  framework: pytest-bdd\n`);
     const vars = buildTemplateVars(cfg, '1');
-    expect(vars['bdd_run_command']).toBe('pytest {feature_dir} -k {feature_name} -v');
+    expect(vars['specs_check_command']).toBe('pytest {feature_dir} -k {feature_name} -v');
   });
 });
 

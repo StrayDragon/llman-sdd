@@ -46,6 +46,9 @@
     块内嵌套 `场景:` 进该规则的 scenarios(步骤原样);不在任何 `规则:` 内的顶层 `场景:` 为功能级示例(Gherkin 原生允许,无规则句柄、
     不参与规则统计;官方解析器下首个 `规则:` 之后的顶层场景会被并入该规则,即其功能级归属);规则描述 MUST/SHALL 词不强制。
     历史标签 `@human/@rule/@executable/@manual` 惰性——解析不赋予语义、不报错(旧文件以 `spec migrate-native` 迁移)。
+    「绑定/未绑定」判定(与 review unbound 信号、validate 聚合 INFO、list/show morphology 及 spec unbound 检索同口径)由
+    spec/ir 导出的 ruleHasRunnableScenario 统一承载:bound = 规则含至少一个 runnable 嵌套场景(非 @skip/@experimental 且带步骤),
+    unbound = 无;消费方 MUST NOT 散落该口径,单一口径定义见 peripheral-commands r90。
 
     场景: 中文 feature 解析为 IR
       假如 一个使用中文关键字的 feature 内容

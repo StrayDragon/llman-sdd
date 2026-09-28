@@ -67,6 +67,16 @@ export interface CapabilityDoc {
 }
 
 /**
+ * Whether a requirement is bound to real logic — it has at least one runnable
+ * nested scenario (not `@skip`/`@experimental` and carrying steps). Single
+ * authority for the `bound`/`unbound` definition shared by review's `unbound`
+ * signal, validate's aggregate INFO, list/show morphology and `spec unbound`.
+ */
+export function ruleHasRunnableScenario(rule: RuleIR): boolean {
+  return rule.scenarios.some((s) => s.runnable && s.stepCount > 0);
+}
+
+/**
  * Single spec-id caliber (r25) for every consumer that labels a discovered
  * spec entry: the `# capability:` header wins, else the fileName minus the
  * `.feature` suffix. Unifies the former dual caliber (bare `fileName` vs

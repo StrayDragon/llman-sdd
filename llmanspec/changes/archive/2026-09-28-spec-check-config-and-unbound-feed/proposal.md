@@ -1,6 +1,9 @@
 ---
 depends_on: []
 needs_specs_change: true
+branch: sdd/spec-check-config-and-unbound-feed
+base_branch: main
+base_sha: 4868323e1c29a2afdb31df58aa86630a90b4cf16
 ---
 
 ## Why

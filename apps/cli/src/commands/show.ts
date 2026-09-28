@@ -209,7 +209,7 @@ export function registerShow(program: Command): void {
         const raw = readFileSync(specPath, 'utf8').trimEnd();
         const summary = collectSpecs(entries).find((x) => x.id === item);
         const morphology = summary
-          ? `\n\n## Morphology\nruleCount=${summary.morphology.ruleCount} enforced=${summary.morphology.ruleEnforcedCount} pending=${summary.morphology.rulePendingCount} acceptanceCount=${summary.morphology.acceptanceCount}`
+          ? `\n\n## Morphology\nrequirements=${summary.requirementCount} bound=${summary.morphology.requirementBoundCount} unbound=${summary.morphology.requirementUnboundCount} acceptanceCount=${summary.morphology.acceptanceCount}`
           : '';
         console.log(`## Spec\n${raw}${morphology}`);
         return;
