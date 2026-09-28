@@ -8,6 +8,7 @@
 import type { CapabilityDoc, RuleIR } from './ir.ts';
 import { specIdOf } from './ir.ts';
 import { BLOCK_KEYWORD_LINE_RE, officialKeywordsOrEn } from './keywords.ts';
+import { sourceDialect } from './parser.ts';
 
 export class AuthoringError extends Error {}
 
@@ -30,20 +31,8 @@ interface KeywordSet {
   thenText: string;
 }
 
-/**
- * Dialect of the target file: an explicit `# language:` header wins
- * (official matchers auto-switch on it); headerless zh content parses via
- * the zh-CN fallback chain (r7), anything else is en.
- */
-function dialectOf(content: string): string {
-  const firstLine = content.split('\n').find((l) => l.trim() !== '');
-  const header = firstLine?.match(/^#\s*language:\s*(\S+)\s*$/u)?.[1];
-  if (header !== undefined) return header;
-  return content.includes('功能:') ? 'zh-CN' : 'en';
-}
-
 function keywordsOf(content: string): KeywordSet {
-  const kw = officialKeywordsOrEn(dialectOf(content));
+  const kw = officialKeywordsOrEn(sourceDialect(content));
   return {
     rule: kw.rule,
     scenario: kw.scenario,

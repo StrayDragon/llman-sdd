@@ -12,6 +12,7 @@ import {
   planDedupe,
   resolveReq,
   skeletonContent,
+  sourceDialect,
 } from '@llman-sdd/core';
 
 const NATIVE_RULE = (req: string, capability = 'sample') => `# language: zh-CN
@@ -590,5 +591,37 @@ describe('skeletonContent dialect vocabulary (r7/r88)', () => {
     expect(content).toInclude('规则: TODO-rule');
     expect(content).toInclude('场景: TODO-acceptance');
     expect(content).toInclude('假如 TODO 前置');
+  });
+});
+
+describe('sourceDialect — unified per-file dialect policy (r41/r88)', () => {
+  test('explicit # language: header wins, including unknown names (returned as-is)', () => {
+    const zh = `# language: zh-CN
+功能: x
+`;
+    expect(sourceDialect(zh)).toBe('zh-CN');
+    const fr = `# language: fr
+Fonctionnalité: x
+`;
+    expect(sourceDialect(fr)).toBe('fr');
+    const unknown = `# language: klingon
+Feature: x
+`;
+    expect(sourceDialect(unknown)).toBe('klingon');
+  });
+
+  test('headerless zh content auto-discovers zh-CN via the matcher chain', () => {
+    const src = `功能: 无头中文
+
+  @req:r1
+  规则: 规则
+    系统 MUST x
+`;
+    expect(sourceDialect(src)).toBe('zh-CN');
+  });
+
+  test('headerless en content discovers en; undiscoverable content falls back to en', () => {
+    expect(sourceDialect('Feature: x\n')).toBe('en');
+    expect(sourceDialect('not a feature at all')).toBe('en');
   });
 });

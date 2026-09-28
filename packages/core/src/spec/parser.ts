@@ -53,6 +53,25 @@ export function parseFeatureSource(source: string): { doc: GherkinDocument; lang
   );
 }
 
+/**
+ * Unified source-dialect policy (r41/r88): an explicit per-file
+ * `# language:` header wins; headerless content is auto-discovered through
+ * the official matcher chain (en start, zh-CN fallback); anything still
+ * undiscoverable falls back to en. Unknown header names are returned
+ * as-is — callers pick vocabulary via officialKeywordsOrEn, and the
+ * migration parse self-check fail-closes genuinely broken headers.
+ */
+export function sourceDialect(source: string): string {
+  const firstLine = source.split('\n').find((l) => l.trim() !== '');
+  const header = firstLine?.match(/^#\s*language:\s*(\S+)\s*$/u)?.[1];
+  if (header !== undefined) return header;
+  try {
+    return parseFeatureSource(source).language;
+  } catch {
+    return 'en';
+  }
+}
+
 const REQ_TAG_RE = /^@?req:(r\d+)$/u;
 
 /** Gherkin keyword → step kind, from the official dialect tables; And/But/* inherit via fallback. */

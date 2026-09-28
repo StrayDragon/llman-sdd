@@ -9,8 +9,9 @@
   规则: spec add-req 追加规则
     `spec add-req <capability> <req_id> --title <T> --statement <S>`(别名 add-requirement)MUST 校验 req_id
     全局唯一(重复 MUST 报错;statement 为自由文本,不校验规范语义词),然后向目标 spec 追加一个 `@req:<id>` + 规则块并写盘——块关键字
-    MUST 取自目标 spec 方言在官方 gherkin 词表(@cucumber/gherkin dialects)中的合法关键字(zh-CN spec 为 `规则:`,方言由文件
-    `# language:` 头优先、`功能:` 探测兜底定);title 进块标题,statement 拆行进块描述。写入目标 MUST 按单一口径解析:扁平
+    MUST 取自目标 spec 方言在官方 gherkin 词表(@cucumber/gherkin dialects)中的合法关键字(zh-CN spec 为 `规则:`,方言按统一口径判定:
+    文件 `# language:` 头注释优先,无头内容经语言兜底链自动发现,仍不可判时兜底英文);title 进块标题,statement 拆行进块描述。写入目标
+    MUST 按单一口径解析:扁平
     `llmanspec/specs/<capability>.feature` 存在则写之(与目录式并存时扁平优先);否则按 spec id 精确命中的已发现 spec entry(含目录式
     `<capability>/<capability>.feature`)写之,不做模糊解析;均未命中 MUST 报错。
 

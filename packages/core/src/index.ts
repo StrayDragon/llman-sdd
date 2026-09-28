@@ -33,6 +33,7 @@ export {
   localeToGherkinLang,
   parseCapability,
   parseFeatureSource,
+  sourceDialect,
 } from './spec/parser.ts';
 export {
   BLOCK_KEYWORD_LINE_RE,

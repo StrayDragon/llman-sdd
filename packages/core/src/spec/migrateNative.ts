@@ -10,7 +10,7 @@
  */
 
 import { officialKeywordsOrEn } from './keywords.ts';
-import { parseFeatureSource } from './parser.ts';
+import { parseFeatureSource, sourceDialect } from './parser.ts';
 
 export interface MigrateBlock {
   reqIds: string[];
@@ -62,22 +62,12 @@ export function hasNativeRules(source: string): boolean {
 }
 
 /**
- * The gherkin token matcher auto-switches on an explicit `# language:`
- * header, so the matcher-resolved dialect is only authoritative when the
- * source carries none — an explicit header wins.
- */
-function sourceDialect(source: string, resolved: string): string {
-  const firstLine = source.split('\n').find((l) => l.trim() !== '');
-  return firstLine?.match(/^#\s*language:\s*(\S+)\s*$/u)?.[1] ?? resolved;
-}
-
-/**
  * Analyze a legacy source through the official parser: every top-level
  * scenario becomes a block; its role comes from the tags, its body from the
  * official description/step fields.
  */
 export function analyzeLegacy(source: string): MigrateAnalysis | { ok: false; message: string } {
-  const { doc, language } = parseFeatureSource(source);
+  const { doc } = parseFeatureSource(source);
   const blocks: MigrateBlock[] = [];
   for (const child of doc.feature?.children ?? []) {
     if (child.rule) {
@@ -99,7 +89,7 @@ export function analyzeLegacy(source: string): MigrateAnalysis | { ok: false; me
       steps: sc.steps.map((s) => ({ keyword: s.keyword.trim(), text: s.text.trim() })),
     });
   }
-  return { language: sourceDialect(source, language), blocks };
+  return { language: sourceDialect(source), blocks };
 }
 
 /** Strip `- ` list markers from a rule-statement line (legacy prose residue). */

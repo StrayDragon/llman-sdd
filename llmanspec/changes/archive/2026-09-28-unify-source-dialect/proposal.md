@@ -1,5 +1,8 @@
 ---
 depends_on: []
+branch: sdd/unify-source-dialect
+base_branch: main
+base_sha: 601c79968e01222990a206721c95909c6eabf898
 ---
 
 # 源文件方言判定统一口径
