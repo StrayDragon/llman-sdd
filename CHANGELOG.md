@@ -2,6 +2,45 @@
 
 本项目遵循语义化版本（SemVer）。breaking 变更随大版本/次版本标注迁移说明。
 
+## 0.5.1 (2026-09-28)
+
+0.5.0 缺陷修复批次（issue #2 / #3 / #4），无 breaking，无需迁移，CLI 命令面不变；
+en/zh-CN 关键字输出与 0.5.0 逐字节一致。
+
+### `spec migrate-native` 修复
+
+- **保留规则场景自身步骤**（issue #2）：0.4 时代「顶层 `场景:` 内同时含描述
+  bullets 与 GWT 步骤」的 legacy 文件，迁移时步骤被静默丢弃（真实仓库实测净丢
+  约 3090 行且 validate 全绿不可检测）。现合成为规则块内自动嵌套
+  `场景: 验收示例`，步骤关键字与文本原样保留；legacy 场景带 `@skip` 时继承。
+- **输出方言一致并强制解析自检**（issue #3）：en 等非 zh-CN 方言源文件迁移
+  产物不再出现「en 前言 + zh-CN 规则关键字」混合方言（官方解析器两种方言都
+  无法解析）；迁移产物 MUST 经官方解析器自检，失败返回 `ok:false` 不落盘
+  （dry-run 同样报错），不再静默产出不可解析文件。
+- **关键字词表收敛至官方 gherkin 方言表**（`@cucumber/gherkin` dialects，80
+  方言）：修复 en locale 的 `spec skeleton` 产出中文步骤关键字的混合方言缺陷；
+  fr 等官方方言获得正确语言头与关键字。en/zh-CN 合约关键字逐字锁定，
+  输出与 0.5.0 逐字节一致。
+- 源文件方言判定统一口径（`# language:` 头 → 官方匹配器兜底链 → en 兜底），
+  migrate 与 authoring 命令共用同一判定。
+
+### 同文件 `@req` 碰撞检出（issue #4）
+
+- 0.5.0 的两道防撞门（`validate --specs --strict` ERROR 门、
+  `project dedupe-req-ids --dry-run`）对**同一 `.feature` 文件内**多条规则挂
+  同一 reqId 均漏报。现按「携带该 reqId 的规则条数 > 1」判重（同文件/跨文件
+  均算），ERROR 门覆盖同文件碰撞；`RegistryDuplicate` 新增 `occurrences`
+  字段（文件 + 规则序号 + 规则标题逐出现定位）。
+- `project dedupe-req-ids` remap 计划覆盖同文件第 2+ 次出现（**首现保留，
+  其余重取号**）；apply 由整串 `replaceAll` 改为出现次序定点替换，修复
+  `@req:r1` 误伤 `@req:r10` 的前缀碰撞。
+
+### 注意
+
+存量仓库若存在同文件重复 `@req` tag（0.5.0 下 validate 全绿），升级后
+`validate --specs --strict` 将报 ERROR——这是预期修复而非回归；用
+`project dedupe-req-ids --dry-run` 查看重取号计划后 apply 即可。
+
 ## 0.5.0 (2026-09-27)
 
 **breaking**：`.feature` 规范格式收束为 Gherkin **原生分层**（change 系列
