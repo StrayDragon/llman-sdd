@@ -94,3 +94,6 @@ jobs:
         with:
           files: dist/*
           generate_release_notes: true
+          # 允许维护者用 `gh release create` 预建 release(自著 release note);
+          # 存在时 CI 仅附加二进制资产,不覆盖既有说明。
+          update_existing: true

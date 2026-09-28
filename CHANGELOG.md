@@ -2,6 +2,35 @@
 
 本项目遵循语义化版本（SemVer）。breaking 变更随大版本/次版本标注迁移说明。
 
+## 0.6.0 (2026-09-28)
+
+**Breaking（需迁移）**：`llmanspec/config.yaml` 的 spec 验证配置段由 `bdd:` 改名为 `specs:`，
+`bdd.run_command` 更名为 `specs.check_command`；`list --specs` / `show <spec> --json` 的
+morphology 字段 `ruleEnforcedCount` / `rulePendingCount` 分别改名为
+`requirementBoundCount` / `requirementUnboundCount`。旧 `bdd:` 段在**兼容期**仍被识别并
+自动提升为新 `specs:` 语义（加载时输出一次迁移 WARNING），兼容层计划在未来版本移除；
+升级指引见 `migrations/v0.5-v0.6/README.md`。
+
+### spec 验证收敛（breaking）
+
+- 配置段 `bdd:` → `specs:`，字段 `run_command` → `check_command`（`framework` /
+  `verify_prompt` 同名随迁）；语义从「BDD 测试」收敛为「整个 spec 验证」。旧配置自动
+  兼容提升 + 一次性迁移 WARNING。
+- close-out（finalize/archive）：配置了 `specs.check_command` 时对凡改动 specs 的
+  change 收口前必跑（不再要求存在已绑定场景）；未配置时跳过并输出 WARNING 引导（非阻断）。
+
+### 术语与判定统一（breaking 字段改名）
+
+- 「绑定/未绑定」全局唯一定义为「是否含可运行（非 `@skip/@experimental`）嵌套场景」，
+  review 的 `pending` 信号更名为 `unbound`；`list --specs` / `show` morphology 字段改名
+  `requirementBoundCount` / `requirementUnboundCount`（旧字段名不再产出）。
+
+### 新能力
+
+- 新增 `llman-sdd spec unbound [--limit N]`：检索未绑定需求（含 capability、文件路径、
+  句柄与描述），缺省返回 1 条 + 剩余数 + `--limit 0` 提示，供 agent 自省待实现项。
+- 模板变量 `bdd_*` → `specs_*`；`init --update` 会刷新项目 `.agents/skills`。
+
 ## 0.5.1 (2026-09-28)
 
 0.5.0 缺陷修复批次（issue #2 / #3 / #4），无 breaking，无需迁移，CLI 命令面不变；
