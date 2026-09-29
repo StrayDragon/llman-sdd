@@ -61,13 +61,13 @@ flowchart LR
     verify ==>|全绿| archive["archive 归档<br/>squash 合并 · 收口"]
 ```
 
-| 阶段 | skill | 干什么 |
-| --- | --- | --- |
-| 探索 | [llman-sdd-explore](.agents/skills/llman-sdd-explore/SKILL.md) | 理清思路、调查需求，只思考不写码 |
-| 提案 | [llman-sdd-propose](.agents/skills/llman-sdd-propose/SKILL.md) | 写 proposal + tasks，把规格落进 llmanspec/ |
-| 实施 | [llman-sdd-apply](.agents/skills/llman-sdd-apply/SKILL.md) | 按 tasks 写码，测试失败自己修，门禁全绿 |
-| 验证 | [llman-sdd-verify](.agents/skills/llman-sdd-verify/SKILL.md) | 对照 specs 查实现，产出 CRITICAL/WARNING 分级报告 |
-| 归档 | [llman-sdd-archive](.agents/skills/llman-sdd-archive/SKILL.md) | squash 合并回默认分支，规格改名入 archive/ |
+| 阶段 | skill                                                          | 干什么                                            |
+| ---- | -------------------------------------------------------------- | ------------------------------------------------- |
+| 探索 | [llman-sdd-explore](.agents/skills/llman-sdd-explore/SKILL.md) | 理清思路、调查需求，只思考不写码                  |
+| 提案 | [llman-sdd-propose](.agents/skills/llman-sdd-propose/SKILL.md) | 写 proposal + tasks，把规格落进 llmanspec/        |
+| 实施 | [llman-sdd-apply](.agents/skills/llman-sdd-apply/SKILL.md)     | 按 tasks 写码，测试失败自己修，门禁全绿           |
+| 验证 | [llman-sdd-verify](.agents/skills/llman-sdd-verify/SKILL.md)   | 对照 specs 查实现，产出 CRITICAL/WARNING 分级报告 |
+| 归档 | [llman-sdd-archive](.agents/skills/llman-sdd-archive/SKILL.md) | squash 合并回默认分支，规格改名入 archive/        |
 
 侧门与辅助：[draft](.agents/skills/llman-sdd-draft/SKILL.md) 随手记想法、[quick](.agents/skills/llman-sdd-quick/SKILL.md) 不改行为合约的小改动直改直提交；[apply-cycle](.agents/skills/llman-sdd-apply-cycle/SKILL.md) 单 change 手动端到端，[graph](.agents/skills/llman-sdd-graph/SKILL.md) 画 change 依赖图，[specs-compact](.agents/skills/llman-sdd-specs-compact/SKILL.md) 手动压缩冗余规格。
 
@@ -128,13 +128,13 @@ skill 是生成物不是手写物：模板在 [packages/core/templates](packages
 
 目录形态借自 [OpenSpec](https://github.com/Fission-AI/OpenSpec)，但方向分开了：OpenSpec 把规格当**文档**管，llman-sdd 把规格当**代码**管——可执行、有门禁、绑 git。
 
-|               | OpenSpec                        | llman-sdd                                                             |
-| ------------- | ------------------------------- | --------------------------------------------------------------------- |
-| 规格格式      | Markdown，Requirement + Scenario | Gherkin `.feature`（Cucumber 官方解析器）                             |
-| 规格可执行    | 否，规格是文档                  | `场景:` 接 bun:test；pending 门盯裸规则数，只降不升                   |
-| change 与 git | 目录约定，归档即移动文件夹      | 分支绑定 `sdd/<id>`，finalize 一条命令完成合并 + 归档                 |
-| agent 指引    | 仓库内手写 slash commands       | init 渲染 `.agents/skills`，渲染门看守，过期即红                      |
-| 并行开发      | Stores（独立规划仓）            | 一 change 一 worktree + 依赖图                                        |
+|               | OpenSpec                         | llman-sdd                                             |
+| ------------- | -------------------------------- | ----------------------------------------------------- |
+| 规格格式      | Markdown，Requirement + Scenario | Gherkin `.feature`（Cucumber 官方解析器）             |
+| 规格可执行    | 否，规格是文档                   | `场景:` 接 bun:test；pending 门盯裸规则数，只降不升   |
+| change 与 git | 目录约定，归档即移动文件夹       | 分支绑定 `sdd/<id>`，finalize 一条命令完成合并 + 归档 |
+| agent 指引    | 仓库内手写 slash commands        | init 渲染 `.agents/skills`，渲染门看守，过期即红      |
+| 并行开发      | Stores（独立规划仓）             | 一 change 一 worktree + 依赖图                        |
 
 哲学一句话：OpenSpec 追求 fluid not rigid；llman-sdd 把能机械化的全机械化，门禁跑在真实 harness 上，agent 的自由度只留在判断层。
 
