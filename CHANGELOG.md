@@ -2,6 +2,31 @@
 
 本项目遵循语义化版本（SemVer）。breaking 变更随大版本/次版本标注迁移说明。
 
+## 0.7.0 (2026-09-29)
+
+**行为变更**：`spec next-req-id`（与共用实现的 `spec skeleton`）取号语义由「最小空闲号」
+改为「最大已用号 + 1」（空注册表输出 r1），与 `change next-id` 对齐；已删除 capability
+的退役号段不再被复用，归档历史引用消除别名歧义（#5）。编号连续的仓库输出不变；有退役
+号段的仓库将跳过空缺继续向上取号，依赖旧行为的脚本需知悉。
+
+### 子项目（workspace 子包）多根支持（新能力，#6）
+
+统一根模型：一切操作以「一个 `llmanspec/` 目录」为单位，子包携带自己的 llmanspec 即又一
+实例，与根走完全相同代码路径；单根仓库行为逐字节一致（无 roots 维度、零漂移）。
+
+- 自动发现：git 根起约定扫描全部有效根（`config.yaml` 或 `specs/` 判定），深度受
+  `--max-scan-depth` 约束，排除 `node_modules`/`target`/`.git`。
+- `validate --specs` 双粒度：逐根（缺省 cwd 语义升格为「最近实例根」解析，另 `--directory`
+  固定起点）与聚合（`--all-roots` 对每根执行结构校验与该根 config 的 `check_command`
+  batch-once，TOON/JSON 按根分组外包 `roots[]`，退出码任一根红即红；缺省不聚合）。
+- 路径单一归属：specs `# scope:` 以实例根为相对基准；根 specs scope 进其他根实例目录报
+  validate ERROR（祖先根豁免）。staleness 按根计算。
+- spec 助手注册表按根：`next-req-id` / `skeleton` / `add-req` / `add-scenario` /
+  `resolve-req` 以实例根为扫描根（max+1 语义不变），支持 `--directory`；跨根不保证唯一。
+- init 与 agent 面：子根 init 照写双托管块但**缺省不注入** `.agents/skills`（`--skills`
+  显式开启）；`init --update` 复用发现算子刷新全部发现根的托管块，skills 渲染与
+  `llman-sdd-*` 命名空间清理仍仅作用于仓库根实例。
+
 ## 0.6.0 (2026-09-28)
 
 **Breaking（需迁移）**：`llmanspec/config.yaml` 的 spec 验证配置段由 `bdd:` 改名为 `specs:`，
