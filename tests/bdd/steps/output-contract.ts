@@ -297,23 +297,23 @@ bdd.when('运行 spec skeleton 与 next-req-id 与 project migrate 三态', (ctx
   } satisfies MigrateResult;
 });
 
-bdd.thenStep('skeleton 产物过单轨校验且 next-req-id 输出下一空闲 id', (ctx) => {
+bdd.thenStep('skeleton 产物过单轨校验且 next-req-id 输出最大已用号加一', (ctx) => {
   const r = ctx.fixtures['migrate结果'] as MigrateResult;
   if (r.skeletonCode !== 0) throw new Error('spec skeleton failed');
   const doc = parseCapability(r.skeletonContent, 'capx.feature');
   if (doc.errors.length !== 0) {
     throw new Error(`skeleton fails single-track validation: ${JSON.stringify(doc.errors)}`);
   }
-  // makeTempRepo 的 sample.feature 占 r1:skeleton 领走下一空闲 id r2,
-  // 随后 next-req-id 扫描全局注册表应报再下一个空闲 id r3。
+  // makeTempRepo 的 sample.feature 占 r1:skeleton 领走 max+1 的 r2,
+  // 随后 next-req-id 扫描全局注册表应报再下一个 r3。
   if (!r.skeletonContent.includes('@req:r2')) {
-    throw new Error(`skeleton did not claim the next free id r2:\n${r.skeletonContent}`);
+    throw new Error(`skeleton did not claim r2 (max+1):\n${r.skeletonContent}`);
   }
   if (!/\n  (规则|Rule): TODO-rule\n/u.test(r.skeletonContent)) {
     throw new Error(`skeleton lacks the native rule header:\n${r.skeletonContent}`);
   }
   if (r.nextReqId !== 'r3') {
-    throw new Error(`expected next free id r3, got "${r.nextReqId}"`);
+    throw new Error(`expected max+1 r3, got "${r.nextReqId}"`);
   }
 });
 

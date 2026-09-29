@@ -597,3 +597,37 @@ bdd.thenStep('review 信号含该深层 change 且 graph 输出含该深层 chan
     throw new Error(`review missing at depth 8: ${id}\n${deep.review}`);
   if (!deep.graph.includes(id)) throw new Error(`graph missing at depth 8: ${id}\n${deep.graph}`);
 });
+
+// ---------------------------------------------------------------------------
+// r22 — next-req-id max+1: freed ranges are never reused (issue #5)
+// ---------------------------------------------------------------------------
+
+bdd.given('一个已初始化且含 r1 与 r5 规则的临时仓库', (ctx) => {
+  // makeTempRepo seeds sample.feature with the @req:r1 rule; the gap r2-r4
+  // simulates a deleted capability whose ids were retired.
+  const repo = makeTempRepo();
+  writeFileSync(
+    join(repo.root, 'llmanspec', 'specs', 'gap.feature'),
+    '# language: zh-CN\n# capability: gap\n# purpose: p\n# scope: llmanspec/\n\n功能: gap\n\n  @req:r5\n  规则: 空缺右侧规则\n    系统 MUST y\n',
+  );
+  ctx.fixtures['空缺仓库'] = { repo };
+});
+
+bdd.when('运行 spec next-req-id', (ctx) => {
+  const { repo } = ctx.fixtures['空缺仓库'] as { repo: TempRepo };
+  const next = repo.run('bun', [CLI, 'spec', 'next-req-id', '--json']);
+  let reqId = '';
+  try {
+    reqId = String((JSON.parse(next.stdout || '{}') as { reqId?: string }).reqId ?? '');
+  } catch {
+    // then-step reports the failure
+  }
+  ctx.fixtures['空缺结果'] = { code: next.code, reqId, out: `${next.stdout}${next.stderr}` };
+});
+
+bdd.thenStep('输出 r6 而非复用空缺号 r2', (ctx) => {
+  const r = ctx.fixtures['空缺结果'] as { code: number; reqId: string; out: string };
+  if (r.code !== 0) throw new Error(`next-req-id failed: ${r.out}`);
+  // smallest free would alias the retired r2-r4 range; max+1 must skip it.
+  if (r.reqId !== 'r6') throw new Error(`expected max+1 r6, got "${r.reqId}"\n${r.out}`);
+});

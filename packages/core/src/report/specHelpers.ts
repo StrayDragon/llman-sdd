@@ -39,20 +39,19 @@ function collectSpecEntries(io: SpecHelperIo, specsDir: string): ParsedEntry[] {
 }
 
 /**
- * predecessor parity (`req_registry.rs::next_req_id_from_index`): smallest free
- * rN over the requirement handles (`@req` on `规则:` headers) only. The id set
- * comes from the global req registry fed with the parsed specs.
+ * Max+1 over the requirement handles (`@req` on `规则:` headers) only — the id
+ * set comes from the global req registry fed with the parsed specs. Deliberately
+ * divergent from the predecessor's smallest-free semantics
+ * (`req_registry.rs::next_req_id_from_index`): handing out freed ids aliases
+ * references archived in past changes (issue #5) — retired ranges are never
+ * reused. See change `align-next-req-id-max-plus-one` design for the trade-off.
  */
 export function nextReqId(io: SpecHelperIo, specsDir: string): string {
   const entries = collectSpecEntries(io, specsDir);
-  const used = new Set(
-    [...buildReqRegistry(entries).byId.keys()].map((reqId) =>
-      Math.trunc(Number(reqId.replace(/^r/u, ''))),
-    ),
+  const used = [...buildReqRegistry(entries).byId.keys()].map((reqId) =>
+    Math.trunc(Number(reqId.replace(/^r/u, ''))),
   );
-  let n = 1;
-  while (used.has(n)) n += 1;
-  return `r${n}`;
+  return `r${Math.max(0, ...used) + 1}`;
 }
 
 export function skeletonContent(capability: string, reqId: string, locale: string): string {

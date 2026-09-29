@@ -75,7 +75,7 @@ export function registerSpec(program: Command): void {
 
   spec
     .command('next-req-id')
-    .description('Allocate the next free global req id (rN)')
+    .description('Allocate the next global req id (max in use + 1, rN)')
     .option('--json', 'emit {reqId}')
     .action((options: { json?: boolean }) => {
       const reqId = nextReqId(newIo(), 'llmanspec/specs');

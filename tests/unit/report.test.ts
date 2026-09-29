@@ -193,18 +193,44 @@ describe('graphMermaid', () => {
 });
 
 describe('nextReqId', () => {
-  test('reads @req handles on rule headers only — @req in step text must not count (predecessor parity)', () => {
-    const io: SpecHelperIo = {
+  // max+1 semantics (align-next-req-id-max-plus-one): smallest free would alias
+  // archived references once a rule block is deleted (issue #5).
+  const ioWithRules = (files: Record<string, string>): SpecHelperIo => {
+    const names = Object.keys(files);
+    return {
       exists: () => true,
-      readText: () =>
-        '# language: zh-CN\n# capability: t\n# purpose: p\n# scope: x/\n\n功能: t\n\n  @req:r5\n  规则: ok\n    系统 MUST x\n\n    场景: acc\n      假如 一个 spec 文件都含 @req:r99 标签\n',
+      readText: (path: string) => files[path] ?? '',
       writeText: () => {},
       mkdirp: () => {},
       isDirectory: () => false,
-      listDir: () => ['t.feature'],
+      listDir: () => names.map((p) => p.replace(/^llmanspec\/specs\//u, '')),
     };
-    // predecessor parity: smallest free rN over rule-header @req ids (r5 only -> r1).
+  };
+  const featureWithRule = (capability: string, reqId: string) =>
+    `# language: zh-CN\n# capability: ${capability}\n# purpose: p\n# scope: x/\n\n功能: ${capability}\n\n  @req:${reqId}\n  规则: ok\n    系统 MUST x\n\n    场景: acc\n      假如 前置\n`;
+
+  test('reads @req handles on rule headers only — @req in step text must not count', () => {
+    const io = ioWithRules({
+      'llmanspec/specs/t.feature':
+        '# language: zh-CN\n# capability: t\n# purpose: p\n# scope: x/\n\n功能: t\n\n  @req:r5\n  规则: ok\n    系统 MUST x\n\n    场景: acc\n      假如 一个 spec 文件都含 @req:r99 标签\n',
+    });
+    // r99 sits in step text, not a rule header: max in use is r5 -> r6.
+    expect(nextReqId(io, 'llmanspec/specs')).toBe('r6');
+  });
+
+  test('empty registry starts at r1', () => {
+    const io = ioWithRules({});
     expect(nextReqId(io, 'llmanspec/specs')).toBe('r1');
+  });
+
+  test('gap regression lock: freed ranges are never reused (issue #5) — r1+r5 -> r6', () => {
+    const io = ioWithRules({
+      'llmanspec/specs/a.feature': featureWithRule('a', 'r1'),
+      'llmanspec/specs/b.feature': featureWithRule('b', 'r5'),
+    });
+    // smallest free would hand out r2 (freed by the deleted r2-r4 capability);
+    // max+1 skips the retired gap entirely.
+    expect(nextReqId(io, 'llmanspec/specs')).toBe('r6');
   });
 });
 

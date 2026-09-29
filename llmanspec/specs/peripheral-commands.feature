@@ -59,15 +59,22 @@
   规则: spec 助手与 migrate 引导壳
     `spec skeleton <cap>` MUST 生成通过单轨校验的骨架(locale 按 config);骨架 MUST NOT 创建仓库根 `src/` 目录,亦 MUST NOT 写入
     `# scope: src/` 头注释(`# scope:` 必须指向 capability 真正拥有的文件,缺省预留目录 SHALL 为
-    `llmanspec/`);`spec next-req-id` MUST 扫描全局 rN 注册表输出下一个空闲 id;`project migrate` MUST 输出 legacy
+    `llmanspec/`);`spec next-req-id` MUST 扫描全局 rN 注册表输出最大已用号加一(空注册表输出 r1)且 MUST NOT 复用树内已
+    退役的空缺号段(`spec skeleton` 取号共用同一语义;有意 divergent 于前代 smallest free 语义,依据 issue #5 与
+    align-next-req-id-max-plus-one 的 design);`project migrate` MUST 输出 legacy
     迁移不随本工具提供的说明且不执行任何迁移。
 
     场景: spec 助手产物与 migrate 三态
       假如 一个已初始化且含 r1 规则的临时仓库
       当 运行 spec skeleton 与 next-req-id 与 project migrate 三态
-      那么 skeleton 产物过单轨校验且 next-req-id 输出下一空闲 id
+      那么 skeleton 产物过单轨校验且 next-req-id 输出最大已用号加一
       而且 migrate 裸调用输出总览且两种 kind 各输出协作说明
       而且 未知 --kind 退出码非零
+
+    场景: 空缺号段不被复用
+      假如 一个已初始化且含 r1 与 r5 规则的临时仓库
+      当 运行 spec next-req-id
+      那么 输出 r6 而非复用空缺号 r2
 
 
     场景: spec skeleton 不产生仓库根 src
