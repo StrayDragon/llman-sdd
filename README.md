@@ -5,44 +5,81 @@
 [![CI](https://github.com/StrayDragon/llman-sdd/actions/workflows/ci.yml/badge.svg?style=flat-square)](https://github.com/StrayDragon/llman-sdd/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 
-**s**pec-**d**riven development —— agent 管判断,CLI 管机械,git 管生命周期
+**s**pec-**d**riven development —— agent 管判断，CLI 管机械，git 管生命周期
 
-前身:Rust 实现的 llman 的 sdd 子命令,[最后一次携带它的提交版本为](https://github.com/StrayDragon/llman/commit/e87e7fb0e4e152ed41a5cc436a7f715fcf9764f1);此后以 TypeScript + Bun 重写!
+前身：Rust 版 [llman](https://github.com/StrayDragon/llman) 的 sdd 子命令，现以 TypeScript + Bun 重写。
 
 </div>
 
 ---
 
-llman-sdd 是一套 spec 驱动开发(SDD)工作流:先写规格,再写代码,规格与实现由门禁对齐。分工明确——`init` 渲染出的 `.agents/skills` 教 AI agent 在每个阶段做什么判断;`llman-sdd` CLI 负责 change 生命周期、校验、依赖图、归档这些确定性操作。规格用 Gherkin 原生分层写(locale 可切,本仓用 zh-Hans 关键字):`规则:` 块承载需求,块内嵌套的 `场景:` 直接接 bun:test 跑起来——解析走 Cucumber 官方 parser,人类与 agent 读同一份可执行规格。
+llman-sdd 是一套 spec 驱动开发（SDD）工作流：**先写规格，再写代码**，规格与实现由门禁对齐。规格就是 Gherkin `.feature` 文件——`规则:` 块写需求，块内嵌套的 `场景:` 直接接测试跑起来，人和 agent 读的是同一份可执行规格。
 
-本仓库用 llman-sdd 开发 llman-sdd,`llmanspec/` 就是它自身的行为合约。
+本仓库用 llman-sdd 开发 llman-sdd，[llmanspec/](llmanspec/) 就是它自身的行为合约（狗粮现场）。
+
+## 快速上手
+
+安装后（见下文「[安装](#安装)」），在你的项目根目录跑一次：
+
+```bash
+llman-sdd init    # 生成 llmanspec/ + AGENTS.md 托管块 + .agents/skills/
+```
+
+然后对 agent 说出想法就行。一次完整的 change，体验大致是：
+
+```mermaid
+sequenceDiagram
+    participant you as 你
+    participant agent as AI agent
+    participant cli as llman-sdd CLI
+
+    you->>agent: /llman-sdd-propose 加个深色模式
+    agent->>cli: change new · change start（绑定分支）
+    agent-->>you: 提案：改哪些规格、做哪些任务
+    you->>agent: 确认，动手
+    agent->>agent: 写码 → 测试 → 失败自修复
+    agent->>cli: validate / review（门禁）
+    agent-->>you: verify 全绿
+    you->>agent: /llman-sdd-archive
+    agent->>cli: change finalize（squash 合并 + 归档）
+```
+
+你只负责两件事：**出想法**，以及在关键点拍板。每个阶段怎么做判断，agent 按 [.agents/skills/](.agents/skills/) 里 init 渲染出的技能执行；机械操作 skill 会自己调 CLI。想亲手敲命令，`llman-sdd --help` 见全貌，每个子命令有自己的 `--help`。
 
 ## 核心循环
 
 ```mermaid
 flowchart LR
-    idea([一个想法]) --> explore["explore<br/>只思考,不写码"]
-    idea -. 记一笔 .-> draft["draft<br/>只留 proposal.md"]
-    idea -. 不动合约的小改动 .-> quick["quick<br/>跳过提案直接改"]
-    explore --> propose["propose<br/>proposal · tasks · specs"]
+    idea([一个想法]) --> explore["explore 探索<br/>只思考，不写码"]
+    idea -. 记一笔 .-> draft["draft 草稿"]
+    idea -. 不动合约的小改动 .-> quick["quick 快改"]
+    explore --> propose["propose 提案<br/>proposal · tasks · specs"]
     draft -. 想清楚了 .-> propose
-    propose --> apply["apply<br/>写码,测试,失败自修复"]
-    apply --> verify["verify<br/>实现与规格对齐吗"]
+    propose --> apply["apply 实施<br/>写码 · 测试 · 自修复"]
+    apply --> verify["verify 验证<br/>实现与规格对齐吗"]
     verify -. CRITICAL .-> apply
-    verify ==>|全绿| finalize["finalize<br/>squash 合并 + specs 落地 + 归档"]
+    verify ==>|全绿| archive["archive 归档<br/>squash 合并 · 收口"]
 ```
 
-五个阶段各有一个 skill 做入口(explore → propose → apply → verify → archive),侧门两个:随手记想法走 draft,不碰行为合约的小改动走 quick。每个 skill 的触发条件与边界写在模板里,`llman-sdd init` 落到 `.agents/skills/`,agent 直接按斜杠命令调用。
+| 阶段 | skill | 干什么 |
+| --- | --- | --- |
+| 探索 | [llman-sdd-explore](.agents/skills/llman-sdd-explore/SKILL.md) | 理清思路、调查需求，只思考不写码 |
+| 提案 | [llman-sdd-propose](.agents/skills/llman-sdd-propose/SKILL.md) | 写 proposal + tasks，把规格落进 llmanspec/ |
+| 实施 | [llman-sdd-apply](.agents/skills/llman-sdd-apply/SKILL.md) | 按 tasks 写码，测试失败自己修，门禁全绿 |
+| 验证 | [llman-sdd-verify](.agents/skills/llman-sdd-verify/SKILL.md) | 对照 specs 查实现，产出 CRITICAL/WARNING 分级报告 |
+| 归档 | [llman-sdd-archive](.agents/skills/llman-sdd-archive/SKILL.md) | squash 合并回默认分支，规格改名入 archive/ |
+
+侧门与辅助：[draft](.agents/skills/llman-sdd-draft/SKILL.md) 随手记想法、[quick](.agents/skills/llman-sdd-quick/SKILL.md) 不改行为合约的小改动直改直提交；[apply-cycle](.agents/skills/llman-sdd-apply-cycle/SKILL.md) 单 change 手动端到端，[graph](.agents/skills/llman-sdd-graph/SKILL.md) 画 change 依赖图，[specs-compact](.agents/skills/llman-sdd-specs-compact/SKILL.md) 手动压缩冗余规格。
 
 ## 规格长什么样
 
-一个能力一个 `.feature` 文件,头部注释写清 capability / purpose / scope(映射到源码路径)。需求以 `规则:` 块表达,`@req:<id>` 是唯一需求句柄,挂在块头标签上——编号延续自前代规则号,重写延续的是同一份合约,不是重开一份。可执行场景优先:`场景:`(假如 / 当 / 那么)是原生 gherkin 鼓励形态,凡是 GWT 可表达、绑定步骤代码的自动化判定行为 `bun test tests/bdd` 真跑;仅当需求无法程序化表达(抽象目标、架构决策、治理/人工约束)或暂不转写时,才以裸 `规则:` 承载并在 proposal / design 记录理由。节选自 [llmanspec/specs/change-lifecycle.feature](llmanspec/specs/change-lifecycle.feature):
+一个能力一个 `.feature` 文件，放在 `llmanspec/specs/`。需求写在 `规则:` 块里，块头 `@req:<id>` 是唯一句柄；块内嵌套的 `场景:`（假如 / 当 / 那么）绑定步骤代码，`bun test tests/bdd` 真跑——**规格即测试**。节选自 [llmanspec/specs/change-lifecycle.feature](llmanspec/specs/change-lifecycle.feature)：
 
 ```gherkin
   @req:r14
   规则: 分支绑定门
-    `change start` MUST 要求干净工作树且当前在默认分支,创建 `<branch_prefix><id>` 分支,
-    不满足门条件 MUST 报错且不产生任何变更。
+    `change start` MUST 要求干净工作树且当前在默认分支,创建 `<branch_prefix><id>` 分支(默认前缀 sdd/)并把
+    branch/base_branch/base_sha 三键以注释保留方式写入 proposal.md frontmatter;不满足门条件 MUST 报错且不产生任何变更。
 
     场景: start 全链路
       假如 一个已提交的临时 git 仓库含 change "demo-add-feature" 的 proposal
@@ -50,11 +87,11 @@ flowchart LR
       那么 分支 sdd/demo-add-feature 被创建且被检出
 ```
 
-规则描述是自由文本——不再强制 MUST/SHALL 词;历史标签 `@executable` / `@rule` / `@human` / `@manual` 已惰性化(解析不赋予语义、不报错),旧文件用 `llman-sdd spec migrate-native` 一步迁移;顶层 `场景:` 只作功能级示例(无句柄、不告警,孤儿概念已废除)。裸 `规则:` 进入 review 的 pending 计量(pending = 无可执行场景的规则数),pending 门要求不得高于基线、只降不升,压降交由 `specs-compact` 收编。
+凡是能用场景表达的，都必须可执行；实在程序化不了的（架构决策、治理约束）才允许裸 `规则:`，而且 pending 门盯着裸规则数——只许降，不许升。Gherkin 关键字 locale 可切（官方 80 种方言），本仓用 zh-Hans。
 
 ## 一个 change 的 git 一生
 
-change 不是文件夹,是一条 git 分支。
+change 不是文件夹，是一条 git 分支。
 
 ```mermaid
 gitGraph
@@ -69,56 +106,45 @@ gitGraph
     commit id: "SSOT 改名 · 归档"
 ```
 
-`change start` 建 `sdd/<id>` 分支并把 `branch` / `base_branch` / `base_sha` 写进 proposal frontmatter。frontmatter 是 change 元信息的唯一权威:字段集白名单校验,出现 `status` 之类野字段 validate 直接 ERROR;生命周期阶段(draft / designed / planned / full)由 CLI 从磁盘工件加 git 绑定实时推断,不落盘,想手改都没地方改。收口一条命令:`change finalize` 完成 squash 合并、specs SSOT 改名、归档提交。
+`change start` 建 `sdd/<id>` 分支，并把 `branch` / `base_branch` / `base_sha` 写进 proposal frontmatter——它是 change 元信息的唯一权威：白名单校验，出现野字段 validate 直接 ERROR；生命周期阶段由 CLI 从磁盘工件 + git 绑定实时推断，不落盘。收口一条命令：`change finalize`。
 
-并行开发按「一个 change = 一个 worktree = 一个 agent 工作区」组织,change 间用 `depends_on` / `blocks` 声明依赖,`llman-sdd graph` 直接吐 mermaid 依赖图。
-
-## 与 OpenSpec 的区别
-
-`llmanspec/` 这个目录形态借自 [OpenSpec](https://github.com/Fission-AI/OpenSpec),早期还带过互导命令;后来方向分开了:OpenSpec 把规格当文档管,llman-sdd 把规格当代码管——可执行、有门禁、绑 git。
-
-|               | OpenSpec                        | llman-sdd                                                                     |
-| ------------- | ------------------------------- | ----------------------------------------------------------------------------- |
-| 规格格式      | Markdown,Requirement + Scenario | Gherkin `.feature`(Cucumber 官方解析器)                                       |
-| 规格可执行    | 否,规格是文档                   | `规则:` 块内嵌套 `场景:` 接 bun:test;pending 计量门盯着裸规则数,只降不升      |
-| change 与 git | 目录约定,归档即移动文件夹       | 分支绑定 `sdd/<id>`;finalize 一条命令完成 squash 合并 + specs 改名 + 归档提交 |
-| 阶段与元信息  | —                               | frontmatter 白名单校验,阶段由 CLI 从工件 + git 推断                           |
-| agent 指引    | 仓库内手写 slash commands       | `init` 从模板渲染 `.agents/skills`,渲染门 + 新鲜度门看守,过期即红             |
-| 输出口径      | 面向人读                        | stdout = 结果,stderr = 进度;报告缺省 TOON,`--json` 与前代字节兼容             |
-| 并行开发      | Stores(独立规划仓)              | 一 change 一 worktree + 依赖图                                                |
-
-两家哲学也不同。OpenSpec 追求 fluid not rigid;llman-sdd 反着来,把能机械化的全机械化,门禁跑在真实 harness 上,agent 的自由度只留在判断层。
+并行开发按「一个 change = 一个 worktree = 一个 agent 工作区」组织，change 间用 `depends_on` / `blocks` 声明依赖，`llman-sdd graph` 直接吐 mermaid 依赖图。
 
 ## 双面架构
 
 ```mermaid
 flowchart LR
-    agent["AI agent"] -->|读| skills[".agents/skills<br/>init 渲染,漂移即红"]
-    skills -->|判断:何时提案,何时收口| repo["工作区<br/>代码 + llmanspec/"]
+    you["你"] -->|说话| agent["AI agent"]
+    agent -->|读| skills[".agents/skills<br/>init 渲染，漂移即红"]
+    skills -->|判断：何时提案，何时收口| repo["工作区<br/>代码 + llmanspec/"]
     agent -->|机械操作| cli["llman-sdd CLI"]
     cli -->|change · validate · graph · finalize| repo
     cli --> git[("git 分支")]
 ```
 
-skill 是生成物不是手写物:模板在 `packages/core/templates`,改动模板或 CLI 表面的 change 必须跑 `init --update` 并提交刷新后的 skills,渲染门拿 runInit 产物对 golden 基线做归一化 diff——skill 永远不会教 agent 已删除的命令。`packages/core` 保持纯域逻辑,文件系统、git、终端副作用一律经接口注入。
+skill 是生成物不是手写物：模板在 [packages/core/templates](packages/core/templates)，渲染门拿 init 产物对基线做 diff——skill 永远不会教 agent 已删除的命令。`packages/core` 保持纯域逻辑，文件系统、git、终端副作用一律经接口注入。monorepo 子包可以带自己的 `llmanspec/`，多根走同一条代码路径（v0.7 起）。
 
-## 快速开始
+## 与 OpenSpec 的区别
 
-在你的项目里:
+目录形态借自 [OpenSpec](https://github.com/Fission-AI/OpenSpec)，但方向分开了：OpenSpec 把规格当**文档**管，llman-sdd 把规格当**代码**管——可执行、有门禁、绑 git。
+
+|               | OpenSpec                        | llman-sdd                                                             |
+| ------------- | ------------------------------- | --------------------------------------------------------------------- |
+| 规格格式      | Markdown，Requirement + Scenario | Gherkin `.feature`（Cucumber 官方解析器）                             |
+| 规格可执行    | 否，规格是文档                  | `场景:` 接 bun:test；pending 门盯裸规则数，只降不升                   |
+| change 与 git | 目录约定，归档即移动文件夹      | 分支绑定 `sdd/<id>`，finalize 一条命令完成合并 + 归档                 |
+| agent 指引    | 仓库内手写 slash commands       | init 渲染 `.agents/skills`，渲染门看守，过期即红                      |
+| 并行开发      | Stores（独立规划仓）            | 一 change 一 worktree + 依赖图                                        |
+
+哲学一句话：OpenSpec 追求 fluid not rigid；llman-sdd 把能机械化的全机械化，门禁跑在真实 harness 上，agent 的自由度只留在判断层。
+
+## 安装
 
 ```bash
-llman-sdd init    # 生成 llmanspec/ + AGENTS.md 托管块 + .agents/skills
-```
+# 方式一：单文件二进制
+# GitHub Releases：linux x64/arm64 · macOS x64/arm64 · windows x64（打 tag 自动发布）
 
-然后对 agent 说 `/llman-sdd-propose <你的想法>`,机械部分 skill 会自己调 CLI。人工常用的就几个:`llman-sdd change start|finalize`、`llman-sdd validate --strict`、`llman-sdd graph`。完整命令面看 `llman-sdd --help`,每个子命令有自己的 `--help`。
-
-### 安装
-
-```bash
-# 单文件二进制:GitHub Releases(linux x64/arm64 · macOS x64/arm64 · windows x64)
-# 打 tag 触发 release 流水线,产物挂在 Actions
-
-# 从源码(需要 Bun >= 1.4 和 just)
+# 方式二：从源码（需要 Bun >= 1.4 和 just）
 git clone https://github.com/StrayDragon/llman-sdd.git && cd llman-sdd
 just install
 just build    # 二进制落在 apps/cli/dist/
@@ -126,24 +152,17 @@ just build    # 二进制落在 apps/cli/dist/
 
 ## 工程细节
 
-### capture 契约
-
-结果走 stdout,进度走 stderr。脚本、CI、agent 捕获 stdout 拿到的永远是干净结果,不会被日志污染;要人读形态走 `--output human`。
-
-### 输出格式
-
-报告型命令(review / validate / list / show / config / index)缺省输出 TOON(Token-Oriented Object Notation,机器与 LLM 友好的紧凑编码),`--output` 可切 `toon | json | compact-json | human`,`--json` / `--compact-json` 与前代输出字节级一致。
-
-### 门禁
-
-`just qa` 与 CI 等价:静态检查、全部测试、skills 渲染门、pending 计量门、schema 漂移门。默认 L0 静默,排障用 `just QA_VERBOSE=2 qa` 开全量输出。全部任务直接跑 `just` 看注释——justfile 注释是任务清单的唯一权威,本节不复读;真实 LLM 冒烟与 eval 剧本的入口也在那里。
+- **capture 契约**：结果走 stdout，进度走 stderr。脚本、CI、agent 捕获 stdout 拿到的永远是干净结果；人读形态走 `--output human`。
+- **输出格式**：报告型命令缺省 TOON（对机器与 LLM 都友好的紧凑编码），`--output` 可切 `toon`、`json`、`compact-json`、`human`。
+- **门禁**：`just qa` 与 CI 等价——静态检查、全部测试、skills 渲染门、pending 计量门、schema 漂移门；默认静默，排障 `just QA_VERBOSE=2 qa`。全部任务以 justfile 注释为唯一权威。
 
 ## 文档
 
-- [llmanspec/specs/](llmanspec/specs/) —— 本仓自身的行为合约(狗粮现场)
+- [llmanspec/specs/](llmanspec/specs/) —— 本仓自身的行为合约（狗粮现场）
+- [.agents/skills/](.agents/skills/) —— 上述技能的渲染产物；模板在 [packages/core/templates](packages/core/templates)
 - [llmanspec/AGENTS.md](llmanspec/AGENTS.md) —— 项目规则与技术选型定案
+- [CHANGELOG.md](CHANGELOG.md) —— 版本历史与迁移指引
 - [AGENTS.md](AGENTS.md) —— 工作区速览
-- [CHANGELOG.md](CHANGELOG.md) —— 版本历史
 
 ## 许可证
 
