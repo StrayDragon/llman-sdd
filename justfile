@@ -19,6 +19,13 @@ default:
 install:
     bun install --frozen-lockfile
 
+# 本地注册命令面:bun link 只登记包名(不写 bin),故 bin symlink 手工补;ELF 同步到 ~/.local/bin
+link:
+    bun link
+    ln -sfn {{invocation_directory()}}/apps/cli/src/main.ts ~/.bun/bin/llman-sdd
+    ln -sfn {{invocation_directory()}}/apps/cli/src/main.ts ~/.bun/bin/llmanspec
+    cp -f apps/cli/dist/llman-sdd ~/.local/bin/llman-sdd
+
 # 静态门禁:typecheck + lint + format(缺一不可)
 check:
     @{{BUN_RUN}} typecheck && echo "[check] typecheck"
