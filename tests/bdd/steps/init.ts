@@ -59,7 +59,7 @@ bdd.when('渲染 propose skill 与 validation-hints 单元', (ctx) => {
   runInit(
     makeNodeIo(zhRoot),
     { exists: (p) => existsSync(p), readText: (p) => readFileSync(p, 'utf8') },
-    { update: true, version: '0.1.0' },
+    { update: true, version: '0.1.0', skills: true },
   );
   // en locale 渲染进独立临时目录,断言双 locale 同语义判据
   const enRoot = mkdtempSync(join(tmpdir(), 'llman-sdd-init-en-'));
@@ -68,7 +68,7 @@ bdd.when('渲染 propose skill 与 validation-hints 单元', (ctx) => {
   runInit(
     makeNodeIo(enRoot),
     { exists: (p) => existsSync(p), readText: (p) => readFileSync(p, 'utf8') },
-    { update: true, version: '0.1.0' },
+    { update: true, version: '0.1.0', skills: true },
   );
   ctx.fixtures['配对判据产物'] = {
     zh: readFileSync(join(zhRoot, '.agents', 'skills', 'llman-sdd-propose', 'SKILL.md'), 'utf8'),
@@ -110,7 +110,7 @@ bdd.when('渲染全部 skills', (ctx) => {
   runInit(
     makeNodeIo(root),
     { exists: (p) => existsSync(p), readText: (p) => readFileSync(p, 'utf8') },
-    { update: true, version: '0.1.0' },
+    { update: true, version: '0.1.0', skills: true },
   );
 });
 

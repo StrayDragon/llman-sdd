@@ -134,3 +134,11 @@
       当 比对该副本与 golden 基线
       那么 比对报出 "llman-sdd-quick/SKILL.md" 为内容不同
       而且 仓库工作区未被改动
+  @req:r93
+  规则: init 逐根与 agent 面 skills 策略
+    init MUST 保持逐根构造(init [path] 定根、路径根相对、无嵌套守卫,scope 重叠由路径单一归属 validate 把关);子根 init 照写 AGENTS.md 与 llmanspec/AGENTS.md 双托管块(marker 更新保留既有内容)。.agents/skills 仅当目标为仓库根实例时注入:子根 init 缺省 MUST NOT 注入 skills 且 MUST NOT 清理 skills 命名空间,--skills 旗标显式开启子根注入。init --update MUST 复用根发现算子刷新全部发现根的托管块,skills 渲染与 llman-sdd-* 命名空间清理仍仅作用于仓库根实例。
+
+    场景: 子根 init 缺省不注入 skills
+      假如 一个 git 仓库的临时目录
+      当 运行 init packages/tui 与 init packages/tui --skills
+      那么 子根双托管块写入且缺省无 .agents/skills 且 --skills 后注入

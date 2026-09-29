@@ -4,6 +4,7 @@
  * Command modules depend one-way on this file; it must not import any of them.
  */
 import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 import {
   discoverSpecs,
@@ -12,6 +13,7 @@ import {
   loadConfigDetail,
   makeEmbeddedTemplateIo,
   resolveChangeId,
+  resolveInstanceRoot,
   type TemplateIo,
 } from '@llman-sdd/core';
 import type { Command } from 'commander';
@@ -73,6 +75,26 @@ export function exitWith(code: number): void {
 /** Parse all capability specs under llmanspec/specs via core discovery. */
 export function loadSpecEntries(): ReturnType<typeof discoverSpecs> {
   return discoverSpecs('llmanspec/specs', newIo());
+}
+
+/**
+ * Per-root specs dir (r94): the nearest llmanspec/ instance at or above the
+ * start dir (--directory override). Identity 'llmanspec/specs' when the cwd
+ * is itself the instance root — legacy relative output paths stay
+ * byte-identical there.
+ */
+export function resolveRootSpecsDir(directory?: string): string {
+  const start = directory ?? process.cwd();
+  const root = resolveInstanceRoot(start, newIo());
+  if (root === null) {
+    throw new CliError(`no llman spec root at or above: ${start}`);
+  }
+  return root === process.cwd() ? 'llmanspec/specs' : join(root, 'llmanspec', 'specs');
+}
+
+/** Spec entries of the resolved instance root (per-root registry, r94). */
+export function loadRootSpecEntries(directory?: string): ReturnType<typeof discoverSpecs> {
+  return discoverSpecs(resolveRootSpecsDir(directory), newIo());
 }
 
 /** One-time legacy `bdd:` migration warning — printed to stderr by the first

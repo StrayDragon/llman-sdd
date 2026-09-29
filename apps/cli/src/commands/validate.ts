@@ -1,3 +1,5 @@
+import { relative } from 'node:path';
+
 import {
   applyStrict,
   buildDuplicatesFor,
@@ -5,11 +7,14 @@ import {
   collectChanges,
   currentBranch,
   defaultBranch,
+  discoverRoots,
   evaluateStaleness,
   formatTotals,
   notApplicableStaleness,
   renderMachine,
+  resolveInstanceRoot,
   runHarnessForSpecs,
+  scopeCrossings,
   specRelFor,
   specIdOf,
   STAGE_ORDER,
@@ -17,6 +22,7 @@ import {
   validateChange,
   type ChangeIssue,
   type HarnessGate,
+  type RootEntry,
   type StalenessInfo,
 } from '@llman-sdd/core';
 import type { Command } from 'commander';
@@ -51,13 +57,34 @@ function compareItems(a: VItem, b: VItem): number {
   return a.id < b.id ? -1 : a.id > b.id ? 1 : a.type.localeCompare(b.type);
 }
 
+/**
+ * Multi-root context of the specs being validated (r91-r92): `repoRelPrefix`
+ * lifts instance-root-relative scopes into repo-relative paths for the
+ * staleness diff match ('' when the instance root is the git toplevel —
+ * byte-identical legacy behavior); `otherRoots` feeds the single-ownership
+ * crossings that surface as ERROR issues.
+ */
+export interface InstanceContext {
+  repoRelPrefix: string;
+  otherRoots: RootEntry[];
+}
+
 function specV1Items(
-  opts: { strict?: boolean; harness?: HarnessGate; harnessOnlyIds?: string[] },
+  opts: {
+    strict?: boolean;
+    harness?: HarnessGate;
+    harnessOnlyIds?: string[];
+    instance?: InstanceContext;
+  },
   entries: ReturnType<typeof loadSpecEntries> = loadSpecEntries(),
 ): VItem[] {
   const io = newIo();
   const git = makeCliGit(process.cwd());
   const duplicatesFor = buildDuplicatesFor(entries);
+  const liftScope = (scope: string): string =>
+    opts.instance !== undefined && opts.instance.repoRelPrefix !== ''
+      ? `${opts.instance.repoRelPrefix}/${scope}`
+      : scope;
 
   const items: VItem[] = [];
   for (const entry of entries) {
@@ -65,12 +92,13 @@ function specV1Items(
     const verdict = validateCapability(entry as never, duplicatesFor, io, {
       strict: opts.strict === true,
     });
+    const scopes = entry.doc.header.scope?.split(',').map((s) => s.trim()) ?? [];
     const specRel = specRelFor(entry.fileName);
     const staleness = evaluateStaleness({
       git,
       root: process.cwd(),
       specRel,
-      scope: entry.doc.header.scope?.split(',').map((s) => s.trim()) ?? [],
+      scope: scopes.map(liftScope),
       baseRefEnv: process.env.LLMANSPEC_BASE_REF,
     });
     let issues: ChangeIssue[] = verdict.items.map((i) => ({
@@ -78,6 +106,18 @@ function specV1Items(
       path: i.id,
       message: i.message,
     }));
+    if (opts.instance !== undefined) {
+      for (const crossing of scopeCrossings(scopes, process.cwd(), opts.instance.otherRoots)) {
+        issues = [
+          ...issues,
+          {
+            level: 'ERROR',
+            path: 'single-ownership',
+            message: `scope '${crossing.scope}' crosses sub-root '${crossing.rootDir}' — migrate these specs into that root or narrow the scope (one path, one root)`,
+          },
+        ];
+      }
+    }
     if (opts.strict === true) issues = [...issues, ...applyStrict(staleness.issues)];
     else issues = [...issues, ...staleness.issues];
     items.push({
@@ -201,9 +241,33 @@ function renderValidateText(items: VItem[]): void {
   console.log(formatTotals(passed, failed, items.length));
 }
 
-function renderValidateReport(items: VItem[], mode: 'json' | 'compact-json' | 'toon'): void {
+function gitToplevelOrCwd(): string {
+  const toplevel = makeCliGit(process.cwd()).runOpt(['rev-parse', '--show-toplevel']);
+  return toplevel ?? process.cwd();
+}
+
+/**
+ * Multi-root context of the cwd instance (r91-r92): empty otherRoots + ''
+ * prefix when run at a lone root — legacy byte-identical behavior.
+ */
+function instanceContextFor(maxDepth: number): InstanceContext {
+  const toplevel = gitToplevelOrCwd();
+  const otherRoots = discoverRoots(toplevel, newIo(), { maxDepth }).filter(
+    (r) => r.rootDir !== process.cwd(),
+  );
+  const repoRelPrefix = toplevel === process.cwd() ? '' : relative(toplevel, process.cwd());
+  return { repoRelPrefix, otherRoots };
+}
+
+interface RootReport {
+  root: string;
+  items: VItem[];
+  summary: ReturnType<typeof summarizeItems>;
+}
+
+function summarizeItems(items: VItem[]) {
   const types = [...new Set(items.map((i) => i.type))] as string[];
-  const summary = {
+  return {
     totals: {
       items: items.length,
       passed: items.filter((i) => i.valid).length,
@@ -222,7 +286,10 @@ function renderValidateReport(items: VItem[], mode: 'json' | 'compact-json' | 't
       {},
     ),
   };
-  console.log(renderMachine({ items, summary, version: '1.0' }, mode));
+}
+
+function renderValidateReport(items: VItem[], mode: 'json' | 'compact-json' | 'toon'): void {
+  console.log(renderMachine({ items, summary: summarizeItems(items), version: '1.0' }, mode));
 }
 
 const SPEC_NEXT_STEPS = [
@@ -285,6 +352,14 @@ export function registerValidate(program: Command): void {
     .option('--type <type>', 'force disambiguation: change | spec')
     .option('--stage <stage>', 'change stage gate: draft | designed | planned | full')
     .option('--strict', 'warnings also make the exit code non-zero')
+    .option(
+      '--directory <path>',
+      'instance root resolution start (default: nearest llmanspec/ at or above cwd)',
+    )
+    .option(
+      '--all-roots',
+      'aggregate: validate every discovered llmanspec root (specs scope, any root red → non-zero exit)',
+    )
     .option('--include-info', 'keep INFO-level issues (default: WARNING and above)')
     .option('--no-check', 'skip the spec check')
     .option('--check', 'run the spec check (default when specs.check_command is configured)');
@@ -304,6 +379,8 @@ export function registerValidate(program: Command): void {
         includeInfo?: boolean;
         output?: string;
         check?: boolean;
+        directory?: string;
+        allRoots?: boolean;
       },
     ) => {
       if (!assertCompactJsonPairing(options)) return;
@@ -323,6 +400,77 @@ export function registerValidate(program: Command): void {
       ) {
         throw new CliError(`invalid --stage: ${options.stage}`);
       }
+      const maxDepth = cliMaxScanDepth(program);
+
+      // ---- aggregate over every discovered root (r91) ----
+      if (options.allRoots === true) {
+        if (item !== undefined) {
+          throw new CliError('--all-roots validates every root; drop the <item> argument');
+        }
+        const start = options.directory ?? gitToplevelOrCwd();
+        const roots = discoverRoots(start, newIo(), { maxDepth });
+        if (roots.length === 0) {
+          throw new CliError(`no llmanspec roots discovered under: ${start}`);
+        }
+        const originalCwd = process.cwd();
+        const reports: RootReport[] = [];
+        let anyFail = false;
+        try {
+          for (const root of roots) {
+            process.chdir(root.rootDir);
+            const items = specV1Items({
+              strict: options.strict,
+              harness: makeHarnessGate(options),
+              instance: instanceContextFor(maxDepth),
+            });
+            const visible = keepInfo ? items : items.map(stripInfo);
+            if (visible.some((i) => !i.valid)) anyFail = true;
+            reports.push({
+              root: relative(start, root.rootDir) || '.',
+              items: visible,
+              summary: summarizeItems(visible),
+            });
+          }
+        } finally {
+          process.chdir(originalCwd);
+        }
+        if (outMode === 'human') {
+          for (const report of reports) {
+            console.log(`root ${report.root}`);
+            renderValidateText(report.items);
+          }
+        } else {
+          const totals = reports.reduce(
+            (acc, r) => ({
+              items: acc.items + r.summary.totals.items,
+              passed: acc.passed + r.summary.totals.passed,
+              failed: acc.failed + r.summary.totals.failed,
+            }),
+            { items: 0, passed: 0, failed: 0 },
+          );
+          console.log(
+            renderMachine({ roots: reports, summary: { totals }, version: '1.0' }, outMode),
+          );
+        }
+        if (anyFail) console.error('Error: validation failed');
+        exitWith(anyFail ? 1 : 0);
+        return;
+      }
+
+      // ---- instance root resolution: --directory start, else nearest
+      // ancestor llmanspec/ ("cd into the subpackage and run", r94). A no-op
+      // when cwd already sits at a root (byte-identical legacy path). ----
+      if (options.directory !== undefined) {
+        const root = resolveInstanceRoot(options.directory, newIo());
+        if (root === null) {
+          throw new CliError(`no llmanspec root at or above: ${options.directory}`);
+        }
+        process.chdir(root);
+      } else {
+        const root = resolveInstanceRoot(process.cwd(), newIo());
+        if (root !== null && root !== process.cwd()) process.chdir(root);
+      }
+
       const harness = makeHarnessGate(options);
 
       // ---- single item (auto-disambiguate: spec first, then change) ----
@@ -332,7 +480,12 @@ export function registerValidate(program: Command): void {
           options.type === 'change' ? undefined : entries.find((e) => specIdOf(e) === item);
         if (specEntry !== undefined) {
           const items = specV1Items(
-            { strict: options.strict, harness, harnessOnlyIds: [item] },
+            {
+              strict: options.strict,
+              harness,
+              harnessOnlyIds: [item],
+              instance: instanceContextFor(maxDepth),
+            },
             entries,
           );
           const mine = items.find((i) => i.id === item);
@@ -424,10 +577,18 @@ export function registerValidate(program: Command): void {
       const effectiveChanges = defaultSpecsOnly ? false : changeScope;
 
       let items: VItem[] = [];
-      if (effectiveSpecs) items = items.concat(specV1Items({ strict: options.strict, harness }));
+      if (effectiveSpecs) {
+        items = items.concat(
+          specV1Items({
+            strict: options.strict,
+            harness,
+            instance: instanceContextFor(maxDepth),
+          }),
+        );
+      }
       if (effectiveChanges) {
         const names = collectChanges(newIo(), process.cwd(), new Date(), {
-          maxScanDepth: cliMaxScanDepth(program),
+          maxScanDepth: maxDepth,
         }).map((c) => c.name);
         items = items.concat(
           changeV1Items(names, { stage: options.stage, strict: options.strict }),

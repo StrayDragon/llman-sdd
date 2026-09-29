@@ -1,5 +1,8 @@
 ---
-depends_on: [align-next-req-id-max-plus-one]
+depends_on: [ align-next-req-id-max-plus-one ]
+branch: sdd/subproject-llmanspec-discovery
+base_branch: main
+base_sha: 2a232d539ab6a4294dd6a41c9fc809deae518361
 ---
 
 # 子项目（workspace 子包）llmanspec 的自动发现与验证
@@ -23,7 +26,8 @@ xylitol 等 Rust/JS workspace 中，子包（如 `packages/xylitol-tui`）的行
 - **路径单一归属（硬边）**：一个文件路径只归属一个 llmanspec 根；子包有 llmanspec 的目录，根 specs 不得再 scope 进去，违规为 validate ERROR。这是两个粒度结果可加性的地基。
 - **req id 命名空间按根**：`next-req-id` 在哪个根上跑就扫哪个根的注册表，跨根不保证全局唯一（各根 `resolve-req` 自洽）。承接 `align-next-req-id-max-plus-one` design.md 预留的钩子：max+1 语义不变，仅注册表扫描根随 #6 重定义。
 - **change 流水线保持 git 级**（统一原则的诚实推论而非特殊化）：monorepo 里 branch/commit 无法按子目录切分；changes/ 留在 git 根，proposal scope 指向 `packages/…`。子包有自己的 config.yaml（locale、`check_command` 等），per-root runner 差异（bun test / cargo test / pytest）天然成立。
-- **阶段划分**：先统一 spec/验证/配置面（发现 + 双粒度 validate + 单一归属），change 面维持 git 级不拆。
+- **init 与 agent 面（`.agents/skills`）**：init 本就是逐根构造（`[path]` 定根、路径根相对、无嵌套守卫），维持不变——`init packages/xylitol-tui` 即初始化该子根，scope 重叠交给 validate 单一归属规则把关。托管块照旧双写（`AGENTS.md` + `llmanspec/AGENTS.md`，marker 更新保留既有内容；xylitol-tui 自带 AGENTS.md 场景天然兼容）。**skills 注入策略（本变更新决策）**：`.agents/skills` 是 agent 面而非验证面——仅仓库根实例（git toplevel）注入；子根 init 缺省不注入（嵌套 `.agents` 的 agent 发现不可靠、N×10 份重复、维护噪音），子根导航由其 AGENTS.md 托管块承担；`--skills` 旗标显式开启子根注入作为逃生门。`init --update` 升级为全根扫块（复用发现算子刷所有根的托管块），skills 仍只刷仓库根实例。
+- **阶段划分**：本变更一次收敛 spec/验证/配置面与 init 面（发现 + 双粒度 validate + 单一归属 + init/skills 策略），change 面维持 git 级不拆。
 
 ## Capabilities
 

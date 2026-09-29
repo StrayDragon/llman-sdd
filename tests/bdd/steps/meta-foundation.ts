@@ -83,7 +83,7 @@ bdd.when('渲染样例模板并经 init 落盘临时工作区', (ctx) => {
   runInit(
     makeNodeIo(root),
     { exists: (p) => existsSync(p), readText: (p) => readFileSync(p, 'utf8') },
-    { update: true, version: '0.1.0' },
+    { update: true, version: '0.1.0', skills: true },
   );
   sample.written = readFileSync(
     join(root, '.agents', 'skills', 'llman-sdd-explore', 'SKILL.md'),

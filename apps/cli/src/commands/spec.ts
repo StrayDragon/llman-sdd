@@ -20,9 +20,10 @@ import {
   addReportOutputOptions,
   CliError,
   loadCliConfig,
-  loadSpecEntries,
+  loadRootSpecEntries,
   newIo,
   resolveOutMode,
+  resolveRootSpecsDir,
 } from '../cli-shared.ts';
 
 /** Walk paths collecting .feature files (directories recurse). */
@@ -61,13 +62,18 @@ export function registerSpec(program: Command): void {
     .description('Generate a single-track spec skeleton for a capability')
     .argument('<capability>')
     .option('--force', 'overwrite an existing spec file')
-    .action((capability: string, options: { force?: boolean }) => {
+    .option(
+      '--directory <path>',
+      'instance root resolution start (default: nearest llmanspec/ at or above cwd)',
+    )
+    .action((capability: string, options: { force?: boolean; directory?: string }) => {
       const locale = loadCliConfig()?.locale ?? 'en';
-      const path = join('llmanspec', 'specs', `${capability}.feature`);
+      const specsDir = resolveRootSpecsDir(options.directory);
+      const path = join(specsDir, `${capability}.feature`);
       if (!options.force && existsSync(path)) {
         throw new CliError(`spec already exists: ${path} (use --force to overwrite)`);
       }
-      const written = scaffoldSpec(newIo(), 'llmanspec/specs', capability, locale, {
+      const written = scaffoldSpec(newIo(), specsDir, capability, locale, {
         force: options.force,
       });
       console.log(`wrote ${written}`);
@@ -77,8 +83,12 @@ export function registerSpec(program: Command): void {
     .command('next-req-id')
     .description('Allocate the next global req id (max in use + 1, rN)')
     .option('--json', 'emit {reqId}')
-    .action((options: { json?: boolean }) => {
-      const reqId = nextReqId(newIo(), 'llmanspec/specs');
+    .option(
+      '--directory <path>',
+      'instance root resolution start (default: nearest llmanspec/ at or above cwd)',
+    )
+    .action((options: { json?: boolean; directory?: string }) => {
+      const reqId = nextReqId(newIo(), resolveRootSpecsDir(options.directory));
       if (options.json) console.log(JSON.stringify({ reqId }, null, 2));
       else console.log(reqId);
     });
@@ -91,16 +101,31 @@ export function registerSpec(program: Command): void {
     .argument('<req_id>')
     .requiredOption('--title <title>', 'rule title')
     .requiredOption('--statement <statement>', 'rule statement (free text; multiple lines via \\n)')
-    .action((capability: string, reqId: string, options: { title: string; statement: string }) => {
-      const io = newIo();
-      const path = addReq(io, 'llmanspec/specs', loadSpecEntries(), {
-        capability,
-        reqId,
-        title: options.title,
-        statement: options.statement,
-      });
-      console.log(path);
-    });
+    .option(
+      '--directory <path>',
+      'instance root resolution start (default: nearest llmanspec/ at or above cwd)',
+    )
+    .action(
+      (
+        capability: string,
+        reqId: string,
+        options: { title: string; statement: string; directory?: string },
+      ) => {
+        const io = newIo();
+        const path = addReq(
+          io,
+          resolveRootSpecsDir(options.directory),
+          loadRootSpecEntries(options.directory),
+          {
+            capability,
+            reqId,
+            title: options.title,
+            statement: options.statement,
+          },
+        );
+        console.log(path);
+      },
+    );
 
   spec
     .command('add-scenario')
@@ -111,22 +136,31 @@ export function registerSpec(program: Command): void {
     .option('--given <given>', 'Given step (optional)')
     .requiredOption('--when <when>', 'When step')
     .requiredOption('--then <then>', 'Then step')
+    .option(
+      '--directory <path>',
+      'instance root resolution start (default: nearest llmanspec/ at or above cwd)',
+    )
     .action(
       (
         capability: string,
         reqId: string,
         scenarioId: string,
-        options: { given?: string; when: string; then: string },
+        options: { given?: string; when: string; then: string; directory?: string },
       ) => {
         const io = newIo();
-        const path = addScenario(io, 'llmanspec/specs', loadSpecEntries(), {
-          capability,
-          reqId,
-          scenarioId,
-          given: options.given,
-          when: options.when,
-          thenText: options.then,
-        });
+        const path = addScenario(
+          io,
+          resolveRootSpecsDir(options.directory),
+          loadRootSpecEntries(options.directory),
+          {
+            capability,
+            reqId,
+            scenarioId,
+            given: options.given,
+            when: options.when,
+            thenText: options.then,
+          },
+        );
         console.log(path);
       },
     );
@@ -176,8 +210,12 @@ export function registerSpec(program: Command): void {
     .command('resolve-req')
     .description('Resolve an rN to its capability and statement')
     .argument('<req_id>')
-    .action((reqId: string) => {
-      const resolved = resolveReq(loadSpecEntries(), reqId);
+    .option(
+      '--directory <path>',
+      'instance root resolution start (default: nearest llmanspec/ at or above cwd)',
+    )
+    .action((reqId: string, options: { directory?: string }) => {
+      const resolved = resolveReq(loadRootSpecEntries(options.directory), reqId);
       if (resolved === null) {
         throw new CliError(`req id not found: ${reqId}`);
       }
@@ -201,7 +239,7 @@ export function registerSpec(program: Command): void {
         throw new CliError(`invalid --limit: ${raw} (non-negative integer)`, 2);
       }
       const limit = Number(raw);
-      const feed: UnboundFeed = buildUnboundFeed(loadSpecEntries(), limit);
+      const feed: UnboundFeed = buildUnboundFeed(loadRootSpecEntries(), limit);
       const mode = resolveOutMode(options.output, options.json, options.compactJson);
       if (mode !== 'human') {
         console.log(renderMachine(feed, mode));

@@ -268,3 +268,24 @@
       当 依次触发非法 change_id.pattern、不存在的 attach --base、detached HEAD 与非绑定分支 finalize 四条失败路径
       那么 四次输出均不含内部需求编号
       而且 detached HEAD 与非绑定分支的报错分别含 "refuses a detached HEAD" 与 "must run on the bound branch"
+  @req:r91
+  规则: 根发现与 validate 双粒度
+    llman-sdd MUST 从 git 根(或 --directory <path> 指定起点)按约定自动发现全部有效 llmanspec 根(以 config.yaml 或 specs/ 判定,深度受 --max-scan-depth 约束,排除 node_modules/target/.git),git 根自身的 llmanspec 恒为第 0 号根;仅发现单根时所有命令输出 MUST 与单根时代逐字节一致。validate --specs 双粒度共用同一算子:逐根(缺省 cwd 语义,--directory <path> 固定发现起点)与聚合(--all-roots 对每个发现根执行同一套结构校验与该根 config 的 check_command batch-once,结果按根分组,单根输出形状零漂移);聚合退出码 MUST 为任一根红即红,缺省 MUST NOT 自动聚合。
+
+    场景: 聚合模式按根执行
+      假如 一个含根与子根双 llmanspec 的临时仓库
+      当 运行 validate --specs --all-roots
+      那么 聚合输出按根分组且两根各执行一次
+
+    场景: 聚合退出码任一根红即红
+      假如 一个子根 check_command 失败的临时仓库
+      当 运行 validate --specs --all-roots
+      那么 聚合退出码非零
+  @req:r92
+  规则: 路径单一归属
+    一个文件路径 MUST 只归属一个 llmanspec 根:specs 的 # scope: 以其实例根(容纳 llmanspec/ 的目录)为相对基准解析;当某根 specs 的 scope 命中另一根实例目录时 validate MUST 报 ERROR 并列出冲突路径与两侧根。staleness MUST 按根计算(scope 相对实例根解析、touchedPaths 按根归属过滤)。
+
+    场景: 根 scope 侵入子根报单一归属错误
+      假如 一个根 specs scope 指向子包且子包携带 llmanspec 的临时仓库
+      当 在双根仓库运行 validate --specs
+      那么 该 spec 报 single-ownership 错误且列出冲突路径与两侧根

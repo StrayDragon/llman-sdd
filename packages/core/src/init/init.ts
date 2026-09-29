@@ -80,7 +80,7 @@ function writeDefaultConfig(io: InitIo, locale: string): void {
 }
 
 export interface InitResult {
-  /** Skill dirs written, in render order. */
+  /** Skill dirs written, in render order ([] when skills injection is off). */
   skills: string[];
   /** llman-sdd-* directories removed by --update namespace cleanup. */
   removed: string[];
@@ -89,10 +89,31 @@ export interface InitResult {
 
 const SKILLS_BASE = '.agents/skills';
 
+/** Managed AGENTS.md marker blocks (root + llmanspec), content-preserving. */
+function writeManagedBlocks(
+  io: InitIo,
+  templates: TemplateIo,
+  config: ReturnType<typeof loadConfig>,
+  version: string,
+): void {
+  const vars = buildTemplateVars(config, version);
+  const locales = localeFallbacks(config.locale);
+  for (const [stubPath, agentsPath] of [
+    ['agents-root-stub.md', 'AGENTS.md'],
+    ['llmanspec-agents-stub.md', 'llmanspec/AGENTS.md'],
+  ] as const) {
+    const stubRaw = loadLocaleResource(templates, TEMPLATES_ROOT, locales, stubPath);
+    if (stubRaw === null) continue;
+    const existing = io.exists(agentsPath) ? io.readText(agentsPath) : '';
+    const body = renderTemplate(stubRaw, new Map(), vars);
+    io.writeText(agentsPath, updateFileWithMarkers(existing, body));
+  }
+}
+
 export function runInit(
   io: InitIo,
   templates: TemplateIo,
-  opts: { update: boolean; locale?: string; version: string },
+  opts: { update: boolean; locale?: string; version: string; skills: boolean },
 ): InitResult {
   io.mkdirp('llmanspec');
 
@@ -110,26 +131,15 @@ export function runInit(
   }
 
   // 3) AGENTS.md managed blocks (root + llmanspec), preserving content.
+  writeManagedBlocks(io, templates, config, opts.version);
   const vars = buildTemplateVars(config, opts.version);
-  const locales = localeFallbacks(config.locale);
   const skillTemplates = loadSkillTemplates(templates, TEMPLATES_ROOT, config, vars);
   enforceEthicsGovernance(skillTemplates);
-
-  for (const [stubPath, agentsPath] of [
-    ['agents-root-stub.md', 'AGENTS.md'],
-    ['llmanspec-agents-stub.md', 'llmanspec/AGENTS.md'],
-  ] as const) {
-    const stubRaw = loadLocaleResource(templates, TEMPLATES_ROOT, locales, stubPath);
-    if (stubRaw === null) continue;
-    const existing = io.exists(agentsPath) ? io.readText(agentsPath) : '';
-    const body = renderTemplate(stubRaw, new Map(), vars);
-    io.writeText(agentsPath, updateFileWithMarkers(existing, body));
-  }
 
   // 4) skills namespace cleanup (--update only): remove llman-sdd-* dirs
   // outside the candidate set; un-prefixed custom skills stay untouched.
   const removed: string[] = [];
-  if (opts.update && io.exists(SKILLS_BASE)) {
+  if (opts.skills && opts.update && io.exists(SKILLS_BASE)) {
     const candidates = new Set(skillCandidates(config).map((f) => f.replace(/\.md$/u, '')));
     for (const entry of io.listDir(SKILLS_BASE)) {
       if (entry.startsWith('llman-sdd-') && !candidates.has(entry)) {
@@ -140,6 +150,12 @@ export function runInit(
   }
 
   // 5) write candidates: rendered product trimmed + single trailing newline.
+  // Sub-root instances default to no skills injection (r93): the agent skill
+  // surface stays at the repo root and sub-root navigation lives in the
+  // managed blocks; --skills opts a sub-root in.
+  if (!opts.skills) {
+    return { skills: [], removed, configPath };
+  }
   for (const t of skillTemplates) {
     const dirName = t.name.replace(/\.md$/u, '');
     io.mkdirp(`${SKILLS_BASE}/${dirName}`);
@@ -147,4 +163,17 @@ export function runInit(
   }
 
   return { skills: skillTemplates.map((t) => t.name.replace(/\.md$/u, '')), removed, configPath };
+}
+
+/**
+ * r93 --update sweep: refresh the managed blocks of one discovered sub-root
+ * (blocks only — no scaffold, no config touch, no skills). Returns false for
+ * a missing config (discovery guarantees validity; a race is not fatal).
+ */
+export function refreshSubRootBlocks(io: InitIo, templates: TemplateIo, version: string): boolean {
+  const configPath = 'llmanspec/config.yaml';
+  if (!io.exists(configPath)) return false;
+  const config = loadConfig(io.readText(configPath));
+  writeManagedBlocks(io, templates, config, version);
+  return true;
 }

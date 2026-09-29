@@ -61,7 +61,7 @@ export function renderSkills(locale: 'zh-Hans' | 'en' = 'zh-Hans'): RenderResult
     locale === 'en' ? CONFIG_YAML_EN : CONFIG_YAML,
   );
   const version = '0.1.0';
-  runInit(makeNodeIo(tmpRoot), templateIo, { update: true, version });
+  runInit(makeNodeIo(tmpRoot), templateIo, { update: true, version, skills: true });
   const skillsDir = join(tmpRoot, '.agents', 'skills');
   if (!existsSync(skillsDir)) {
     throw new Error(`runInit did not render skills into ${skillsDir}`);

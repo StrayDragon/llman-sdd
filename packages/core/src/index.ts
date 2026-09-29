@@ -108,6 +108,16 @@ export {
 } from './validation/changeCheck.ts';
 export { discoverSpecs, type DiscoveryIo } from './validation/discover.ts';
 export {
+  discoverRoots,
+  isValidRoot,
+  resolveInstanceRoot,
+  scopeCrossings,
+  ROOT_EXCLUDED_DIRS,
+  type RootEntry,
+  type RootsIo,
+  type ScopeCrossing,
+} from './validation/roots.ts';
+export {
   expandRunCommand,
   runHarnessForSpecs,
   type HarnessGate,
@@ -187,6 +197,7 @@ export {
 } from './templates/embedded.ts';
 export {
   TEMPLATES_ROOT,
+  refreshSubRootBlocks,
   runInit,
   updateFileWithMarkers,
   type InitIo,

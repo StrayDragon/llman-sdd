@@ -19,6 +19,7 @@ import './steps/context-index.ts';
 import './steps/peripheral.ts';
 import './steps/output-contract.ts';
 import './steps/spec-authoring.ts';
+import './steps/roots.ts';
 import './steps/spec-unbound.ts';
 import './steps/context.ts';
 import './steps/cli.ts';

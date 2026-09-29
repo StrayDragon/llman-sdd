@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'bun:test';
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { updateFileWithMarkers } from '@llman-sdd/core';
 
-import { runCli } from '../helpers/spawn.ts';
+import { initGitRepo, runCli } from '../helpers/spawn.ts';
 
 /** Mirrors the real flow: renderTemplate trimEnds, so body has no trailing newline. */
 const BODY = '# Managed Heading\n\nManaged body.';
@@ -112,5 +112,41 @@ describe('init CLI compat (r49/r50)', () => {
     expect(alias.status).toBe(0);
     const config = readFileSync(join(root, 'llmanspec', 'config.yaml'), 'utf8');
     expect(config).toContain('zh-Hans');
+  });
+});
+
+describe('init per-root skills policy (r93)', () => {
+  const runInit = (root: string, args: string[]) => runCli(['init', ...args], root);
+  const makeMultiRootRepo = (): string => {
+    const root = mkdtempSync(join(tmpdir(), 'llman-mrinit-'));
+    initGitRepo(root);
+    return root;
+  };
+
+  test('sub-root init writes blocks but no .agents/skills; --skills opts in', () => {
+    const root = makeMultiRootRepo();
+    mkdirSync(join(root, 'packages', 'tui'), { recursive: true });
+    const sub = join(root, 'packages', 'tui');
+    expect(runInit(sub, []).status).toBe(0);
+    expect(existsSync(join(sub, 'llmanspec', 'config.yaml'))).toBe(true);
+    expect(readFileSync(join(sub, 'AGENTS.md'), 'utf8')).toContain('LLMANSPEC:START');
+    expect(existsSync(join(sub, '.agents', 'skills'))).toBe(false);
+    expect(runInit(sub, ['--skills']).status).toBe(0);
+    expect(existsSync(join(sub, '.agents', 'skills'))).toBe(true);
+  });
+
+  test('repo-root init always injects skills; --update sweeps sub-root blocks', () => {
+    const root = makeMultiRootRepo();
+    mkdirSync(join(root, 'packages', 'tui', 'llmanspec'), { recursive: true });
+    writeFileSync(
+      join(root, 'packages', 'tui', 'llmanspec', 'config.yaml'),
+      'schema: spec-driven\n',
+    );
+    writeFileSync(join(root, 'packages', 'tui', 'AGENTS.md'), '# TUI notes\n');
+    expect(runInit(root, ['--update']).status).toBe(0);
+    expect(existsSync(join(root, '.agents', 'skills'))).toBe(true);
+    const swept = readFileSync(join(root, 'packages', 'tui', 'AGENTS.md'), 'utf8');
+    expect(swept).toContain('LLMANSPEC:START');
+    expect(swept).toContain('# TUI notes');
   });
 });

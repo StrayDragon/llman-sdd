@@ -254,3 +254,11 @@
   @req:r90
   规则: 绑定计量字段与术语口径
     `list --specs` 与 `show <spec> --json` 的 morphology 计量字段 MUST 以 requirement 系命名:`requirementBoundCount`(有至少一个 runnable 嵌套场景的规则数)与 `requirementUnboundCount`(无 runnable 嵌套场景的规则数);「未绑定」全局唯一定义为无 runnable 嵌套场景(0 场景或嵌套场景全部带 @skip/@experimental),与 review unbound 信号、validate 聚合 INFO、spec unbound 检索 MUST 同口径;历史字段名 ruleEnforcedCount/rulePendingCount MUST 不再产出(human 形态词汇随之人读口径收敛)。
+  @req:r94
+  规则: spec 助手注册表按根
+    spec 助手的 rN 注册表(next-req-id/add-req/skeleton/resolve-req)MUST 以当前实例根(cwd 或 --directory 解析)为扫描根,各根注册表独立、跨根不保证唯一;max+1 取号语义不变。
+
+    场景: 子根取号只扫子根注册表
+      假如 一个子根含 r5 规则的临时仓库
+      当 运行 spec next-req-id 于子根
+      那么 输出 r6 而非根部空缺号
