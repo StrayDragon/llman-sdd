@@ -43,14 +43,14 @@
 ## 升级路径
 
 1. **无动作（大多数单根仓库）**：取号语义自动生效，其余一切不变。`llman-sdd init
-   --update` 可选（刷新托管块版本戳）。
+--update` 可选（刷新托管块版本戳）。
 2. **机器消费方**：解析 `next-req-id --json` 的脚本形状不变；若罕见地依赖「复用空缺号」
    行为（不推荐——正是本次修复的别名缺陷），改为接受 max+1 输出即可。
 3. **子包迁移（可选，采用多根时必做）**：`init packages/<pkg>` 建子根 → `git mv` 相关
    capability 目录到子根 `llmanspec/specs/` → scope 改写为实例根相对 → 跨界 capability
    拆分（子包部分随迁、根侧部分拆为新的根 capability）→ 根与子根各自
    `validate --specs` 确认无 `single-ownership` ERROR → 仓库根 `validate --specs
-   --all-roots` 双端验收。xylitol 已完成同型试点勘测（16 个 `package-tui-*` capability
+--all-roots` 双端验收。xylitol 已完成同型试点勘测（16 个 `package-tui-*` capability
    整体迁移 + bridge 族跨界拆分），可作形态参照。
 4. **多根仓库升级后**：在仓库根跑一次 `llman-sdd init --update`——所有发现根的托管块
    随之刷新；skills 与命名空间清理仍只发生在仓库根，属预期。
