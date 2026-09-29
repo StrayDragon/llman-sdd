@@ -29,6 +29,30 @@ xylitol 等 Rust/JS workspace 中，子包（如 `packages/xylitol-tui`）的行
 
 - 预期涉及：`validation`（发现与聚合）、`peripheral-commands`（spec 助手按根取号）、`config-schema`（多根配置面）、`cli`（`--directory` / 聚合旗标）。propose 时以 context/list 重新精确定位。
 
+## 试点勘测（xylitol，2026-09-29 实地数据）
+
+以 xylitol 为实验典型完成首轮勘测，以下为 propose 的验收场景素材：
+
+**布局**：根 crate（`src/`，含 `src/app/tui/` 应用层）+ `packages/xylitol-tui`（通用 TUI 引擎：自带 `AGENTS.md`、`tests/`、纯 Rust 单测，无 rstest-bdd）+ `packages/xylitol-ai-bridge`。
+
+**xylitol-tui 子根迁移清单**：
+
+- 16 个 `package-tui-*` capability、119 条规则；形态为**裸规则 + `# verified-by:` 注释**直指 `packages/xylitol-tui/tests/*.rs`——绑定物是子包自带单测，不是根的 rstest-bdd 步骤。
+- scope 分布：5 个纯 `packages/xylitol-tui/`；8 个 `packages/xylitol-tui/, tests/`——按「scope 相对实例根（容纳 llmanspec/ 的目录）解析」语义迁移后，`tests/` 自然指向子包自带 tests（`verified-by` 证实其本意），**零改写收敛**；这条实测反过来把 scope 相对基准定为实例根（同时是「独立发仓原样抬走」的必要条件）。
+- 子根 config：无 legacy `bdd:` 段；`specs.check_command` 预期 `cargo test -p xylitol-tui`（纯单测）。根保留 rstest-bdd 段服务根部 specs——per-root runner 差异的实例。
+- 收益实证：迁移后子根 staleness 直接对 `packages/xylitol-tui/**` 算，scope 与代码同址（issue #6 原始痛点）。
+
+**跨界 capability（路径单一归属规则的实战案例）**：
+
+- `package-ai-bridge`（scope `packages/xylitol-ai-bridge/, src/infra/provider/`）
+- `package-ai-bridge-accounting`（scope `packages/xylitol-ai-bridge/, src/agent/compaction/`）
+
+两者的子包部分随迁；根侧部分需拆出独立根 capability 或并入既有根 capability——**拆分规则是 propose 必须拍板的第一决策**（bridge 族共 37 条规则）。
+
+**留守与消歧**：`app-tui-bridge`（scope 纯 `src/app/tui/`，翻译缝在根应用层）留根；`app-tui` 与 `package-tui` 命名相近但归属干净，迁移指南需消歧说明。
+
+**历史引用**：tui/bridge 族 req id（r1536-r1661 段）迁移后归属子根注册表，根部 `resolve-req` 对其失配，历史 archive 引用须在新子根下解析——#5 同类别名问题在迁移期的表现，验收场景须覆盖（候选缓解：聚合模式跨根反查，列为 propose 可选项）。
+
 ## Impact
 
 - 首个试点：xylitol 侧 16 个 `package-tui-*` capability 整体迁入 `packages/xylitol-tui/llmanspec/`（issue #6 报告者已表态）。
