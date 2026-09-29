@@ -1,12 +1,10 @@
 ---
-depends_on: []
+depends_on: [align-next-req-id-max-plus-one]
 ---
 
 # 子项目（workspace 子包）llmanspec 的自动发现与验证
 
 > 草案：固化 2026-09-29 与用户头脑风暴的设计共识（GitHub issue #6）。落实时走 `llman-sdd-propose` 正式化，正式 design.md 在彼时展开。
->
-> 依赖声明：本 change 依赖 `align-next-req-id-max-plus-one`（req id 取号语义 max+1 化，其 design.md 预留了本 change 的注册表扫描根钩子）。因该 change 目前仅在特性分支上、本检出解析不到其 id，frontmatter 暂留 `depends_on: []`；propose 正式化时（彼时依赖已归档、引用可解析）再声明依赖边。
 
 ## Why
 
