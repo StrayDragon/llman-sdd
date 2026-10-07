@@ -44,3 +44,22 @@ jobs:
         with:
           node-version-file: .node-version
       - run: node apps/cli/src/main.ts --version
+
+  # A2 平台守护:发布矩阵含 windows-x64,但路径处理曾手写 '/' 切分(win32 下
+  # 嵌套目录写入 ENOENT)。此 job 在真实 windows runner 上跑静态门禁 + 平台
+  # 路径守卫单测,确保 Windows 行为被实测而非只在发布期暴露。
+  windows-check:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun run lint
+      - run: bun run format:check
+      # 平台守卫单测:win32 专属用例(嵌套目录写入 + parentOf)真实执行
+      - run: bun test tests/unit/io-paths.test.ts
+      # CLI 本体在 Windows 上可启动
+      - run: bun apps/cli/src/main.ts --version

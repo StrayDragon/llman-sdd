@@ -84,6 +84,8 @@ function resolveWorktreePath(
   naming: 'id' | 'hash' | undefined,
 ): string {
   const toplevel = git.run(['rev-parse', '--show-toplevel']);
+  // git rev-parse --show-toplevel emits forward-slash paths even on win32
+  // (git-for-Windows normalizes) — POSIX by contract; keep '/'-splitting.
   const cut = toplevel.lastIndexOf('/');
   const basename = toplevel.slice(cut + 1);
   const name =

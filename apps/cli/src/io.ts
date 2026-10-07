@@ -14,9 +14,19 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs';
-import { isAbsolute, join } from 'node:path';
+import { dirname, isAbsolute, join } from 'node:path';
 
 import { makeSpawnGit, type GitLike } from '@llman-sdd/core';
+
+/**
+ * Platform-aware parent directory (node:path.dirname, never hand-rolled
+ * '/' slicing): on win32, join() yields backslashes and a lastIndexOf('/')
+ * fallback would resolve to '.', so mkdir of a nested new dir would fail with
+ * ENOENT. Exported for unit-test guards (A2 platform compat).
+ */
+export function parentOf(p: string): string {
+  return dirname(p);
+}
 
 export interface CliIo {
   exists(path: string): boolean;
@@ -37,7 +47,6 @@ export interface CliIo {
 
 export function makeIo(root: string): CliIo {
   const full = (p: string): string => (isAbsolute(p) ? p : join(root, p));
-  const parentOf = (p: string): string => p.slice(0, p.lastIndexOf('/')) || '.';
   return {
     exists: (p) => existsSync(full(p)),
     readText: (p) => readFileSync(full(p), 'utf8'),

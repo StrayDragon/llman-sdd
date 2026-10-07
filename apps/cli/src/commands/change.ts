@@ -1,5 +1,5 @@
 import { existsSync, lstatSync, readFileSync, readdirSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { basename, resolve } from 'node:path';
 
 import {
   CLOSE_OUT_TASK_HINT,
@@ -291,9 +291,9 @@ export function registerChange(program: Command): void {
           skipCleanTree: true,
           today: new Date().toISOString().slice(0, 10),
         });
-        const archiveName = (result.archiveDir ?? '').slice(
-          (result.archiveDir ?? '').lastIndexOf('/') + 1,
-        );
+        // node:path.basename — platform-aware (win32 backslashes would defeat
+        // a hand-rolled lastIndexOf('/')).
+        const archiveName = basename(result.archiveDir ?? '');
         console.log(`Change '${id}' archived as '${archiveName}'.`);
         if (result.executedIn !== null) {
           console.log(`executed in target worktree ${result.executedIn}`);

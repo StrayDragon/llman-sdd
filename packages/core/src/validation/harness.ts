@@ -57,6 +57,8 @@ export interface HarnessRunOutcome {
 
 /** Plain-text placeholder expansion — capability ids are kebab-constrained. */
 export function expandRunCommand(command: string, target: HarnessTarget): string {
+  // featurePath is a repo-relative spec path (llmanspec/specs/x.feature), POSIX by
+  // contract on every host — keep '/'-splitting, do not switch to node:path here.
   const dirEnd = target.featurePath.lastIndexOf('/');
   const featureDir = dirEnd === -1 ? target.featurePath : target.featurePath.slice(0, dirEnd);
   return command

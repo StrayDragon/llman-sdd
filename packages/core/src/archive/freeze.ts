@@ -147,6 +147,8 @@ export async function runList(io: FreezeIo, sz: SevenZipPort, rootAbs: string): 
   if (io.exists(archiveAbs)) {
     // Legacy/unexpected entries present only inside the 7z (no card on disk).
     const entries = (await sz.listEntries(archiveAbs)).map((n) => n.replace(/\/$/u, ''));
+    // 7z entry names always use '/' per archive contract — POSIX by contract, not
+    // platform-native; do not switch to node:path here.
     const top = (n: string): string => n.split('/')[0] ?? n;
     for (const e of entries.map(top).filter((n) => DATED_RE.test(n))) {
       if (!names.has(e)) names.add(e);
