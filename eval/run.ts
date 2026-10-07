@@ -56,9 +56,11 @@ function harborArgv(args: string[]): string[] {
 
 function loadUserDoc(): EvalGroupsDoc {
   if (!existsSync(userConfigPath)) {
-    die(
-      `missing ${userConfigPath}\ncopy ${examplePath} → eval/groups.yaml and replace every FILL token, then rerun.`,
-      2,
+    // B4 跨机自适应:首次运行自动从 example 生成 groups.yaml(gitignored);随后的
+    // FILL 检查仍以非零退出列出待填项——不跳过,只是少一步手工拷贝。
+    writeFileSync(userConfigPath, readFileSync(examplePath, 'utf8'));
+    console.error(
+      `eval: created ${userConfigPath} from ${examplePath} — fill the FILL tokens below (env overrides OPENAI_BASE_URL/OPENAI_API_KEY exist), then rerun.`,
     );
   }
   let raw: unknown;
