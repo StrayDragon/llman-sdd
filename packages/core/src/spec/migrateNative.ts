@@ -141,8 +141,7 @@ export function migrateNativeSource(source: string): MigrateResult {
   for (const b of blocks) {
     if (!b.isRule) continue;
     rules++;
-    out.push(`  @req:${b.reqIds[0] ?? ''}`);
-    out.push(`  ${kw.rule}: ${b.title}`);
+    out.push(`  @req:${b.reqIds[0] ?? ''}`, `  ${kw.rule}: ${b.title}`);
     for (const line of b.descriptionLines) {
       const text = stripBullet(line);
       if (text !== '') out.push(`    ${text}`);

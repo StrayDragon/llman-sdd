@@ -96,7 +96,8 @@ function extractHeader(source: string): CapabilityHeader {
 }
 
 interface RawTags {
-  names: string[]; // without leading '@'
+  // Tag names are stored here without the leading '@'.
+  names: string[];
   reqId: string;
 }
 
