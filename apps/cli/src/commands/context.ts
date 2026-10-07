@@ -9,6 +9,7 @@ import {
 import type { Command } from 'commander';
 
 import { CliError, loadSpecEntries, newIo, resolveBackend } from '../cli-shared.ts';
+import { progressNote } from '../progress.ts';
 
 // (err path below converted to CliError; resolveBackend may also throw CliError)
 
@@ -45,6 +46,8 @@ export function registerContext(program: Command): void {
         console.log(JSON.stringify(unavailableResult(), null, 2));
         return;
       }
+      // LLM 链路可能是秒级 — 进度提示防止看上去卡住(B1)
+      progressNote('context.retrieve', process.cwd());
       const result = await runContextRetrieval({
         config,
         task: options.task ?? '',

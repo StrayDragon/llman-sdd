@@ -14,6 +14,7 @@ import type { Command } from 'commander';
 
 import { CliError } from '../cli-shared.ts';
 import { makeCliGit, makeIo } from '../io.ts';
+import { progressNote } from '../progress.ts';
 
 /**
  * r24: warn (never block) when freeze/thaw runs outside the main checkout —
@@ -69,6 +70,8 @@ export function registerArchive(program: Command): void {
             for (const line of await runList(io, sz, root)) console.log(line);
             return;
           }
+          // 7z 压缩可能耗时 — 进度提示防止看上去卡住(B1);dry-run/list 不走压缩
+          if (!options.dryRun) progressNote('freeze.pack', root);
           const result = await runFreeze(io, sz, root, {
             before: options.before,
             keepRecent: Number(options.keepRecent),
@@ -105,6 +108,8 @@ export function registerArchive(program: Command): void {
       const sz = await makeEmbeddedSevenZip();
       const io = makeIo(root);
       try {
+        // 7z 解包可能耗时 — 进度提示防止看上去卡住(B1)
+        progressNote('thaw.unpack', root);
         const result = await runThaw(io, sz, root, options.change, { dest: options.dest });
         for (const line of result.lines) console.log(line);
       } catch (error) {

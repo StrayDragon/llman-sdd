@@ -6,6 +6,7 @@ import type { Command } from 'commander';
 
 import { CliError, templateIo, version } from '../cli-shared.ts';
 import { makeCliGit, makeIo } from '../io.ts';
+import { progressNote } from '../progress.ts';
 
 /**
  * r93: the repo-root instance (git toplevel, or outside any repo) carries the
@@ -43,6 +44,8 @@ export function registerInit(program: Command): void {
           mkdirSync(root, { recursive: true });
         }
         const repoRootInstance = isRepoRootInstance(root);
+        // 模板生成/子根扫块可能耗时 — 进度提示防止看上去卡住(B1)
+        progressNote('init.generate', root);
         const result = runInit(makeIo(root), templateIo, {
           update: options.update ?? false,
           locale: options.locale ?? options.lang,

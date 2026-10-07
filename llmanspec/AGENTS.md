@@ -108,6 +108,8 @@ llman-sdd:spec 驱动开发(SDD)工作流(TypeScript + Bun),完全接替 Rust ll
 ## 语言约定
 
 - change 文档(proposal/design/tasks)用中文;代码、标识符、CLI 输出文案用英文
+  (唯一例外:长操作阶段进度提示(`apps/cli/src/progress.ts`)随项目 config locale
+  提供 zh/en 短提示,防"看上去卡住",一律走 stderr)
 - commit message:conventional type 前缀(英文)+ 中文描述,如 `feat(sdd): 新增校验引擎`
 
 ## 并行开发(worktrunk)规约
