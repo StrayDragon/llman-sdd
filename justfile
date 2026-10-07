@@ -77,6 +77,14 @@ smoke-context:
 smoke-binary: build
     bun test tests/integration/binary.test.ts
 
+# 性能冒烟基线(不进 qa):参照计时;量级回归由 check-perf 捕获
+perf:
+    bun scripts/perf-baseline.ts
+
+# 性能回归冒烟门(不进 qa):任一 op 均值超量级阈值即红;精确基准另行观测
+check-perf:
+    bun scripts/perf-baseline.ts --check
+
 # config schema artifact:生成 / 漂移门
 gen-schema:
     bun run gen:schema
