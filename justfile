@@ -85,6 +85,11 @@ perf:
 check-perf:
     bun scripts/perf-baseline.ts --check
 
+# 单元测试覆盖率报告(不进 qa):仅 unit 直接导入面可归因;BDD 以真实 CLI
+# 子进程执行,覆盖率不归因到 runner 进程,故不纳入
+coverage:
+    bun test tests/unit --coverage
+
 # config schema artifact:生成 / 漂移门
 gen-schema:
     bun run gen:schema
