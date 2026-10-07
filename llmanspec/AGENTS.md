@@ -90,9 +90,11 @@ llman-sdd:spec 驱动开发(SDD)工作流(TypeScript + Bun),完全接替 Rust ll
   不得列为任务——两者的任务门要求全部任务已勾,收口任务必然自相矛盾(勾选即虚报、
   不勾则收口被拒,且实施期 `validate --strict` 永红)。归档 change 中的此类写法是
   已知错误先例,勿沿用
-- 门禁证据必须来自真实 harness:报告中的 `validate --strict` 结果不得以 `--no-check`
-  取得,harness 失败不得以「自指/固有属性」定性后绕过——先查根因(先例:临时仓库
-  子进程继承 `LLMAN_SDD_HARNESS_ACTIVE` 嵌套守卫导致场景全跳过,属环境泄漏而非设计属性)
+- 门禁证据口径(2026-10 validate-harness-opt-in):`validate` 缺省只做结构/状态门、不声明 harness 证据;全量 harness 证据 MUST 经显式
+  `validate --check` 或 `change finalize`/`archive` 预合并验收取得——报告声称 harness 合格时 MUST 已用 `--check`;harness 失败不得以
+  「自指/固有属性」定性后绕过——先查根因(先例:临时仓库子进程继承 `LLMAN_SDD_HARNESS_ACTIVE` 嵌套守卫导致场景全跳过,属环境泄漏而非设计属性)
+- 验证阶梯(opt-in 纪律):实施期常规验证按成本逐级扩大——L1 `bun test tests/unit/<相关>`(<1s 直接导入)→ L2 `bun test tests/bdd -t "<模式>"`(定向
+  行为复现)→ L3 `llman-sdd validate --check`(显式全量 harness)→ L4 `change finalize`(强制全量,验收兜底);避免无需全量时每轮 validate 白付 20s 级成本
 - 测试子进程与临时目录:起 CLI 用 `tests/helpers/spawn.ts` 的 `runCli`;需以全新顶层
   上下文运行(如在临时仓库跑 validate harness)时用 `makeTempRepo().run`,它剥离嵌套守卫。
   临时目录一律 `mkdtempSync(join(tmpdir(), …))`,禁止硬编码 `/tmp`——`bunfig.toml`

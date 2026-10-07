@@ -104,25 +104,27 @@
 
   @req:r13
   规则: spec 验证命令执行与 check 旗标
-    配置了非空 `specs.check_command`(含经旧 `bdd.check_command` 兼容提升的等价配置)时,`validate` 的目标集含 spec 即 MUST 缺省执行该 harness,`--no-check` MUST
-    跳过执行,`--check` MUST 作为兼容别名(给与不给等价);未配置时显式 `--check` MUST 追加 INFO 提示其无效且 MUST NOT 执行任何命令;环境变量
+    配置了非空 `specs.check_command`(含经旧 `bdd.check_command` 兼容提升的等价配置)时,`validate` 的目标集含 spec 即 MUST 缺省跳过该 harness 执行(仅结构/状态门),`--check`
+    MUST 显式执行之,`--no-check` MUST 跳过(与缺省同效,供显式声明放弃 harness 证据);未配置时显式 `--check` MUST 追加 INFO 提示其无效且 MUST NOT 执行任何命令;环境变量
     `LLMAN_SDD_HARNESS_ACTIVE=1` 存在时 MUST NOT 执行并 MUST 为每个 spec 条目追加 INFO(嵌套调用守卫),harness 子进程 MUST
     继承该变量;review 的校验 sweep 与 show 的 validate 门 MUST NOT 执行 harness;finalize/archive 的预合并验收由
     change-lifecycle r81 规定,本条不再禁止收口执行;`specs.framework` 派生的缺省命令 MUST NOT 被执行;CLI help 与模板文案 MUST 与该语义一致。
 
-    场景: 配置 check_command 时缺省执行且 no-check 跳过
+    场景: 配置 check_command 时缺省跳过且 check 显式执行
       假如 一个含两个 capability 且 check_command 无占位符并写标记文件的临时仓库
+      当 运行 validate --specs
+      那么 标记文件不存在
       当 运行 validate --specs --no-check
       那么 标记文件不存在
-      当 运行 validate --specs
+      当 运行 validate --specs --check
       那么 标记文件恰有 1 行
       当 运行 validate --help
-      那么 help 文案说明缺省执行 harness 且 --no-check 跳过
+      那么 help 文案说明缺省跳过 harness 且 --check 显式执行
 
 
     场景: 嵌套调用守卫
       假如 一个含两个 capability 且 check_command 无占位符并写标记文件的临时仓库
-      当 在设置 LLMAN_SDD_HARNESS_ACTIVE=1 的环境下运行 validate --specs --json --include-info
+      当 在设置 LLMAN_SDD_HARNESS_ACTIVE=1 的环境下运行 validate --specs --check --json --include-info
       那么 标记文件不存在
       而且 输出含 "nested invocation" 的 INFO
 
@@ -183,20 +185,20 @@
 
     场景: 占位符按 capability 逐项执行
       假如 一个含两个 capability 且 check_command 按 feature_name 写标记文件的临时仓库
-      当 运行 validate --specs
+      当 运行 validate --specs --check
       那么 标记文件行集合等于全部 capability id
       而且 退出码为 0
 
 
     场景: 无占位符整批只执行一次
       假如 一个含两个 capability 且 check_command 无占位符并写标记文件的临时仓库
-      当 运行 validate --specs
+      当 运行 validate --specs --check
       那么 标记文件恰有 1 行
 
 
     场景: harness 失败映射为 capability FAIL
       假如 一个含两个 capability 且 check_command 以退出码 3 失败的临时仓库
-      当 运行 validate --specs --json
+      当 运行 validate --specs --check --json
       那么 每个 spec 条目 valid 为 false 且含 "spec check failed (exit 3)" 的 ERROR
       而且 退出码非零
 
@@ -279,7 +281,7 @@
 
     场景: 聚合退出码任一根红即红
       假如 一个子根 check_command 失败的临时仓库
-      当 运行 validate --specs --all-roots
+      当 运行 validate --specs --all-roots --check
       那么 聚合退出码非零
   @req:r92
   规则: 路径单一归属

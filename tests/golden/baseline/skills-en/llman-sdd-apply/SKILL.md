@@ -100,9 +100,16 @@ Run the project gates as appropriate:
 - Edit `llmanspec/specs/<capability>.feature` on the branch as needed (flat or directory main file; canonical native layout: `@req:<id>` on the `规则:` block header, nested `场景:` as executable examples); run `llman-sdd validate --specs` after spec edits; commit on the branch freely.
 - SDD validation: `llman-sdd validate <id> --strict`
 
+**Verification ladder (opt-in discipline, escalate by cost)**:
+- L1 minimal unit: `bun test tests/unit/<relevant>` (<1s, direct import), covers only the current change point.
+- L2 targeted behavior: `bun test tests/bdd -t "<scenario/rule title pattern>"` — exercises only the relevant real-CLI path.
+- L3 explicit full harness: `llman-sdd validate --check` (with `specs.check_command` configured; plain `validate` no longer runs the harness).
+- L4 close-out backstop: `change finalize` runs the real harness pre-merge — at least one full run per close-out.
+- Self-heal loops default to L1/L2 for fast reproduction; use L3 only when full-acceptance evidence is needed; avoid paying full-suite cost needlessly.
+
 **Gate evidence**:
-- Close-out runs the configured `specs.check_command`, so do not run that command again just before close-out; the skip line printed by `--no-check` is not a pass.
-- Gate verdicts MUST come from the real harness: MUST NOT obtain a "pass" via `--no-check`; on harness failure, find the root cause first (leaked env vars, nested-invocation guards, wrong cwd …) — MUST NOT label it an "inherent/self-referential property" and bypass it.
+- Plain `validate` is structure/state-only and claims no harness evidence; harness evidence MUST come from explicit `--check` or close-out acceptance.
+- Gate verdicts MUST come from the real harness: claiming a harness pass requires `--check` (or close-out); the skip line printed by `--no-check` is not a pass; on harness failure, find the root cause first (leaked env vars, nested-invocation guards, wrong cwd …) — MUST NOT label it an "inherent/self-referential property" and bypass it.
 - Before/after criteria (counts, baselines) MUST be measured on the change branch (against the freshly computed merge-base); a value measured on the default branch is usually trivially the baseline and proves nothing.
 - Refactors and bulk replacements: MUST compare the test count before and after; all-green gates with fewer tests is a failure.
 

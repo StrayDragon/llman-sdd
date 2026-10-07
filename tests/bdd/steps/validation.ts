@@ -192,10 +192,34 @@ bdd.when('运行 validate --specs', (ctx) => {
   ctx.fixtures['命令结果'] = { code: result.code, stdout: `${result.stdout}${result.stderr}` };
 });
 
-// 审计:harness 测试对象(本场景观察执行/缓存/守卫本身),刻意不带 --no-check
+// 审计:harness 测试对象(本场景观察显式 --check 执行/缓存/守卫本身)
+bdd.when('运行 validate --specs --check', (ctx) => {
+  const { repo } = ctx.fixtures['validate仓库'] as { repo: TempRepo };
+  const result = repo.run('bun', [CLI, 'validate', '--specs', '--check']);
+  ctx.fixtures['validate结果'] = {
+    code: result.code,
+    stdout: result.stdout,
+    stderr: result.stderr,
+  };
+  ctx.fixtures['命令结果'] = { code: result.code, stdout: `${result.stdout}${result.stderr}` };
+});
+
+// 结构门(缺省不跑 harness):种子缺陷逐类判定等结构场景使用
 bdd.when('运行 validate --specs --json', (ctx) => {
   const { repo } = ctx.fixtures['validate仓库'] as { repo: TempRepo };
   const result = repo.run('bun', [CLI, 'validate', '--specs', '--json']);
+  ctx.fixtures['validate结果'] = {
+    code: result.code,
+    stdout: result.stdout,
+    stderr: result.stderr,
+  };
+  ctx.fixtures['命令结果'] = { code: result.code, stdout: `${result.stdout}${result.stderr}` };
+});
+
+// 审计:harness 测试对象(本场景观察执行/缓存/守卫本身),刻意不带 --no-check
+bdd.when('运行 validate --specs --check --json', (ctx) => {
+  const { repo } = ctx.fixtures['validate仓库'] as { repo: TempRepo };
+  const result = repo.run('bun', [CLI, 'validate', '--specs', '--check', '--json']);
   ctx.fixtures['validate结果'] = {
     code: result.code,
     stdout: result.stdout,
@@ -216,12 +240,12 @@ bdd.when('运行 validate --specs --no-check', (ctx) => {
   ctx.fixtures['命令结果'] = { code: result.code, stdout: `${result.stdout}${result.stderr}` };
 });
 
-// 审计:harness 测试对象(本场景观察执行/缓存/守卫本身),刻意不带 --no-check
+// 审计:harness 测试对象(本场景观察嵌套守卫),刻意显式 --check 以触达守卫
 bdd.when(
-  '在设置 LLMAN_SDD_HARNESS_ACTIVE=1 的环境下运行 validate --specs --json --include-info',
+  '在设置 LLMAN_SDD_HARNESS_ACTIVE=1 的环境下运行 validate --specs --check --json --include-info',
   (ctx) => {
     const { repo } = ctx.fixtures['validate仓库'] as { repo: TempRepo };
-    const proc = runCli(['validate', '--specs', '--json', '--include-info'], repo.root, {
+    const proc = runCli(['validate', '--specs', '--check', '--json', '--include-info'], repo.root, {
       ...process.env,
       LLMAN_SDD_HARNESS_ACTIVE: '1',
     });
@@ -333,10 +357,10 @@ bdd.thenStep('输出含 "{text}" 的 INFO', (ctx, text: string) => {
   }
 });
 
-bdd.thenStep('help 文案说明缺省执行 harness 且 --no-check 跳过', (ctx) => {
+bdd.thenStep('help 文案说明缺省跳过 harness 且 --check 显式执行', (ctx) => {
   const out = (ctx.fixtures['命令结果'] as { stdout: string }).stdout;
   if (!out.includes('run the spec check') || !out.includes('skip the spec check')) {
-    throw new Error(`help text must state default execution + --no-check skip:\n${out}`);
+    throw new Error(`help text must state opt-in --check + default skip:\n${out}`);
   }
 });
 

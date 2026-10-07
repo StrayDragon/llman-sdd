@@ -329,14 +329,19 @@ function makeHarnessGate(options: { check?: boolean }): HarnessGate {
   const configured = runCommand !== null && runCommand !== '';
   return {
     nested: process.env.LLMAN_SDD_HARNESS_ACTIVE === '1',
-    check: options.check === false ? 'off' : options.check === true ? 'on' : 'default',
+    // Opt-in harness (2026-10 decision): absent → 'off' — structure/state gate
+    // only; --check → 'on' (explicit full harness); --no-check → 'off'
+    // (explicitly decline harness evidence, same effective as default). The CLI
+    // never sends 'default'; core still treats a received 'default' as
+    // run-if-configured (its own contract).
+    check: options.check === true ? 'on' : 'off',
     runner: configured ? makeCliHarnessRunner() : undefined,
     runCommand,
     cwd: process.cwd(),
     onBeforeFirstRun: (expanded: string): void => {
       if (harnessBannerShown) return;
       harnessBannerShown = true;
-      console.error(`running spec check: ${expanded} (use --no-check to skip)`);
+      console.error(`running spec check: ${expanded} (explicit --check harness run)`);
     },
   };
 }
@@ -361,8 +366,11 @@ export function registerValidate(program: Command): void {
       'aggregate: validate every discovered llmanspec root (specs scope, any root red → non-zero exit)',
     )
     .option('--include-info', 'keep INFO-level issues (default: WARNING and above)')
-    .option('--no-check', 'skip the spec check')
-    .option('--check', 'run the spec check (default when specs.check_command is configured)');
+    .option(
+      '--no-check',
+      'skip the spec check (same as default; explicitly declines harness evidence)',
+    )
+    .option('--check', 'run the spec check (full harness) explicitly — opt-in, default skips');
   addReportOutputOptions(validate);
   validate.action(
     (

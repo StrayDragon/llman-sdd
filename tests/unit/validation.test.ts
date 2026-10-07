@@ -270,6 +270,10 @@ describe('validateChange completeness WARNINGs (r63)', () => {
 });
 
 describe('T5: spec check core (r13/r48)', () => {
+  // NOTE (2026-10 validate-harness-opt-in): since the opt-in flip, the CLI
+  // boundary (makeHarnessGate) never sends 'default' — absent → 'off',
+  // --check → 'on', --no-check → 'off'. Core's `default` branch below remains
+  // its own contract (run-if-configured) and is exercised directly here.
   const gateWith = (runner: HarnessRunner | undefined, runCommand: string | null): HarnessGate => ({
     nested: false,
     check: 'default',

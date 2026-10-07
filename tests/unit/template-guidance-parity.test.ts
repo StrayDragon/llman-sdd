@@ -123,6 +123,9 @@ const REQUIRED_PER_FILE: Readonly<Record<string, readonly string[]>> = {
     'test count|用例数',
     'specs.check_command',
     'not a pass|不是通过',
+    // opt-in harness 语义 + 验证阶梯(r70,2026-10 validate-harness-opt-in)
+    'verification ladder|验证阶梯',
+    'validate --check|validate --check',
   ],
   'skills/llman-sdd-verify.md': [
     'real harness|真实 harness',
@@ -130,6 +133,8 @@ const REQUIRED_PER_FILE: Readonly<Record<string, readonly string[]>> = {
     'specs.check_command',
     'not a pass|不是通过',
     'measured on the change branch|在 change 分支上测量',
+    // opt-in harness 证据必须显式 --check(r70,2026-10 validate-harness-opt-in)
+    '--check --strict|--check --strict',
   ],
   'skills/llman-sdd-quick.md': ['LLMAN_SDD_INDEX_CHAT_MODEL'],
   // manual-trigger-only skills back the claim with the frontmatter key

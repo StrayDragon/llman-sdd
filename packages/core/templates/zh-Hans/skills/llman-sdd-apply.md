@@ -75,9 +75,16 @@ flowchart LR
 - 分支上按需编辑 `llmanspec/specs/<capability>.feature`（扁平或目录主文件；统一原生分层：`@req:<id>` 挂 `规则:` 块头、嵌套 `场景:` 为可执行示例），spec 改动后跑 `llman-sdd validate --specs`；分支上可自由提交。
 - SDD 校验：`llman-sdd validate <id> --strict`
 
+**验证阶梯（opt-in 纪律，按成本逐级扩大）**：
+- L1 最小单元：`bun test tests/unit/<相关>`（<1s，直接导入），仅覆盖当前改动点。
+- L2 定向行为：`bun test tests/bdd -t "<场景/规则标题模式>"`——只跑相关场景的真实 CLI 链路。
+- L3 显式全量：`llman-sdd validate --check`（配置 `specs.check_command` 时执行全量 harness；缺省 validate 不再执行 harness）。
+- L4 收口兜底：`change finalize` 预合并强制真实 harness——每次收口至少 1 次全量。
+- 自修复循环默认用 L1/L2 快速复现；只有需要全量验收时才 L3；避免无谓白付全量成本。
+
 **门禁证据**：
-- 收口会执行已配置的 `specs.check_command`，收口前不必再跑一遍；`--no-check` 打出的跳过说明不是通过。
-- 门禁结论 MUST 来自真实 harness：MUST NOT 以 `--no-check` 取得「通过」；harness 失败 MUST 先查根因（环境变量泄漏、嵌套调用守卫、工作目录错误等），MUST NOT 以「固有/自指属性」定性后绕过。
+- 缺省 `validate` 只做结构/状态门，不声明 harness 证据；harness 证据 MUST 经显式 `--check` 或收口验收取得。
+- 门禁结论 MUST 来自真实 harness：声称 harness 合格时 MUST 已用 `--check`（或收口）；`--no-check` 打出的跳过说明不是通过；harness 失败 MUST 先查根因（环境变量泄漏、嵌套调用守卫、工作目录错误等），MUST NOT 以「固有/自指属性」定性后绕过。
 - 前后对比类判据（计数、基线）MUST 在 change 分支上测量（相对现算 merge-base）；默认分支测得的值通常恒为基线，不构成证据。
 - 重构或批量替换类 task：MUST 对比改动前后测试用例数；门禁全绿但用例数下降视为失败。
 

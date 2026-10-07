@@ -1,5 +1,8 @@
 ---
 depends_on: []
+branch: sdd/validate-harness-opt-in
+base_branch: main
+base_sha: f9342ebeb584d569d55f64eab1b1dab95a3a59a9
 ---
 
 # validate 全量 harness 改为 --check 显式 opt-in,缺省只做结构门

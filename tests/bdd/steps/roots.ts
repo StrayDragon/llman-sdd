@@ -58,6 +58,13 @@ bdd.when('运行 validate --specs --all-roots', (ctx) => {
   ctx.fixtures['聚合结果'] = { code: r.code, out: `${r.stdout}${r.stderr}` } satisfies RunResult;
 });
 
+// Opt-in harness (r13): aggregate only runs the per-root check_command with --check.
+bdd.when('运行 validate --specs --all-roots --check', (ctx) => {
+  const { repo } = ctx.fixtures['双根仓库'] as { repo: TempRepo };
+  const r = repo.run('bun', [CLI, 'validate', '--specs', '--all-roots', '--check']);
+  ctx.fixtures['聚合结果'] = { code: r.code, out: `${r.stdout}${r.stderr}` } satisfies RunResult;
+});
+
 bdd.thenStep('聚合输出按根分组且两根各执行一次', (ctx) => {
   const r = ctx.fixtures['聚合结果'] as RunResult;
   if (r.code !== 0) throw new Error(`aggregate validate failed: ${r.out}`);
