@@ -2,10 +2,11 @@ import { spawnSync } from 'node:child_process';
 /**
  * Performance baseline for the CLI (acceptance design, T5).
  *
- * Generates a synthetic specs fixture (default 60 capabilities × 3 reqs ×
- * 2 scenarios) in a temp project, then times the read-path commands through
- * the real CLI subprocess. `context` runs in its model-unset guard path (no
- * network) — real-LLM latency is measured by `just smoke-context` instead.
+ * Generates a synthetic NATIVE-format specs fixture (default 60 capabilities ×
+ * 3 rules × 1 runnable scenario) in a temp project, then times the read-path
+ * commands through the real CLI subprocess. `context` runs in its model-unset
+ * guard path (no network) — real-LLM latency is measured by `just
+ * smoke-context` instead.
  *
  * Usage: bun scripts/perf-baseline.ts [caps=60] [runs=3]
  */
@@ -20,22 +21,21 @@ const caps = Number(process.argv[2] ?? 60);
 const runs = Number(process.argv[3] ?? 3);
 
 function specSource(i: number): string {
-  const reqs: string[] = [];
+  const rules: string[] = [];
   for (let r = 1; r <= 3; r += 1) {
     const id = `r${i * 10 + r}`;
-    reqs.push(
-      `  @req:${id} @human\n  场景: 规则 ${i}-${r}\n    - 系统 MUST 提供能力 ${i} 的第 ${r} 条行为。\n`,
-      `  @req:${id} @executable\n  场景: 验收 ${i}-${r}\n    假如 初始状态 ${i}-${r}\n    当 执行动作\n    那么 得到结果\n`,
+    rules.push(
+      `  @req:${id}\n  规则: 能力 ${i} 的第 ${r} 条行为\n    需求描述:系统 MUST 提供能力 ${i} 的第 ${r} 条行为。\n\n    场景: 验收 ${i}-${r}\n      假如 初始状态 ${i}-${r}\n      当 执行动作\n      那么 得到结果\n`,
     );
   }
   return `# language: zh-CN
 # capability: cap-${i}
-# purpose: 性能基线夹具能力 ${i}
+# purpose: 性能冒烟夹具能力 ${i}
 # scope: llmanspec/
 
 功能: cap-${i}
 
-${reqs.join('\n')}`;
+${rules.join('\n')}`;
 }
 
 const fixture = mkdtempSync(join(tmpdir(), 'llman-sdd-perf-'));
@@ -86,5 +86,5 @@ const row = (name: string, samples: number[]): string => {
   return `${name.padEnd(30)} mean ${String(mean).padStart(6)}ms   min ${String(min).padStart(6)}ms   runs ${samples.join('/')}`;
 };
 
-console.log(`# perf baseline — fixture: ${caps} caps × 3 reqs × 2 scenarios, bun subprocess`);
+console.log(`# perf baseline — fixture: ${caps} caps × 3 rules × 1 scenario, bun subprocess`);
 for (const t of timings) console.log(row(t.name, t.samples));
