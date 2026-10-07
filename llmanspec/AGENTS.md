@@ -22,8 +22,7 @@ llman-sdd:spec 驱动开发(SDD)工作流(TypeScript + Bun),完全接替 Rust ll
 - 运行时 Bun(`.bun-version` 钉版)+ TypeScript(仅 typecheck,不参与构建);**双运行时兼容:Node >= 24**(`.node-version` 钉版 + engines 声明)——运行时代码(packages/*、apps/* 的 src)只准用 `node:` / Web 标准API,禁用 Bun 专属 API(Bun.$、Bun.file、Bun.Glob 等);Bun 专属 API 仅允许出现在构建/测试脚本(scripts、build-binary、tests/)
 - Monorepo:Bun workspaces;`packages/core` 纯域逻辑 / `apps/cli` 命令入口;`apps/web` 预留(打包器已定案 **rsbuild**,内置 rspack 引擎;启动 web 交互功能时以独立 change 引入,CLI 与二进制分发不经过打包器——Bun 直跑 TS + `bun build --compile`)
 - 工具链:oxlint + oxfmt(oxc 双件套)、tsc --noEmit、prek(git hooks)、justfile(任务编排);oxfmt 忽略 `llmanspec/` 与 `AGENTS.md`(SDD 托管文件,格式归 llman 管,避免 `init --update` 回打漂移)
-- 依赖映射:commander(CLI)/ nunjucks(模板)/ @inquirer/prompts(向导交互,经 PromptDriver
-  端口接前代适配器,现阶段未安装)/
+- 依赖映射:commander(CLI)/ nunjucks(模板)/
   @cucumber/gherkin(spec 解析,官方 i18n 已含 zh-CN「规则」)/
   @toon-format/toon(机器输出 TOON 编码,纯函数 encoder,add-render-layer 引入)/
   zod(zod v4 内建 toJSONSchema)+ yaml(配置契约与注释保留)/ 7z-wasm(冻结冷备)
@@ -36,7 +35,7 @@ llman-sdd:spec 驱动开发(SDD)工作流(TypeScript + Bun),完全接替 Rust ll
 - `project migrate`:保留子命令入口,内容为指向前代(Rust llman ≤ 0.0.x)的引导提示,不移植迁移实现
 - 移除:`project import`(OpenSpec 互导)、`change checkpoint`/`change delta` 及其兼容桩、rust-i18n;已移除的命令与选项彻底删除,不保留报错 stub(调用得到 CLI 的 unknown command/option 错误)
 - worktree:前代的并行 change 机制不移植;本仓支持单 change 单 worktree——`change start --worktree`(r68)与 finalize/archive 的目标 worktree 感知(r69)
-- ink 是 TUI 战略方向(前代不引入):所有交互走 PromptDriver 接口;ink 与 inquirer 禁止同进程混用
+- ink 是 TUI 战略方向(前代不引入):交互提示收敛在 CLI 适配层(当前 `spec migrate-native` 确认经 node:readline 实现),core 域逻辑不发起终端交互;未来若引入 @inquirer/prompts 向导或 ink TUI,二者禁止同进程混用,届时在 CLI 适配层另建交互端口
 - 测试/构建选型终局,rust 生态工具不迁移:rstest 仅适用 Rust 栈,本仓库以
   bun:test + Gherkin runner 承担同等角色;rsbuild/rspack 属 web 阶段(见技术栈
   Monorepo 条),现阶段 CLI/测试链路零打包器——后续需求直接引用本条,勿重新调研。

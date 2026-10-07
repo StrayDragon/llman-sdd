@@ -1,5 +1,8 @@
 ---
 depends_on: []
+branch: sdd/drop-prompt-driver-port
+base_branch: main
+base_sha: 1d14a715bd3216f442b81373b37f9469f6cea9d9
 ---
 
 # 移除未实现的 PromptDriver 死端口并回调 core 纯域纪律交互条款
@@ -10,7 +13,7 @@ depends_on: []
 
 ## What Changes
 
-- `packages/core/src/ports.ts`：删除 `PromptDriver` 接口（select/multiselect/confirm 及其注释）。core 目前无任何交互提示，端口移除后 `ports.ts` 只余副作用注入端口。
+- `packages/core/src/ports.ts`：整文件删除（该文件只含 `PromptDriver` 接口与其注释；其余 Io 端口接口本就分属各模块内定义），并移除 `packages/core/src/index.ts` 对它的 re-export。core 目前无任何交互提示，也不再需要集中式 ports 文件。
 - `apps/cli/src/commands/spec.ts`：`confirmInteractive` 保持现状——它位于 CLI 适配层（`node:readline` 直连），不构成 core 纯度违约；本变更不迁移它。
 - `llmanspec/specs/monorepo-structure.feature` r3：将"交互提示 MUST 收敛在 PromptDriver 接口之后"回调为诚实条款——交互提示 MUST 收敛于 CLI 适配层，core 域逻辑不得发起终端交互（当前唯一交互在 `spec migrate-native` 确认，位于 CLI 层）。
 - `llmanspec/AGENTS.md`：依赖映射与交互方向两条措辞移除 "PromptDriver 端口" 引用；`@inquirer/prompts` 与 ink TUI 作为未来交互方向保留（二者禁止同进程混用不变）。

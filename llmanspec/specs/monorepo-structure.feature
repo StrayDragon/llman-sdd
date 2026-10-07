@@ -34,7 +34,8 @@
   规则: core 纯域纪律
     packages/core MUST 保持纯域逻辑:文件系统、git 子进程、终端副作用 MUST 经接口(ports)注入,不得在域逻辑内直连;对进程环境(process.* 读取,含环境变量与
     pid)与墙钟(无参 Date 构造、Date.now)的访问同属副作用,MUST 经注入或参数传入。纯度门禁 MUST 检出上述全部类别(无过渡白名单条目)。nunjucks 调用 MUST
-    收敛在 templates/engine.ts,且 MUST 无 loader、autoescape:false;交互提示 MUST 收敛在 PromptDriver 接口之后。oxlint
+    收敛在 templates/engine.ts,且 MUST 无 loader、autoescape:false;交互提示 MUST 收敛于 CLI 适配层(当前唯一交互为 `spec migrate-native` 确认,
+    经 node:readline 实现),core 域逻辑 MUST NOT 发起终端交互。oxlint
     ignorePatterns MUST 忽略生成物与 .agents/skills/。
 
     场景: core 纯域纪律合约对账通过

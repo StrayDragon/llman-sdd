@@ -1,5 +1,3 @@
-export * from './ports.ts';
-
 export {
   EXTRA_SKILLS,
   archiveSchema,
