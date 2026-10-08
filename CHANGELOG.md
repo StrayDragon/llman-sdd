@@ -2,6 +2,44 @@
 
 本项目遵循语义化版本（SemVer）。breaking 变更随大版本/次版本标注迁移说明。
 
+## 0.7.2 (2026-10-08)
+
+issue #7 落地批次：分叉源保真与收口体验，无 breaking（`--base` 收窄为仅本地分支属死路
+修复，见行为变更清单）。
+
+### attach 分叉源运行时推导与偏离警告（r95）
+
+- `change attach` 缺省记录的 `base_branch` 按 `--base` > `branch.<name>.base`（git-spice
+  等栈式工具约定键，值须为存在的本地分支）> 本地 upstream（`branch.<name>.remote = "."`）
+  > 默认分支 推导；信号皆不可推导时维持现状（记默认分支，普通用户零变化）。
+- 推导结果偏离默认分支时向 stderr 输出 `[WARNING]`（含解析到的分支、信号来源与
+  `--base` 覆盖提示，非交互模式同样输出）；`change start` 的 `--base`/`--worktree`
+  路径记录非默认分叉源时输出同一警告（r68 记录语义不变）。
+- remote-tracking upstream（`origin/<同名>` 等 push 目标）不作为分叉源；merge-base
+  跨分支盲扫有意不做（rebase/同点分叉会猜错，违背「无法推导维持现状」）。
+
+### finalize/archive 就地收口（r96）
+
+- 合并目标等于绑定分支本身时跳过自合并（恒为 no-op 的 "Already up to date."），经
+  warnings 通道输出 `in-place close-out` 提示行；归档改名与 `archive(sdd)` 收口提交
+  照常落在绑定分支——共享 PR 分支上开发并就地收口成为一等公民，main 纹丝不动。
+- 目标优先序（`--into` > `base_branch` > 默认分支）与合并语义不变；`--force` 等
+  逃生门路径仍先落到目标分支再跳过合并。
+
+### 默认分支解析新增 init.defaultBranch 候选（r16）
+
+- 解析序：`init.defaultBranch`（值本地存在才采信，可有效越过既有 main——r16 为解析
+  序而非 tie-breaker）→ main → master → origin/HEAD → origin/*；未配置或值不存在时
+  行为与旧版完全一致。
+
+### 行为变更清单
+
+- `--base`（start/attach 同语义）仅接受本地分支：`origin/x` 等 remote-tracking 形态
+  改为门处报错并提示使用本地分支名。此前该形态门通过但 finalize 阶段 `git switch`
+  硬失败（"a branch is expected"），端到端本就跑不通——死路修复，非功能收窄。
+- 无 schema 变更、无配置变更、无迁移路径；`LLMAN_SDD_HARNESS_ACTIVE`、finalize/archive
+  预合并验收语义不变。
+
 ## 0.7.1 (2026-10-08)
 
 0.7.0 后的体验与工程批次，无 breaking（无迁移指引；flag 面收窄与缺省语义变更见下，
