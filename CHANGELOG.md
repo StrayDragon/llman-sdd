@@ -2,6 +2,37 @@
 
 本项目遵循语义化版本（SemVer）。breaking 变更随大版本/次版本标注迁移说明。
 
+## 0.7.1 (2026-10-08)
+
+0.7.0 后的体验与工程批次，无 breaking（无迁移指引；flag 面收窄与缺省语义变更见下，
+均为 0.7.0 同开发周期内引入、未给他处造成破坏）。
+
+### validate harness 改为显式 opt-in（流程成本分隔）
+
+- `validate` **缺省不再执行**配置的 `specs.check_command` harness，只做结构/状态门
+  （本仓实测从 20.8s 降至 0.19s）；全量 harness 经显式 `--check` 执行。
+- `validate --no-check` 旗标**移除**（与缺省同义、纯冗余），调用现为 unknown option。
+  `change finalize`/`archive` 的 `--no-check`（跳过预合并验收）语义不同，**保留**。
+- 收口兜底不变：`change finalize`/`archive` 预合并仍强制真实 harness，每次收口至少
+  一次全量验收；CI 直跑 `bun test tests/` 不受影响。
+- 配套：AGENTS.md 证据口径与「验证阶梯」（单元 → 定向 BDD → `--check` → 收口）纪律；
+  apply/verify/propose/explore skill 模板同步 opt-in 语义并刷新 `.agents/skills`。
+- 行为变更清单：`validate --no-check` 不再可用；`validate` 缺省不再产出 harness 证据
+  （需 `--check` 或经 finalize 取得）。
+
+### 平台与工程加固
+
+- 路径处理平台兼容：`parentOf`/archive 名采用 `node:path`（修复 win32 嵌套目录写入
+  ENOENT 的根因）；git/feature/zip 三处 POSIX 契约点加防腐注释。新增
+  `tests/unit/io-paths.test.ts`（含 win32 专属用例）与 CI `windows-check` job（真实
+  windows runner 实测，此前发布矩阵含 Windows 却从未在 CI 验证）。
+- 长操作阶段进度提示：`context` LLM 检索/`init`/`archive freeze·thaw` 在 stderr 输出
+  随项目 locale 的短提示（防「看上去卡住」，capture 契约合规）。
+- `perf-baseline` 修复并新增 `--check` 量级回归门（`just perf` / `just check-perf`，
+  不进 qa）；存量 oxlint warning 清零；`just coverage` 接入 unit 覆盖率报告。
+- 移除从未实现的 `PromptDriver` 死端口（core 纯度契约条款回调）；`eval` 首次运行自动
+  从 example 生成 `groups.yaml`（跨机自适应，少一步手工拷贝）。
+
 ## 0.7.0 (2026-09-29)
 
 **行为变更**：`spec next-req-id`（与共用实现的 `spec skeleton`）取号语义由「最小空闲号」
