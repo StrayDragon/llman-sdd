@@ -1,0 +1,9 @@
+# 行尾契约:全仓文本统一 LF(检出与提交均 LF)。
+# 背景(2026-10-08):GitHub Actions windows runner 的 checkout 在没有 .gitattributes
+# 时默认 core.autocrlf=true,工作树被转成 CRLF,而 oxfmt(endOfLine: lf)对 CRLF
+# 源必报格式差异 —— windows-check job 的 format:check 因此失败。此处固定 LF,
+# 让 Windows runner 检出与 Linux/macOS 完全一致的文本形态。
+* text=auto eol=lf
+
+# 二进制:冻结 7z 归档不受行尾转换影响(text=auto 的启发式虽通常避开,仍显式锁定)
+*.archived binary
