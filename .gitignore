@@ -204,3 +204,6 @@ llmanspec/.context/
 .local/eval/
 eval/groups.yaml
 
+# 面试备考私人笔记(不进仓库)
+_INTERVIEW/
+

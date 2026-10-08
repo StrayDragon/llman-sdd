@@ -26,6 +26,7 @@
     "llmanspec/",
     "AGENTS.md",
     "artifacts/",
-    "docs/research/**"
+    "docs/research/**",
+    "_INTERVIEW/"
   ]
 }
