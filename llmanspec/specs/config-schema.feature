@@ -12,7 +12,7 @@
     "spec-driven"。extra_skills 取值域 MUST 限于
     llman-sdd-continue/llman-sdd-ff/llman-sdd-validate/llman-sdd-arch-review/llman-sdd-wayfinder/llman-sdd-research。
     specs 段 MUST 仅由 framework/check_command/verify_prompt 组成(语义为「整个 spec 验证」的 harness:check_command 承接前代
-    run_command,支持占位符与 batch-once,由 validate 执行并可被 --no-check 跳过);specs 段 MUST NOT 声明无消费方的字段(bindings、default_language、feature_dir 已移除或归入兼容处理)。
+    run_command,支持占位符与 batch-once,由 validate 执行且缺省跳过、经 `--check` 显式执行);specs 段 MUST NOT 声明无消费方的字段(bindings、default_language、feature_dir 已移除或归入兼容处理)。
     旧配置的 bdd 段(framework/run_command/verify_prompt)在加载期 MUST 被识别并兼容提升为新 specs 语义(run_command → check_command 字段级映射,framework/verify_prompt 同名随迁):解析结果 MUST 以 specs 呈现、旧 bdd 段内无消费方字段 SHALL 保持宽松剥离/忽略,且 MUST 向 stderr 输出 WARNING 提示改用新形。
 
     场景: 顶层字段域与未知字段宽松

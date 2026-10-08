@@ -127,8 +127,8 @@ bdd.when('运行 validate --stage full 指向 draft 阶段 change', (ctx) => {
     repo: TempRepo;
     id: string;
   };
-  // 审计:非 harness 测试对象,已显式 --no-check(夹具亦无 bdd 配置)
-  const result = repo.run('bun', [CLI, 'validate', id, '--stage', 'full', '--no-check']);
+  // 审计:非 harness 测试对象,缺省(夹具无 bdd 配置,harness 不会执行)
+  const result = repo.run('bun', [CLI, 'validate', id, '--stage', 'full']);
   ctx.fixtures['validate结果'] = {
     code: result.code,
     stdout: result.stdout,
@@ -180,7 +180,7 @@ bdd.given('一个含两个 capability 且 check_command 以退出码 3 失败的
   ctx.fixtures['validate仓库'] = { repo, id: 'alpha' } satisfies ValidateRepoFixture;
 });
 
-// harness-objective call: deliberately WITHOUT --no-check (r48/r13 scenarios)
+// harness-objective call: 观察缺省(--check/--json 变体见下)
 bdd.when('运行 validate --specs', (ctx) => {
   const { repo } = ctx.fixtures['validate仓库'] as { repo: TempRepo };
   const result = repo.run('bun', [CLI, 'validate', '--specs']);
@@ -216,22 +216,10 @@ bdd.when('运行 validate --specs --json', (ctx) => {
   ctx.fixtures['命令结果'] = { code: result.code, stdout: `${result.stdout}${result.stderr}` };
 });
 
-// 审计:harness 测试对象(本场景观察执行/缓存/守卫本身),刻意不带 --no-check
+// 审计:harness 测试对象(本场景观察执行/缓存/守卫本身),缺省不执行 harness
 bdd.when('运行 validate --specs --check --json', (ctx) => {
   const { repo } = ctx.fixtures['validate仓库'] as { repo: TempRepo };
   const result = repo.run('bun', [CLI, 'validate', '--specs', '--check', '--json']);
-  ctx.fixtures['validate结果'] = {
-    code: result.code,
-    stdout: result.stdout,
-    stderr: result.stderr,
-  };
-  ctx.fixtures['命令结果'] = { code: result.code, stdout: `${result.stdout}${result.stderr}` };
-});
-
-// 审计:harness 测试对象(本场景观察执行/缓存/守卫本身),刻意不带 --no-check
-bdd.when('运行 validate --specs --no-check', (ctx) => {
-  const { repo } = ctx.fixtures['validate仓库'] as { repo: TempRepo };
-  const result = repo.run('bun', [CLI, 'validate', '--specs', '--no-check']);
   ctx.fixtures['validate结果'] = {
     code: result.code,
     stdout: result.stdout,
@@ -261,7 +249,7 @@ bdd.when(
   },
 );
 
-// 审计:harness 测试对象(本场景观察执行/缓存/守卫本身),刻意不带 --no-check
+// 审计:harness 测试对象(本场景观察执行/缓存/守卫本身),缺省不执行 harness
 bdd.when('运行 validate --specs --check --json --include-info', (ctx) => {
   const { repo } = ctx.fixtures['验证仓库'] as ValidateRepoFixture;
   const result = repo.run('bun', [
@@ -280,7 +268,7 @@ bdd.when('运行 validate --specs --check --json --include-info', (ctx) => {
   ctx.fixtures['命令结果'] = { code: result.code, stdout: `${result.stdout}${result.stderr}` };
 });
 
-// 审计:harness 测试对象(本场景观察执行/缓存/守卫本身),刻意不带 --no-check
+// 审计:harness 测试对象(本场景观察执行/缓存/守卫本身),缺省不执行 harness
 bdd.when('运行 review 与 show 任一 capability', (ctx) => {
   const { repo } = ctx.fixtures['validate仓库'] as { repo: TempRepo };
   // review embeds a validate sweep; show runs the validate gate — neither may
@@ -359,7 +347,7 @@ bdd.thenStep('输出含 "{text}" 的 INFO', (ctx, text: string) => {
 
 bdd.thenStep('help 文案说明缺省跳过 harness 且 --check 显式执行', (ctx) => {
   const out = (ctx.fixtures['命令结果'] as { stdout: string }).stdout;
-  if (!out.includes('run the spec check') || !out.includes('skip the spec check')) {
+  if (!out.includes('run the spec check') || !out.includes('default skips')) {
     throw new Error(`help text must state opt-in --check + default skip:\n${out}`);
   }
 });
@@ -382,16 +370,9 @@ bdd.given('一个含 pending 规则的有效 spec 工作区', (ctx) => {
 
 bdd.when('运行 validate --all --json 与 validate --all --json --include-info', (ctx) => {
   const repo = ctx.fixtures['info仓库'] as TempRepo;
-  // 审计:非 harness 测试对象,两次调用均已显式 --no-check(夹具亦无 bdd 配置)
-  const def = repo.run('bun', [CLI, 'validate', '--all', '--json', '--no-check']);
-  const full = repo.run('bun', [
-    CLI,
-    'validate',
-    '--all',
-    '--json',
-    '--include-info',
-    '--no-check',
-  ]);
+  // 审计:非 harness 测试对象,两次调用均缺省(夹具无 bdd 配置,harness 不会执行)
+  const def = repo.run('bun', [CLI, 'validate', '--all', '--json']);
+  const full = repo.run('bun', [CLI, 'validate', '--all', '--json', '--include-info']);
   ctx.fixtures['info两态'] = {
     def: { code: def.code, stdout: def.stdout },
     full: { code: full.code, stdout: full.stdout },
@@ -481,14 +462,8 @@ bdd.given('一个含种子缺陷 spec 的临时仓库', (ctx) => {
 
 bdd.when('在该仓库运行 validate --specs --output human', (ctx) => {
   const { repo } = requireValidateRepo(ctx);
-  // 审计:非 harness 测试对象,显式 --no-check(夹具亦无 bdd 配置)
-  ctx.fixtures['命令结果'] = runCliCombined(repo, [
-    'validate',
-    '--specs',
-    '--no-check',
-    '--output',
-    'human',
-  ]);
+  // 审计:非 harness 测试对象,缺省(夹具无 bdd 配置)
+  ctx.fixtures['命令结果'] = runCliCombined(repo, ['validate', '--specs', '--output', 'human']);
 });
 
 // r13 — 未配置 check_command 的仓库:--check 只产出 INFO 提示(default 配置无 bdd 段)
@@ -791,7 +766,7 @@ bdd.given('一个 stage=full 已绑定但 specs 未 landed 且正文含 "{text}"
 // ---------------------------------------------------------------------------
 // T11 — validation 验收补强:r12(逐类判定/逐 capability FAIL 集合)、r47
 // (输出模式与 strict 升级、--type 消歧)、r64(归档免检)、r65(悬空 req 链接)。
-// 全部走 CLI 子进程,夹具无 bdd 配置 → 显式 --no-check。
+// 全部走 CLI 子进程,夹具无 bdd 配置 → 缺省(harness 不会执行)。
 // ---------------------------------------------------------------------------
 
 // r12 — per-defect verdicts (native v2): each defect type owns a capability.
@@ -889,7 +864,7 @@ bdd.thenStep('仅缺 scope 路径的 capability 含 WARNING 且 valid 为 true',
 // 审计:非 harness 测试对象;夹具无 bdd 配置,validate 不会执行任何命令
 bdd.when('运行 validate --specs --json --strict', (ctx) => {
   const { repo } = ctx.fixtures['validate仓库'] as { repo: TempRepo };
-  const result = repo.run('bun', [CLI, 'validate', '--specs', '--json', '--strict', '--no-check']);
+  const result = repo.run('bun', [CLI, 'validate', '--specs', '--json', '--strict']);
   ctx.fixtures['validate结果'] = {
     code: result.code,
     stdout: result.stdout,
@@ -927,15 +902,7 @@ bdd.given('一个仅含缺 scope 路径 WARNING 的临时仓库', (ctx) => {
 // 审计:非 harness 测试对象;夹具无 bdd 配置,validate 不会执行任何命令
 bdd.when('运行 validate --specs --strict --output human', (ctx) => {
   const { repo } = ctx.fixtures['validate仓库'] as { repo: TempRepo };
-  const result = repo.run('bun', [
-    CLI,
-    'validate',
-    '--specs',
-    '--strict',
-    '--output',
-    'human',
-    '--no-check',
-  ]);
+  const result = repo.run('bun', [CLI, 'validate', '--specs', '--strict', '--output', 'human']);
   ctx.fixtures['validate结果'] = {
     code: result.code,
     stdout: result.stdout,
@@ -947,15 +914,7 @@ bdd.when('运行 validate --specs --strict --output human', (ctx) => {
 // 审计:非 harness 测试对象;夹具无 bdd 配置,validate 不会执行任何命令
 bdd.when('运行 validate --specs --strict --output json', (ctx) => {
   const { repo } = ctx.fixtures['validate仓库'] as { repo: TempRepo };
-  const result = repo.run('bun', [
-    CLI,
-    'validate',
-    '--specs',
-    '--strict',
-    '--output',
-    'json',
-    '--no-check',
-  ]);
+  const result = repo.run('bun', [CLI, 'validate', '--specs', '--strict', '--output', 'json']);
   ctx.fixtures['validate结果'] = {
     code: result.code,
     stdout: result.stdout,
@@ -1056,12 +1015,7 @@ bdd.given('一个 changes/archive 下 proposal 含未知字段 "status" 的临�
 // 审计:非 harness 测试对象;夹具无 bdd 配置,validate 不会执行任何命令
 bdd.when('运行 validate --changes --json', (ctx) => {
   const { repo } = requireValidateRepo(ctx);
-  ctx.fixtures['命令结果'] = runCliCombined(repo, [
-    'validate',
-    '--changes',
-    '--json',
-    '--no-check',
-  ]);
+  ctx.fixtures['命令结果'] = runCliCombined(repo, ['validate', '--changes', '--json']);
 });
 
 bdd.thenStep('输出不含 unknown field 相关 issue', (ctx) => {

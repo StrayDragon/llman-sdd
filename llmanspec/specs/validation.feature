@@ -105,7 +105,7 @@
   @req:r13
   规则: spec 验证命令执行与 check 旗标
     配置了非空 `specs.check_command`(含经旧 `bdd.check_command` 兼容提升的等价配置)时,`validate` 的目标集含 spec 即 MUST 缺省跳过该 harness 执行(仅结构/状态门),`--check`
-    MUST 显式执行之,`--no-check` MUST 跳过(与缺省同效,供显式声明放弃 harness 证据);未配置时显式 `--check` MUST 追加 INFO 提示其无效且 MUST NOT 执行任何命令;环境变量
+    MUST 显式执行之;未配置时显式 `--check` MUST 追加 INFO 提示其无效且 MUST NOT 执行任何命令;环境变量
     `LLMAN_SDD_HARNESS_ACTIVE=1` 存在时 MUST NOT 执行并 MUST 为每个 spec 条目追加 INFO(嵌套调用守卫),harness 子进程 MUST
     继承该变量;review 的校验 sweep 与 show 的 validate 门 MUST NOT 执行 harness;finalize/archive 的预合并验收由
     change-lifecycle r81 规定,本条不再禁止收口执行;`specs.framework` 派生的缺省命令 MUST NOT 被执行;CLI help 与模板文案 MUST 与该语义一致。
@@ -113,8 +113,6 @@
     场景: 配置 check_command 时缺省跳过且 check 显式执行
       假如 一个含两个 capability 且 check_command 无占位符并写标记文件的临时仓库
       当 运行 validate --specs
-      那么 标记文件不存在
-      当 运行 validate --specs --no-check
       那么 标记文件不存在
       当 运行 validate --specs --check
       那么 标记文件恰有 1 行

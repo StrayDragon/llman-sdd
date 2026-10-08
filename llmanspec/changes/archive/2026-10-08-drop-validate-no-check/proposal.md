@@ -1,5 +1,8 @@
 ---
 depends_on: []
+branch: sdd/drop-validate-no-check
+base_branch: main
+base_sha: 0a872de7cb1ef222527e25596e40108a67ffe5d3
 ---
 
 # 移除 validate 的 --no-check 兼容旗标并修正模板侧 opt-in 语义残留

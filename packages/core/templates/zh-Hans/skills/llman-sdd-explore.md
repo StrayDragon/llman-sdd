@@ -46,7 +46,7 @@ flowchart LR
    - 决策回写：已解决的决策写进该 change 的 `proposal.md`「Open Questions」段。
    - 完成判据：每个待定决策都已解决或显式推迟。未触发时保持默认（问 1–3 个问题）。
 4. 涉及某个 change id 时，读 `llmanspec/changes/<id>/` 下的工件。
-   - 诊断校验错误先跑 `llman-sdd validate <spec> --strict` 过结构门禁（Gherkin / `@req` 链接 / 双写 / req_id 唯一性）；配置了 `specs.check_command` 时 validate 缺省执行该 harness（`--no-check` 跳过）。失败项在缺省 TOON 输出的 `items[].issues[]` 逐条指明；`--output human` 输出人读 `FAIL <item_type>/<id>` 行。
+   - 诊断校验错误先跑 `llman-sdd validate <spec> --strict` 过结构门禁（Gherkin / `@req` 链接 / 双写 / req_id 唯一性）；配置了 `specs.check_command` 时 validate 仅经显式 `--check` 执行该 harness（缺省跳过）。失败项在缺省 TOON 输出的 `items[].issues[]` 逐条指明；`--output human` 输出人读 `FAIL <item_type>/<id>` 行。
 5. 探索 2–3 个选项与权衡。
 6. 判断变更规模，确定是否走完整 SDD。
 7. 结论清晰时建议用户记录（勿自动写）：

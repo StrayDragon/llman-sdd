@@ -76,7 +76,7 @@ interface CacheEntry {
 const OUTPUT_TAIL = 200;
 
 /**
- * Trigger matrix (r13): --no-check skips silently; a nested invocation skips
+ * Trigger matrix (r13): default skips; a nested invocation skips
  * with a per-spec INFO; an explicit --check without a configured check_command
  * yields a single INFO on the first spec; otherwise every expanded command
  * executes at most once (cache keyed by the expanded string).

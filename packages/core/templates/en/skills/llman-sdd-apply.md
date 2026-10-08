@@ -84,7 +84,7 @@ Run the project gates as appropriate:
 
 **Gate evidence**:
 - Plain `validate` is structure/state-only and claims no harness evidence; harness evidence MUST come from explicit `--check` or close-out acceptance.
-- Gate verdicts MUST come from the real harness: claiming a harness pass requires `--check` (or close-out); the skip line printed by `--no-check` is not a pass; on harness failure, find the root cause first (leaked env vars, nested-invocation guards, wrong cwd …) — MUST NOT label it an "inherent/self-referential property" and bypass it.
+- Gate verdicts MUST come from the real harness: claiming a harness pass requires `--check` (or close-out); the default structural gate is not a pass; on harness failure, find the root cause first (leaked env vars, nested-invocation guards, wrong cwd …) — MUST NOT label it an "inherent/self-referential property" and bypass it.
 - Before/after criteria (counts, baselines) MUST be measured on the change branch (against the freshly computed merge-base); a value measured on the default branch is usually trivially the baseline and proves nothing.
 - Refactors and bulk replacements: MUST compare the test count before and after; all-green gates with fewer tests is a failure.
 

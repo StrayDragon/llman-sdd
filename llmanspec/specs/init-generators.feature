@@ -91,7 +91,7 @@
     同样的自动提交、context unavailable 修复指引 MUST 覆盖 index stale 与 chat model 未设双分支、引用不存在的 JSON 字段 MUST NOT
     出现;propose「写 tasks.md」一节与 apply「勾选」一节 MUST 含约束句——tasks.md 只列实现与验证任务,收口(change finalize/change
     archive)是流水线步骤 MUST NOT 列为任务;apply 模板 MUST 含门禁证据约束句——harness 证据 MUST 来自真实 harness(声称 harness 合格 MUST
-    已用显式 `--check`,`--no-check` 打出的跳过说明不是通过、harness 失败 MUST 先查根因)、编辑与验证 MUST 串行(MUST NOT 同批并行工具调用)、
+    已用显式 `--check`,缺省结构门的通过不是 harness 通过、harness 失败 MUST 先查根因)、编辑与验证 MUST 串行(MUST NOT 同批并行工具调用)、
     前后对比类判据 MUST 在 change 分支上测量、重构类 task MUST 对比测试用例数,并 MUST 含验证阶梯(unit → 定向 BDD → `validate --check` →
     finalize)引导;verify 模板 MUST 含审查者亲自复跑门禁(经 `--check --strict` 取得真实 harness 证据,MUST NOT 采信实现者报告,不符为
     CRITICAL,harness 证据 MUST 经 `--check`)与前后对比测量位置核对;propose「写 tasks.md」一节 MUST 要求前后对比类完成判据注明在 change 分支上测量;对账 MUST 以自动门禁纳入 bun
@@ -99,7 +99,7 @@
     delta/feature_delta/solidify/project import 与已删除旗标及修饰符),违例 MUST 逐条报出来源模板与违例原因,缺失必含标记 MUST
     同样报出模板与缺失标记;对账面为 packages/core/templates/** 模板源头,渲染产物与 golden
     基线为下游,模板字面对账不在下游重复设门(仓库自带产物的新鲜度比对是独立门禁,见 r80)。apply 与 verify 模板(zh-Hans 与 en)MUST 声明 opt-in
-    harness 语义:`validate` 缺省不执行 harness、声称全量 harness 证据 MUST 经显式 `--check`、`--no-check` 的跳过说明不是通过、收口会执行已配置的
+    harness 语义:`validate` 缺省不执行 harness、声称全量 harness 证据 MUST 经显式 `--check`、缺省结构门的通过不是 harness 通过、收口会执行已配置的
     `specs.check_command` 因此收口前不必再跑一遍该命令。
 
     场景: 指引语义对齐门禁通过

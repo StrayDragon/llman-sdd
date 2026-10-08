@@ -319,10 +319,10 @@ function warnDirtySpecsOnDefaultBranch(): void {
 let harnessBannerShown = false;
 
 /**
- * r13/r48 trigger state: the nested guard env and the check flags are read
+ * r13/r48 trigger state: the nested guard env and the check flag are read
  * here (CLI boundary) and injected into core as parameters — core harness
- * logic never touches process.env. Commander tri-state (both flags declared):
- * --check → check=true, --no-check → check=false, absent → undefined.
+ * logic never touches process.env. Commander binary state:
+ * --check → check=true, absent → undefined.
  */
 function makeHarnessGate(options: { check?: boolean }): HarnessGate {
   const runCommand = loadCliConfig()?.specs?.check_command ?? null;
@@ -330,9 +330,8 @@ function makeHarnessGate(options: { check?: boolean }): HarnessGate {
   return {
     nested: process.env.LLMAN_SDD_HARNESS_ACTIVE === '1',
     // Opt-in harness (2026-10 decision): absent → 'off' — structure/state gate
-    // only; --check → 'on' (explicit full harness); --no-check → 'off'
-    // (explicitly decline harness evidence, same effective as default). The CLI
-    // never sends 'default'; core still treats a received 'default' as
+    // only; --check → 'on' (explicit full harness). The CLI never sends
+    // 'default'; core still treats a received 'default' as
     // run-if-configured (its own contract).
     check: options.check === true ? 'on' : 'off',
     runner: configured ? makeCliHarnessRunner() : undefined,
@@ -366,10 +365,6 @@ export function registerValidate(program: Command): void {
       'aggregate: validate every discovered llmanspec root (specs scope, any root red → non-zero exit)',
     )
     .option('--include-info', 'keep INFO-level issues (default: WARNING and above)')
-    .option(
-      '--no-check',
-      'skip the spec check (same as default; explicitly declines harness evidence)',
-    )
     .option('--check', 'run the spec check (full harness) explicitly — opt-in, default skips');
   addReportOutputOptions(validate);
   validate.action(

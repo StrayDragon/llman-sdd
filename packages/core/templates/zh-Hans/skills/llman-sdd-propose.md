@@ -85,7 +85,7 @@ MUST 通过才能继续；失败项在 validate 输出的 `items[].issues[]` 逐
 
 ### 4a) 可选 BDD runner（`specs:` 段）
 - 读 `llmanspec/config.yaml` 是否含 `specs:` 段：
-  - **有**：`specs.check_command` 是项目的 BDD 执行入口；validate 在目标集含 spec 时缺省执行它（`--no-check` 跳过）。撰写仍按 4b。
+  - **有**：`specs.check_command` 是项目的 BDD 执行入口；validate 仅在显式 `--check` 时执行它（缺省跳过，仅结构/状态门）。撰写仍按 4b。
   - **无**：若本次 change 含可执行行为场景（用户会想运行的 Given/When/Then），**一次性前置**询问是否启用 `specs:` 验证 runner 段（会向 `config.yaml` 加一个 `specs:` 段——仅 runner，不改生命周期）。**是**：展示要加的精确 `specs:` 段（`check_command` 选匹配项目测试框架的——rstest-bdd 用 `cargo test --features bdd`，pytest-bdd 用 `pytest {feature_dir} -k {feature_name} -v`），用户确认或修改后写入 `config.yaml`，再按 4b 继续。**否**：feature 仍做结构校验；BDD 执行责任始终在项目测试套件。
 - **MUST NOT 静默添加 `specs:` 段**——总是先问。添加它会向全项目声明 BDD 执行入口。
 
