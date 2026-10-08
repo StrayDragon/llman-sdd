@@ -8,6 +8,7 @@ import {
   attachChange,
   changeDiff,
   changeDiffInfo,
+  defaultBranch,
   deriveChangeId,
   finalizeChange,
   harvestAcrossWorktrees,
@@ -22,6 +23,7 @@ import {
   decideCloseOutHarness,
   extractFrontmatter,
   readNeedsSpecsChange,
+  type GitLike,
 } from '@llman-sdd/core';
 import { Option, type Command } from 'commander';
 
@@ -38,6 +40,38 @@ import { makeCliGit } from '../io.ts';
 function runValidateSweep(): boolean {
   const report = validateAllSpecs(loadSpecEntries(), newIo());
   return report.verdicts.some((v) => !v.ok);
+}
+
+/** r95: human-readable provenance of a recorded base_branch. */
+const BASE_SOURCE_HUMAN: Record<string, string> = {
+  flag: '--base',
+  config: 'branch.<name>.base',
+  upstream: 'local upstream',
+  worktree: 'current branch (worktree mode)',
+  default: 'default-branch resolution',
+};
+
+/** r95: deviation warning when the recorded base_branch is not the default
+ * branch — surfaced on attach and on start's --base/--worktree paths. Runs
+ * after start/attach already wrote their effects, so an unresolvable default
+ * branch skips the warning instead of failing the command. */
+function warnBaseBranchDeviation(
+  git: GitLike,
+  result: { baseBranch: string; baseSource: string },
+): void {
+  let def: string;
+  try {
+    def = defaultBranch(git);
+  } catch {
+    return;
+  }
+  if (result.baseBranch === def) return;
+  const human = BASE_SOURCE_HUMAN[result.baseSource] ?? result.baseSource;
+  console.error(
+    `[WARNING] base_branch \`${result.baseBranch}\` deviates from default branch \`${def}\` ` +
+      `(source: ${human}); merge target defaults to \`${result.baseBranch}\` — ` +
+      'pass --base <branch> to override',
+  );
 }
 
 /** r81: run or refuse the spec verification command before any merge or rename. */
@@ -166,7 +200,7 @@ export function registerChange(program: Command): void {
     )
     .option(
       '--base <branch>',
-      'explicit fork-source branch to record (must exist and differ from the new branch; exempts the default-branch gate)',
+      'explicit fork-source branch to record (must be an existing local branch differing from the new branch; exempts the default-branch gate)',
     )
     .option(
       '--worktree',
@@ -183,6 +217,7 @@ export function registerChange(program: Command): void {
         worktreeRoot: config?.sdd?.worktree_root ?? undefined,
         worktreeNaming: config?.sdd?.worktree_naming ?? undefined,
       });
+      warnBaseBranchDeviation(git, result);
       console.log(
         `started change \`${resolved.id}\` → branch \`${result.branch}\` base \`${result.baseSha}\` base-branch \`${result.baseBranch}\``,
       );
@@ -194,13 +229,18 @@ export function registerChange(program: Command): void {
     .description('Bind the change to the current feature branch')
     .argument('<id>')
     .option('--force', 'rebind an already attached change to the current branch')
-    .option('--base <branch>', 'explicit fork-point branch to record')
+    .option(
+      '--base <branch>',
+      'explicit fork-point branch to record (must be an existing local branch)',
+    )
     .action((id: string, options: { force?: boolean; base?: string }) => {
       const resolved = resolveChangeIdOrExit(program, id);
-      const result = attachChange(makeCliGit(process.cwd()), newIo(), resolved.id, {
+      const git = makeCliGit(process.cwd());
+      const result = attachChange(git, newIo(), resolved.id, {
         force: options.force,
         base: options.base,
       });
+      warnBaseBranchDeviation(git, result);
       console.log(
         `attached change \`${resolved.id}\` → branch \`${result.branch}\` base \`${result.baseSha}\` base-branch \`${result.baseBranch}\``,
       );

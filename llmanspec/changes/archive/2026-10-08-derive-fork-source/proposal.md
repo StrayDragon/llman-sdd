@@ -1,5 +1,8 @@
 ---
 depends_on: []
+branch: sdd/derive-fork-source
+base_branch: main
+base_sha: 580794e5e73a8fd20a1607f8db990b35e794af1e
 ---
 
 # attach 分叉源运行时推导、偏离警告与就地收口

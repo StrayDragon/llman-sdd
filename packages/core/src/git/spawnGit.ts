@@ -54,12 +54,27 @@ export function isCleanTree(git: GitLike): boolean {
   return git.run(['status', '--porcelain']) === '';
 }
 
-/** Local-first default branch resolution: main → master → origin/HEAD → origin/*. */
+/** True when the named LOCAL branch (refs/heads/<name>) exists. */
+export function localBranchExists(git: GitLike, name: string): boolean {
+  return git.runOpt(['show-ref', '--verify', '--quiet', `refs/heads/${name}`]) !== null;
+}
+
+/**
+ * Local-first default branch resolution: init.defaultBranch (only when it
+ * names an existing local branch) → main → master → origin/HEAD → origin/*.
+ * A valid preference wins outright — including over an existing local main
+ * (r16 resolution order, not a tie-breaker) — because the user explicitly
+ * configured it; anything else falls through to the chain untouched.
+ */
 // Deliberately NOT shared with defaultBranchNameFn() in validation/staleness.ts
 // (that probe is local-only with a 'main' fallback — predecessor staleness parity). Do not merge.
 export function defaultBranch(git: GitLike): string {
+  const preferred = git.runOpt(['config', '--get', 'init.defaultBranch']);
+  if (preferred !== null && preferred !== '' && localBranchExists(git, preferred)) {
+    return preferred;
+  }
   for (const candidate of ['main', 'master']) {
-    if (git.runOpt(['show-ref', '--verify', '--quiet', `refs/heads/${candidate}`]) !== null) {
+    if (localBranchExists(git, candidate)) {
       return candidate;
     }
   }
@@ -76,6 +91,32 @@ export function defaultBranch(git: GitLike): string {
     ['default-branch-resolution'],
     'no local main/master or origin/* branch found',
   );
+}
+
+export interface ForkSource {
+  branch: string;
+  source: 'config' | 'upstream';
+}
+
+/**
+ * r95: read-only fork-source probes for attach — explicit signals only, local
+ * branches only. Order: `branch.<name>.base` (stacked-PR tool convention, the
+ * value must name an existing local branch) > local upstream
+ * (branch.<name>.remote = "." → @{upstream} resolves to refs/heads/*). A
+ * remote-tracking upstream is the branch's own push destination, not a fork
+ * source. null means "not derivable" — the caller falls back to defaultBranch.
+ */
+export function probeForkSource(git: GitLike, branch: string): ForkSource | null {
+  const configured = git.runOpt(['config', '--get', `branch.${branch}.base`]);
+  if (configured !== null && configured !== branch && localBranchExists(git, configured)) {
+    return { branch: configured, source: 'config' };
+  }
+  const upstream = git.runOpt(['rev-parse', '--symbolic-full-name', `${branch}@{upstream}`]);
+  if (upstream !== null && upstream.startsWith('refs/heads/')) {
+    const name = upstream.slice('refs/heads/'.length);
+    if (name !== branch) return { branch: name, source: 'upstream' };
+  }
+  return null;
 }
 
 export function revParseHead(git: GitLike): string {

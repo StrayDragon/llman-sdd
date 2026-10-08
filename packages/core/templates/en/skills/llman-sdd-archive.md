@@ -7,7 +7,7 @@ metadata:
 
 # LLMAN SDD Archive
 
-Archive completed changes. Prerequisites: verify all-green, and the change is branch-bound with specs landed (or `needs_specs_change: false`). `change finalize` **auto-merges** into the base branch (target: `--into` > binding `base_branch` > default branch; method: `--method` > config `sdd.merge_method`, squash by default — feature diff + rename collapse into ONE commit on the target), **renames** change docs into `changes/archive/`, then **auto-commits** `archive(sdd): <change-id>` (`--no-commit` skips). `git push` / PR are optional.
+Archive completed changes. Prerequisites: verify all-green, and the change is branch-bound with specs landed (or `needs_specs_change: false`). `change finalize` **auto-merges** into the base branch (target: `--into` > binding `base_branch` > default branch; when the target is the bound branch itself the merge is skipped for an in-place close-out with a notice in the output; method: `--method` > config `sdd.merge_method`, squash by default — feature diff + rename collapse into ONE commit on the target), **renames** change docs into `changes/archive/`, then **auto-commits** `archive(sdd): <change-id>` (`--no-commit` skips). `git push` / PR are optional.
 
 ## Pipeline Position
 

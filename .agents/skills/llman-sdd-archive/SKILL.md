@@ -7,7 +7,7 @@ metadata:
 
 # LLMAN SDD 归档
 
-归档已完成的变更。前置：verify 全绿，且 change 已绑定分支、specs 已落地（或 `needs_specs_change: false`）。`change finalize` **自动合并**到基准分支（目标：`--into` > 绑定 `base_branch` > 默认分支；方式：`--method` > 配置 `sdd.merge_method`，默认 squash——feature diff + 改名收敛为目标分支单个 commit）、**改名** change 文档到 `changes/archive/`、**自动提交** `archive(sdd): <change-id>`（`--no-commit` 跳过）。`git push` / PR 仅可选。
+归档已完成的变更。前置：verify 全绿，且 change 已绑定分支、specs 已落地（或 `needs_specs_change: false`）。`change finalize` **自动合并**到基准分支（目标：`--into` > 绑定 `base_branch` > 默认分支；目标即绑定分支时跳过合并就地收口，输出含 in-place close-out 提示；方式：`--method` > 配置 `sdd.merge_method`，默认 squash——feature diff + 改名收敛为目标分支单个 commit）、**改名** change 文档到 `changes/archive/`、**自动提交** `archive(sdd): <change-id>`（`--no-commit` 跳过）。`git push` / PR 仅可选。
 
 ## Pipeline 位置
 

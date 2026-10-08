@@ -396,6 +396,7 @@ interface LayoutRepoFixture {
 
 const LAYOUT_BRANCH: Record<string, string> = {
   'main+master': 'main',
+  'main+master-pref': 'master',
   'master-only': 'master',
   'origin-head': 'devel',
   'origin-branch': 'zside',
@@ -409,6 +410,13 @@ function makeLayoutRepo(layout: string): TempRepo {
   seedChange(repo, 'demo-base', { commit: 'seed' });
   const git = (args: string[]): void => void repo.run('git', args);
   if (layout === 'main+master') git(['branch', 'master']);
+  if (layout === 'main+master-pref') {
+    // The user's init.defaultBranch preference says master; the checkout sits
+    // on master so the r14 default-branch gate stays coherent with the
+    // preference-driven resolution.
+    git(['branch', 'main']);
+    git(['config', 'init.defaultBranch', 'master']);
+  }
   if (layout === 'origin-head') {
     git(['update-ref', 'refs/remotes/origin/devel', 'HEAD']);
     git(['symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/devel']);
@@ -1626,5 +1634,110 @@ bdd.thenStep('标准错误不含 "{text}"', (ctx, text: string) => {
   const r = ctx.fixtures['finalize结果'] as CliResult;
   if ((r.stderr ?? '').includes(text)) {
     throw new Error(`stderr must not contain "${text}": ${r.stderr ?? ''}`);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// r95/r96 — attach 分叉源运行时推导与偏离警告 + finalize/archive 就地收口
+// (acceptance):config/upstream/无信号/remote-tracking 四形态 + --base
+// local-only 拒绝 + start --base 警告;--into 绑定分支就地收口。
+// ---------------------------------------------------------------------------
+
+interface AttachCliResult {
+  code: number;
+  stdout: string;
+  stderr: string;
+}
+
+bdd.given('{branch} 分支配置 branch.<name>.base 为 {base}', (ctx, branch: string, base: string) => {
+  const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
+  repo.run('git', ['branch', base]);
+  repo.run('git', ['config', `branch.${branch}.base`, base]);
+});
+
+bdd.given('{branch} 分支以 set-upstream-to 跟踪本地分支 {base}', (ctx, branch, base) => {
+  const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
+  repo.run('git', ['branch', base]);
+  repo.run('git', ['branch', `--set-upstream-to=${base}`, branch]);
+});
+
+bdd.given('{branch} 分支的 upstream 为 remote-tracking 引用 {ref}', (ctx, branch, ref) => {
+  const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
+  repo.run('git', ['update-ref', `refs/remotes/${ref}`, 'HEAD']);
+  repo.run('git', ['config', `branch.${branch}.remote`, 'origin']);
+  repo.run('git', ['config', `branch.${branch}.merge`, `refs/remotes/${ref}`]);
+});
+
+bdd.when('对其运行 change attach', (ctx) => {
+  const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
+  const id = (ctx.fixtures['change'] as { id: string }).id;
+  const result = repo.run('bun', [CLI, 'change', 'attach', id]);
+  ctx.fixtures['attachcli结果'] = {
+    code: result.code,
+    stdout: result.stdout,
+    stderr: result.stderr,
+  } satisfies AttachCliResult;
+});
+
+bdd.thenStep('attach 后 frontmatter base_branch 记录 {branch}', (ctx, branch) => {
+  const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
+  const id = (ctx.fixtures['change'] as { id: string }).id;
+  const r = ctx.fixtures['attachcli结果'] as AttachCliResult;
+  if (r.code !== 0) throw new Error(`attach failed: ${r.stdout}${r.stderr}`);
+  const proposal = readFileSync(join(repo.root, 'llmanspec', 'changes', id, 'proposal.md'), 'utf8');
+  if (!proposal.includes(`base_branch: ${branch}`)) {
+    throw new Error(`expected base_branch: ${branch} in:\n${proposal}`);
+  }
+});
+
+bdd.thenStep('标准错误含偏离 WARNING 且来源为 {source}', (ctx, source: string) => {
+  const attach = ctx.fixtures['attachcli结果'] as AttachCliResult | undefined;
+  const start = ctx.fixtures['startcli结果'] as StartCliResult | undefined;
+  const r = attach ?? start;
+  if (r === undefined) throw new Error('missing attach/start result fixture');
+  if (r.code !== 0) throw new Error(`command failed: ${r.stdout}${r.stderr}`);
+  const err = r.stderr ?? '';
+  for (const needle of ['deviates', source, '--base']) {
+    if (!err.includes(needle)) {
+      throw new Error(`deviation warning must contain "${needle}": ${err}`);
+    }
+  }
+});
+
+bdd.thenStep('标准错误不含偏离 WARNING', (ctx) => {
+  const attach = ctx.fixtures['attachcli结果'] as AttachCliResult | undefined;
+  const start = ctx.fixtures['startcli结果'] as StartCliResult | undefined;
+  const r = attach ?? start;
+  if (r === undefined) throw new Error('missing attach/start result fixture');
+  if (r.code !== 0) throw new Error(`command failed: ${r.stdout}${r.stderr}`);
+  if ((r.stderr ?? '').includes('deviates')) {
+    throw new Error(`no deviation warning expected on the default fallback: ${r.stderr}`);
+  }
+});
+
+bdd.when('对其运行 change finalize --into {branch}', (ctx, branch) => {
+  const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
+  const id = (ctx.fixtures['change'] as { id: string }).id;
+  const result = repo.run('bun', [CLI, 'change', 'finalize', id, '--into', branch]);
+  ctx.fixtures['finalize结果'] = {
+    exitCode: result.code,
+    stdout: result.stdout,
+    stderr: result.stderr,
+  } satisfies CliResult;
+});
+
+bdd.thenStep('输出含就地收口提示且特性分支获得单条 archive(sdd) 提交', (ctx) => {
+  const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
+  const id = (ctx.fixtures['change'] as { id: string }).id;
+  const r = ctx.fixtures['finalize结果'] as CliResult;
+  if (r.exitCode !== 0) throw new Error(`finalize failed: ${r.stdout}${r.stderr ?? ''}`);
+  const out = `${r.stdout}${r.stderr ?? ''}`;
+  if (!out.includes('in-place close-out')) {
+    throw new Error(`in-place close-out notice missing:\n${out}`);
+  }
+  const current = repo.run('git', ['branch', '--show-current']).stdout.trim();
+  const subject = repo.run('git', ['log', '--format=%s', '-1', current]).stdout.trim();
+  if (subject !== `archive(sdd): ${id}`) {
+    throw new Error(`expected single archive commit on ${current}, got: ${subject}`);
   }
 });

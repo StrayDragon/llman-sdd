@@ -61,7 +61,8 @@
 
   @req:r16
   规则: 默认分支 local-first 解析
-    默认分支 MUST 按 main → master → origin/HEAD → origin/* 顺序取第一个本地存在者;四者皆缺 MUST 报错。
+    默认分支 MUST 依次取 init.defaultBranch 配置值(仅当其为存在的本地分支时采信)→ main → master → origin/HEAD →
+    origin/* 的第一个可用者;五者皆缺 MUST 报错。
 
     场景: 默认分支解析顺序与皆缺报错
       假如 一个默认分支布局为 main+master 的临时仓库
@@ -79,6 +80,11 @@
       假如 一个默认分支布局为 none 的临时仓库
       当 运行 change start
       那么 报错提示缺少默认分支
+
+    场景: init.defaultBranch 偏好破 main+master 平局
+      假如 一个默认分支布局为 main+master-pref 的临时仓库
+      当 运行 change start
+      那么 base_branch 记录为 master
 
   @req:r31
   规则: attach 默认分支门
@@ -460,3 +466,55 @@
       当 对其运行 change archive
       那么 标记文件恰有 1 行
       而且 目标分支获得单条 archive(sdd) 提交
+  @req:r95
+  规则: attach 分叉源运行时推导与偏离警告
+    change attach 缺省记录的 base_branch MUST 按运行时信号推导,优先序 MUST 为 --base 显式 > git config branch.<当前分支>.base(值 MUST 为存在的本地分支,非法值作废该信号)> 本地 upstream(branch.<当前分支>.remote = ".",@{upstream} 解析为 refs/heads/* 且不等于绑定分支)> 默认分支解析;信号皆不可推导时 MUST 回退默认分支并 MUST NOT 输出偏离警告。推导结果不等于默认分支时 CLI MUST 向标准错误输出 WARNING,内容 MUST 含解析到的分支、信号来源与 --base 覆盖提示,非交互模式同样输出。change start 以 --base 或 --worktree 记录非默认分叉源时 MUST 输出同一警告(r68 记录语义不变)。--base(start/attach 同语义)MUST 仅接受本地分支:refs/remotes/* 形态 MUST 报错并提示改用本地分支名。
+
+    场景: attach 按 branch.<name>.base 推导
+      假如 一个已提交的临时 git 仓库切到 topic 分支且含 change "demo-cfg" 的 proposal
+      假如 topic 分支配置 branch.<name>.base 为 feature/src
+      当 对其运行 change attach
+      那么 attach 后 frontmatter base_branch 记录 feature/src
+      而且 标准错误含偏离 WARNING 且来源为 branch.<name>.base
+
+    场景: attach 按本地 upstream 推导
+      假如 一个已提交的临时 git 仓库切到 topic 分支且含 change "demo-up" 的 proposal
+      假如 topic 分支以 set-upstream-to 跟踪本地分支 feature/src
+      当 对其运行 change attach
+      那么 attach 后 frontmatter base_branch 记录 feature/src
+      而且 标准错误含偏离 WARNING 且来源为 local upstream
+
+    场景: attach 无信号回退默认且不告警
+      假如 一个已提交的临时 git 仓库切到 topic 分支且含 change "demo-plain" 的 proposal
+      当 对其运行 change attach
+      那么 attach 后 frontmatter base_branch 记录 main
+      而且 标准错误不含偏离 WARNING
+
+    场景: remote-tracking upstream 不作为分叉源
+      假如 一个已提交的临时 git 仓库切到 topic 分支且含 change "demo-rt" 的 proposal
+      假如 topic 分支的 upstream 为 remote-tracking 引用 origin/topic
+      当 对其运行 change attach
+      那么 attach 后 frontmatter base_branch 记录 main
+      而且 标准错误不含偏离 WARNING
+
+    场景: --base 仅接受本地分支
+      假如 一个已切到特性分支且已提交 change 的临时仓库(无绑定)
+      当 对其运行 change attach --base origin/main
+      那么 attach 报错含 "must name a local branch" 且不写绑定
+
+    场景: start --base 记录非默认分叉源时输出偏离警告
+      假如 一个已提交的临时 git 仓库切到 feature/src 分支且含 change "demo-warn" 的 proposal
+      当 对其运行 change start --base feature/src
+      那么 frontmatter base_branch 记录 feature/src
+      而且 标准错误含偏离 WARNING 且来源为 --base
+
+  @req:r96
+  规则: finalize/archive 就地收口
+    change finalize 与 change archive 解析出的合并目标等于绑定分支本身时 MUST 就地收口:跳过 switch 与合并(自合并恒为 no-op),经 warnings 通道输出含就地收口声明的提示行,归档改名与收口提交行为 MUST 与常规目标完全一致;r69 的目标优先序(into > base_branch > 默认分支)与合并语义 MUST 不变。
+
+    场景: 就地收口跳过合并
+      假如 一个已完成 start 并在特性分支有新提交的临时仓库
+      当 对其运行 change finalize --into sdd/demo-add-feature
+      那么 输出含就地收口提示且特性分支获得单条 archive(sdd) 提交
+      而且 changes 目录下只剩 archive 改名产物
+

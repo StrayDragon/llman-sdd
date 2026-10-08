@@ -5,7 +5,9 @@ import {
   defaultBranch,
   dirtyCount,
   isCleanTree,
+  localBranchExists,
   mergeBase,
+  probeForkSource,
   revParseHead,
   worktreeList,
   type GitLike,
@@ -64,9 +66,40 @@ export function newChange(
 export interface StartResult {
   branch: string;
   baseBranch: string;
+  /** Where the recorded base_branch came from (r95 deviation warning input). */
+  baseSource: 'flag' | 'worktree' | 'default';
   baseSha: string;
   /** Absolute worktree path when started with --worktree (r68); undefined on the classic path. */
   worktreePath?: string;
+}
+
+/** r95: where attach's recorded base_branch came from. */
+export type AttachBaseSource = 'flag' | 'config' | 'upstream' | 'default';
+
+export interface AttachResult {
+  branch: string;
+  baseBranch: string;
+  baseSource: AttachBaseSource;
+  baseSha: string;
+}
+
+/** r95: shared --base gate — local branches only (finalize cannot switch to a
+ * remote-tracking ref; recording one is an end-to-end dead end). */
+function assertLocalBase(
+  git: GitLike,
+  base: string,
+  forbidden: string,
+  kind: 'new' | 'bound',
+): void {
+  if (!localBranchExists(git, base)) {
+    throw new LifecycleError(
+      `base branch \`${base}\` does not exist as a local branch; --base must name a local branch ` +
+        '(remote-tracking refs are rejected — use the local branch name)',
+    );
+  }
+  if (base === forbidden) {
+    throw new LifecycleError(`--base must differ from the ${kind} branch \`${forbidden}\``);
+  }
 }
 
 /**
@@ -147,29 +180,23 @@ export function startChange(
   const branch = `${branchPrefix}${id}`;
 
   if (opts.base !== undefined) {
-    if (
-      git.runOpt(['show-ref', '--verify', '--quiet', `refs/heads/${opts.base}`]) === null &&
-      git.runOpt(['show-ref', '--verify', '--quiet', `refs/remotes/${opts.base}`]) === null
-    ) {
-      throw new LifecycleError(
-        `base branch \`${opts.base}\` does not exist; --base records the fork source branch for merge-target resolution`,
-      );
-    }
-    if (opts.base === branch) {
-      throw new LifecycleError(`--base must differ from the new branch \`${branch}\``);
-    }
+    assertLocalBase(git, opts.base, branch, 'new');
   }
 
   // r68 fork-source resolution: --base explicit > current branch (worktree
   // mode records the actual source, which may be a non-default branch) >
   // default branch. The classic path keeps the r14 default-branch gate.
   let baseBranch: string;
+  let baseSource: StartResult['baseSource'];
   if (opts.base !== undefined) {
     baseBranch = opts.base;
+    baseSource = 'flag';
   } else if (opts.worktree) {
     baseBranch = here;
+    baseSource = 'worktree';
   } else {
     baseBranch = defaultBranch(git);
+    baseSource = 'default';
     if (here !== baseBranch) {
       throw new LifecycleError(
         `already on non-default branch \`${here}\`; use \`change attach\` to bind it, or switch to the default branch before \`change start\``,
@@ -201,13 +228,13 @@ export function startChange(
     }
     const baseSha = mergeBase(gitAt(git, worktreePath), 'HEAD', baseBranch);
     wtIo.writeText(path, writeBinding(wtIo.readText(path), { branch, baseBranch, baseSha }));
-    return { branch, baseBranch, baseSha, worktreePath };
+    return { branch, baseBranch, baseSource, baseSha, worktreePath };
   }
   git.run(['switch', '-c', branch]);
   const baseSha =
     currentBranch(git) !== null ? mergeBase(git, 'HEAD', baseBranch) : revParseHead(git);
   io.writeText(path, writeBinding(io.readText(path), { branch, baseBranch, baseSha }));
-  return { branch, baseBranch, baseSha };
+  return { branch, baseBranch, baseSource, baseSha };
 }
 
 /** `change attach`: bind the current branch — same branch gate family as start (r31). */
@@ -216,7 +243,7 @@ export function attachChange(
   io: FsIo,
   id: string,
   opts: { force?: boolean; base?: string } = {},
-): { branch: string; baseBranch: string; baseSha: string } {
+): AttachResult {
   const path = proposalPath(id);
   if (!io.exists(path)) throw new LifecycleError(`proposal not found: ${path}`);
   const existing = readBinding(io.readText(path));
@@ -225,35 +252,31 @@ export function attachChange(
       `change \`${id}\` already attached to branch \`${existing.branch}\` (base ${existing.baseSha}); pass --force to rebind`,
     );
   }
-  const configuredBase = opts.base ?? defaultBranch(git);
   const branch = currentBranch(git);
   if (branch === null || branch === '') {
     throw new LifecycleError(detachedHead('change attach'));
   }
   if (opts.base !== undefined) {
-    if (
-      git.runOpt(['show-ref', '--verify', '--quiet', `refs/heads/${opts.base}`]) === null &&
-      git.runOpt(['show-ref', '--verify', '--quiet', `refs/remotes/${opts.base}`]) === null
-    ) {
-      throw new LifecycleError(
-        `base branch \`${opts.base}\` does not exist; --base records the fork source branch for merge-target resolution`,
-      );
-    }
-    if (opts.base === branch) {
-      throw new LifecycleError(`--base must differ from the bound branch \`${branch}\``);
-    }
+    assertLocalBase(git, opts.base, branch, 'bound');
   }
-  if (branch === configuredBase) {
+  // r95 fork-source resolution: --base explicit > probeForkSource
+  // (branch.<name>.base > local upstream) > default branch. No signal means
+  // status quo (issue #7 compatibility: "无法推导维持现状").
+  const fork =
+    opts.base !== undefined
+      ? { branch: opts.base, source: 'flag' as const }
+      : (probeForkSource(git, branch) ?? {
+          branch: defaultBranch(git),
+          source: 'default' as const,
+        });
+  if (branch === fork.branch) {
     throw new LifecycleError(
       `${onDefaultBranch('change attach', branch)}; create or switch to a feature branch, or use \`change start\``,
     );
   }
-  const baseSha = mergeBase(git, branch, configuredBase);
-  io.writeText(
-    path,
-    writeBinding(io.readText(path), { branch, baseBranch: configuredBase, baseSha }),
-  );
-  return { branch, baseBranch: configuredBase, baseSha };
+  const baseSha = mergeBase(git, branch, fork.branch);
+  io.writeText(path, writeBinding(io.readText(path), { branch, baseBranch: fork.branch, baseSha }));
+  return { branch, baseBranch: fork.branch, baseSource: fork.source, baseSha };
 }
 
 export interface FinalizeResult {
@@ -389,14 +412,25 @@ function mergeRenameCommit(
     execIo = ioAt(io, holder);
     executedIn = holder;
   }
+  // r96: in-place close-out — merging a branch into itself is always a no-op
+  // ("Already up to date."), so skip the merge and say so instead of running a
+  // silent self-merge. The switch still runs (a no-op when already there) so
+  // escape hatches like `archive --force` from a foreign branch land the
+  // rename and close-out commit on the bound branch, not the current one.
   execGit.run(['switch', target]);
-  const mergeArgs =
-    method === 'ff' ? ['merge', '--ff-only', featureBranch] : ['merge', '--squash', featureBranch];
-  if (execGit.runOpt(mergeArgs) === null) {
-    execGit.runOpt(['merge', '--abort']);
-    warnings.push(
-      `merge ${method} failed — resolve manually, e.g. \`git merge ${method === 'ff' ? '--ff-only' : '--squash'} ${featureBranch}\``,
-    );
+  if (target === featureBranch) {
+    warnings.push('in-place close-out: merge target is the bound branch itself; merge skipped');
+  } else {
+    const mergeArgs =
+      method === 'ff'
+        ? ['merge', '--ff-only', featureBranch]
+        : ['merge', '--squash', featureBranch];
+    if (execGit.runOpt(mergeArgs) === null) {
+      execGit.runOpt(['merge', '--abort']);
+      warnings.push(
+        `merge ${method} failed — resolve manually, e.g. \`git merge ${method === 'ff' ? '--ff-only' : '--squash'} ${featureBranch}\``,
+      );
+    }
   }
 
   const date = today;

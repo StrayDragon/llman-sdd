@@ -6,11 +6,14 @@ import { join } from 'node:path';
 
 import {
   LifecycleError,
+  archiveChange,
+  attachChange,
   defaultBranch,
   finalizeChange,
   isCleanTree,
   makeSpawnGit,
   newChange,
+  probeForkSource,
   startChange,
   type FsIo,
 } from '@llman-sdd/core';
@@ -49,6 +52,55 @@ describe('git layer', () => {
   test('defaultBranch resolves local main first', () => {
     const { git } = mkRepo();
     expect(defaultBranch(git)).toBe('main');
+  });
+
+  test('defaultBranch: init.defaultBranch preference breaks the main+master tie (r16)', () => {
+    const { git } = mkRepo();
+    git.run(['branch', 'master']);
+    expect(defaultBranch(git)).toBe('main');
+    git.run(['config', 'init.defaultBranch', 'master']);
+    expect(defaultBranch(git)).toBe('master');
+  });
+
+  test('defaultBranch: init.defaultBranch is skipped when not a local branch (r16)', () => {
+    const { git } = mkRepo();
+    git.run(['config', 'init.defaultBranch', 'trunk']);
+    expect(defaultBranch(git)).toBe('main');
+  });
+
+  test('defaultBranch: a valid preference outranks an existing local main (r16 order)', () => {
+    const { git } = mkRepo();
+    git.run(['branch', 'trunk']);
+    git.run(['config', 'init.defaultBranch', 'trunk']);
+    expect(defaultBranch(git)).toBe('trunk');
+  });
+
+  test('probeForkSource: branch.<name>.base wins; invalid value voids the signal (r95)', () => {
+    const { git } = mkRepo();
+    git.run(['switch', '-qc', 'topic']);
+    git.run(['branch', 'feature/src']);
+    expect(probeForkSource(git, 'topic')).toBeNull();
+    git.run(['config', 'branch.topic.base', 'feature/src']);
+    expect(probeForkSource(git, 'topic')).toEqual({ branch: 'feature/src', source: 'config' });
+    git.run(['config', 'branch.topic.base', 'ghost']);
+    expect(probeForkSource(git, 'topic')).toBeNull();
+  });
+
+  test('probeForkSource: local upstream (branch.<name>.remote = ".") resolves (r95)', () => {
+    const { git } = mkRepo();
+    git.run(['switch', '-qc', 'topic']);
+    git.run(['branch', 'feature/src']);
+    git.run(['branch', '--set-upstream-to=feature/src', 'topic']);
+    expect(probeForkSource(git, 'topic')).toEqual({ branch: 'feature/src', source: 'upstream' });
+  });
+
+  test('probeForkSource: remote-tracking upstream is not a fork source (r95)', () => {
+    const { git } = mkRepo();
+    git.run(['switch', '-qc', 'topic']);
+    git.run(['update-ref', 'refs/remotes/origin/topic', 'HEAD']);
+    git.run(['config', 'branch.topic.remote', 'origin']);
+    git.run(['config', 'branch.topic.merge', 'refs/remotes/origin/topic']);
+    expect(probeForkSource(git, 'topic')).toBeNull();
   });
 
   test('isCleanTree false after uncommitted write', () => {
@@ -154,5 +206,117 @@ describe('lifecycle full loop', () => {
     // now on main but let's move to a non-default branch
     git.run(['switch', '-c', 'other']);
     expect(() => startChange(git, io, 'add-gated')).toThrow(/default branch/);
+  });
+
+  test('finalize in-place (--into the bound branch) skips the merge and archives on the branch (r96)', () => {
+    const { root, git, io } = mkRepo();
+    newChange(io, { id: 'add-inplace' });
+    commitFile(
+      root,
+      'llmanspec/changes/add-inplace/proposal.md',
+      io.readText('llmanspec/changes/add-inplace/proposal.md'),
+      'docs(sdd): draft',
+    );
+    startChange(git, io, 'add-inplace');
+    io.writeText('feature.txt', 'hello\n');
+    git.run(['add', '-A']);
+    git.run(['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-m', 'feat: hello']);
+
+    const mainHeadBefore = git.run(['rev-parse', 'main']);
+    const result = finalizeChange(git, io, 'add-inplace', {
+      today: '2026-10-08',
+      into: 'sdd/add-inplace',
+    });
+    expect(result.warnings.join('\n')).toContain('in-place close-out');
+    expect(git.run(['branch', '--show-current'])).toBe('sdd/add-inplace');
+    expect(git.run(['log', '--format=%s', '-1', 'sdd/add-inplace'])).toBe(
+      'archive(sdd): add-inplace',
+    );
+    // main stays untouched — the whole close-out happened on the bound branch
+    expect(git.run(['rev-parse', 'main'])).toBe(mainHeadBefore);
+    expect(io.exists('llmanspec/changes/archive/2026-10-08-add-inplace/proposal.md')).toBe(true);
+    expect(io.exists('llmanspec/changes/add-inplace')).toBe(false);
+  });
+
+  test('archive --force in-place from a foreign branch lands the close-out on the bound branch (r96)', () => {
+    const { root, git, io } = mkRepo();
+    newChange(io, { id: 'force-inplace' });
+    commitFile(
+      root,
+      'llmanspec/changes/force-inplace/proposal.md',
+      io.readText('llmanspec/changes/force-inplace/proposal.md'),
+      'docs(sdd): draft',
+    );
+    startChange(git, io, 'force-inplace');
+    io.writeText('feature.txt', 'x\n');
+    git.run(['add', '-A']);
+    git.run(['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'feat: x']);
+    git.run(['switch', '-qc', 'unrelated']);
+    const result = archiveChange(git, io, 'force-inplace', {
+      force: true,
+      into: 'sdd/force-inplace',
+      today: '2026-10-08',
+    });
+    expect(result.warnings.join('\n')).toContain('in-place close-out');
+    expect(git.run(['branch', '--show-current'])).toBe('sdd/force-inplace');
+    expect(git.run(['log', '--format=%s', '-1', 'sdd/force-inplace'])).toBe(
+      'archive(sdd): force-inplace',
+    );
+  });
+});
+
+describe('attach fork-source derivation (r95)', () => {
+  const seedAndSwitch = (
+    root: string,
+    git: ReturnType<typeof makeSpawnGit>,
+    io: FsIo,
+    id: string,
+  ): void => {
+    newChange(io, { id });
+    commitFile(
+      root,
+      `llmanspec/changes/${id}/proposal.md`,
+      io.readText(`llmanspec/changes/${id}/proposal.md`),
+      'docs(sdd): draft',
+    );
+    git.run(['switch', '-qc', 'topic']);
+  };
+
+  test('no signal falls back to the default branch (status quo)', () => {
+    const { root, git, io } = mkRepo();
+    seedAndSwitch(root, git, io, 'derive-plain');
+    const r = attachChange(git, io, 'derive-plain');
+    expect(r).toMatchObject({ baseBranch: 'main', baseSource: 'default' });
+  });
+
+  test('local upstream is recorded with its source', () => {
+    const { root, git, io } = mkRepo();
+    seedAndSwitch(root, git, io, 'derive-up');
+    git.run(['branch', 'feature/src']);
+    git.run(['branch', '--set-upstream-to=feature/src', 'topic']);
+    const r = attachChange(git, io, 'derive-up');
+    expect(r).toMatchObject({ baseBranch: 'feature/src', baseSource: 'upstream' });
+    const proposal = io.readText('llmanspec/changes/derive-up/proposal.md');
+    expect(proposal).toInclude('base_branch: feature/src');
+  });
+
+  test('branch.<name>.base outranks the local upstream', () => {
+    const { root, git, io } = mkRepo();
+    seedAndSwitch(root, git, io, 'derive-cfg');
+    git.run(['branch', 'feature/up']);
+    git.run(['branch', 'release/x']);
+    git.run(['branch', '--set-upstream-to=feature/up', 'topic']);
+    git.run(['config', 'branch.topic.base', 'release/x']);
+    const r = attachChange(git, io, 'derive-cfg');
+    expect(r).toMatchObject({ baseBranch: 'release/x', baseSource: 'config' });
+  });
+
+  test('--base flag still outranks every derived signal', () => {
+    const { root, git, io } = mkRepo();
+    seedAndSwitch(root, git, io, 'derive-flag');
+    git.run(['branch', 'release/x']);
+    git.run(['config', 'branch.topic.base', 'release/x']);
+    const r = attachChange(git, io, 'derive-flag', { base: 'main' });
+    expect(r).toMatchObject({ baseBranch: 'main', baseSource: 'flag' });
   });
 });

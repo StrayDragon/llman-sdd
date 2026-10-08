@@ -134,14 +134,17 @@ export {
   GitError,
   defaultBranch,
   isCleanTree,
+  localBranchExists,
   makeSpawnGit,
   currentBranch,
   worktreeList,
   probeMainCheckout,
+  probeForkSource,
   nonMainCheckoutWarning,
   type GitLike,
   type WorktreeEntry,
   type MainCheckoutProbe,
+  type ForkSource,
 } from './git/spawnGit.ts';
 export { DRAFT_PROPOSAL_TEMPLATE, deriveChangeId } from './change/id.ts';
 export { parseTaskCheckboxes, type ParsedTaskCheckboxes } from './change/tasks.ts';
@@ -162,6 +165,8 @@ export {
   finalizeChange,
   newChange,
   startChange,
+  type AttachBaseSource,
+  type AttachResult,
   type FinalizeResult,
   type FsIo,
   archiveChange,

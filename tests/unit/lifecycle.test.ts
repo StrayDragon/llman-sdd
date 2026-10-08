@@ -237,6 +237,25 @@ describe('r44/r45/r46 — change family flags', () => {
     expect(proposal).toContain('base_branch: main');
   });
 
+  test('--base rejects remote-tracking refs: local branches only (r95)', () => {
+    const { root, run } = makeGitRepo('fam2', { prefix: 'llman-family-' });
+    const git = makeSpawnGit(root);
+    const io = makeNodeIo(root);
+    run(['switch', '-qc', 'feat/b']);
+    run(['update-ref', 'refs/remotes/origin/main', 'HEAD']);
+    expect(() => attachChange(git, io, 'fam2', { base: 'origin/main' })).toThrow(
+      /must name a local branch/u,
+    );
+    expect(() => startChange(git, io, 'fam2', { base: 'origin/main' })).toThrow(
+      /must name a local branch/u,
+    );
+    const proposal = readFileSync(
+      join(root, 'llmanspec', 'changes', 'fam2', 'proposal.md'),
+      'utf8',
+    );
+    expect(proposal).not.toContain('base_branch:');
+  });
+
   test('finalize noCommit renames without close-out commit', () => {
     const { root, run } = makeGitRepo('fam', { prefix: 'llman-family-' });
     const git = makeSpawnGit(root);

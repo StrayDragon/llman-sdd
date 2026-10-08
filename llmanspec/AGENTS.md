@@ -60,7 +60,7 @@ llman-sdd:spec 驱动开发(SDD)工作流(TypeScript + Bun),完全接替 Rust ll
 | `depends_on` | 是(CLI 骨架默认 `[]`) | agent | 依赖 change id 列表,流式/块式均可(graph 解析) |
 | `blocks` | 否 | agent | 反向依赖声明(当前仅校验列表格式) |
 | `branch` | 否 | CLI(change start/attach) | 绑定特性分支 |
-| `base_branch` | 否 | CLI(change start;attach --base 可覆盖) | finalize/archive 合并目标解析,缺键回退本地默认分支;不参与 diff 范围计算(现算 merge-base) |
+| `base_branch` | 否 | CLI(change start;attach 按 `--base` > `branch.<name>.base`/本地 upstream 推导 > 默认分支) | finalize/archive 合并目标解析,缺键回退本地默认分支(解析序:init.defaultBranch → main → master → origin/HEAD → origin/*);不参与 diff 范围计算(现算 merge-base) |
 | `base_sha` | 否 | CLI(change start) | 审计用基点,仅审计不参与范围计算 |
 | `needs_specs_change` | 否(缺省 true) | agent | false 跳过 specs landing 检查(无 live 合约编辑的 change) |
 
