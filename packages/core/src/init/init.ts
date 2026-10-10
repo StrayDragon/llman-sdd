@@ -9,6 +9,7 @@
 import { join } from 'node:path';
 
 import { loadConfig } from '../config/load.ts';
+import { writeSddState } from '../context/sddState.ts';
 import { renderTemplate } from '../templates/engine.ts';
 import { localeFallbacks } from '../templates/locale.ts';
 import {
@@ -121,6 +122,10 @@ export function runInit(
   const configPath = 'llmanspec/config.yaml';
   if (!io.exists(configPath)) writeDefaultConfig(io, opts.locale ?? 'en');
   const config = loadConfig(io.readText(configPath));
+
+  // 1b) scaffold-state stamp: record the rendering version for drift notices
+  // (version-awareness). Corrupt/missing state on later reads is silent-OK.
+  writeSddState(io, opts.version);
 
   // 2) scaffold directories.
   io.mkdirp('llmanspec/specs');

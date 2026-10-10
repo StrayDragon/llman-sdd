@@ -301,6 +301,13 @@ export {
   type RebuildResult,
 } from './context/indexStore.ts';
 export {
+  SDD_STATE_REL,
+  readSddState,
+  semverLt,
+  writeSddState,
+  type SddState,
+} from './context/sddState.ts';
+export {
   resolveChatConfig,
   runContextRetrieval,
   unavailableResult,

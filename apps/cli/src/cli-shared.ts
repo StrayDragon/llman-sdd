@@ -12,8 +12,10 @@ import {
   loadConfig,
   loadConfigDetail,
   makeEmbeddedTemplateIo,
+  readSddState,
   resolveChangeId,
   resolveInstanceRoot,
+  semverLt,
   type TemplateIo,
 } from '@llman-sdd/core';
 import type { Command } from 'commander';
@@ -32,7 +34,42 @@ export type { Command } from 'commander';
 
 // Injected at binary build time by scripts/build-binary.ts; falls back to the
 // package version when running from source.
-export const version = process.env.LLMAN_SDD_VERSION ?? pkg.version;
+const baseVersion = process.env.LLMAN_SDD_VERSION ?? pkg.version;
+
+/**
+ * Dev-tree marker (`+dirty.N`): appended when the checkout has uncommitted
+ * changes, so `--version` / drift notices distinguish "released build" from
+ * "hacking on the library" at a glance. Best-effort — git failure keeps the
+ * plain version; cached per process.
+ */
+let dirtySuffix: string | null | undefined;
+
+function computeDirtySuffix(): string {
+  try {
+    const probe = Bun.spawnSync(['git', 'status', '--porcelain'], {
+      cwd: import.meta.dir,
+      stdout: 'pipe',
+      stderr: 'ignore',
+    });
+    if (probe.exitCode !== 0) return '';
+    const lines = probe.stdout
+      .toString()
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l !== '');
+    return lines.length > 0 ? `+dirty.${lines.length}` : '';
+  } catch {
+    return '';
+  }
+}
+
+export function versionDisplay(): string {
+  dirtySuffix ??= computeDirtySuffix();
+  return `${baseVersion}${dirtySuffix}`;
+}
+
+/** Package version without the dirty suffix (drift comparison baseline). */
+export const version: string = baseVersion;
 
 // Compiled single-file binaries have no on-disk templates and Bun <= 1.4.x has
 // no embedding mechanism, so scripts/build-binary.ts injects the template
@@ -115,10 +152,32 @@ export function warnLegacyBddOnce(source: string): void {
   warnLegacyBdd(loadConfigDetail(source).legacyBddElevated);
 }
 
+/**
+ * Version-drift notice (version-awareness): when the project was scaffolded by
+ * an older llman-sdd, surface one stderr line per process so humans and agents
+ * see the update hint. Silent-OK when no/corrupt state; never load-bearing;
+ * no override flags by design (noise is bounded by once-per-process + strict
+ * older-than comparison).
+ */
+let versionDriftShown = false;
+
+export function noteVersionDriftOnce(root: string = process.cwd()): void {
+  if (versionDriftShown) return;
+  versionDriftShown = true;
+  const io = makeIo(root);
+  const state = readSddState(io);
+  if (state === null) return;
+  if (!semverLt(state.cli_version, version)) return;
+  console.error(
+    `[NOTE] this project was scaffolded with llman-sdd ${state.cli_version}; installed CLI is ${version}. Skill templates/behaviour may have changed — review the changelog and run \`llman-sdd init --update\`.`,
+  );
+}
+
 export function loadCliConfig(): ReturnType<typeof loadConfig> | null {
   if (!existsSync('llmanspec/config.yaml')) return null;
   const detail = loadConfigDetail(readFileSync('llmanspec/config.yaml', 'utf8'));
   warnLegacyBdd(detail.legacyBddElevated);
+  noteVersionDriftOnce();
   return detail.config;
 }
 

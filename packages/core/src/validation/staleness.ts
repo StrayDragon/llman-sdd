@@ -31,6 +31,12 @@ export interface StalenessDeps {
   specRel: string;
   /** scope entries from the `# scope:` header (raw, unnormalized) */
   scope: string[];
+  /**
+   * `# reviewed-through: <id>` header value (re-review stamp governance): when
+   * set, a STALE verdict is suppressed iff every scope-touching commit on the
+   * branch mentions that change id — the recorded no-behavior-change review.
+   */
+  reviewedThrough?: string | null;
   /** env override for LLMANSPEC_BASE_REF */
   baseRefEnv?: string;
   defaultBranchName?: string;
@@ -116,9 +122,18 @@ export function evaluateStaleness(deps: StalenessDeps): {
       specUpdated = paths.some((p) => normalizePath(p) === normalizePath(specRel));
       touchedPaths = paths.filter((p) => scopeMatches(p, normScope));
     }
-    if (touchedPaths.length > 0 && !specUpdated) {
+    const reviewAcked =
+      touchedPaths.length > 0 &&
+      !specUpdated &&
+      reviewCoversBranch(deps.reviewedThrough ?? null, git, baseRef);
+    if (touchedPaths.length > 0 && !specUpdated && !reviewAcked) {
       status = 'STALE' as StalenessStatus;
       issues.push({ level: 'WARNING', path: `${specId()}/staleness`, message: STALE_MSG });
+    } else if (reviewAcked) {
+      // confirm-style ack: scope touched, spec untouched, reviewed-through
+      // covers the branch — downgrade to OK with an explanatory note.
+      status = 'OK';
+      notes.push(reviewAckedMsg(deps.reviewedThrough ?? ''));
     } else if (specUpdated && touchedPaths.length === 0) {
       status = 'INFO';
       notes.push(SPEC_UPDATED_MSG);
@@ -146,6 +161,35 @@ export function evaluateStaleness(deps: StalenessDeps): {
 const STALE_MSG =
   "Note: Code in this spec's scope changed on this branch but the spec was not updated; re-review the spec.";
 const SPEC_UPDATED_MSG = 'Note: Spec updated on this branch.';
+
+const reviewAckedMsg = (id: string): string =>
+  `Note: Scope changed on this branch; covered by the recorded review (reviewed-through: ${id}).`;
+
+/**
+ * Re-review ack check: every scope-touching commit message on
+ * `baseRef..HEAD` references the reviewed-through change id. Empty id or git
+ * failure → not covered (falls back to the plain STALE verdict). A commit
+ * referencing several changes satisfies any of them (`c2858`-style tokens).
+ */
+function reviewCoversBranch(
+  reviewedThrough: string | null,
+  git: GitLike,
+  baseRef: string,
+): boolean {
+  if (reviewedThrough === null || reviewedThrough.trim() === '') return false;
+  const id = reviewedThrough.trim();
+  const log = git.runOpt(['log', '--format=%s', `${baseRef}..HEAD`]);
+  if (log === null || log === '') return false;
+  return log
+    .split('\n')
+    .filter((l) => scopeLineRelevant(l))
+    .every((l) => l.includes(id));
+}
+
+/** Lines without any `c<num>` token carry no change attribution — skip them. */
+function scopeLineRelevant(line: string): boolean {
+  return /c\d+/u.test(line) || line.trim() === '';
+}
 
 function revParse(git: GitLike, ref: string): string | null {
   return git.runOpt(['rev-parse', '--verify', '--quiet', ref]) ?? null;

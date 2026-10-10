@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import { Command } from 'commander';
 
-import { CliError, version } from './cli-shared.ts';
+import { CliError, versionDisplay } from './cli-shared.ts';
 import { registerArchive } from './commands/archive.ts';
 import { registerChange } from './commands/change.ts';
 import { registerConfig } from './commands/config.ts';
@@ -27,7 +27,7 @@ const program = new Command();
 program.exitOverride();
 program.configureOutput({ outputError: () => {} });
 
-program.name('llman-sdd').description('Spec-driven development workflow').version(version);
+program.name('llman-sdd').description('Spec-driven development workflow').version(versionDisplay());
 program.option(
   '--max-scan-depth <n>',
   'max depth when scanning llmanspec/changes/ for proposal.md (min 1, default 8)',

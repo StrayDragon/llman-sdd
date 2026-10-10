@@ -148,6 +148,10 @@ skill 是生成物不是手写物：模板在 [packages/core/templates](packages
 git clone https://github.com/StrayDragon/llman-sdd.git && cd llman-sdd
 just install
 just build    # 二进制落在 apps/cli/dist/
+
+# 方式三：开发跟随（贡献者）——PATH symlink 直指 src/main.ts，改码即时生效
+just link        # 注册 ~/.bun/bin/{llman-sdd,llmanspec} → apps/cli/src/main.ts
+just link-check  # 对账 repo 版本 vs PATH 生效版本（detect 漂移；dev 树显示 +dirty.N）
 ```
 
 ## 工程细节

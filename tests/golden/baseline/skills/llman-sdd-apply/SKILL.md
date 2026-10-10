@@ -136,6 +136,14 @@ llman-sdd show <id> --output json --type change
 > 命令细节用 `llman-sdd <cmd> --help` 查看；命令参考以 CLI 为准，skill 不内嵌命令表。
 > 文中「规约」= 本项目 `llmanspec/specs/` 下的 `.feature` 文件；用 `llman-sdd list --specs` / `llman-sdd show <capability>` 查全文。
 
+## 版本漂移提示（`[NOTE] ... scaffolded with llman-sdd X; installed CLI is Y`）
+
+见到该 stderr 提示时：向用户**转述**此提示并建议 `llman-sdd init --update`（刷新 managed blocks 与 skills 至当前 CLI 版本）；更新完成前**继续按现有 skill 执行**，不因版本差异中断流程。每进程至多提示一次，属参考信息而非错误。
+
+## 复核戳纪律（re-review stamp → `# reviewed-through:` 头）
+
+复核确认「本 capability 管辖行为不变」时，**只更新** spec 头部的 `# reviewed-through: <change-id>` 一行（改为本次 change id），**禁止**在 rule 块间追加自由 `# re-review(...)` 注释——历史叙事归 `changes/archive/<id>/`，spec 只留机读指针。staleness 据此消警；旧版自由注释随触碰一并机械清理（删除、不搬运）。
+
 校验修复（单轨 feature-as-spec）：
 
 1）缺头注释（`missing # capability: header comment`）：每个 capability `.feature`（`llmanspec/specs/<capability>.feature` 或目录内同名主文件）必须以下列注释开头：

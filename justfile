@@ -19,15 +19,21 @@ default:
 install:
     bun install --frozen-lockfile
 
-# 本地注册命令面:bun link 只登记包名(不写 bin),故 bin symlink 手工补;ELF 同步到 ~/.local/bin
-# (justfile_directory 定位仓库,从任意目录调用均正确;rm 先行,兼容目标位已是 symlink/硬链接)
+# 本地注册命令面:bun link 只登记包名(不写 bin),故 bin symlink 手工补。
+# 单一真源:PATH 上的 symlink 直指 src/main.ts —— 源码改动即时生效(单轨)。
+# ELF 二进制只由 release 工作流产出,不进日常 link(双轨漂移教训:0.7.1 vs 0.7.2)。
+# (justfile_directory 定位仓库,从任意目录调用均正确)
 link:
     bun link
     ln -sfn {{justfile_directory()}}/apps/cli/src/main.ts ~/.bun/bin/llman-sdd
     ln -sfn {{justfile_directory()}}/apps/cli/src/main.ts ~/.bun/bin/llmanspec
-    mkdir -p ~/.local/bin
-    rm -f ~/.local/bin/llman-sdd
-    cp -f apps/cli/dist/llman-sdd ~/.local/bin/llman-sdd
+
+# 对账:本仓 git 描述 vs PATH 解析的 CLI 版本(detect 双轨漂移 / stale 二进制)
+link-check:
+    @echo "repo:  $(git -C {{justfile_directory()}} describe --tags --always --dirty)"
+    @echo "PATH:  $(which llman-sdd)"
+    @llman-sdd --version
+    @[ -x ~/.local/bin/llman-sdd ] && echo "local-bin: $(~/.local/bin/llman-sdd --version 2>/dev/null) (release artifact,仅对账用)" || echo "local-bin: absent"
 
 # 静态门禁:typecheck + lint + format(缺一不可)
 check:

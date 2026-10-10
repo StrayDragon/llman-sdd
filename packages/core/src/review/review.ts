@@ -84,6 +84,7 @@ export function buildReview(input: ReviewInput, io: SpecIo): ReviewResult {
         root: input.root,
         specRel,
         scope: entry.doc.header.scope?.split(',').map((x) => x.trim()) ?? [],
+        reviewedThrough: entry.doc.header.reviewedThrough,
         baseRefEnv: input.baseRefEnv,
       });
       staleInfo = evalResult.info;

@@ -79,17 +79,26 @@ function stepKeywordToKind(keyword: string): ScenarioStepKind {
   return stepKeywordToOfficialKind(keyword) ?? 'given';
 }
 
-const HEADER_RE = /^#\s*(capability|purpose|scope):\s*(.*)$/u;
+const HEADER_RE = /^#\s*(capability|purpose|scope|reviewed-through):\s*(.*)$/u;
 
 function extractHeader(source: string): CapabilityHeader {
-  const header: CapabilityHeader = { capability: null, purpose: null, scope: null };
+  const header: CapabilityHeader = {
+    capability: null,
+    purpose: null,
+    scope: null,
+    reviewedThrough: null,
+  };
   for (const line of source.split('\n')) {
     if (line.trim() === '') continue;
     if (!line.trimStart().startsWith('#')) break;
     const m = line.trimStart().match(HEADER_RE);
     if (m?.[1]) {
-      const key = m[1] as 'capability' | 'purpose' | 'scope';
-      header[key] = m[2]?.trim() ?? null;
+      const raw = m[1];
+      const field: 'capability' | 'purpose' | 'scope' | 'reviewedThrough' =
+        raw === 'reviewed-through'
+          ? 'reviewedThrough'
+          : (raw as 'capability' | 'purpose' | 'scope');
+      header[field] = m[2]?.trim() ?? null;
     }
   }
   return header;

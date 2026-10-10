@@ -110,6 +110,10 @@ After all tasks complete + all gates green, output a structured report (see Outp
 
 {{ unit("skills/cli-footer") }}
 
+{{ unit("skills/version-drift") }}
+
+{{ unit("skills/review-stamp") }}
+
 {{ unit("skills/validation-hints") }}
 
 {{ unit("skills/structured-protocol") }}

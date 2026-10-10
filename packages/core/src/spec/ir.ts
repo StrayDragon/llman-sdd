@@ -14,6 +14,12 @@ export interface CapabilityHeader {
   capability: string | null;
   purpose: string | null;
   scope: string | null;
+  /**
+   * `# reviewed-through: <change-id>` — newest change through which this
+   * capability's governed behaviour was reviewed unchanged (re-review stamp
+   * governance). Consumers (staleness) compare it against branch history.
+   */
+  reviewedThrough: string | null;
 }
 
 export type ScenarioStepKind = 'given' | 'when' | 'then';

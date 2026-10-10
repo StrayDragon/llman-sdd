@@ -99,6 +99,7 @@ function specV1Items(
       root: process.cwd(),
       specRel,
       scope: scopes.map(liftScope),
+      reviewedThrough: entry.doc.header.reviewedThrough,
       baseRefEnv: process.env.LLMANSPEC_BASE_REF,
     });
     let issues: ChangeIssue[] = verdict.items.map((i) => ({

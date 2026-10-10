@@ -35,6 +35,8 @@ export const UNIT_FILES: readonly string[] = [
   'skills/git-native-flow-brief.md',
   'skills/stage-guard.md',
   'skills/ethics-governance.md',
+  'skills/version-drift.md',
+  'skills/review-stamp.md',
   'spec/feature-contract.md',
   'skills/structured-protocol.md',
   'skills/cli-footer.md',

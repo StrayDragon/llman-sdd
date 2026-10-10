@@ -24,7 +24,7 @@ const ALLOWED: Readonly<Record<string, readonly string[]>> = {
   change: ['git'],
   config: ['change', 'templates'],
   context: ['spec', 'validation'],
-  init: ['config', 'templates'],
+  init: ['config', 'context', 'templates'],
   report: ['archive', 'change', 'git', 'render', 'spec', 'templates', 'validation'],
   review: ['git', 'spec', 'validation'],
   templates: ['config'],
