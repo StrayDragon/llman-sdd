@@ -2,6 +2,42 @@
 
 本项目遵循语义化版本（SemVer）。breaking 变更随大版本/次版本标注迁移说明。
 
+## 0.7.3 (2026-10-10)
+
+体验批次：版本感知、re-review 戳治理与 dev-link 单轨化，无 breaking、无 schema 变更。
+
+### 项目 scaffold 版本感知（version-awareness）
+
+- `init` / `init --update` 写 `llmanspec/.context/sdd-state.json`（cli_version 戳，随
+  `.context/` 既有忽略策略）。
+- 读配置的命令（validate / review / change / spec / project…）在项目 scaffold 版本
+  **严格小于** 当前 CLI 版本时向 stderr 输出一次 `[NOTE]` 漂移提示，指引
+  `llman-sdd init --update`；state 缺失/损坏静默跳过，无 env/flag 旁路。
+- apply / verify skill 注入 `version-drift` 与 `review-stamp` 两个 unit（见下）。
+
+### re-review 戳治理：`# reviewed-through:` 头
+
+- spec 头部新增第五个结构字段 `# reviewed-through: <change-id>`（parser/ir 一等解析），
+  语义 = 截至该 change 本 capability 管辖行为经复核不变；取代自由 `# re-review(...)`
+  注释累积（历史叙事归 `changes/archive/<id>/`）。
+- staleness 消费：scope 触及且 spec 未改时，若分支上带 `c<num>` 标记的 commit 全部引用
+  该 id，则 STALE 降级 OK 并附说明 note；否则维持原判定。validate 与 review 两路生效。
+- apply / verify skill 注入 `review-stamp` unit：复核不变只改头一行，禁止追加自由注释。
+
+### dev-link 单轨化与脏树标识
+
+- `just link` 不再 cp ELF 到 `~/.local/bin`（双轨漂移教训）：PATH symlink 直指
+  `src/main.ts`，改码即时生效；二进制只由 release 工作流产出。新增 `just link-check`
+  三方对账（repo describe / PATH 解析 / local-bin 存量）。
+- `--version` 与漂移比较基线分离：worktree 脏时展示 `X.Y.Z+dirty.N`（best-effort，
+  每进程缓存），一眼区分开发树与 release 构建。
+
+### 行为变更清单
+
+- `--version` 在脏树显示 `+dirty.N` 后缀（脚本做精确匹配时先 strip；干净树字节不变）。
+- 读配置命令新增至多一条 stderr `[NOTE]`（capture 契约不变：stdout 仍纯净）。
+- `# reviewed-through:` 为纯增量头；不写则 staleness 行为与 0.7.2 完全一致。
+
 ## 0.7.2 (2026-10-08)
 
 issue #7 落地批次：分叉源保真与收口体验，无 breaking（`--base` 收窄为仅本地分支属死路
