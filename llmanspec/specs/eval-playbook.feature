@@ -57,12 +57,22 @@
     MUST 为 `openai-responses`, 含 thinkingLevelMap 与 chat-template compat)并只读挂到 `/opt/pi-seed`,由 wrapper
     拷到可写 `/tmp/pi-config`(Harbor bind 仅允许 RO,Pi 需写 auth.json);MUST NOT 向 Harbor 导出 `OPENAI_BASE_URL`
     以免其用精简 `harbor-endpoint` 覆盖;Harbor `-m` 对无斜杠的 model id MUST 使用 `fusionsparks/<id>`;`--thinking` 缺省
-    MUST 为 `max`(至少对 `deepseek-v4-flash-0731`)。
+    MUST 为 `max`(至少对 `deepseek-v4-flash-0731`)。Pi 容器凭据另经 auth.json 注入:writePiRuntime 在 agent=pi 时
+    读宿主 `~/.pi/agent/auth.json`(单数 agent,PI_CODING_AGENT_DIR 缺省),存在则写入 `pi-config/auth.json` 随既有
+    只读 bind 下发、由 wrapper 条件拷贝,缺失时跳过并 stderr 提示不阻断;Pi 按既有凭据优先级(auth.json > models.json
+    apiKey > env)消费,容器内密钥不落任何入库路径——`pi-config/` 居 `.local/eval/runs/`与 `eval/groups.yaml` 均
+    gitignored,宿主家目录在仓库外,eval 工件入库前不得含明文密钥。
 
     场景: Pi models.json 使用 Responses API 且 0731 thinking 为 max
       假如 工作目录是仓库根
       当 执行命令 "bun test tests/unit/eval-groups-schema.test.ts"
       那么 退出码为 0
+
+    场景: auth 注入缺失容错与凭据不入库三层
+      假如 工作目录是仓库根
+      当 执行命令 "bun test tests/unit/eval-auth.test.ts"
+      那么 退出码为 0
+      而且 gitignore 含 eval-local-results 与 groups-yaml 两行
 
   @req:r98
   规则: skill 文风观测断言与 A/B 文风对照

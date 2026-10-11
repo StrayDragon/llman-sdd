@@ -1,6 +1,9 @@
 ---
 depends_on:
   - check-stc-eval-a-b
+branch: sdd/eval-pi-auth-json
+base_branch: main
+base_sha: 3de09f96db143d87e31b80d3c0fd4d12065b03f1
 ---
 
 ## eval 容器凭据注入：宿主 Pi auth.json 经 pi-config 只读 bind 链

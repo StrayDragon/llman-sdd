@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { createRequire } from 'node:module';
 import { join, resolve } from 'node:path';
 
+import { copyAuthIfExists } from './auth.ts';
 import {
   buildPiModelsJson,
   fillSentinelIssues,
@@ -321,6 +322,9 @@ function writePiRuntime(
     join(piConfigDir, 'models.json'),
     `${JSON.stringify(buildPiModelsJson(jsonDoc), null, 2)}\n`,
   );
+  // eval-playbook r86:宿主 ~/.pi/agent/auth.json 随 pi-config RO bind 下发(缺失容错,见 eval/auth.ts)。
+  const auth = copyAuthIfExists(piConfigDir);
+  console.error(auth.message);
   const composeFile = join(runDir, 'docker-compose.pi.yaml');
   writeFileSync(composeFile, renderPiComposeOverlay(pi.thinking));
   return { piConfigDir, composeFile };

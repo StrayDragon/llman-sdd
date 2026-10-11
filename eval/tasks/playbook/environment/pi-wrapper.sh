@@ -8,4 +8,9 @@ mkdir -p "$PI_CODING_AGENT_DIR"
 if [ -f /opt/pi-seed/models.json ]; then
   cp /opt/pi-seed/models.json "$PI_CODING_AGENT_DIR/models.json"
 fi
+# eval-playbook r86: host auth.json rides the same RO bind; Pi consumes it directly
+# (credential order: --api-key > auth.json > models.json apiKey > env).
+if [ -f /opt/pi-seed/auth.json ]; then
+  cp /opt/pi-seed/auth.json "$PI_CODING_AGENT_DIR/auth.json"
+fi
 exec /root/.bun/bin/pi.real --approve --thinking "$THINKING" "$@"

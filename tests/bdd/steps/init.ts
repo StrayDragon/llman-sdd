@@ -258,3 +258,16 @@ bdd.thenStep('模板文风门随 qa 聚合运行', (ctx) => {
   if (!ci.includes('bun run check:stc')) problems.push('ci.yml 缺 check:stc run 步');
   if (problems.length > 0) throw new Error(problems.join('; '));
 });
+
+// ---------------------------------------------------------------------------
+// eval-playbook r86 — auth 注入链随库凭据三层不入库(gitignore 断言)
+// ---------------------------------------------------------------------------
+
+bdd.thenStep('gitignore 含 eval-local-results 与 groups-yaml 两行', (ctx) => {
+  const gi = readFileSync(join(REPO_ROOT, '.gitignore'), 'utf8');
+  const problems: string[] = [];
+  if (!/^\.local\/eval\/$/mu.test(gi)) problems.push('.gitignore 缺 .local/eval/(pi-config 所在)');
+  if (!/^eval\/groups\.yaml$/mu.test(gi))
+    problems.push('.gitignore 缺 eval/groups.yaml(明文密钥合法落点)');
+  if (problems.length > 0) throw new Error(problems.join('; '));
+});

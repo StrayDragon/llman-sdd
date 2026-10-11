@@ -312,6 +312,9 @@ groups:
   # the host env and pass via harbor --env-file; write "apiKey": "$VAR" references
   # in models.json (Pi native interpolation); literals only in gitignored
   # groups.yaml / env. See eval-groups-schema PI_* constants.
+  # Container credentials also ride host ~/.pi/agent/auth.json (eval-playbook r86):
+  # just eval copies it into pi-config/ when present; the wrapper forwards it into
+  # the writable agent dir — no env export needed, Pi consumes it directly.
   # stc-style:
   #   worktree: ${FILL_WORKTREE_B}
 `;

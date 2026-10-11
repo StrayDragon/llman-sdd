@@ -194,7 +194,7 @@ test('template strength-word vocabulary is per-locale and single-table (r97)', (
     for (const rel of collectAllTemplateRels()) {
       const text = readFileSync(templatePath(locale, rel), 'utf8');
       for (const rawLine of text.split('\n')) {
-        const line = rawLine.replace(/`[^`]*`/gu, ''); // strip inline code: spec quotes live there
+        const line = rawLine.replaceAll(/`[^`]*`/gu, ''); // strip inline code: spec quotes live there
         if (locale === 'zh-Hans') {
           if (/MUST|SHALL/u.test(line)) {
             const allowed = ZH_MUST_QUOTE_ALLOWLIST.some((re) => re.test(line));
@@ -208,11 +208,10 @@ test('template strength-word vocabulary is per-locale and single-table (r97)', (
             violations.push(
               `[zh-Hans/${rel}] 四级表外强度词「${m[0]}」: ${line.trim().slice(0, 60)}`,
             );
-        } else {
-          if (EN_ZH_LEAK.test(line))
-            violations.push(
-              `[en/${rel}] 中文强度词泄漏(改 MUST/MUST NOT): ${line.trim().slice(0, 60)}`,
-            );
+        } else if (EN_ZH_LEAK.test(line)) {
+          violations.push(
+            `[en/${rel}] 中文强度词泄漏(改 MUST/MUST NOT): ${line.trim().slice(0, 60)}`,
+          );
         }
       }
     }
