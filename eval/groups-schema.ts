@@ -258,7 +258,12 @@ export function rewriteUrlHostPort(url: string, hostname: string, port: number):
   return parsed.toString().replace(/\/$/u, '');
 }
 
-export function renderPiComposeOverlay(thinking: PiThinking = PI_THINKING_DEFAULT): string {
+export function renderPiComposeOverlay(
+  thinking: PiThinking = PI_THINKING_DEFAULT,
+  hostEntries: readonly string[] = [],
+): string {
+  const hostLines = hostEntries.map((entry) => `      - "${entry}"`).join('\n');
+  const hostsBlock = hostLines === '' ? '' : `\n    extra_hosts:\n${hostLines}`;
   return `services:
   harbor-docker-egress-control-sidecar:
     extra_hosts:
@@ -266,7 +271,7 @@ export function renderPiComposeOverlay(thinking: PiThinking = PI_THINKING_DEFAUL
   main:
     environment:
       PI_CODING_AGENT_DIR: ${PI_CONFIG_DIR_IN_CONTAINER}
-      PI_THINKING: ${thinking}
+      PI_THINKING: ${thinking}${hostsBlock}
 `;
 }
 

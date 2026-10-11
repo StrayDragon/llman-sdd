@@ -209,3 +209,13 @@ test('proxy bypass verdicts for endpoint classes', () => {
   expect(shouldBypassProxy('http://localhost:11434/v1')).toBe(false);
   expect(shouldBypassProxy('not a url')).toBe(false);
 });
+
+test('pi compose overlay injects hosts entries and keeps sidecar gateway', () => {
+  const yamlText = renderPiComposeOverlay('max', ['open.bigmodel.cn:47.94.131.76']);
+  expect(yamlText).toContain('open.bigmodel.cn:47.94.131.76');
+  expect(yamlText).toContain('host.docker.internal:host-gateway');
+  expect(yamlText).toContain('PI_THINKING: max');
+  const bare = renderPiComposeOverlay('low');
+  expect(bare).not.toContain('open.bigmodel.cn');
+  expect(bare).toContain('PI_THINKING: low');
+});

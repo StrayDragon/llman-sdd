@@ -315,6 +315,21 @@ function writePiRuntime(
   const piConfigDir = join(runDir, 'pi-config');
   mkdirSync(piConfigDir, { recursive: true });
   const pi = resolvePiConfig(doc);
+  // Egress sidecar rejects non-TCP (DNS/UDP) and bigmodel 421s on raw-IP Host;
+  // pre-pin the endpoint IP into /etc/hosts so the container never needs DNS.
+  const hostEntries: string[] = [];
+  try {
+    const parsed = new URL(url);
+    if (
+      parsed.hostname !== PI_HOST_GATEWAY &&
+      !/^(?:\d{1,3}\.){3}\d{1,3}$/u.test(parsed.hostname)
+    ) {
+      const ip = ipv4ForHostname(parsed.hostname);
+      if (ip !== undefined && ip !== parsed.hostname) hostEntries.push(`${parsed.hostname}:${ip}`);
+    }
+  } catch {
+    /* url already validated above */
+  }
   const jsonDoc = {
     ...doc,
     openai_base_url:
@@ -328,7 +343,7 @@ function writePiRuntime(
   const auth = copyAuthIfExists(piConfigDir);
   console.error(auth.message);
   const composeFile = join(runDir, 'docker-compose.pi.yaml');
-  writeFileSync(composeFile, renderPiComposeOverlay(pi.thinking));
+  writeFileSync(composeFile, renderPiComposeOverlay(pi.thinking, hostEntries));
   return { piConfigDir, composeFile };
 }
 
