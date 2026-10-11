@@ -267,11 +267,11 @@ export function renderPiComposeOverlay(
   return `services:
   harbor-docker-egress-control-sidecar:
     extra_hosts:
-      - "${PI_HOST_GATEWAY}:host-gateway"
+      - "${PI_HOST_GATEWAY}:host-gateway"${hostsBlock}
   main:
     environment:
       PI_CODING_AGENT_DIR: ${PI_CONFIG_DIR_IN_CONTAINER}
-      PI_THINKING: ${thinking}${hostsBlock}
+      PI_THINKING: ${thinking}
 `;
 }
 
