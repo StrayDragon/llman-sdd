@@ -15,7 +15,7 @@
 
 llman-sdd 是一套 spec 驱动开发（SDD）工作流：**先写规格，再写代码**，规格与实现由门禁对齐。规格就是 Gherkin `.feature` 文件——`规则:` 块写需求，块内嵌套的 `场景:` 直接接测试跑起来，人和 agent 读的是同一份可执行规格。
 
-本仓库用 llman-sdd 开发 llman-sdd，[llmanspec/](llmanspec/) 就是它自身的行为合约（狗粮现场）。
+本仓库自举（dogfooding：用 llman-sdd 开发 llman-sdd 自身），[llmanspec/](llmanspec/) 就是它自身的行为合约——工具的可信度由它自己证明。
 
 ## 快速上手
 
@@ -162,7 +162,7 @@ just link-check  # 对账 repo 版本 vs PATH 生效版本（detect 漂移；dev
 
 ## 文档
 
-- [llmanspec/specs/](llmanspec/specs/) —— 本仓自身的行为合约（狗粮现场）
+- [llmanspec/specs/](llmanspec/specs/) —— 本仓自身的行为合约（自举现场）
 - [.agents/skills/](.agents/skills/) —— 上述技能的渲染产物；模板在 [packages/core/templates](packages/core/templates)
 - [llmanspec/AGENTS.md](llmanspec/AGENTS.md) —— 项目规则与技术选型定案
 - [CHANGELOG.md](CHANGELOG.md) —— 版本历史与迁移指引

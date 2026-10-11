@@ -79,7 +79,7 @@ Verifier 默认与 agent **同容器**（看得见工作树）；可 `environmen
 - 场景 = 目录；加场景不改 Python。
 - `test.sh` 可直接调 `llman-sdd validate --strict`、`git log`、`test -d`——断言优先无需 LLM judge。
 - `reward.json` 可带多指标（墙钟、分项），人读摘要可后处理。
-- 已有 `cursor-cli`，狗粮路径短。
+- 已有 `cursor-cli`，自举路径短。
 - Oracle + `solve.sh` = 校准轮（证明 test.sh 能分辨好坏），不必另造 mock 产品面。
 - 云厂商（Daytona/Modal）以后要并行再开，本地 Docker 已够。
 
@@ -352,13 +352,13 @@ Harbor 在 `install()` 末尾：
 mkdir -p ~/.cursor/skills && cp -r $skills_dir/* ~/.cursor/skills/
 ```
 
-这是 **用户级** `~/.cursor/skills/`，不是本仓狗粮读的 **项目级** `.agents/skills/<stem>/SKILL.md`。
+这是 **用户级** `~/.cursor/skills/`，不是本仓自举 agent 读的 **项目级** `.agents/skills/<stem>/SKILL.md`。
 
 llman-sdd `init --update` 的产物面是 `.agents/skills/`（init-generators r19）。IDE/Agent 在本仓就是读这条路径。
 
 因此 v1 应 **双写**：
 
-1. 任务 workdir 里放完整 `.agents/skills/`（被测物 SSOT，与狗粮一致）。
+1. 任务 workdir 里放完整 `.agents/skills/`（被测物 SSOT，与自举现场一致）。
 2. 仍把同一套目录交给 Harbor `--skill`/`skills_dir`，让适配器拷到 `~/.cursor/skills`（Cursor CLI 若只扫用户目录也不漏）。
 
 不要把 `packages/core/templates` 源文件直接当 skills_dir——必须先按 locale 渲染。
@@ -480,7 +480,7 @@ network_mode = "no-network"   # baseline：构建后默认无网
 
 ## 12. 修订：默认无头 agent 用 Pi，不必 Cursor CLI
 
-先前把 `cursor-cli` 当默认，只因为本对话跑在 Cursor IDE、本仓狗粮读 `.agents/skills`。那不是 eval 的硬需求。
+先前把 `cursor-cli` 当默认，只因为本对话跑在 Cursor IDE、本仓自举 agent 读 `.agents/skills`。那不是 eval 的硬需求。
 
 **被评对象是 skill 文案 + CLI 门禁，不是 Cursor 产品。** 无头 agent 只要：读 `SKILL.md`、改 git、跑 `llman-sdd`。Pi 更简单。
 
@@ -784,7 +784,7 @@ promptfoo（B）内置 ≠ 要再 npm 一个 D 包：
 
 命令：空 git 仓 + `bun apps/cli/src/main.ts init`（无 `--locale`）+ 用户式首提 `chore: llman-sdd init`。树落在 `.local/eval-init-snapshot.txt`。
 
-| | `makeTempRepo`（BDD） | 真 `init`（缺省） | 本仓狗粮 |
+| | `makeTempRepo`（BDD） | 真 `init`（缺省） | 本仓自举 |
 |---|---|---|---|
 | `.agents/skills` | 无 | **10 个**（含 apply-cycle） | 有，locale=zh-Hans |
 | 根 / `llmanspec/AGENTS.md` 托管块 | 无 | 有（**英文** stub） | 有（中文项目速览在托管块外） |
@@ -818,7 +818,7 @@ promptfoo（B）内置 ≠ 要再 npm 一个 D 包：
 3. 墙钟、`usage` token、`turn_end` 次数
 4. 对照：同一 prompt、同一仓，**去掉 `.agents/skills` 再跑一次**（这是 L2 挂点的最小真实验，不是产品分层）
 
-**禁止当「效果证据」的东西**：脚本化 mock agent、Harbor `nop` 当主结果、在本仓工作树上直接开 Pi（污染狗粮 git）。
+**禁止当「效果证据」的东西**：脚本化 mock agent、Harbor `nop` 当主结果、在本仓工作树上直接开 Pi（污染自举 git）。
 
 ### 16.4 和 explore 边界
 

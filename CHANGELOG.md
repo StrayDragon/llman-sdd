@@ -4,7 +4,7 @@
 
 ## 0.7.4 (2026-10-11)
 
-本批次包含两项功能，均先用本工具自身的 SDD 流程完成开发再做发布（工具开发自身吃自己的狗粮，流程经过实测）：模板中文文风治理、eval 容器凭据注入；另含 eval runner 对公网端点与非 TCP egress 的适配。无 breaking、无 schema 变更。
+本批次包含两项功能，均先用本工具自身的 SDD 流程完成开发再做发布（自举 dogfooding：先在本仓自身走完整流程实测，再对外发布）：模板中文文风治理、eval 容器凭据注入；另含 eval runner 对公网端点与非 TCP egress 的适配。无 breaking、无 schema 变更。
 
 ### 模板中文文风治理（check-stc 门，init-generators r97）
 

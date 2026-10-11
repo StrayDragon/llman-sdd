@@ -11,7 +11,7 @@
 ## 项目定位
 
 llman-sdd:spec 驱动开发(SDD)工作流(TypeScript + Bun),完全接替 Rust llman 中的 sdd 子系统。
-本仓库以 llman-sdd 自托管 SDD 流水线(狗粮模式)。
+本仓库以 llman-sdd 自托管 SDD 流水线，并自举（dogfooding：用本工具开发本工具自身）——本仓库的行为合约由本工具自身管理。
 
 - 前代契约参考(只读):`../llman.old-rs-impl-sdd/crates/llman-sdd`
 - 本工具行为契约:`llmanspec/specs/*.feature`(随各 change 在特性分支上落地)
@@ -102,7 +102,7 @@ llman-sdd:spec 驱动开发(SDD)工作流(TypeScript + Bun),完全接替 Rust ll
 - 前后对比类验收(如 STALE 计数)的基线必须在 change 分支上相对 merge-base 测量;
   在默认分支上测得的 0 恒真,不构成证据
 - 改动 `packages/core/templates/**` 或 CLI 命令/旗标面的 change,须在绑定分支运行
-  `init --update` 并提交刷新后的 `.agents/skills`——本仓库狗粮 agent 直接读取它们,
+  `init --update` 并提交刷新后的 `.agents/skills`——本仓库自举 agent 直接读取它们,
   过期 skill 会教授已删除的表面
 - agent 执行纪律:编辑与验证不得放在同一批并行工具调用中(验证可能读到旧文件,产生
   假失败/假通过);验证须在编辑落盘后串行执行
