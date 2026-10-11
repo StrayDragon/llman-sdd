@@ -263,11 +263,14 @@ export function renderPiComposeOverlay(
   hostEntries: readonly string[] = [],
 ): string {
   const hostLines = hostEntries.map((entry) => `      - "${entry}"`).join('\n');
-  const hostsBlock = hostLines === '' ? '' : `\n    extra_hosts:\n${hostLines}`;
+  const hostsLines =
+    hostLines === ''
+      ? '      - "${PI_HOST_GATEWAY}:host-gateway"'
+      : `      - "${PI_HOST_GATEWAY}:host-gateway"\n${hostLines}`;
   return `services:
   harbor-docker-egress-control-sidecar:
     extra_hosts:
-      - "${PI_HOST_GATEWAY}:host-gateway"${hostsBlock}
+${hostsLines}
   main:
     environment:
       PI_CODING_AGENT_DIR: ${PI_CONFIG_DIR_IN_CONTAINER}
