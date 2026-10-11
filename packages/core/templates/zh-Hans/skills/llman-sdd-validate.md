@@ -11,7 +11,7 @@ metadata:
 
 ## 步骤
 1. 单个：`llman-sdd validate <id>`；批量：`llman-sdd validate --all`（或 `--changes` / `--specs`）；CI/自动化用 `--strict`。
-2. 校验失败时汇总错误，给出最小可执行的修复建议。
+2. 校验失败时汇总错误，给出最小可执行修复法。
 {% if specs_enabled %}
 3. **Spec 校验**：
    - 在**绑定分支**上验证 `.feature` Gherkin 与 `@req` / 双写门禁；`.feature` 是 harness 权威——可执行 GWT 只在其中维护。

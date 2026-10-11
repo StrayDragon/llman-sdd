@@ -27,7 +27,13 @@ for (const line of justLines.slice(qaStart + 1)) {
   else break;
 }
 const qaBodyText = qaBody.join('\n');
-for (const gate of ['test', 'check-skills-template-render', 'pending-gate', 'check:schema']) {
+for (const gate of [
+  'test',
+  'check:stc',
+  'check-skills-template-render',
+  'pending-gate',
+  'check:schema',
+]) {
   if (!qaBodyText.includes(gate)) fail(`justfile qa 门缺 ${gate}`);
 }
 
@@ -40,11 +46,14 @@ if (scripts['format:check'] !== 'oxfmt --check') {
   fail(`format:check script 漂移: ${String(scripts['format:check'])}`);
 }
 const QA_SCRIPT =
-  'bun run check && bun run test && bun run check:skills-template-render && bun run pending-gate && bun run check:schema';
+  'bun run check && bun run test && bun run check:stc && bun run check:skills-template-render && bun run pending-gate && bun run check:schema';
 if (scripts['qa'] !== QA_SCRIPT) {
   fail(
-    `qa script 未聚合 check + test + check:skills-template-render + pending-gate + check:schema: ${String(scripts['qa'])}`,
+    `qa script 未聚合 check + test + check:stc + check:skills-template-render + pending-gate + check:schema: ${String(scripts['qa'])}`,
   );
+}
+if (scripts['check:stc'] !== 'bun scripts/check-stc.ts') {
+  fail(`check:stc script 漂移: ${String(scripts['check:stc'])}`);
 }
 if (scripts['pending-gate'] !== 'bun scripts/pending-gate.ts') {
   fail(`pending-gate script 漂移: ${String(scripts['pending-gate'])}`);
@@ -60,6 +69,7 @@ for (const step of [
   'bun run lint',
   'bun run format:check',
   'bun test tests/',
+  'bun run check:stc',
   'bun run check:skills-template-render',
   'bun run pending-gate',
   'bun run check:schema',

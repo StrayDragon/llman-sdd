@@ -1,6 +1,6 @@
 ## Git 分支生命周期（权威全图）
 
-两层别混：**分支生命周期**（绑定分支 → 落地 specs → `readyToImplement`）与 **skill 导航**（explore→propose→apply→verify→archive）。落地 specs **不是**独立 skill。
+两层别混：**分支生命周期**（绑定分支 → 提交 specs → `readyToImplement`）与 **skill 导航**（explore→propose→apply→verify→archive）。提交 specs **不是**独立 skill。
 
 ```mermaid
 flowchart TB
@@ -18,7 +18,7 @@ flowchart TB
 
   subgraph specs_only["仅在本 change 分支"]
     F["编辑 llmanspec/specs/**（.feature）"]
-    G["commit → 落地 specs<br/>现算 merge-base...HEAD 含 specs 路径"]
+    G["commit → 提交 specs<br/>现算 merge-base...HEAD 含 specs 路径"]
   end
 
   subgraph implement["实施与收口"]
@@ -34,10 +34,10 @@ flowchart TB
 ```
 
 硬规则：
-1. **先** `change start` / `attach` 绑定分支（进入 full）；**再**在绑定的非默认分支编辑 `llmanspec/specs/**` 并 commit（落地 specs）。
+1. **先** `change start` / `attach` 绑定分支（进入 full）；**再**在绑定的非默认分支编辑 `llmanspec/specs/**` 并 commit（提交 specs）。
 2. 无合约编辑的 change 设 frontmatter `needs_specs_change: false`。`stage=full` 且 specs-landed 门通过（specsLanded ∨ needs_specs_change=false）即可进 apply；`readyToImplement=true`（gateChecks 全过，含 tasks-done）是 verify/finalize 前的完成信号。diff 范围一律现算 merge-base；存储的 `base_sha` 仅审计。
 3. 收口一律 `llman-sdd change finalize <id>`：自动提交 `archive(sdd): <id>`（实现 diff + 改名一笔）；`--no-commit` 跳过自动提交。change 分支上提交自由（分段或 finalize 一次收尾均可）。
-4. **禁止**为过干净树门禁把 specs commit 到默认分支；已 attach 勿重复 `start`。
+4. **不得**为过干净树门禁把 specs commit 到默认分支；已 attach 不得重复 `start`。
 
 Worktree 决策表：
 

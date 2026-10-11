@@ -34,6 +34,8 @@ jobs:
           bun-version-file: .bun-version
       - run: bun install --frozen-lockfile
       - run: bun test tests/
+      # 模板中文文风门(STC errors 对照基线,合约 init-generators r97)
+      - run: bun run check:stc
       # skills 模板渲染门(runInit vs 快照基线 + .agents/skills 新鲜度,版本号归一化)
       - run: bun run check:skills-template-render
       # pending 计量门 + config schema 产物漂移门(与 just qa 同集合)

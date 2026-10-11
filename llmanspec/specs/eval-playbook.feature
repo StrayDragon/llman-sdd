@@ -63,3 +63,12 @@
       假如 工作目录是仓库根
       当 执行命令 "bun test tests/unit/eval-groups-schema.test.ts"
       那么 退出码为 0
+
+  @req:r98
+  规则: skill 文风观测断言与 A/B 文风对照
+    eval 套件 MUST 含 skill 文风观测断言(如 tests/skill_style):读取容器内 /app/.agents/skills 的 SKILL.md,统计强度词表外词与直角引号计数并写入 /logs/verifier/,该断言 MUST 为观测维度恒真,MUST NOT 作为通过门槛,MUST NOT 改变 reward 聚合语义;文风对照经 groups 双 group(stable 为基线模板 worktree,对照组为修订模板 worktree)与既有 n_attempts 语义完成,rollup 记录 exitByGroup 供趋势比较;runner 侧模型 API 配置变更不在文风对照范围。
+
+    场景: eval 文风断言随套件被发现
+      假如 工作目录是仓库根
+      当 执行命令 "ls eval/tasks/playbook/tests/skill_style/check.py"
+      那么 退出码为 0

@@ -144,3 +144,13 @@
       假如 一个 git 仓库的临时目录
       当 运行 init packages/tui 与 init packages/tui --skills
       那么 子根双托管块写入且缺省无 .agents/skills 且 --skills 后注入
+
+  @req:r97
+  规则: 模板强度词汇表唯一与 check-stc 文风门
+    模板 skills 与 units 的指令强度词汇在同一语言内 MUST 唯一:zh-Hans 模板正文要求级只用 必须/不得、推荐级只用 宜/不宜、允许级只用 可/不必、能力级只用 能/不能,禁止以 MUST、SHALL、不要、禁止、勿、务必、应、建议 表达强度;en 模板正文只用 MUST、MUST NOT、SHOULD、SHOULD NOT、MAY、CAN,禁止以中文四级词表达强度;引用 spec 合约原文的语句(如 specs 的 MUST/SHALL 逐条落实)保留被引对象词汇,豁免段以白名单正则维护于 template-guidance-parity 断言。zh-Hans 模板文风 MUST 经 check:stc 门禁守护:scripts/check-stc.ts 对 packages/core/templates/zh-Hans 逐文件执行 stc check --profile for-instruction-writing --json,errors 计数 MUST 不高于 scripts/stc-baseline.json 的 per-file 上限,基线只许随 change 下调;该门 MUST 随 qa 运行。语义正确性仍由 template-guidance-parity 与 golden 渲染门独立守护,check:stc 不得替代二者;误报经 stc-disable-next-line 行注释豁免并附理由。
+
+    场景: check-stc 门禁与 MUST 边界断言通过
+      假如 工作目录是仓库根
+      当 执行命令 "bun run check:stc"
+      那么 退出码为 0
+      而且 模板文风门随 qa 聚合运行

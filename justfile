@@ -44,6 +44,7 @@ check:
 # 主门禁:check + test + skills 模板渲染门 + pending + schema(等价 CI)
 qa: check
     @{{BUN_RUN}} test {{BUN_TEST_FLAGS}} && echo "[pass] test"
+    @{{BUN_RUN}} check:stc && echo "[pass] check:stc"
     @just check-skills-template-render && echo "[pass] check-skills-template-render"
     @{{BUN_RUN}} pending-gate && echo "[pass] pending-gate"
     @{{BUN_RUN}} check:schema && echo "[pass] check:schema"
@@ -71,6 +72,10 @@ build:
 # skills 模板渲染门:runInit 产物 vs tests/golden/baseline(版本号归一化)+ 本仓 .agents/skills 新鲜度
 generate-skills-template-baseline:
     bun run generate:skills-template-baseline
+
+# 模板中文文风门:STC 检查器 errors 计数对照基线(只许下调),合约 init-generators r97
+check-stc:
+    bun run check:stc
 
 check-skills-template-render:
     bun run check:skills-template-render

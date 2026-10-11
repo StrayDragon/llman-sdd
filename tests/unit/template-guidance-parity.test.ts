@@ -168,6 +168,74 @@ function templatePath(locale: Locale, rel: string): string {
   return join(TEMPLATES_DIR, locale, rel);
 }
 
+// 模板强度词边界(init-generators r97):同一语言内强度词汇表唯一,跨语言不互译。
+// zh-Hans 正文只用 必须/不得/宜/不宜/可/不必/能/不能;en 正文用 RFC 2119 五级(STRENGTH_WORDS_EN)。
+// 例外:引用 spec 合约原文的语句(被引对象词汇)——白名单按行匹配,须含 MUST/SHALL 且为引用语境。
+/** en 正文合法强度词(RFC 2119);zh 四级表内词形由 ZH_STRENGTH_VERBS 反查表外词,常量作文档锚。 */
+const STRENGTH_WORDS_ZH = /必须|不得|不宜|不必/u;
+const STRENGTH_WORDS_EN = /\bMUST(?:\s+NOT)?\b|\bSHALL\b|\bSHOULD(?:\s+NOT)?\b|\bMAY\b/u;
+void STRENGTH_WORDS_ZH;
+void STRENGTH_WORDS_EN;
+/** zh 模板允许出现 MUST/SHALL 的引用语境(行级白名单,新例外随 change 登记并附理由)。 */
+const ZH_MUST_QUOTE_ALLOWLIST: readonly RegExp[] = [
+  /specs 的 MUST\/SHALL/, // 引用 spec 合约词汇面本身(r70 原句)
+  /不强制 MUST\/SHALL/, // feature-contract:描述 spec 自由文本约定
+  /涉及 MUST\/SHALL 合约变更/, // draft:指认合约变更判据
+  /MUST\/SHALL 逐条/, // apply:落实 specs 合约
+];
+// 「应用/对应/响应」等复合词中的单字应不算强度词:排除前字 用/对/响/反 与后接的常用复合
+const ZH_STRENGTH_VERBS =
+  /(?<![A-Za-z用对响反])应(?!用|答|急)|应当|应该|务必|一定要|不应|不要|禁止|严禁|切勿|尽量|最好/u;
+const EN_ZH_LEAK = /必须|不得|不宜|不必/u;
+
+test('template strength-word vocabulary is per-locale and single-table (r97)', () => {
+  const violations: string[] = [];
+  for (const locale of LOCALES) {
+    for (const rel of collectAllTemplateRels()) {
+      const text = readFileSync(templatePath(locale, rel), 'utf8');
+      for (const rawLine of text.split('\n')) {
+        const line = rawLine.replace(/`[^`]*`/gu, ''); // strip inline code: spec quotes live there
+        if (locale === 'zh-Hans') {
+          if (/MUST|SHALL/u.test(line)) {
+            const allowed = ZH_MUST_QUOTE_ALLOWLIST.some((re) => re.test(line));
+            if (!allowed)
+              violations.push(
+                `[zh-Hans/${rel}] 裸 MUST/SHALL(改 必须/不得,或入引用白名单): ${line.trim().slice(0, 60)}`,
+              );
+          }
+          const m = line.match(ZH_STRENGTH_VERBS);
+          if (m)
+            violations.push(
+              `[zh-Hans/${rel}] 四级表外强度词「${m[0]}」: ${line.trim().slice(0, 60)}`,
+            );
+        } else {
+          if (EN_ZH_LEAK.test(line))
+            violations.push(
+              `[en/${rel}] 中文强度词泄漏(改 MUST/MUST NOT): ${line.trim().slice(0, 60)}`,
+            );
+        }
+      }
+    }
+  }
+  expect(violations).toEqual([]);
+});
+
+/** All template md relpaths across locales (shared with the everyFile walk). */
+function collectAllTemplateRels(): string[] {
+  const walk = (dir: string): string[] => {
+    const out: string[] = [];
+    for (const entry of readdirSync(dir)) {
+      const full = join(dir, entry);
+      if (statSync(full).isDirectory()) out.push(...walk(full));
+      else if (entry.endsWith('.md')) out.push(full);
+    }
+    return out;
+  };
+  return walk(join(TEMPLATES_DIR, 'zh-Hans')).map((p) =>
+    p.slice(join(TEMPLATES_DIR, 'zh-Hans').length + 1),
+  );
+}
+
 test('template guidance semantics match CLI value domains and behavior (r70)', () => {
   const violations: string[] = [];
   const checked = new Set<string>();

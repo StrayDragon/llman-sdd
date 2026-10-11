@@ -304,5 +304,15 @@ groups:
     worktree:    # empty = current repo
   # experiment:  # optional; uncomment to compare against baseline
   #   worktree: ${FILL_WORKTREE_B}
+  # A/B style contrast (eval-playbook r98): stable = baseline-template checkout,
+  # the other group = style-revised branch checkout; n_attempts >= 3 each,
+  # compare rollup.exitByGroup; skill_style criterion is observe-only
+  # (/logs/verifier/skill-style.txt).
+  # Secrets never committed: export ZAI_CODING_CN_API_KEY (or OPENAI_API_KEY) in
+  # the host env and pass via harbor --env-file; write "apiKey": "$VAR" references
+  # in models.json (Pi native interpolation); literals only in gitignored
+  # groups.yaml / env. See eval-groups-schema PI_* constants.
+  # stc-style:
+  #   worktree: ${FILL_WORKTREE_B}
 `;
 }

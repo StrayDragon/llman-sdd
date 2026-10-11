@@ -7,7 +7,7 @@ metadata:
 
 # LLMAN SDD 归档
 
-归档已完成的变更。前置：verify 全绿，且 change 已绑定分支、specs 已落地（或 `needs_specs_change: false`）。`change finalize` **自动合并**到基准分支（目标：`--into` > 绑定 `base_branch` > 默认分支；目标即绑定分支时跳过合并就地收口，输出含 in-place close-out 提示；方式：`--method` > 配置 `sdd.merge_method`，默认 squash——feature diff + 改名收敛为目标分支单个 commit）、**改名** change 文档到 `changes/archive/`、**自动提交** `archive(sdd): <change-id>`（`--no-commit` 跳过）。`git push` / PR 仅可选。
+归档已完成的变更。前置：verify 全绿，且 change 已绑定分支、specs 已提交（或 `needs_specs_change: false`）。`change finalize` **自动合并**到基准分支（目标：`--into` > 绑定 `base_branch` > 默认分支；目标即绑定分支时跳过合并就地收口，输出含 in-place close-out 提示；方式：`--method` > 配置 `sdd.merge_method`，默认 squash——feature diff + 改名收敛为目标分支单个 commit）、**改名** change 文档到 `changes/archive/`、**自动提交** `archive(sdd): <change-id>`（`--no-commit` 跳过）。`git push` / PR 仅可选。
 
 ## Pipeline 位置
 
@@ -24,8 +24,8 @@ flowchart LR
 
 - **必须先 verify 全绿**；**须已绑定分支**（`change start` / `attach`），无绑定 STOP。
 - 每个 change 归档前必须通过 `llman-sdd validate <id> --strict`。
-- **不要问「要不要继续」**：批量归档一路执行到底，除非遇到无法自动解决的错误。
-- **收尾不默认导向 PR/push**：CLI 本地合并（默认 squash）+ 一次性收口提交。push / PR 仅在用户或项目明确要求远程审查时做——**Agent MUST NOT** 默认 push 或建 PR。
+- 不得问“要不得继续”**：批量归档一路执行到底，除非遇到无法自动解决的错误。
+- **收尾不默认导向 PR/push**：CLI 本地合并（默认 squash）+ 一次性收口提交。push / PR 仅在用户或项目明确要求远程审查时做——**Agent 不得** 默认 push 或建 PR。
 
 ## 步骤
 
@@ -33,11 +33,11 @@ flowchart LR
 - `git status --porcelain`：确认工作区改动属于已完成的 change；有未预期改动先处理（stash 或报告）。
 
 ### 1) 确认目标
-- 确定 ID（单个或批量，来自用户输入或 `llman-sdd list --json`），始终说明「归档 IDs：<id1>, <id2>, ...」，并确认每个 change 都已 verify 全绿。
+- 确定 ID（单个或批量，来自用户输入或 `llman-sdd list --json`），始终说明“归档 IDs：<id1>, <id2>, ...”，并确认每个 change 都已 verify 全绿。
 
 ### 2) 逐个归档
-- **人审关卡（每个 id 归档前，含批量）**：跑 `llman-sdd review`（无旗标；`--capability` 只接受 spec id）。退出码零 → 继续；非零 = CRITICAL → STOP 修复后重跑；MUST NOT 带 CRITICAL 归档。
-- 先校验：`llman-sdd validate <id> --strict`；失败 → STOP 报告，禁止跳过强行归档。
+- **人审关卡（每个 id 归档前，含批量）**：跑 `llman-sdd review`（无旗标；`--capability` 只接受 spec id）。退出码零 → 继续；非零 = CRITICAL → STOP 修复后重跑；不得 带 CRITICAL 归档。
+- 先校验：`llman-sdd validate <id> --strict`；失败 → STOP 报告，不得跳过强行归档。
 - 可选预览：`llman-sdd change archive <id> --dry-run`。
 - 执行：`llman-sdd change archive <id>`；**任一失败立即停止**，报告剩余 ID。
 - **分支收尾**：
@@ -58,7 +58,7 @@ flowchart LR
 ### 4) Commit 引导
 - finalize 已自动提交；`--no-commit` 时手动：`git add -A && git commit -m "archive(sdd): <id1>, <id2>"`。
 - 可选：合并后 `git branch -D <feature>`。push / PR 仅在明确要求时做。
-- **破坏性合约变更**（移除/重命名 frontmatter 字段、命令、tag 或 stage 值域）MUST 提供 `migrations/v<from>-v<to>/` 升级路径（README + 一次性脚本随仓库发布）——收口前确认存在。
+- **破坏性合约变更**（移除/重命名 frontmatter 字段、命令、tag 或 stage 值域）必须 提供 `migrations/v<from>-v<to>/` 升级路径（README + 一次性脚本随仓库发布）——收口前确认存在。
 - **archived `depends_on`**：archive 把 change 目录改名为 `archive/YYYY-MM-DD-<id>`；validate 把指向 archived/frozen id 的 `depends_on` 识别为 INFO（非 ERROR），**无需**手动更新其它 change 的 frontmatter。
 
 {{ unit("workflow/archive-freeze-guidance") }}

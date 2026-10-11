@@ -158,7 +158,7 @@ just link-check  # 对账 repo 版本 vs PATH 生效版本（detect 漂移；dev
 
 - **capture 契约**：结果走 stdout，进度走 stderr。脚本、CI、agent 捕获 stdout 拿到的永远是干净结果；人读形态走 `--output human`。
 - **输出格式**：报告型命令缺省 TOON（对机器与 LLM 都友好的紧凑编码），`--output` 可切 `toon`、`json`、`compact-json`、`human`。
-- **门禁**：`just qa` 与 CI 等价——静态检查、全部测试、skills 渲染门、pending 计量门、schema 漂移门；默认静默，排障 `just QA_VERBOSE=2 qa`。全部任务以 justfile 注释为唯一权威。
+- **门禁**：`just qa` 与 CI 等价——静态检查、全部测试、模板中文文风门（`check:stc`，STC 检查器对照基线）、skills 渲染门、pending 计量门、schema 漂移门；默认静默，排障 `just QA_VERBOSE=2 qa`。全部任务以 justfile 注释为唯一权威。
 
 ## 文档
 

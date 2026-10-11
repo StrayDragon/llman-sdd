@@ -17,8 +17,8 @@ metadata:
 - 合并冗余 requirement/scenario，形成更紧凑可维护的规范结构。
 
 ## Constraints
-- 未经明确替代不得删除规范性行为；尽量保持 requirement 标题稳定；每个保留 requirement 至少一个有效 scenario。
-- **改 `llmanspec/specs/**` 须走 change**：先绑定分支（`change start` / `attach`），在绑定分支上编辑提交；**禁止**在默认分支直接压缩改写。
+- 未经明确替代不得删除规范性行为；宜保持 requirement 标题稳定；每个保留 requirement 至少一个有效 scenario。
+- **改 `llmanspec/specs/**` 须走 change**：先绑定分支（`change start` / `attach`），在绑定分支上编辑提交；**不得**在默认分支直接压缩改写。
 
 ## Workflow
 1. 盘点 specs（`llman-sdd list --specs`）。

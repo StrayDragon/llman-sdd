@@ -85,7 +85,7 @@ bdd.thenStep('产物含「可执行场景优先」判据小节标识与使用示
 
 bdd.thenStep('zh-Hans 与 en 产物均含该判据', (ctx) => {
   const r = ctx.fixtures['配对判据产物'] as { zh: string; en: string };
-  if (!r.zh.includes('MUST 落成嵌套 `场景:`')) {
+  if (!r.zh.includes('必须 落成嵌套 `场景:`')) {
     throw new Error('zh-Hans render lacks the triage rule body');
   }
   if (!r.en.includes('Executable-scenario-first triage')) {
@@ -239,4 +239,22 @@ bdd.thenStep('config locale 为 zh-Hans 且同给两个别名报错', (ctx) => {
   if (bothCode === 0) throw new Error('giving both aliases should fail');
   const config = readFileSync(join(root, 'llmanspec', 'config.yaml'), 'utf8');
   if (!config.includes('zh-Hans')) throw new Error(`locale not zh-Hans:\n${config}`);
+});
+
+// ---------------------------------------------------------------------------
+// r97 — 模板文风门随 qa 聚合(check:stc 接线三处一致性,quality-gates 断言复核)
+// ---------------------------------------------------------------------------
+
+bdd.thenStep('模板文风门随 qa 聚合运行', (ctx) => {
+  const just = readFileSync(join(REPO_ROOT, 'justfile'), 'utf8');
+  const pkg = JSON.parse(readFileSync(join(REPO_ROOT, 'package.json'), 'utf8')) as {
+    scripts?: Record<string, string>;
+  };
+  const problems: string[] = [];
+  if (!/check:stc/u.test(just)) problems.push('justfile qa 缺 check:stc');
+  if (pkg.scripts?.['qa'] && !pkg.scripts['qa'].includes('check:stc'))
+    problems.push('package.json qa 缺 check:stc');
+  const ci = readFileSync(join(REPO_ROOT, '.github', 'workflows', 'ci.yml'), 'utf8');
+  if (!ci.includes('bun run check:stc')) problems.push('ci.yml 缺 check:stc run 步');
+  if (problems.length > 0) throw new Error(problems.join('; '));
 });
