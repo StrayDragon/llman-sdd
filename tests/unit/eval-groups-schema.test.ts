@@ -202,7 +202,7 @@ import { shouldBypassProxy } from '../../eval/groups-schema.ts';
 
 test('proxy bypass verdicts for endpoint classes', () => {
   expect(shouldBypassProxy('https://open.bigmodel.cn/api/coding/paas/v4')).toBe(true);
-  expect(shouldBypassProxy('http://fusionxhost:8888/v1')).toBe(false);
+  expect(shouldBypassProxy('http://internal-vllm-host:8888/v1')).toBe(false);
   expect(shouldBypassProxy('https://192.168.1.5:8000/v1')).toBe(false);
   expect(shouldBypassProxy('https://host.docker.internal:9000/v1')).toBe(false);
   expect(shouldBypassProxy('https://srv.local/v1')).toBe(false);
