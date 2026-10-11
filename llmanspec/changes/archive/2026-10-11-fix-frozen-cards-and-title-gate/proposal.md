@@ -1,5 +1,9 @@
 ---
 depends_on: []
+title: 冻结卡纯 YAML 化与 proposal title 必填门
+branch: sdd/fix-frozen-cards-and-title-gate
+base_branch: main
+base_sha: e9857e04fd81fd427582cc67f764b3ec5532534b
 ---
 
 # 冻结卡纯 YAML 化与 proposal title 必填门

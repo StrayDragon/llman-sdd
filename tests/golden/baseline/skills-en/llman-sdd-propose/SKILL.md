@@ -91,7 +91,7 @@ flowchart LR
 
 - **If the change already exists**: STOP. If the specs-landed gate is green, suggest `llman-sdd-apply`; otherwise finish the planning docs / binding / landing specs (edit `llmanspec/changes/<id>/`, or enable `extra_skills: [llman-sdd-continue]`).
 
-- **Frontmatter has a fixed schema**: `proposal.md` accepts only the allowed fields in `llmanspec/AGENTS.md` "Change Proposal Frontmatter SSOT" (`depends_on`, `blocks`, `branch`, `base_sha`, `needs_specs_change`, etc.); `status`/`title`/`priority`/`author` are rejected by `llman-sdd validate` as ERROR. Lifecycle stage is inferred (query via `llman-sdd show`/`list`), never stored in frontmatter. Do not re-declare frontmatter fields in the prose body; the H1 is a human-readable title, not a repeat of the change id.
+- **Frontmatter has a fixed schema**: `proposal.md` accepts only the allowed fields in `llmanspec/AGENTS.md` "Change Proposal Frontmatter SSOT" (`depends_on`, `title`, `blocks`, `branch`, `base_sha`, `needs_specs_change`, etc.); `title` MUST be a non-empty one-sentence concept title and MUST NOT repeat the change id — missing or empty values are rejected by `llman-sdd validate` as ERROR, and so are out-of-set fields like `status`/`priority`/`author`. Lifecycle stage is inferred (query via `llman-sdd show`/`list`), never stored in frontmatter. Do not re-declare frontmatter fields in the prose body; the H1 MAY keep a human-readable title (freeze prefers the frontmatter `title`, falling back to the H1), not a repeat of the change id.
 
 ## Quick-capture routing
 

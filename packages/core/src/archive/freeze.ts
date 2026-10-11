@@ -9,7 +9,7 @@
 import { join } from 'node:path';
 
 import { firstH1 } from '../change/collect.ts';
-import { extractFrontmatter } from '../change/frontmatter.ts';
+import { extractFrontmatter, readFrontmatterTitle } from '../change/frontmatter.ts';
 import {
   FROZEN_CARD_EXT,
   composeFrozenCard,
@@ -102,9 +102,13 @@ export async function runFreeze(
     const proposalRel = `${ARCHIVE_DIR_REL}/${c}/proposal.md`;
     const proposal = io.exists(proposalRel) ? io.readText(proposalRel) : '';
     const frontmatter = extractFrontmatter(proposal) ?? '';
+    // r24: frontmatter `title` wins when non-empty; H1 is the legacy fallback.
     cards.push({
       datedId: c,
-      source: composeFrozenCard(firstH1(proposal), frontmatter),
+      source: composeFrozenCard(
+        readFrontmatterTitle(frontmatter) || firstH1(proposal),
+        frontmatter,
+      ),
     });
   }
 

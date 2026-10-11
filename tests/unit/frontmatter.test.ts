@@ -13,6 +13,7 @@ import {
 
 import {
   extractFrontmatter,
+  readFrontmatterTitle,
   readNeedsSpecsChange,
   specsLanded,
 } from '../../packages/core/src/change/frontmatter.ts';
@@ -88,6 +89,21 @@ describe('T1: single splitter + readNeedsSpecsChange + specsLanded (r73/D2)', ()
     expect(readNeedsSpecsChange(extractFrontmatter(proposal))).toBe(true);
   });
 
+  test('readFrontmatterTitle: value trimmed; absent/blank/non-string degrade to empty (r99/r24)', () => {
+    expect(readFrontmatterTitle('title: 一句话概念标题')).toBe('一句话概念标题');
+    expect(readFrontmatterTitle('title: "  空白两侧  "')).toBe('空白两侧');
+    expect(readFrontmatterTitle('depends_on: []')).toBe('');
+    expect(readFrontmatterTitle('title: ""')).toBe('');
+    expect(readFrontmatterTitle('title: "   "')).toBe('');
+    expect(readFrontmatterTitle('title:\n  - not a scalar')).toBe('');
+    expect(readFrontmatterTitle(null)).toBe('');
+  });
+
+  test('readFrontmatterTitle: folded multi-line scalars collapse to one line (card SUGGESTION)', () => {
+    expect(readFrontmatterTitle('title: 一句话\n  概念标题')).toBe('一句话 概念标题');
+    expect(readFrontmatterTitle('title: "a\\nb"')).toBe('a b');
+  });
+
   test('specsLanded: docs/llmanspec/specs/x without an llmanspec/specs/ line is false', () => {
     const git: GitLike = {
       run: (): string => '',
@@ -142,6 +158,19 @@ describe('B2 characterization: frontmatter extraction per consume point', () => 
 
     test('empty file: no deps', () => {
       expect(parseDeps('')).toEqual([]);
+    });
+
+    test('r54 dual-format: fence-free pure-YAML card parses like a fenced card', () => {
+      const fenced = '---\ntitle: "t"\ndepends_on: [fix-a, fix-b]\n---\n';
+      const pure = 'title: "t"\ndepends_on: [fix-a, fix-b]\n';
+      expect(parseDeps(pure)).toEqual(parseDeps(fenced));
+      expect(parseDeps(pure)).toEqual(['fix-a', 'fix-b']);
+      expect(parseDeps('depends_on: [solo]\n')).toEqual(['solo']);
+    });
+
+    test('r54 guard: markdown body opening with other keys never misfires', () => {
+      expect(parseDeps('# Title\n\ndepends_on: [ghost]\n')).toEqual([]);
+      expect(parseDeps('## Why\n\ntitle: not-frontmatter\n')).toEqual([]);
     });
   });
 

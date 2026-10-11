@@ -128,6 +128,7 @@ export {
   readBinding,
   writeBinding,
   extractFrontmatter,
+  readFrontmatterTitle,
   readNeedsSpecsChange,
 } from './change/frontmatter.ts';
 export {

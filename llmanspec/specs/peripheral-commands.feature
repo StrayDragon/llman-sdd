@@ -152,7 +152,8 @@
     target),`--depth 1`(缺省)MUST 输出 scope 内节点及其直接依赖 target,`--depth N(≥2)` MUST 沿 depends_on 递归展开 N
     层;种子模式 MUST 保持既有的依赖+反向 BFS 展开语义(缺省 1);`--depth` 不得在任一模式被静默忽略。
     冻结平铺卡 `changes/archive/<YYYY-MM-DD>-<id>.yaml` MUST 被识别为 archived 节点(与归档目录同语义,标注 done 与 archived
-    class);其 frontmatter 中 `depends_on` MUST 参与依赖边解析,使冻结 change 的依赖链在 `--scope archived` 与
+    class);卡内 `depends_on` MUST 参与依赖边解析,读取 MUST 兼容单文档纯 YAML 卡(review-freeze r24 新格式)与 `---`
+    围栏卡(存量格式,不迁移),使冻结 change 的依赖链在 `--scope archived` 与
     `--scope all` 下可展示;平铺卡 id 拆解(`<date>-<id>`、去 `.yaml` 后缀)与归档目录口径一致。
 
     场景: scope 与种子子图
@@ -162,7 +163,7 @@
 
 
     场景: 冻结平铺卡节点与依赖链
-      假如 一个含平铺冻结卡且其 frontmatter 指向另一冻结卡的临时工作区
+      假如 一个含纯 YAML 平铺冻结卡且卡内 depends_on 指向另一冻结卡的临时工作区
       当 运行 graph --scope archived
       那么 冻结卡节点被标注 done 且依赖边保留
 
@@ -181,6 +182,12 @@
       那么 两层输出节点集一致且含直接依赖 target、不含二级依赖
       当 运行 graph --depth 2
       那么 节点集含二级依赖且超出一层范围
+
+
+    场景: 存量围栏卡依赖链兼容
+      假如 一个含 --- 围栏式存量冻结卡且卡内 depends_on 指向另一冻结卡的临时工作区
+      当 运行 graph --scope archived
+      那么 围栏卡节点依赖边保留
 
   @req:r55
   规则: spec 助手兼容 flag

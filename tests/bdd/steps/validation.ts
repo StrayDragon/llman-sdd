@@ -596,19 +596,86 @@ bdd.thenStep('输出含未知字段 "{field}" 与合法字段集提示', (ctx, f
   if (!out.includes(`unknown field '${field}'`)) {
     throw new Error(`unknown-field message for '${field}' missing:\n${out}`);
   }
-  if (!out.includes('depends_on, blocks, branch, base_branch, base_sha, needs_specs_change')) {
+  if (
+    !out.includes('depends_on, blocks, branch, base_branch, base_sha, needs_specs_change, title')
+  ) {
     throw new Error(`allowed-field set missing from message:\n${out}`);
   }
 });
 
 // 审计:非 harness 测试对象;夹具无 bdd 配置,validate 不会执行任何命令
-bdd.when('把 frontmatter 改写为六个合法字段后再次运行 validate', (ctx) => {
+bdd.when('把 frontmatter 改写为七个合法字段后再次运行 validate', (ctx) => {
   const { repo, id } = requireValidateRepo(ctx);
   writeFileSync(
     join(repo.root, 'llmanspec', 'changes', id, 'proposal.md'),
-    '---\ndepends_on: []\nblocks: []\nbranch: sdd/demo-fm\nbase_branch: main\nbase_sha: abc\nneeds_specs_change: false\n---\n\n## Why\nx\n',
+    '---\ndepends_on: []\nblocks: []\ntitle: demo\nbranch: sdd/demo-fm\nbase_branch: main\nbase_sha: abc\nneeds_specs_change: false\n---\n\n## Why\nx\n',
   );
   ctx.fixtures['命令结果'] = runCliCombined(repo, ['validate', id, '--output', 'human']);
+});
+
+// r99 — proposal title 必填门 (acceptance):缺字段/空串 → ERROR;change new
+// 骨架自带非空占位直接过门。夹具与 r64 同构(验证仓库 + id)。
+bdd.given('一个活跃 change 的 proposal frontmatter 无 title 字段的临时仓库', (ctx) => {
+  const repo = makeTempRepo();
+  const id = 'demo-title';
+  const dir = join(repo.root, 'llmanspec', 'changes', id);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'proposal.md'), '---\ndepends_on: []\n---\n\n## Why\nx\n');
+  repo.run('git', ['add', '-A']);
+  repo.run('git', [...gitCommit, 'draft']);
+  ctx.fixtures['验证仓库'] = { repo, id } satisfies ValidateRepoFixture;
+});
+
+bdd.given('一个活跃 change 的 proposal frontmatter 为 title: 空串的临时仓库', (ctx) => {
+  const repo = makeTempRepo();
+  const id = 'demo-empty-title';
+  const dir = join(repo.root, 'llmanspec', 'changes', id);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'proposal.md'), '---\ndepends_on: []\ntitle: ""\n---\n\n## Why\nx\n');
+  repo.run('git', ['add', '-A']);
+  repo.run('git', [...gitCommit, 'draft']);
+  ctx.fixtures['验证仓库'] = { repo, id } satisfies ValidateRepoFixture;
+});
+
+bdd.given('一个经 change new 刚生成骨架的临时仓库', (ctx) => {
+  const repo = makeTempRepo();
+  const id = 'demo-skel';
+  repo.run('bun', [CLI, 'change', 'new', id]);
+  ctx.fixtures['验证仓库'] = { repo, id } satisfies ValidateRepoFixture;
+});
+
+// 审计:非 harness 测试对象;夹具无 bdd 配置,validate 不会执行任何命令
+bdd.when('对该 change 运行 validate', (ctx) => {
+  const { repo, id } = requireValidateRepo(ctx);
+  ctx.fixtures['命令结果'] = runCliCombined(repo, ['validate', id]);
+});
+
+// 审计:非 harness 测试对象;夹具无 bdd 配置,validate 不会执行任何命令
+bdd.when('对该骨架 change 运行 validate', (ctx) => {
+  const { repo, id } = requireValidateRepo(ctx);
+  ctx.fixtures['命令结果'] = runCliCombined(repo, ['validate', id]);
+});
+
+bdd.thenStep('输出含缺 title 的 ERROR 且退出码非零', (ctx) => {
+  const { code, stdout } = ctx.fixtures['命令结果'] as { code: number; stdout: string };
+  if (code === 0) throw new Error(`validate must fail on missing title:\n${stdout}`);
+  if (!stdout.includes("requires a non-empty 'title'")) {
+    throw new Error(`title gate message missing:\n${stdout}`);
+  }
+});
+
+bdd.thenStep('输出含 title 为空的 ERROR', (ctx) => {
+  const { stdout } = ctx.fixtures['命令结果'] as { code: number; stdout: string };
+  if (!stdout.includes("requires a non-empty 'title'")) {
+    throw new Error(`title gate message missing:\n${stdout}`);
+  }
+});
+
+bdd.thenStep('骨架自带的非空 title 占位通过本门（无 title 相关 ERROR）', (ctx) => {
+  const { stdout } = ctx.fixtures['命令结果'] as { code: number; stdout: string };
+  if (stdout.includes("requires a non-empty 'title'")) {
+    throw new Error(`skeleton must carry a non-empty title placeholder:\n${stdout}`);
+  }
 });
 
 // r63 — apply 入门以 specs-landed 门表述(不再以 readyToImplement 作为入门条件)

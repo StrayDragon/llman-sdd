@@ -1,8 +1,19 @@
 /** Extract depends_on entries (flow + block styles, r30). */
 import { extractFrontmatter } from '../../change/frontmatter.ts';
 
+/**
+ * r54 dual-format card reading: a fence-free frozen card is a plain YAML doc
+ * whose FIRST line opens with `title:`/`depends_on:` — feed the whole text to
+ * the same depends_on scan. Proposal.md bodies never open with those keys, so
+ * no misfire.
+ */
+function cardYamlSource(input: string): string | null {
+  const firstLine = input.trimStart().split('\n')[0] ?? '';
+  return /^(title|depends_on):/u.test(firstLine) ? input : null;
+}
+
 export function parseDeps(proposal: string): string[] {
-  const fm = extractFrontmatter(proposal);
+  const fm = extractFrontmatter(proposal) ?? cardYamlSource(proposal);
   const deps: string[] = [];
   if (!fm) return deps;
   let inDeps = false;

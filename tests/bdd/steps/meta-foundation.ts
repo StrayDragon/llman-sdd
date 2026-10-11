@@ -22,6 +22,7 @@ import {
   renderWithUnits,
   runInit,
 } from '@llman-sdd/core';
+import { parse as parseYaml } from 'yaml';
 
 import { makeNodeIo } from '../../helpers/nodeIo.ts';
 import { bdd } from '../runner.ts';
@@ -416,8 +417,65 @@ bdd.thenStep('平铺卡仅含 title 与 depends_on 且不含 frozen 段', (ctx) 
   if (!card.includes('depends_on: [other]')) {
     throw new Error(`card lost depends_on:\n${card}`);
   }
+  if (card.includes('---')) {
+    throw new Error(`card is fenced instead of single-document YAML:\n${card}`);
+  }
   if (card.includes('frozen:') || card.includes('branch:') || card.includes('design.md')) {
     throw new Error(`card carries stale frontmatter/frozen transcription:\n${card}`);
+  }
+});
+
+// r24(2026 修订)— 平铺卡为单文档纯 YAML 且 title 优先取 frontmatter:归档目录的
+// proposal 同时含非空 frontmatter title 与正文 H1,卡必须是前者。
+bdd.given(
+  '一个带日期归档目录且 proposal frontmatter 含非空 title、正文另含 H1 的临时仓库',
+  (ctx) => {
+    if (bundledSevenZip !== 'ok') {
+      throw new Error(
+        '[7z 环境守卫] bundled 7z-wasm 依赖不可用——freeze 卡场景无法执行,请先 bun install',
+      );
+    }
+    const root = mkdtempSync(join(tmpdir(), 'llman-sdd-freeze-title-'));
+    const full = join(root, 'llmanspec', 'changes', 'archive', '2026-01-01-title-demo');
+    mkdirSync(full, { recursive: true });
+    writeFileSync(
+      join(full, 'proposal.md'),
+      `---\ndepends_on: []\ntitle: frontmatter 概念标题\n---\n\n# 正文 H1 标题\n`,
+    );
+    ctx.fixtures['卡冻结仓库'] = {
+      root,
+      run: (args: string[]) => {
+        const proc = runCli(args, root);
+        return { code: proc.status ?? 1, stdout: proc.stdout ?? '', stderr: proc.stderr ?? '' };
+      },
+    } satisfies FreezeFixture;
+  },
+);
+
+bdd.thenStep('平铺卡内容可被单文档 YAML 解析(无 --- 围栏)', (ctx) => {
+  const repo = ctx.fixtures['卡冻结仓库'] as FreezeFixture;
+  const cardPath = join(repo.root, 'llmanspec', 'changes', 'archive', '2026-01-01-title-demo.yaml');
+  const card = readFileSync(cardPath, 'utf8');
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = parseYaml(card) as Record<string, unknown>;
+  } catch (error) {
+    throw new Error(`card is not single-document YAML: ${(error as Error).message}\n${card}`);
+  }
+  if (Object.keys(parsed).sort().join(',') !== 'depends_on,title') {
+    throw new Error(`card keys must be exactly title+depends_on:\n${card}`);
+  }
+});
+
+bdd.thenStep('卡 title 等于 frontmatter 的 title 而非正文 H1', (ctx) => {
+  const repo = ctx.fixtures['卡冻结仓库'] as FreezeFixture;
+  const card = readFileSync(
+    join(repo.root, 'llmanspec', 'changes', 'archive', '2026-01-01-title-demo.yaml'),
+    'utf8',
+  );
+  const parsed = parseYaml(card) as Record<string, unknown>;
+  if (parsed.title !== 'frontmatter 概念标题') {
+    throw new Error(`card title must come from frontmatter, got: ${String(parsed.title)}\n${card}`);
   }
 });
 

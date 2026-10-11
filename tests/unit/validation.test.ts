@@ -269,6 +269,63 @@ describe('validateChange completeness WARNINGs (r63)', () => {
   });
 });
 
+describe('validateChange title gate (r99) + seven-field legal set (r64)', () => {
+  const norm = (p: string): string => p.replace(/^\.\//u, '');
+  const io = (proposal: string) => ({
+    exists: (p: string) => p.replace(/^\.\//u, '') === 'llmanspec/changes/demo/proposal.md',
+    readText: (): string => proposal,
+    listDir: (): string[] => [],
+    isDirectory: (): boolean => false,
+  });
+  const config = { strict_defer: null, change_id_pattern: null };
+
+  test('missing title → ERROR with guidance; valid=false', () => {
+    const r = validateChange(
+      io('---\ndepends_on: []\n---\n\n## Why\nx\n'),
+      '.',
+      'demo',
+      config,
+      {},
+    );
+    const e = r.issues.find((i) => i.path === 'proposal.md/frontmatter.title');
+    expect(e?.level).toBe('ERROR');
+    expect(e?.message).toContain("non-empty 'title'");
+    expect(r.valid).toBe(false);
+  });
+
+  test('empty title (quoted empty / blank scalar) → ERROR', () => {
+    for (const fm of ['depends_on: []\ntitle: ""', 'depends_on: []\ntitle: "   "']) {
+      const r = validateChange(io(`---\n${fm}\n---\n\n## Why\nx\n`), '.', 'demo', config, {});
+      expect(r.issues.some((i) => i.path === 'proposal.md/frontmatter.title')).toBe(true);
+    }
+  });
+
+  test('non-empty title passes the gate', () => {
+    const r = validateChange(
+      io('---\ndepends_on: []\ntitle: 一句话概念标题\n---\n\n## Why\nx\n'),
+      '.',
+      'demo',
+      config,
+      {},
+    );
+    expect(r.issues.some((i) => i.path === 'proposal.md/frontmatter.title')).toBe(false);
+  });
+
+  test('title is a legal field: no unknown-field ERROR, allowed list names it', () => {
+    const r = validateChange(
+      io('---\ndepends_on: []\ntitle: t\nstatus: draft\n---\n\n## Why\nx\n'),
+      '.',
+      'demo',
+      config,
+      {},
+    );
+    const unknown = r.issues.find((i) => i.message.includes('unknown field'));
+    expect(unknown?.message).toContain("'status'");
+    expect(unknown?.message).toContain('needs_specs_change, title');
+    expect(r.issues.some((i) => i.message.includes("unknown field 'title'"))).toBe(false);
+  });
+});
+
 describe('T5: spec check core (r13/r48)', () => {
   // NOTE (2026-10 validate-harness-opt-in): since the opt-in flip, the CLI
   // boundary (makeHarnessGate) never sends 'default' — absent → 'off',

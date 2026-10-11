@@ -14,6 +14,7 @@ import {
   type FreezeIo,
   type WasmSevenZipDeps,
 } from '@llman-sdd/core';
+import { parse as parseYaml } from 'yaml';
 
 import { makeNodeIo } from '../helpers/nodeIo.ts';
 
@@ -68,10 +69,13 @@ describe('freeze card flow against the real adapter', () => {
     expect(existsSync(join(archiveDir, '2026-01-01-demo'))).toBe(false);
     expect(isFrozenCard('2026-01-01-demo.yaml')).toBe(true);
     const cardText = readFileSync(join(archiveDir, '2026-01-01-demo.yaml'), 'utf8');
-    // Title extracted from the proposal H1; depends_on preserved in flow form.
-    expect(cardText).toContain('title: "Demo Change"');
-    expect(cardText).toContain('depends_on: [other]');
+    // r24: single-document plain YAML (no fences); title from the proposal H1
+    // (no frontmatter title); depends_on preserved in flow form.
+    const parsed = parseYaml(cardText) as Record<string, unknown>;
+    expect(parsed).toEqual({ title: 'Demo Change', depends_on: ['other'] });
+    expect(cardText.startsWith('title:')).toBe(true);
     // No frozen section, no frontmatter transcription beyond depends_on.
+    expect(cardText).not.toContain('---');
     expect(cardText).not.toContain('frozen:');
     expect(cardText).not.toContain('branch:');
     expect(cardText).not.toContain('design.md');
@@ -79,6 +83,25 @@ describe('freeze card flow against the real adapter', () => {
     // --list derives entries from cards without parsing the 7z.
     const lines = await runList(io(), sz, DIR);
     expect(lines.join('\n')).toContain('2026-01-01-demo');
+  });
+
+  test('freeze prefers a non-empty frontmatter title over the proposal H1 (r24)', async () => {
+    rmSync(DIR, { recursive: true, force: true });
+    const src = join(DIR, 'llmanspec', 'changes', 'archive', '2026-01-01-demo');
+    mkdirSync(src, { recursive: true });
+    writeFileSync(
+      join(src, 'proposal.md'),
+      '---\ndepends_on: []\ntitle: 前matter标题:带冒号\n---\n\n# H1 标题\n\nbody\n',
+    );
+    const sz = await makeWasmSevenZip(deps());
+    await runFreeze(io(), sz, DIR, {});
+
+    const card = readFileSync(
+      join(DIR, 'llmanspec', 'changes', 'archive', '2026-01-01-demo.yaml'),
+      'utf8',
+    );
+    const parsed = parseYaml(card) as Record<string, unknown>;
+    expect(parsed.title).toBe('前matter标题:带冒号');
   });
 
   test('freeze omits depends_on when the proposal has none', async () => {

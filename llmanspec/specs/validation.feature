@@ -74,15 +74,15 @@
 
   @req:r64
   规则: proposal frontmatter 合法字段集
-    proposal frontmatter 合法字段 MUST 为 depends_on/blocks/branch/base_branch/base_sha/needs_specs_change
-    六个;合法集外字段(如 status/title/priority/author)MUST 报 ERROR 且错误消息 MUST 列出该字段名与合法字段集;`changes/archive/` 下的
+    proposal frontmatter 合法字段 MUST 为 depends_on/blocks/branch/base_branch/base_sha/needs_specs_change/title
+    七个;合法集外字段(如 status/priority/author)MUST 报 ERROR 且错误消息 MUST 列出该字段名与合法字段集;title 的必填与占位约束见 @req:r99;`changes/archive/` 下的
     proposal MUST 免检;stage MUST 由磁盘工件与绑定实时推断,MUST NOT 引入任何 frontmatter 字段影响 stage。
 
     场景: frontmatter 非法字段被拒
       假如 一个 proposal frontmatter 含未知字段 "status" 的临时仓库
       当 对该 change 运行 validate --output human
       那么 输出含未知字段 "status" 与合法字段集提示
-      当 把 frontmatter 改写为六个合法字段后再次运行 validate
+      当 把 frontmatter 改写为七个合法字段后再次运行 validate
       那么 退出码为 0
 
 
@@ -289,3 +289,25 @@
       假如 一个根 specs scope 指向子包且子包携带 llmanspec 的临时仓库
       当 在双根仓库运行 validate --specs
       那么 该 spec 报 single-ownership 错误且列出冲突路径与两侧根
+
+  @req:r99
+  规则: proposal title 必填门
+    活跃 change 的 proposal frontmatter MUST 携带非空 `title` 字段(一句话概念式人类可读标题,不复读 change id):缺字段或值为空串时
+    validate MUST 报 ERROR 且错误消息 MUST 引导补写;`changes/archive/` 下的 proposal 免检;CLI 生成的 proposal 骨架 MUST 预填非空
+    title 占位,使新起草的 change 直接通过本门。
+
+
+    场景: 缺 title 字段被拒
+      假如 一个活跃 change 的 proposal frontmatter 无 title 字段的临时仓库
+      当 对该 change 运行 validate
+      那么 输出含缺 title 的 ERROR 且退出码非零
+
+    场景: 空 title 被拒
+      假如 一个活跃 change 的 proposal frontmatter 为 title: 空串的临时仓库
+      当 对该 change 运行 validate
+      那么 输出含 title 为空的 ERROR
+
+    场景: change new 骨架自带占位过门
+      假如 一个经 change new 刚生成骨架的临时仓库
+      当 对该骨架 change 运行 validate
+      那么 骨架自带的非空 title 占位通过本门（无 title 相关 ERROR）

@@ -44,6 +44,18 @@ export function extractFrontmatter(proposal: string): string | null {
 }
 
 /**
+ * r99: frontmatter `title` value ('' when absent/empty/non-string) — the
+ * authoritative change title; freeze prefers it over the proposal H1.
+ * Internal whitespace (incl. YAML folded newlines) collapses to single
+ * spaces so the frozen card stays a single-line YAML scalar.
+ */
+export function readFrontmatterTitle(frontmatter: string | null): string {
+  if (frontmatter === null) return '';
+  const title = parseDocument(frontmatter).get('title');
+  return typeof title === 'string' ? title.replaceAll(/\s+/gu, ' ').trim() : '';
+}
+
+/**
  * r73: `needs_specs_change` is read from the frontmatter block only — a
  * body line with the same text must not flip the verdict. Default true.
  */

@@ -56,7 +56,7 @@ export function field(fixture: unknown, key: string): unknown {
 /**
  * 在临时仓库创建 llmanspec/changes/<id>/ 草稿(proposal.md + 可选附加文件);
  * 给定 commit 消息则 `git add -A` 后以仓库级身份提交。proposal 缺省为最小
- * `## Why` 草案。
+ * `## Why` 草案(含 r99 title 门所需的非空 title)。
  */
 export function seedChange(
   repo: TempRepo,
@@ -67,7 +67,7 @@ export function seedChange(
   mkdirSync(dir, { recursive: true });
   writeFileSync(
     join(dir, 'proposal.md'),
-    opts.proposal ?? '---\ndepends_on: []\n---\n\n## Why\nx\n',
+    opts.proposal ?? '---\ndepends_on: []\ntitle: 示例变更\n---\n\n## Why\nx\n',
   );
   for (const [name, content] of Object.entries(opts.files ?? {})) {
     writeFileSync(join(dir, name), content);

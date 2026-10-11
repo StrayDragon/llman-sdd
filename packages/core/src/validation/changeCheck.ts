@@ -2,6 +2,7 @@ import { stageFor, walkActiveChangeDirs } from '../change/collect.ts';
 import {
   extractFrontmatter,
   readBinding,
+  readFrontmatterTitle,
   readNeedsSpecsChange,
   specsLanded,
 } from '../change/frontmatter.ts';
@@ -256,6 +257,16 @@ export function validateChange(
       }
     }
 
+    // r99 title gate: active changes require a non-empty frontmatter title
+    // (archived proposals never reach validateChange — archive is exempt).
+    if (readFrontmatterTitle(fm) === '') {
+      push(
+        'ERROR',
+        'proposal.md/frontmatter.title',
+        "proposal.md frontmatter requires a non-empty 'title' — add `title: <one-sentence concept title>` (do not repeat the change id).",
+      );
+    }
+
     const binding = readBinding(text);
     // stageFor (change/collect) is the monotonic stage SSOT (r34).
     const stage = stageFor(hasDesign, hasTasks, binding !== null);
@@ -361,4 +372,5 @@ const ALLOWED_FIELDS = [
   'base_branch',
   'base_sha',
   'needs_specs_change',
+  'title',
 ];

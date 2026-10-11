@@ -42,8 +42,9 @@
     `llmanspec/changes/archive/<YYYY-MM-DD>-<id>.yaml` 替代原目录(原目录删除);候选 MUST 为目录名带 `YYYY-MM-DD-` 前缀且早于
     `--before` 日期者,已存在同日期平铺卡的条目 MUST 不再重复冻结,`--keep-recent N` MUST 按名保留最近 N 个不冻结;`--dry-run` MUST
     仅列候选不做变更;`--list` MUST 列出冻结 change 名。
-    平铺卡 MUST 为 YAML,内容 MUST 含冻结 change 的 `title`(提取自对应 proposal.md 的 H1)与 `depends_on`(proposal
-    frontmatter 的 depends_on 值,归一为单行 flow 数组以保持 graph 依赖边可解析、缺省为 `[]`);卡 MUST NOT 含 `frozen:` 段或其它
+    平铺卡 MUST 为单文档纯 YAML(无 `---` 围栏,单文档 YAML 解析器直接可解析),内容 MUST 含冻结 change 的 `title` 与 `depends_on`(proposal
+    frontmatter 的 depends_on 值,归一为单行 flow 数组以保持 graph 依赖边可解析、缺省为 `[]`);title 取值:proposal frontmatter 的
+    `title` 非空时优先,否则回退 proposal 正文 H1(存量归档目录兼容);卡 MUST NOT 含 `frozen:` 段或其它
     frontmatter 字段转录(id 与日期由文件名 `<YYYY-MM-DD>-<id>.yaml` 隐含);卡存在即正文必在冷备的权威记录。
     freeze 失败原子性:`7z add` 失败 MUST 回滚已写卡文件且不删除原目录;执行 worktree 非主检出(主检出 = 持有默认分支的 worktree)时,freeze 与
     thaw MUST 输出 WARNING(指明当前为非主检出、冷备可能不完整、建议回主检出执行)且 MUST NOT 阻断:退出码与既有产物形态不变;主检出探测失败 SHALL
@@ -69,6 +70,13 @@
       当 在次级 worktree 运行 archive freeze
       那么 输出含非主检出 WARNING
       而且 冷备仍产出且候选目录被冻结移除
+
+
+    场景: 平铺卡为纯 YAML 且 title 优先取 frontmatter
+      假如 一个带日期归档目录且 proposal frontmatter 含非空 title、正文另含 H1 的临时仓库
+      当 运行 archive freeze --before 该日期
+      那么 平铺卡内容可被单文档 YAML 解析(无 --- 围栏)
+      而且 卡 title 等于 frontmatter 的 title 而非正文 H1
 
   @req:r25
   规则: thaw 回置与双向兼容

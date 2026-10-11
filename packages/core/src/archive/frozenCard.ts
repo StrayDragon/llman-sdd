@@ -2,14 +2,16 @@
  * Frozen-change relationship-index card contract (review-freeze capability,
  * r24/r25): `freeze` replaces a dated archive dir with a flat card
  * `<YYYY-MM-DD>-<id>.yaml` whose content carries only the change's `title`
- * (proposal H1) and `depends_on` (proposal frontmatter) — a human/agent
- * readable navigation index. id and date are implied by the file name; bodies
- * live in the 7z cold backup. Cards are the authoritative record that a change
- * is in the cold backup.
+ * and `depends_on` — a human/agent readable navigation index. id and date are
+ * implied by the file name; bodies live in the 7z cold backup. Cards are the
+ * authoritative record that a change is in the cold backup.
  *
- * The card is a fenced YAML document (same `---` convention as proposal.md) so
- * existing frontmatter readers (`extractFrontmatter` / `parseDeps`) work
- * unchanged — parseDeps on a card text reads the preserved `depends_on`.
+ * The card is a single-document plain YAML file (no `---` fences — standard
+ * single-doc parsers must accept it). Reading `depends_on` from a card is
+ * dual-format (parseDeps in report/graph): fenced cards written by
+ * predecessors keep working; this writer only produces the fenced-free form.
+ * Title source: frontmatter `title` wins when non-empty, else the proposal H1
+ * (legacy archive dirs).
  *
  * Depends_on extraction is deliberately dependency-free (no `yaml` package):
  * it recognizes single-line flow `[a, b]`, block `- item` lists and multi-line
@@ -98,8 +100,8 @@ export function extractDependsOn(frontmatter: string): string {
   return 'depends_on: []';
 }
 
-/** Compose a relationship-index card: `title` + `depends_on` inside fences. */
+/** Compose a relationship-index card: single-document YAML, `title` + `depends_on`. */
 export function composeFrozenCard(title: string, frontmatter: string): string {
   const dependsOn = extractDependsOn(frontmatter);
-  return ['---', `title: "${escapeYamlScalar(title)}"`, dependsOn, '---'].join('\n') + '\n';
+  return [`title: "${escapeYamlScalar(title)}"`, dependsOn].join('\n') + '\n';
 }

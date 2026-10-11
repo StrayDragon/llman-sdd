@@ -59,7 +59,9 @@ export function newChange(
       `change proposal already exists: ./${path} (pass --force to overwrite)`,
     );
   }
-  io.writeText(path, `---\ndepends_on: []\n---\n\n${DRAFT_PROPOSAL_TEMPLATE}`);
+  // r99: skeleton carries a non-empty title placeholder so a fresh draft
+  // passes the title gate; agents rewrite it when filling the proposal.
+  io.writeText(path, `---\ndepends_on: []\ntitle: TODO\n---\n\n${DRAFT_PROPOSAL_TEMPLATE}`);
   return { id, path };
 }
 
