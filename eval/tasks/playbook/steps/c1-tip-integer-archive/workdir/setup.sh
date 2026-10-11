@@ -6,8 +6,14 @@ export GIT_AUTHOR_EMAIL="${GIT_AUTHOR_EMAIL:-eval@llman-sdd.local}"
 export GIT_COMMITTER_NAME="${GIT_COMMITTER_NAME:-llman-sdd eval}"
 export GIT_COMMITTER_EMAIL="${GIT_COMMITTER_EMAIL:-eval@llman-sdd.local}"
 git config --global --add safe.directory /app || true
-git config --global user.email "$GIT_COMMITTER_EMAIL" || true
-git config --global user.name "$GIT_COMMITTER_NAME" || true
+# 沙箱内提交身份：仅当宿主未配置时才落 global，绝不覆盖宿主既有 user.name/email。
+# 仓库级（local）始终显式设置，保证 eval 提交可归因且与宿主配置解耦。
+if ! git config --global user.email >/dev/null 2>&1; then
+  git config --global user.email "$GIT_COMMITTER_EMAIL" || true
+  git config --global user.name "$GIT_COMMITTER_NAME" || true
+fi
+git config user.email "$GIT_COMMITTER_EMAIL"
+git config user.name "$GIT_COMMITTER_NAME"
 # Copy the host-mounted seed into the writable workdir. Do not copy /opt/llman-sdd.
 cp -a /opt/seed/. /app/
 cd /app
