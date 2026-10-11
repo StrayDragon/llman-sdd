@@ -14,7 +14,7 @@ Spin up a **background agent** to do the research while you keep working. Auxili
 1. Investigate against **primary sources** — official docs, source code, specs, first-party APIs, not secondary write-ups; trace every claim back to the source that owns it.
 2. Write findings to a single Markdown file, citing each claim's source.
 3. Save location (repo convention wins if it has one): **default** `llmanspec/changes/<current-change>/research/<topic>.md` (change docs, **not** specs). Write to `docs/research/` only when the topic spans multiple changes and will still be referenced after archiving; **never** put single-change decisions or decaying deep-dives into `docs/research/`.
-4. **MUST NOT** edit `llmanspec/specs/**` in this skill. If research shows MUST/SHALL must change → suggest `llman-sdd-propose` (bind branch → land specs).
+4. **MUST NOT** edit `llmanspec/specs/**` in this skill. If research shows requirement semantics must change → suggest `llman-sdd-propose` (bind branch → land specs).
 
 ## Steps
 

@@ -178,10 +178,7 @@ void STRENGTH_WORDS_ZH;
 void STRENGTH_WORDS_EN;
 /** zh 模板允许出现 MUST/SHALL 的引用语境(行级白名单,新例外随 change 登记并附理由)。 */
 const ZH_MUST_QUOTE_ALLOWLIST: readonly RegExp[] = [
-  /specs 的 MUST\/SHALL/, // 引用 spec 合约词汇面本身(r70 原句)
-  /不强制 MUST\/SHALL/, // feature-contract:描述 spec 自由文本约定
-  /涉及 MUST\/SHALL 合约变更/, // draft:指认合约变更判据
-  /MUST\/SHALL 逐条/, // apply:落实 specs 合约
+  /不强制 MUST\/SHALL/, // feature-contract:描述 spec 自由文本约定(谈论情态词本身)
 ];
 // 「应用/对应/响应」等复合词中的单字应不算强度词:排除前字 用/对/响/反 与后接的常用复合
 const ZH_STRENGTH_VERBS =

@@ -1,6 +1,6 @@
 ---
 name: "llman-sdd-quick"
-description: "Quick path for small changes that don't touch behavioral contracts (refactor/typo/perf). If a MUST/SHALL change emerges, stop and switch to propose."
+description: "Quick path for small changes that don't touch behavioral contracts (refactor/typo/perf). If a behavioral-contract (requirement semantics) change emerges, stop and switch to propose."
 metadata:
   version: "0.1.0"
 ---
@@ -22,7 +22,7 @@ flowchart LR
 > 📍 Quick path: edit code and commit directly. If you find a contract change is needed → STOP, switch to `llman-sdd-propose`.
 
 ## Conditions (all must hold)
-- Does not change any MUST/SHALL-defined externally observable behavior
+- Does not change any requirement-semantics-defined externally observable behavior
 - Does not cross capability boundaries; no migration/compatibility concerns; not an SDD meta-spec change
 
 ## Steps

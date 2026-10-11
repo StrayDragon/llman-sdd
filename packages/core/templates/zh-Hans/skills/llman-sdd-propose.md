@@ -1,6 +1,6 @@
 ---
 name: "llman-sdd-propose"
-description: "为 必须/必须 行为合约变更创建提案（proposal/tasks → 绑定分支 → 提交 specs）。小改动走 quick，记想法走 draft。"
+description: "为行为合约（需求语义）变更创建提案（proposal/tasks → 绑定分支 → 提交 specs）。小改动走 quick，记想法走 draft。"
 metadata:
   version: "{{ llman_version }}"
 ---
@@ -51,7 +51,7 @@ flowchart LR
 
 ### 1) 判断变更规模
 1. 分类：
-   - **行为合约变更**（改 必须/必须、改外部行为）→ 完整 SDD
+   - **行为合约变更**（改需求语义、改外部行为）→ 完整 SDD
    - **实现层变更**（重构、typo、性能）→ `llman-sdd-quick`
    - **元规范变更**（SDD 模板/流程）→ 完整 SDD
    - 不确定选完整 SDD（保守）。

@@ -1,6 +1,6 @@
 ---
 name: "llman-sdd-propose"
-description: "Create a proposal for MUST/SHALL behavioral contract changes (proposal/tasks → bind branch → land specs). Small changes → quick; ideas → draft."
+description: "Create a proposal for behavioral-contract (requirement semantics) changes (proposal/tasks → bind branch → land specs). Small changes → quick; ideas → draft."
 metadata:
   version: "0.1.0"
 ---
@@ -106,7 +106,7 @@ If the user just wants to **capture an idea** ("draft a proposal", "note down X"
 
 ### 1) Assess change scale
 1. Classify:
-   - **Behavioral contract change** (modify MUST/SHALL, change external behavior) → full SDD
+   - **Behavioral contract change** (modify requirement semantics, change external behavior) → full SDD
    - **Implementation change** (refactor, typo, perf) → `llman-sdd-quick`
    - **Meta-spec change** (SDD templates/process) → full SDD
    - When uncertain, choose full SDD (conservative).
@@ -166,7 +166,7 @@ Validation fixes (single-track feature-as-spec):
 
 2) Native layout (`rule must carry an @req:<req_id> tag on the rule header`):
 - One canonical style: `@req:<id>` on the `规则:` block header, nested `场景:` (Given/When/Then) as executable examples — the default preferred shape.
-- Only keep a `规则:` block with no nested scenario (bare rule) for requirements that cannot be expressed programmatically or are not yet converted: free-text description, no MUST/SHALL enforcement; validate reports an aggregate count, the review `pending` signal measures it, specs-compact keeps reducing it.
+- Only keep a `规则:` block with no nested scenario (bare rule) for requirements that cannot be expressed programmatically or are not yet converted: free-text description, no modal-verb enforcement; validate reports an aggregate count, the review `pending` signal measures it, specs-compact keeps reducing it.
 - Legacy tags `@executable`/`@rule`/`@human`/`@manual` are gone and parse inert; when old files hit structural problems run `llman-sdd spec migrate-native`.
 - Top-level `场景:` outside any `规则:` are plain feature-level examples: no rule handle, no warning, not part of rule accounting (native Gherkin).
 

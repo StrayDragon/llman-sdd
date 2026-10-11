@@ -1,6 +1,6 @@
 ---
 name: "llman-sdd-propose"
-description: "Create a proposal for MUST/SHALL behavioral contract changes (proposal/tasks → bind branch → land specs). Small changes → quick; ideas → draft."
+description: "Create a proposal for behavioral-contract (requirement semantics) changes (proposal/tasks → bind branch → land specs). Small changes → quick; ideas → draft."
 metadata:
   version: "{{ llman_version }}"
 ---
@@ -51,7 +51,7 @@ If the user just wants to **capture an idea** ("draft a proposal", "note down X"
 
 ### 1) Assess change scale
 1. Classify:
-   - **Behavioral contract change** (modify MUST/SHALL, change external behavior) → full SDD
+   - **Behavioral contract change** (modify requirement semantics, change external behavior) → full SDD
    - **Implementation change** (refactor, typo, perf) → `llman-sdd-quick`
    - **Meta-spec change** (SDD templates/process) → full SDD
    - When uncertain, choose full SDD (conservative).

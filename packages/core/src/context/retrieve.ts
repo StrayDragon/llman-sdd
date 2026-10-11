@@ -79,7 +79,7 @@ const SYSTEM_PROMPT = `You are a spec retriever. Given a task, classify which ca
 3. For requirements that look relevant, call get_spec_content(spec_id, req_ids) to read the requirement text.
 Then output ONLY this JSON (no markdown fence):
 {\\"direct\\": [{\\"id\\": \\"<spec_id>\\", \\"reason\\": \\"<one sentence why this MUST be read>\\"}], \\"related\\": [{\\"id\\": \\"<spec_id>\\", \\"reason\\": \\"<one sentence>\\"}]}
-- "direct" = specs whose behavior contract (any MUST/SHALL statement, command behavior) the task changes or depends on.
+- "direct" = specs whose behavior contract (any requirement-semantics statement, command behavior) the task changes or depends on.
 - "related" = specs that provide useful context but whose contract won't change.
 - If the task changes behavior, the governing spec MUST be in "direct".
 - Decide based on the requirement text you read, not on the spec id alone.`;

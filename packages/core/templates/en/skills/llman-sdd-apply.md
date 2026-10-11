@@ -26,7 +26,7 @@ flowchart LR
 
 ## Hard Constraints
 
-- **Single-source-of-truth driven**: `proposal.md` / `design.md` / `tasks.md` and `llmanspec/specs/**` on the branch; every MUST/SHALL in specs must be fulfilled.
+- **Single-source-of-truth driven**: `proposal.md` / `design.md` / `tasks.md` and `llmanspec/specs/**` on the branch; every behavioral-contract requirement in specs must be fulfilled.
 - **Scope-locked**: only implement the current change's scope; never fix "unrelated issues" on the side; keep changes minimal.
 - **No guessing**: unclear requirements or specs contradicting reality → STOP and report; don't assume.
 - **No legacy compatibility layers**: if the change requires new behavior, upgrade all call sites directly, unless tasks/proposal explicitly require compatibility.

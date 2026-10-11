@@ -26,7 +26,7 @@ flowchart LR
 
 ## 硬约束
 
-- **唯一事实来源驱动**：`proposal.md` / `design.md` / `tasks.md` 与分支上的 `llmanspec/specs/**`；specs 的 MUST/SHALL 逐条落实。
+- **唯一事实来源驱动**：`proposal.md` / `design.md` / `tasks.md` 与分支上的 `llmanspec/specs/**`；specs 的行为合约条款逐条落实。
 - **范围锁定**：只做当前 change 范围，不得顺手修无关问题；改动保持最小。
 - **不得猜测**：需求不明或 specs 与现实矛盾 → STOP 报告，不自行假定。
 - **不留旧兼容层**：change 要求改行为就全量升级到新写法，除非 tasks/proposal 明确要兼容。
