@@ -76,10 +76,22 @@ jobs:
       # 幂等守卫:已发布的版本(重打 tag 重跑)自动跳过
       - name: publish @llman-sdd/core
         working-directory: packages/core
-        run: bun publish --access public
+        run: |
+          VERSION=$(bun -e "console.log((await Bun.file('package.json').json()).version)")
+          if npm view "@llman-sdd/core@${VERSION}" version >/dev/null 2>&1; then
+            echo "skip: @llman-sdd/core@${VERSION} already published"
+          else
+            bun publish --access public
+          fi
       - name: publish @llman-sdd/cli
         working-directory: apps/cli
-        run: bun publish
+        run: |
+          VERSION=$(bun -e "console.log((await Bun.file('package.json').json()).version)")
+          if npm view "@llman-sdd/cli@${VERSION}" version >/dev/null 2>&1; then
+            echo "skip: @llman-sdd/cli@${VERSION} already published"
+          else
+            bun publish
+          fi
 
   github-release:
     needs: [binaries, npm]
