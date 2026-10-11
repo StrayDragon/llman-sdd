@@ -1,6 +1,6 @@
-# v0.7 → v0.8 迁移指引：proposal frontmatter `title` 必填门
+# v0.7.4 → v0.7.5 迁移指引：proposal frontmatter `title` 必填门
 
-0.8.0 包含两类变更：**`title` 成为 proposal frontmatter 必填字段**（破坏性——validate 直接
+0.7.5 包含两类变更：**`title` 成为 proposal frontmatter 必填字段**（破坏性——validate 直接
 ERROR，无过渡期）与**冻结平铺卡格式转单文档纯 YAML**（新卡不再带 `---` 围栏）。
 
 ## 变更内容
@@ -18,7 +18,7 @@ ERROR，无过渡期）与**冻结平铺卡格式转单文档纯 YAML**（新卡
   正文 H1，无 H1 落 `TODO` 占位）：
 
   ```bash
-  bash <llman-sdd 检出路径>/migrations/v0.7-v0.8/backfill-title.sh
+  bash <llman-sdd 检出路径>/migrations/v0.7.4-v0.7.5/backfill-title.sh
   ```
 
   或手动为每个活跃 change 的 proposal frontmatter 补一行（放在 `depends_on` 旁）：
@@ -30,11 +30,11 @@ ERROR，无过渡期）与**冻结平铺卡格式转单文档纯 YAML**（新卡
   ---
   ```
 
-- 版本互斥提示：0.7.x 把 `title` 当未知字段拒绝、0.8.0 起必填——升级 0.8.0 并 backfill
+- 版本互斥提示：0.7.1–0.7.4 把 `title` 当未知字段拒绝、0.7.5 起必填——升级 0.7.5 并 backfill
   之前，同一仓库不要在两版间来回切换（`title` 字段两版互斥是合约变更固有代价，收敛路径
   是一次性升级 + backfill）。
 
-- `change new` 骨架自 0.8.0 起预填 `title: TODO` 占位（非空、直接过门），充实 proposal 时
+- `change new` 骨架自 0.7.5 起预填 `title: TODO` 占位（非空、直接过门），充实 proposal 时
   改写即可。
 - `changes/archive/` 下的 proposal 免检，归档目录无需动作。
 

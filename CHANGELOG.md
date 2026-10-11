@@ -2,6 +2,44 @@
 
 本项目遵循语义化版本（SemVer）。breaking 变更随大版本/次版本标注迁移说明。
 
+## 0.7.5 (2026-10-11)
+
+本批次包含两个 change（均在仓内走完整 SDD 流程）与一批 quick 修复，按维护者决策以
+patch 号发布：冻结平铺卡 YAML 化与 proposal `title` 必填门（含字段级 breaking——升级
+动作见 `migrations/v0.7.4-v0.7.5/`，含一键 backfill 脚本）；skills 模板情态动词代称
+消歧与「必须/必须」病句清理。
+
+### 冻结平铺卡转单文档纯 YAML + proposal title 必填门（fix-frozen-cards-and-title-gate）
+
+- **卡格式（review-freeze r24）**：`archive freeze` 平铺卡去 `---` 围栏，为单文档纯
+  YAML（`YAML.parse` 直接可解析）；卡 title 取 proposal frontmatter `title` 非空优先、
+  正文 H1 回退；title 值内空白（含 YAML 折叠换行）归一为单空格。
+- **title 必填门（validation r99；r64 合法字段集扩为七字段）**：活跃 change 的 proposal
+  frontmatter 缺 `title` 或空串 → validate 直接 ERROR（无过渡期）；`changes/archive/`
+  免检；`change new` 骨架预填 `title: TODO` 非空占位。
+- **graph 双格式兼容（peripheral-commands r54）**：冻结卡 `depends_on` 依赖边解析同时
+  接受新纯 YAML 卡与存量围栏卡；存量卡不迁移、存量空 title 卡不补救。
+- **迁移**：`migrations/v0.7.4-v0.7.5/README.md` + 幂等 `backfill-title.sh`（H1 优先、
+  TODO 兜底、已有非空跳过）；xylitol 克隆实测 6 个活跃 change 一键 backfill 后
+  validate 6/6 全绿。版本互斥（0.7.1–0.7.4 拒 `title` 字段 ↔ 0.7.5 必填）收敛路径为
+  一次性升级 + backfill。
+
+### skills 模板情态动词代称消歧与「必须/必须」病句清理
+
+- zh 7 处：「MUST/SHALL 行为合约变更」「必须/必须」等代称改为「行为合约（需求语义）
+  变更」「改需求语义」「不强制情态词」（propose/quick/draft/research/apply/
+  validation-hints）；quick description 病句「要改 必须/必须 就停」消除。
+- en 7 处同款（MUST/SHALL behavioral contract → requirement semantics）；
+  feature-contract 双语 4 处保留（谈论情态词本身）。`context` 检索 SYSTEM_PROMPT
+  同款代称同步。
+- 侦察修正：模板渲染引擎无 MUST→必须 活映射——「必须/必须」为历史翻译残留死文本，
+  改源文即根修；parity `ZH_MUST_QUOTE_ALLOWLIST` 退役 3 项。
+
+### gate
+
+- full QA green（569 tests、golden 双语、check:stc 0 错误、pending 1/2、schema）；
+  xylitol 克隆 `init --update` 14 skills 渲染无「必须/必须」/代称残留。
+
 ## 0.7.4 (2026-10-11)
 
 本批次包含两项功能，均先用本工具自身的 SDD 流程完成开发再做发布（自举 dogfooding：先在本仓自身走完整流程实测，再对外发布）：模板中文文风治理、eval 容器凭据注入；另含 eval runner 对公网端点与非 TCP egress 的适配。无 breaking、无 schema 变更。

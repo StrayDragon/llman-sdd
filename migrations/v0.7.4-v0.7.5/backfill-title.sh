@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# v0.7 → v0.8 一次性迁移:为活跃 change 的 proposal.md frontmatter 补写非空 title。
+# v0.7.4 → v0.7.5 一次性迁移:为活跃 change 的 proposal.md frontmatter 补写非空 title。
 # 幂等——已有非空 title 的 change 跳过。取值优先正文 H1,无 H1 用 TODO 占位。
-# 用法:在本仓库根(含 lllmanspec/ 或 llmanspec/)执行  bash migrations/v0.7-v0.8/backfill-title.sh
+# 用法:在本仓库根(含 lllmanspec/ 或 llmanspec/)执行  bash migrations/v0.7.4-v0.7.5/backfill-title.sh
 set -euo pipefail
 
 ROOT="${1:-$(pwd)}"
