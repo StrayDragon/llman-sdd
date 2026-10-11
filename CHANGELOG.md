@@ -2,6 +2,33 @@
 
 本项目遵循语义化版本（SemVer）。breaking 变更随大版本/次版本标注迁移说明。
 
+## 0.7.4 (2026-10-11)
+
+评测与模板治理批次：SDD 全程狗粮两 change（模板中文文风治理 / eval 容器凭据注入），
+外加 eval runner 对公网端点与非 TCP egress 的适配。无 breaking、无 schema 变更。
+
+### 模板中文文风治理（check-stc 门，init-generators r97）
+
+- zh-Hans 模板强度词四级归一（必须/不得/宜/不宜/可/不必），en 对应 RFC 2115 五级；
+  行话/模糊量词/直角引号全量清理，STC errors 216 → 0。
+- 新增 `check:stc` 门（`scripts/check-stc.ts` + per-file 基线 `scripts/stc-baseline.json`，
+  只许下调），接入 justfile qa / package.json / ci.yml / r2 对账四处。
+- `template-guidance-parity` 增强度词边界断言（zh 禁裸 MUST/SHALL，引用白名单例外）。
+
+### eval 容器凭据注入与公网适配（eval-playbook r86/r98 延伸）
+
+- 宿主 `~/.pi/agent/auth.json` 经 pi-config 只读 bind 注入容器（缺失容错），
+  wrapper 条件拷贝；凭据不入库三层 gitignore 断言。
+- `shouldBypassProxy`：公网 https 端点绕过 host-gateway 代理（bigmodel 421
+  `Host:` 头兼容），compose overlay 预置 endpoint `/etc/hosts`（egress sidecar
+  仅放行 TCP，UDP 53 被 reject 的既有行为下容器免 DNS）。
+- `skill_style` 观测断言（恒真）与 groups A/B 文风对照约定（r98）。
+
+### gate
+
+- full QA green（558 tests、golden、pending 1/2、schema、check:stc 0）；
+  eval A/B 实测双组 3 trial 全 reward 1.0（glm-5.3-flash）。
+
 ## 0.7.3 (2026-10-10)
 
 体验批次：版本感知、re-review 戳治理与 dev-link 单轨化，无 breaking、无 schema 变更。

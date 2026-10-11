@@ -9,6 +9,7 @@ import {
   FILL_MODEL,
   fillSentinelIssues,
   harborModelName,
+  PI_HOST_GATEWAY,
   issuesInEvalGroups,
   PI_API_DEFAULT,
   PI_PROVIDER_DEFAULT,
@@ -144,7 +145,7 @@ test('compose overlay sets thinking max and writable PI_CODING_AGENT_DIR', () =>
   const yaml = renderPiComposeOverlay(PI_THINKING_DEFAULT);
   expect(yaml).toContain('PI_THINKING: max');
   expect(yaml).toContain('PI_CODING_AGENT_DIR: /tmp/pi-config');
-  expect(yaml).toContain('host.docker.internal:host-gateway');
+  expect(yaml).toContain('- "${PI_HOST_GATEWAY}:host-gateway"');
   expect(yaml).toContain('harbor-docker-egress-control-sidecar');
 });
 
