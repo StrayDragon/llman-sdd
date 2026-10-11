@@ -319,3 +319,23 @@ groups:
   #   worktree: ${FILL_WORKTREE_B}
 `;
 }
+
+/**
+ * Public https endpoints reach the container directly: the host-gateway TCP
+ * proxy cannot rewrite the HTTP Host header, and bigmodel rejects
+ * `Host: host.docker.internal:<port>` with 421 "Direct IP access is not
+ * allowed". Private/http endpoints (vLLM on LAN) keep the proxy — Docker
+ * cannot route Tailscale/LAN IPs by name.
+ */
+export function shouldBypassProxy(rawUrl: string): boolean {
+  try {
+    const parsed = new URL(rawUrl);
+    if (parsed.protocol !== 'https:') return false;
+    if (PI_HOST_GATEWAY === parsed.hostname) return false;
+    if (/^(?:\d{1,3}\.){3}\d{1,3}$/u.test(parsed.hostname)) return false;
+    if (parsed.hostname.endsWith('.local') || parsed.hostname === 'localhost') return false;
+    return true;
+  } catch {
+    return false;
+  }
+}

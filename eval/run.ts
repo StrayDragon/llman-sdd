@@ -16,6 +16,7 @@ import {
   resolvePiConfig,
   resolveWorktree,
   rewriteUrlHostPort,
+  shouldBypassProxy,
   type EvalGroupsDoc,
   type ResolvedPiConfig,
 } from './groups-schema.ts';
@@ -307,7 +308,7 @@ function tryLoadDoc(): EvalGroupsDoc | undefined {
 function writePiRuntime(
   runDir: string,
   doc: EvalGroupsDoc,
-  proxyPort: number,
+  proxyPort?: number,
 ): { piConfigDir: string; composeFile: string } {
   const url = (doc.openai_base_url ?? '').trim();
   if (url === '') die('openai_base_url is required for Pi (written into models.json)');
@@ -316,7 +317,8 @@ function writePiRuntime(
   const pi = resolvePiConfig(doc);
   const jsonDoc = {
     ...doc,
-    openai_base_url: rewriteUrlHostPort(url, PI_HOST_GATEWAY, proxyPort),
+    openai_base_url:
+      proxyPort === undefined ? url : rewriteUrlHostPort(url, PI_HOST_GATEWAY, proxyPort),
   };
   writeFileSync(
     join(piConfigDir, 'models.json'),
@@ -427,9 +429,17 @@ function main(): void {
   if (agent === 'pi') {
     const url = (doc.openai_base_url ?? '').trim();
     if (url === '') die('openai_base_url is required for Pi (written into models.json)');
-    const proxy = startVllmHostProxy(runDir, url);
-    stopProxy = proxy.stop;
-    piRuntime = writePiRuntime(runDir, doc, proxy.port);
+    const bypass = shouldBypassProxy(url);
+    if (!bypass) {
+      const proxy = startVllmHostProxy(runDir, url);
+      stopProxy = proxy.stop;
+      piRuntime = writePiRuntime(runDir, doc, proxy.port);
+    } else {
+      console.error(
+        `eval: https public endpoint — writing models.json directly (no host-gateway proxy): ${url}`,
+      );
+      piRuntime = writePiRuntime(runDir, doc);
+    }
   }
   const pi = agent === 'pi' ? resolvePiConfig(doc) : undefined;
   const nAttempts = oracleOnly ? 1 : doc.n_attempts;

@@ -195,3 +195,17 @@ test('playbook step dirs match task.toml [[steps]].name', () => {
     ).toBe(true);
   }
 });
+
+// eval/run.ts shouldBypassProxy:公网 https 直连(容器内 Host 头=真实域名,bigmodel 421 兼容);
+// 内网/http/IP/host.docker.internal 走既有 host-gateway TCP 代理。判定真值表锚定。
+import { shouldBypassProxy } from '../../eval/groups-schema.ts';
+
+test('proxy bypass verdicts for endpoint classes', () => {
+  expect(shouldBypassProxy('https://open.bigmodel.cn/api/coding/paas/v4')).toBe(true);
+  expect(shouldBypassProxy('http://fusionxhost:8888/v1')).toBe(false);
+  expect(shouldBypassProxy('https://192.168.1.5:8000/v1')).toBe(false);
+  expect(shouldBypassProxy('https://host.docker.internal:9000/v1')).toBe(false);
+  expect(shouldBypassProxy('https://srv.local/v1')).toBe(false);
+  expect(shouldBypassProxy('http://localhost:11434/v1')).toBe(false);
+  expect(shouldBypassProxy('not a url')).toBe(false);
+});
