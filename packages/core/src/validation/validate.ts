@@ -46,12 +46,11 @@ const coveragePath = (cap: string): string => `${cap}/coverage`;
 export function validateCapability(
   entry: SpecEntry,
   duplicatesFor: (reqId: string) => boolean,
-  io: SpecIo,
-  opts: { strict?: boolean } = {},
+  _io: SpecIo,
+  _opts: { strict?: boolean } = {},
 ): SpecVerdict {
   const { doc } = entry;
   const cap = specIdOf(entry);
-  const strict = opts.strict === true;
   const items: ValidationItem[] = [];
 
   const push = (level: ValidationLevel, id: string, message: string): void => {
@@ -70,29 +69,6 @@ export function validateCapability(
   if (doc.header.purpose === null || doc.header.purpose.trim() === '') {
     push('ERROR', `${cap}/purpose`, '`# purpose:` header comment must not be empty');
   }
-  if (doc.header.scope === null) {
-    push(
-      'ERROR',
-      `${cap}/valid_scope`,
-      'Spec valid_scope must not be empty (declare it in the "# scope:" header comment).',
-    );
-  } else {
-    // r42: missing valid_scope paths are independent failures —
-    // ERROR (nonzero exit) under --strict, WARNING otherwise.
-    const missing = doc.header.scope
-      .split(',')
-      .map((s) => s.trim())
-      .filter((s) => s !== '')
-      .filter((s) => !io.exists(s));
-    if (missing.length > 0) {
-      push(
-        strict ? 'ERROR' : 'WARNING',
-        `${cap}/valid_scope`,
-        `valid_scope path(s) do not exist on disk: ${missing.join(', ')}`,
-      );
-    }
-  }
-
   // Spec name must match the capability id (flat stem).
   if (doc.header.capability !== null && doc.header.capability.trim() !== cap) {
     push(
@@ -199,9 +175,4 @@ export function validateAllSpecs(entries: readonly SpecEntry[], io: SpecIo): Val
   lines.push(formatTotals(passed, verdicts.length - passed, verdicts.length));
 
   return { verdicts, lines, failed };
-}
-
-/** predecessor `apply_strict`: WARNING issues escalate to ERROR when --strict. */
-export function applyStrict<T extends { level: ValidationLevel }>(items: readonly T[]): T[] {
-  return items.map((i) => (i.level === 'WARNING' ? { ...i, level: 'ERROR' as const } : i));
 }

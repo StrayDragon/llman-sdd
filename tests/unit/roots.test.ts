@@ -4,13 +4,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import {
-  discoverRoots,
-  isValidRoot,
-  resolveInstanceRoot,
-  scopeCrossings,
-  type RootsIo,
-} from '@llman-sdd/core';
+import { discoverRoots, isValidRoot, resolveInstanceRoot, type RootsIo } from '@llman-sdd/core';
 
 import { initGitRepo, runCli } from '../helpers/spawn.ts';
 
@@ -67,29 +61,6 @@ describe('discoverRoots', () => {
     expect(discoverRoots('/w', ioFrom(dirs, []), { maxDepth: 4 }).map((r) => r.rootDir)).toEqual([
       '/w/a/b/c',
     ]);
-  });
-});
-
-describe('scopeCrossings (r92 single ownership)', () => {
-  const others = [{ rootDir: '/w/packages/tui', llmanspecDir: '/w/packages/tui/llmanspec' }];
-
-  test('scope reaching into a sub-root instance crosses', () => {
-    expect(scopeCrossings(['packages/tui/', 'src/'], '/w', others)).toEqual([
-      { scope: 'packages/tui/', rootDir: '/w/packages/tui' },
-    ]);
-  });
-
-  test('sub-root scoping its own tree and unrelated roots never cross', () => {
-    expect(scopeCrossings(['tests/', 'src/'], '/w/packages/tui', others)).toEqual([]);
-    const elsewhere = [{ rootDir: '/other', llmanspecDir: '/other/llmanspec' }];
-    expect(scopeCrossings(['packages/tui/'], '/w', elsewhere)).toEqual([]);
-  });
-
-  test('ancestor roots are exempt: a sub-root under them never self-crosses', () => {
-    const repoRoot = [{ rootDir: '/w', llmanspecDir: '/w/llmanspec' }];
-    // The sub instance scoping its own subtree resolves under the ancestor's
-    // directory — ownership there belongs to the descendant, never a crossing.
-    expect(scopeCrossings(['tests/', 'src/'], '/w/packages/tui', repoRoot)).toEqual([]);
   });
 });
 

@@ -1,7 +1,6 @@
 # language: zh-CN
 # capability: validation
 # purpose: 定义 specs 校验引擎的判定规则域、报告行格式与 BDD 检查退出码语义。
-# scope: packages/core/src/validation/, apps/cli/src/commands/validate.ts, apps/cli/src/harness.ts
 
 功能: validation
 
@@ -24,8 +23,7 @@
     共用或跨 capability——MUST 判 ERROR);不含任何 `规则:` 的 capability MUST 判 ERROR;顶层 `场景:`(Gherkin 功能级示例,无规则句柄)不告警、不参与规则统计;无 runnable
     嵌套场景的 `规则:`(0 场景或嵌套场景全部带 @skip/@experimental)MUST 输出聚合计数 INFO(按 capability 一条,不逐条爆炸,`--include-info` 可见);规则描述为自由文本
     (MUST/SHALL 词不强制);历史标签 `@human/@rule/@executable/@manual` 解析惰性、不再承载语义(旧文件经 `spec migrate-native`
-    迁移);全局重复 req_id(同文件内或跨文件,按携带该 id 的规则条数 > 1 判定)MUST 对每个涉事 capability 判 ERROR;`# scope:` 声明的路径 MUST 在磁盘存在,缺失在
-    `--strict` 下判 ERROR、否则 WARNING(前代 r42 语义)。staleness(git scope 漂移)SHALL 在 change 生命周期阶段接入,本能力不判定。
+    迁移);全局重复 req_id(同文件内或跨文件,按携带该 id 的规则条数 > 1 判定)MUST 对每个涉事 capability 判 ERROR。
 
     场景: 种子缺陷被判 FAIL
       假如 一个含缺 @req 与重复 req_id 缺陷的 specs 目录
@@ -44,9 +42,7 @@
       假如 一个每类种子缺陷各占一个 capability 的临时仓库
       当 运行 validate --specs --json
       那么 缺头注释、缺 @req、重复 req_id 与零规则 capability 各 capability 均 valid 为 false 且各含对应 ERROR
-      而且 仅缺 scope 路径的 capability 含 WARNING 且 valid 为 true
-      当 运行 validate --specs --json --strict
-      那么 仅缺 scope 路径的 capability valid 为 false
+      而且 退出码非零
 
   @req:r63
   规则: validate 完整性 WARNING(已绑定 change)
@@ -145,8 +141,8 @@
     `--changes`/`--specs`(限定域)、`--type change|spec`(强制消歧)、`--stage draft|designed|planned|full`(change
     域按前代产物语义判门:designed 需 design.md、planned 需 design.md+tasks.md、full 另需 tasks.md)、`--strict`(WARNING
     按前代范围升级为 ERROR 并影响退出)与 `--json`/`--compact-json`(输出
-    items[].{id,type,valid,issues[].{level,path,message}},staleness,summary{items,passed,failed},version
-    的前代结构);`--specs` 旧 no-op 标记 MUST 废除,域限定语义由 `--changes`/`--specs` 承担;`validate` MUST 支持
+    items[].{id,type,valid,issues[].{level,path,message}},summary{items,passed,failed},version
+    的既定结构);`--specs` 旧 no-op 标记 MUST 废除,域限定语义由 `--changes`/`--specs` 承担;`validate` MUST 支持
     `--output <toon|json|compact-json|human>` 且缺省输出 TOON(items 与 json 同载荷),`--output human` 输出前代人读报告行(含
     Totals 收尾与 Next steps 引导),Next steps 引导 MUST 仅出现在 human 模式,stderr 错误摘要(`Error: validation failed`、
     阶段强制缺失行)不随输出格式变化。
@@ -157,13 +153,13 @@
       那么 退出码非零且按产物报阶段强制缺失(前代语义)
 
 
-    场景: 输出模式与 strict 升级
-      假如 一个仅含缺 scope 路径 WARNING 的临时仓库
+    场景: 输出模式缺省 TOON 且 human与json分流
+      假如 一个全部 specs 结构合格的临时仓库
       当 运行 validate --specs
       那么 stdout 为 TOON 且退出码为 0
-      当 运行 validate --specs --strict --output human
-      那么 stdout 含 "Next steps" 且退出码非零
-      当 运行 validate --specs --strict --output json
+      当 运行 validate --specs --output human
+      那么 stdout 含 Totals 收尾且不含 "Next steps"
+      当 运行 validate --specs --output json
       那么 stdout 为含 items、summary 与 version 的 JSON 且不含 "Next steps"
 
 
@@ -261,7 +257,7 @@
   规则: 用户输出不含内部需求编号
     `validate` 与 `change` 各子命令写到 stdout/stderr 的文案 MUST NOT 含内部需求编号引用(形如 `(r111)`、
     `(sdd-workflow r29 …)`、`spec-format r133`);同一 git 门在不同子命令间 MUST 使用同一文案族(detached HEAD、非绑定分支、默认分支、
-    脏工作树),文案 MUST 含子命令名;空 scope 报错 MUST 指向 `# scope:` 头注释。
+    脏工作树),文案 MUST 含子命令名。
 
     场景: 失败路径输出无内部编号且文案族一致
       假如 一个已完成 start 并在特性分支有新提交的临时仓库
@@ -281,14 +277,6 @@
       假如 一个子根 check_command 失败的临时仓库
       当 运行 validate --specs --all-roots --check
       那么 聚合退出码非零
-  @req:r92
-  规则: 路径单一归属
-    一个文件路径 MUST 只归属一个 llmanspec 根:specs 的 # scope: 以其实例根(容纳 llmanspec/ 的目录)为相对基准解析;当某根 specs 的 scope 命中另一根实例目录时 validate MUST 报 ERROR 并列出冲突路径与两侧根。staleness MUST 按根计算(scope 相对实例根解析、touchedPaths 按根归属过滤)。
-
-    场景: 根 scope 侵入子根报单一归属错误
-      假如 一个根 specs scope 指向子包且子包携带 llmanspec 的临时仓库
-      当 在双根仓库运行 validate --specs
-      那么 该 spec 报 single-ownership 错误且列出冲突路径与两侧根
 
   @req:r99
   规则: proposal title 必填门

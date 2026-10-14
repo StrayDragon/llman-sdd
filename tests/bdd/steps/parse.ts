@@ -299,13 +299,39 @@ bdd.given('一个缺失全部头注释的 feature 内容', (ctx) => {
   ctx.fixtures['feature'] = { 源文本: NO_HEADER_FEATURE };
 });
 
-bdd.thenStep('错误逐项报告三处缺失头注释', (ctx) => {
+bdd.thenStep('错误逐项报告两处缺失头注释', (ctx) => {
   const doc = (ctx.fixtures['解析结果'] as ParseResult | undefined)?.doc;
   const codes = doc?.errors.map((e) => e.code) ?? [];
-  for (const key of ['capability', 'purpose', 'scope']) {
+  for (const key of ['capability', 'purpose']) {
     if (!codes.includes(`missing-header:${key}`)) {
       throw new Error(`missing-header:${key} not reported; got [${codes.join(', ')}]`);
     }
+  }
+});
+
+bdd.given('一个头注释区含 `# scope:` 与 `# reviewed-through:` 行的 feature 内容', (ctx) => {
+  ctx.fixtures['feature'] = {
+    源文本: '# capability: legacy\n# purpose: p\n# scope: src/\n# reviewed-through: c12\n\n功能: legacy\n\n  @req:r1\n  规则: 规则\n    描述\n',
+  };
+});
+
+bdd.thenStep('解析成功且 CapabilityHeader 仅含 capability 与 purpose', (ctx) => {
+  const doc = (ctx.fixtures['解析结果'] as ParseResult | undefined)?.doc;
+  if (!doc) throw new Error('no parse result');
+  if (doc.header.capability === null || doc.header.purpose === null) {
+    throw new Error(`header must carry capability+purpose: ${JSON.stringify(doc.header)}`);
+  }
+  const keys = Object.keys(doc.header).toSorted();
+  if (keys.join(',') !== 'capability,purpose') {
+    throw new Error(`CapabilityHeader must be capability+purpose only: ${keys.join(',')}`);
+  }
+});
+
+bdd.thenStep('不产生任何 issue', (ctx) => {
+  const doc = (ctx.fixtures['解析结果'] as ParseResult | undefined)?.doc;
+  const codes = doc?.errors.map((e) => e.code) ?? [];
+  if (codes.length > 0) {
+    throw new Error(`expected no issues; got [${codes.join(', ')}]`);
   }
 });
 

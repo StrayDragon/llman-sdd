@@ -27,8 +27,8 @@ spec 关联与复核历史的承载从「手写头×2」收敛为三个既有机
 
 ## 迁移机制
 
-- `spec migrate-scope`:扫描 `llmanspec/specs/**`,删除行首匹配 `^#\s*scope:` 的头注释行(幂等:无匹配则无操作);`--dry-run` 仅报告;结束时输出后续清单(重跑 `init --update`;如需保留路径映射信息,先自行记录)。不处理 `# reviewed-through:`(解析器本就跳过,留给下游按需清理,avoid 过度工程)——嗯,统一剥除更彻底:`migrate-scope` 同时剥除两类头的行,名字不变。
-- `migrations/` 升级说明:头部格式 / JSON 载荷 / review 信号集三破坏面 + migrate-scope 用法。
+- 迁移中枢收敛于 `project migrate`:prompt 子命令按版本对输出 agent playbook(英文,步骤可执行、自检可验收,未知/畸形 version-expr 报错并列出已知对);strip-legacy-headers 子命令扫描 `llmanspec/specs/**` 删除 `# scope:`/`# reviewed-through:` 行(幂等,--dry-run,结尾后续清单)。legacy --kind 协作说明路径原样保留。
+- `migrations/` 升级说明:头部格式 / JSON 载荷 / review 信号集三破坏面 + migrate 用法。
 - scaffold 版本 bump 触发既有漂移 NOTE,指引 `init --update`。
 
 ## 验证与度量

@@ -1,7 +1,6 @@
 # language: zh-CN
 # capability: peripheral-commands
 # purpose: 定义 list/show/graph/spec 助手与 migrate 引导壳的输出合同,验收驱动真实工作区的结构断言。
-# scope: packages/core/src/report/, apps/cli/src/commands/list.ts, apps/cli/src/commands/show.ts, apps/cli/src/commands/graph.ts, apps/cli/src/commands/spec.ts, apps/cli/src/commands/project.ts
 
 功能: peripheral-commands
 
@@ -57,12 +56,10 @@
 
   @req:r22
   规则: spec 助手与 migrate 引导壳
-    `spec skeleton <cap>` MUST 生成通过单轨校验的骨架(locale 按 config);骨架 MUST NOT 创建仓库根 `src/` 目录,亦 MUST NOT 写入
-    `# scope: src/` 头注释(`# scope:` 必须指向 capability 真正拥有的文件,缺省预留目录 SHALL 为
-    `llmanspec/`);`spec next-req-id` MUST 扫描全局 rN 注册表输出最大已用号加一(空注册表输出 r1)且 MUST NOT 复用树内已
+    `spec skeleton <cap>` MUST 生成通过单轨校验的骨架(locale 按 config);骨架 MUST NOT 创建仓库根 `src/` 目录,且 MUST NOT 写入
+    `# scope:` 头注释(头部仅 `# language:`/`# capability:`/`# purpose:`);`spec next-req-id` MUST 扫描全局 rN 注册表输出最大已用号加一(空注册表输出 r1)且 MUST NOT 复用树内已
     退役的空缺号段(`spec skeleton` 取号共用同一语义;有意 divergent 于前代 smallest free 语义,依据 issue #5 与
-    align-next-req-id-max-plus-one 的 design);`project migrate` MUST 输出 legacy
-    迁移不随本工具提供的说明且不执行任何迁移。
+    align-next-req-id-max-plus-one 的 design);`project migrate` 的 `--kind` legacy 协作说明 MUST 保持输出且该路径不执行任何迁移;迁移总览、playbook 与 strip 子命令见 peripheral-commands r100。
 
     场景: spec 助手产物与 migrate 三态
       假如 一个已初始化且含 r1 规则的临时仓库
@@ -80,7 +77,7 @@
     场景: spec skeleton 不产生仓库根 src
       假如 一个已初始化且含 r1 规则的临时仓库
       当 运行 spec skeleton
-      那么 骨架通过单轨校验且 # scope: 指向 llmanspec/ 而非 src/
+      那么 骨架通过单轨校验且头部无 # scope: 行
       而且 仓库根无 src/ 目录
 
   @req:r30
@@ -269,3 +266,24 @@
       假如 一个子根含 r5 规则的临时仓库
       当 运行 spec next-req-id 于子根
       那么 输出 r6 而非根部空缺号
+
+  @req:r100
+  规则: project migrate 迁移手册与存量头剥离
+    `project migrate` 裸调用 MUST 在既有总览之上追加已知迁移版本对清单(含获取方式提示);`project migrate prompt --version-expr '<from>-><to>'` MUST 输出面向 agent 的迁移手册(英文;背景、逐步命令、受影响面、逐项自检清单),版本对未注册 MUST 报错并列出全部已知版本对;`project migrate strip-legacy-headers` MUST 扫描当前实例根 `llmanspec/specs/**` 全部 .feature,删除行首 `# scope:` 或 `# reviewed-through:` 的注释行(全文范围,幂等:无匹配则零改动),`--dry-run` MUST 仅报告将改动的文件与行数而不写盘,执行结束 MUST 输出后续清单(重跑 `init --update`)与改动统计,剥除后产物 MUST 通过结构校验。
+
+    场景: 迁移手册按版本对输出且未知对报错
+      假如 一个已安装本 CLI 的临时仓库
+      当 运行 project migrate prompt --version-expr "0.7.5->0.8.0" 与 project migrate prompt --version-expr "9.9.9->9.9.10"
+      那么 前者输出含 strip-legacy-headers 与 init --update 步骤及自检清单
+      而且 后者报未知版本对且列出 0.7.5->0.8.0
+
+    场景: 剥除两类历史头行且幂等
+      假如 一个 specs 含 # scope: 与 # reviewed-through: 头行的临时仓库
+      当 运行 project migrate strip-legacy-headers 后再次运行
+      那么 首次运行后两类头行不再出现且文件仍通过结构校验
+      而且 第二次运行报告零改动
+
+    场景: dry-run 只报告不写盘
+      假如 一个 specs 含历史头行的临时仓库
+      当 运行 project migrate strip-legacy-headers --dry-run
+      那么 报告含将改动的文件且文件内容不变

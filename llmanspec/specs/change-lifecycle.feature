@@ -1,7 +1,6 @@
 # language: zh-CN
 # capability: change-lifecycle
 # purpose: 定义 change 生命周期的 git-native 合同:分支绑定、frontmatter、finalize 合并与归档收口。
-# scope: packages/core/src/git/, packages/core/src/change/, apps/cli/src/commands/change.ts
 
 功能: change-lifecycle
 

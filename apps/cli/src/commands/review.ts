@@ -21,12 +21,11 @@ import {
   resolveOutMode,
   templateIo,
 } from '../cli-shared.ts';
-import { makeCliGit } from '../io.ts';
 
 export function registerReview(program: Command): void {
   const review = program
     .command('review')
-    .description('Aggregate review: unbound/stale signals plus a validate sweep');
+    .description('Aggregate review: unbound signals plus a validate sweep');
 
   review.option('--capability <capability>', 'restrict the sweep to one capability/spec id');
   addReportOutputOptions(review);
@@ -51,7 +50,7 @@ export function registerReview(program: Command): void {
         const activeChanges = collectChanges(io, process.cwd(), new Date(), {
           maxScanDepth: cliMaxScanDepth(program),
         });
-        // B17: 墙钟与 base-ref env 由 CLI 注入,core 不直读 process.*/new Date()
+        // B17: 墙钟由 CLI 注入,core 不直读 new Date()
         const now = new Date();
         const result = buildReview(
           {
@@ -59,10 +58,6 @@ export function registerReview(program: Command): void {
             boundChangeCount: activeChanges.filter((c) => c.hasBinding).length,
             activeChanges,
             capability: options.capability,
-            git: makeCliGit(process.cwd()),
-            root: process.cwd(),
-            specsDir: 'llmanspec/specs',
-            baseRefEnv: process.env.LLMANSPEC_BASE_REF,
           },
           io,
         );

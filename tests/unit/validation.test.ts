@@ -119,12 +119,12 @@ describe('validateAllSpecs (native v2)', () => {
     expect(report.lines.join('\n')).toInclude('spec must define at least one rule');
   });
 
-  test('valid_scope missing on disk fails', () => {
+  test('legacy scope header line is inert (r8)', () => {
     const doc = parseCapability(
       `# language: zh-CN\n# capability: t\n# purpose: p\n# scope: nope/\n\n功能: t\n\n  @req:r1\n  规则: ok\n    系统 MUST x\n`,
     );
     const report = validateAllSpecs([{ fileName: 't.feature', doc }], io);
-    expect(report.lines.join('\n')).toInclude('valid_scope path(s) do not exist on disk: nope/');
+    expect(report.lines.join('\n')).not.toInclude('valid_scope');
   });
 
   test('duplicate req ids fail every involved capability', () => {

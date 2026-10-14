@@ -8,7 +8,6 @@ The format is the **native Gherkin hierarchy**: `功能:` → `规则:` (the req
 # language: zh-CN
 # capability: sample
 # purpose: One-line overview.
-# scope: src/
 
 功能: sample
 
@@ -30,7 +29,7 @@ The format is the **native Gherkin hierarchy**: `功能:` → `规则:` (the req
     down or converting them.
 ```
 
-- Header comments (`# capability:` / `# purpose:` / `# scope:`) are REQUIRED; `scope` drives staleness checks.
+- Header comments (`# capability:` / `# purpose:`) are REQUIRED.
 - **Executable scenarios preferred**: express behavior as nested `场景:` (`Given/When/Then`) bound to BDD step code and executed by the runner — the default. Only use a `规则:` block without executable scenarios for requirements that cannot be expressed programmatically (abstract goals, architecture decisions, governance/human judgment) or are not yet converted; record the rationale in proposal/design.
 - `@req:<id>` lives on the `规则:` block header: the global unique requirement handle (shared by resolve-req/next-req-id/citation). Missing or duplicate ids are validate ERRORs.
 - Rule description is free text: no MUST/SHALL enforcement; wrap long text across lines for reviewability, with no `- ` list marker (it would enter the description verbatim).

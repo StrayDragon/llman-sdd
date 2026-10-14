@@ -1,7 +1,6 @@
 # language: zh-CN
 # capability: review-freeze
 # purpose: 定义 review 五信号聚合审查的合同与 archive freeze/thaw 冷备合同(7z 格式自洽双向回置)。
-# scope: packages/core/src/review/, packages/core/src/archive/, apps/cli/src/commands/review.ts, apps/cli/src/commands/archive.ts, packages/core/templates/shared/
 
 功能: review-freeze
 
@@ -10,16 +9,16 @@
     `review` MUST 支持 `--output <toon|json|compact-json|human>` 且缺省(无输出 flag)输出 TOON(IR 与 json
     同载荷);`--json`/`--compact-json` 为兼容别名,其 JSON 输出与前代字节一致;`--output human` 输出前代人读行形态;退出码语义不随输出格式变化。
     `review` MUST 输出 signals 数组,元素字段 MUST 为 kind/capability/count/detail;kind MUST 覆盖 unbound(未绑定需求,即无 runnable
-    嵌套场景的规则:0 场景或嵌套场景全部带 @skip/@experimental)、stale(前代语义:基于 base-ref/scope 的真实 staleness 计算)、locked(恒 0)、
+    嵌套场景的规则:0 场景或嵌套场景全部带 @skip/@experimental)、locked(恒 0)、
     validate(sweep FAIL 汇总;前代快照内部 sweep 的恒失败缺陷不复制);JSON MUST 含 summary{criticalCount,
-    warningCount},warningCount MUST 等于 unbound、stale 两类信号计数之和,criticalCount MUST 等于 sweep FAIL
+    warningCount},warningCount MUST 等于 unbound 信号计数,criticalCount MUST 等于 sweep FAIL
     的 capability 数;退出码 MUST 仅在 criticalCount > 0 时非零;`--capability` MUST 限定单一
     capability;`--export-html <path>` MUST 写出自包含 HTML 报告。
 
     场景: review 信号形状合法
       假如 本仓库的真实 llmanspec 工作区
       当 运行 review
-      那么 signals 覆盖四种 kind
+      那么 signals 覆盖三种 kind
       而且 summary 含 criticalCount 与 warningCount
       而且 退出码与 criticalCount 一致
 
@@ -107,13 +106,13 @@
 
   @req:r33
   规则: review --capability 过滤口径
-    `review --capability <C>` MUST 将 unbound/stale 两类信号限定为 C(其余 capability 的信号 MUST NOT
+    `review --capability <C>` MUST 将 unbound 信号限定为 C(其余 capability 的同类信号 MUST NOT
     输出),locked 与 validate 汇总 MUST 保持全局口径,退出码语义不变;`--json` 输出 MUST 同样过滤;未提供 `--capability` 时 MUST 保持全量信号。
 
     场景: capability 过滤生效
       假如 本仓库的真实 llmanspec 工作区
       当 运行 review --json 并限定单一 capability
-      那么 三类信号仅含该 capability 且 locked 与 validate 保持全局
+      那么 unbound 信号仅含该 capability 且 locked 与 validate 保持全局
 
   @req:r56
   规则: thaw 目的地覆盖

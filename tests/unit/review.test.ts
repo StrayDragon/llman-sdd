@@ -131,7 +131,6 @@ describe('buildReview', () => {
     const result = buildReview({ entries, boundChangeCount: 0 }, io);
     expect(result.lines[0]).toBe('Review: critical=0 warning=0');
     expect(result.lines).toContain('unbound: a (0)');
-    expect(result.lines).toContain('stale: a (0)');
     expect(result.lines.some((l) => l.startsWith('locked: - ('))).toBe(true);
     expect(result.lines.some((l) => l.startsWith('validate: - (0)'))).toBe(true);
   });

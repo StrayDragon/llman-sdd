@@ -26,7 +26,7 @@ const ALLOWED: Readonly<Record<string, readonly string[]>> = {
   context: ['spec', 'validation'],
   init: ['config', 'context', 'templates'],
   report: ['archive', 'change', 'git', 'render', 'spec', 'templates', 'validation'],
-  review: ['git', 'spec', 'validation'],
+  review: ['spec', 'validation'],
   templates: ['config'],
   validation: ['change', 'git', 'spec'],
   // leaves (git, spec, render, root) have no outgoing edges by declaration

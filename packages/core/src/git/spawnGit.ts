@@ -66,8 +66,8 @@ export function localBranchExists(git: GitLike, name: string): boolean {
  * (r16 resolution order, not a tie-breaker) — because the user explicitly
  * configured it; anything else falls through to the chain untouched.
  */
-// Deliberately NOT shared with defaultBranchNameFn() in validation/staleness.ts
-// (that probe is local-only with a 'main' fallback — predecessor staleness parity). Do not merge.
+// Local-only default-branch probe (no origin consultation) lives in callers that
+// need it; this resolver honors explicit user config first (r16 order).
 export function defaultBranch(git: GitLike): string {
   const preferred = git.runOpt(['config', '--get', 'init.defaultBranch']);
   if (preferred !== null && preferred !== '' && localBranchExists(git, preferred)) {

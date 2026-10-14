@@ -1,7 +1,6 @@
 # language: zh-CN
 # capability: spec-authoring
 # purpose: 定义编程式 spec 追加/反查与全局 rN 注册表去重的合同。
-# scope: apps/cli/src/commands/spec.ts, packages/core/src/spec/
 
 功能: spec-authoring
 

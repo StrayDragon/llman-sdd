@@ -44,7 +44,6 @@ metadata:
 # language: zh-CN
 # capability: <capability>
 # purpose: 一句话概述
-# scope: src/
 ```
 
 2）原生分层格式（`rule must carry an @req:<req_id> tag on the rule header`）：

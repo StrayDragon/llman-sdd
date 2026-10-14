@@ -21,6 +21,7 @@ import './steps/output-contract.ts';
 import './steps/spec-authoring.ts';
 import './steps/roots.ts';
 import './steps/spec-unbound.ts';
+import './steps/migrate-scope.ts';
 import './steps/context.ts';
 import './steps/cli.ts';
 import { runFeature, type TestContext } from './runner.ts';

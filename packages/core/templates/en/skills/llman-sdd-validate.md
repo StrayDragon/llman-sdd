@@ -7,7 +7,7 @@ metadata:
 
 # LLMAN SDD Validate
 
-Validate change/spec format and staleness.
+Validate change/spec format.
 
 ## Steps
 1. Single item: `llman-sdd validate <id>`; batch: `llman-sdd validate --all` (or `--changes` / `--specs`); use `--strict` in CI/automation.

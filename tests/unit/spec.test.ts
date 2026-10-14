@@ -90,7 +90,7 @@ describe('parseCapability (native v2)', () => {
     const codes = doc.errors.map((e) => e.code);
     expect(codes).toContain('missing-header:capability');
     expect(codes).toContain('missing-header:purpose');
-    expect(codes).toContain('missing-header:scope');
+    expect(codes).not.toContain('missing-header:scope');
   });
 
   test('rule description is free text: MUST words are not enforced', () => {

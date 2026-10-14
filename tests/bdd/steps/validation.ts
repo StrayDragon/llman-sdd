@@ -954,8 +954,8 @@ bdd.thenStep('仅缺 scope 路径的 capability valid 为 false', (ctx) => {
   }
 });
 
-// r47 — 输出模式与 strict 升级(TOON 缺省 / human Next steps / json 结构)
-bdd.given('一个仅含缺 scope 路径 WARNING 的临时仓库', (ctx) => {
+// r47 — 输出模式分流(TOON 缺省 / human Totals / json 结构)
+bdd.given('一个全部 specs 结构合格的临时仓库', (ctx) => {
   const repo = makeTempRepo();
   writeFileSync(
     join(repo.root, 'llmanspec', 'specs', 'noscope.feature'),
@@ -967,7 +967,7 @@ bdd.given('一个仅含缺 scope 路径 WARNING 的临时仓库', (ctx) => {
 });
 
 // 审计:非 harness 测试对象;夹具无 bdd 配置,validate 不会执行任何命令
-bdd.when('运行 validate --specs --strict --output human', (ctx) => {
+bdd.when('运行 validate --specs --output human', (ctx) => {
   const { repo } = ctx.fixtures['validate仓库'] as { repo: TempRepo };
   const result = repo.run('bun', [CLI, 'validate', '--specs', '--strict', '--output', 'human']);
   ctx.fixtures['validate结果'] = {
@@ -979,7 +979,7 @@ bdd.when('运行 validate --specs --strict --output human', (ctx) => {
 });
 
 // 审计:非 harness 测试对象;夹具无 bdd 配置,validate 不会执行任何命令
-bdd.when('运行 validate --specs --strict --output json', (ctx) => {
+bdd.when('运行 validate --specs --output json', (ctx) => {
   const { repo } = ctx.fixtures['validate仓库'] as { repo: TempRepo };
   const result = repo.run('bun', [CLI, 'validate', '--specs', '--strict', '--output', 'json']);
   ctx.fixtures['validate结果'] = {
@@ -1001,17 +1001,20 @@ bdd.thenStep('stdout 为 TOON 且退出码为 0', (ctx) => {
   }
 });
 
-bdd.thenStep('stdout 含 "Next steps" 且退出码非零', (ctx) => {
+bdd.thenStep('stdout 含 Totals 收尾且不含 "Next steps"', (ctx) => {
   const r = ctx.fixtures['命令结果'] as { code: number; stdout: string };
-  if (r.code === 0) throw new Error(`strict human must fail:\n${r.stdout}`);
-  if (!r.stdout.includes('Next steps')) {
-    throw new Error(`human mode must carry Next steps guidance:\n${r.stdout}`);
+  if (r.code !== 0) throw new Error(`human green run must exit 0:\n${r.stdout}`);
+  if (!r.stdout.includes('Totals: ')) {
+    throw new Error(`human mode must end with Totals line:\n${r.stdout}`);
+  }
+  if (r.stdout.includes('Next steps')) {
+    throw new Error('Next steps guidance must not appear for green runs');
   }
 });
 
 bdd.thenStep('stdout 为含 items、summary 与 version 的 JSON 且不含 "Next steps"', (ctx) => {
   const r = ctx.fixtures['validate结果'] as { code: number; stdout: string };
-  if (r.code === 0) throw new Error(`strict json must fail (WARNING upgraded):\n${r.stdout}`);
+  if (r.code !== 0) throw new Error(`green json run must exit 0:\n${r.stdout}`);
   const parsed = JSON.parse(r.stdout) as Record<string, unknown>;
   for (const key of ['items', 'summary', 'version'] as const) {
     if (!(key in parsed)) throw new Error(`json output must carry '${key}':\n${r.stdout}`);

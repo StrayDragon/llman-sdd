@@ -63,8 +63,8 @@ export function skeletonContent(capability: string, reqId: string, locale: strin
   const language = officialKeywords(mapped) !== null ? mapped : 'en';
   const kw = officialKeywordsOrEn(language);
   const header = zh
-    ? `# language: ${language}\n# capability: ${capability}\n# purpose: TODO: 一句话描述该能力与其目的。\n# scope: llmanspec/`
-    : `# language: ${language}\n# capability: ${capability}\n# purpose: TODO: Describe this capability and its purpose.\n# scope: llmanspec/`;
+    ? `# language: ${language}\n# capability: ${capability}\n# purpose: TODO: 一句话描述该能力与其目的。`
+    : `# language: ${language}\n# capability: ${capability}\n# purpose: TODO: Describe this capability and its purpose.`;
   const ruleDesc = zh ? 'TODO: 需求描述(自由文本)。' : 'TODO: requirement statement (free text).';
   // Skeleton placeholder prose is not vocabulary — the zh/en copy stays; keywords do not.
   const steps = zh

@@ -1,7 +1,6 @@
 # language: zh-CN
 # capability: spec-parsing
 # purpose: 定义 .feature 单轨解析的语言兜底链、头注释契约、标签分层语义与全局 rN 注册表。
-# scope: packages/core/src/spec/
 
 功能: spec-parsing
 
@@ -32,13 +31,20 @@
 
   @req:r8
   规则: 头注释契约
-    每个 capability .feature MUST 以 `# capability:` 头注释开始;`# purpose:` 与 `# scope:` MUST 同样存在;三者构成
-    CapabilityDoc 头部,缺失项 MUST 被逐项报告。
+    每个 capability .feature MUST 以 `# capability:` 头注释开始;`# purpose:` MUST 同样存在;两者构成
+    CapabilityDoc 头部,缺失项 MUST 被逐项报告。其余头注释行(含历史 `# scope:` 与 `# reviewed-through:`)MUST 按
+    普通注释解析:不进 CapabilityHeader、不报错、不参与任何校验。
 
     场景: 头注释缺失逐项报告
       假如 一个缺失全部头注释的 feature 内容
       当 解析该 feature
-      那么 错误逐项报告三处缺失头注释
+      那么 错误逐项报告两处缺失头注释
+
+    场景: 历史头注释行按普通注释解析
+      假如 一个头注释区含 `# scope:` 与 `# reviewed-through:` 行的 feature 内容
+      当 解析该 feature
+      那么 解析成功且 CapabilityHeader 仅含 capability 与 purpose
+      而且 不产生任何 issue
 
   @req:r9
   规则: 原生分层解析语义

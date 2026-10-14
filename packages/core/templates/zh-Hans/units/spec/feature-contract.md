@@ -8,7 +8,6 @@
 # language: zh-CN
 # capability: sample
 # purpose: One-line overview.
-# scope: src/
 
 功能: sample
 
@@ -28,7 +27,7 @@
     specs-compact 持续压降。
 ```
 
-- 头注释（`# capability:` / `# purpose:` / `# scope:`）必填；`scope` 驱动过期检查。
+- 头注释（`# capability:` / `# purpose:`）必填。
 - **可执行场景优先**：行为一律以嵌套 `场景:`（假如/当/那么）表达并绑定 BDD 步骤代码、由 runner 执行——默认首选。仅当需求无法程序化表达（抽象目标、架构决策、治理/人工约束）或暂不转写时，才以 `规则:` 块承载，并在 proposal/design 记录理由。
 - `@req:<id>` 挂在 `规则:` 头标签，是全局唯一的需求句柄（resolve-req/next-req-id/条款引用共用）；重复或缺失由 validate 判 ERROR。
 - 规则描述为自由文本：不强制 MUST/SHALL 词；较长时拆多行便于审查，不使用 `- ` 列表前缀（会原样进入描述）。

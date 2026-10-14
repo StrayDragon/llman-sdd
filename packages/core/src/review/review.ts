@@ -1,13 +1,11 @@
-import type { GitLike } from '../git/spawnGit.ts';
 import { ruleHasRunnableScenario, specIdOf } from '../spec/ir.ts';
-import { evaluateStaleness, notApplicableStaleness } from '../validation/staleness.ts';
 /**
  * Review aggregation (review-freeze capability, r23): five-signal review over
  * spec IR + validate sweep. Port of predecessor sdd/review.rs observable contract.
  */
 import { validateAllSpecs, type SpecEntry, type SpecIo } from '../validation/validate.ts';
 
-export type ReviewKind = 'unbound' | 'stale' | 'locked' | 'validate';
+export type ReviewKind = 'unbound' | 'locked' | 'validate';
 
 export interface ReviewSignal {
   kind: ReviewKind;
@@ -22,14 +20,8 @@ export interface ReviewInput {
   boundChangeCount: number;
   /** Active change summaries for the strict sweep (pending tasks → FAIL). */
   activeChanges?: readonly { name: string; completedTasks: number; totalTasks: number }[];
-  /** Restrict per-capability signals (pending/unbound/stale) to this capability. */
+  /** Restrict per-capability signals (unbound) to this capability. */
   capability?: string;
-  /** git + root for real staleness evaluation (predecessor parity). */
-  git?: GitLike;
-  root?: string;
-  specsDir?: string;
-  /** predecessor base-ref override env value (LLMANSPEC_BASE_REF), injected by caller. */
-  baseRefEnv?: string;
 }
 
 export interface ReviewResult {
@@ -37,15 +29,6 @@ export interface ReviewResult {
   summary: { criticalCount: number; warningCount: number };
   lines: string[];
   exitCode: number;
-}
-
-/**
- * Root-relative spec path for staleness (`specRel` contract): repo-root
- * discovery yields `llmanspec/…` paths while bare stems get the specs prefix.
- * Shared with the CLI's spec validate path.
- */
-export function specRelFor(fileName: string): string {
-  return fileName.startsWith('llmanspec/') ? fileName : `llmanspec/specs/${fileName}`;
 }
 
 export function buildReview(input: ReviewInput, io: SpecIo): ReviewResult {
@@ -73,24 +56,6 @@ export function buildReview(input: ReviewInput, io: SpecIo): ReviewResult {
     const unbound = entry.doc.rules.filter((r) => !ruleHasRunnableScenario(r)).length;
 
     push('unbound', cap, unbound);
-
-    // staleness (predecessor evaluate): real base-ref/scope evaluation.
-    let staleInfo = notApplicableStaleness();
-    let staleCount = 0;
-    if (input.git !== undefined && input.root !== undefined) {
-      const specRel = specRelFor(entry.fileName);
-      const evalResult = evaluateStaleness({
-        git: input.git,
-        root: input.root,
-        specRel,
-        scope: entry.doc.header.scope?.split(',').map((x) => x.trim()) ?? [],
-        reviewedThrough: entry.doc.header.reviewedThrough,
-        baseRefEnv: input.baseRefEnv,
-      });
-      staleInfo = evalResult.info;
-      staleCount = staleInfo.status === 'OK' || staleInfo.status === 'NOTAPPLICABLE' ? 0 : 1;
-    }
-    push('stale', cap, staleCount, staleInfo.status === 'NOTAPPLICABLE' ? '' : staleInfo.status);
   }
 
   const failed = sweep.verdicts.filter((v) => !v.ok);
@@ -138,13 +103,13 @@ export function buildReview(input: ReviewInput, io: SpecIo): ReviewResult {
   );
 
   const warningCount = signals
-    .filter((s) => s.kind !== 'validate' && s.kind !== 'locked')
+    .filter((s) => s.kind === 'unbound')
     .reduce((acc, s) => acc + s.count, 0);
   const criticalCount = failed.length;
 
   const lines: string[] = [`Review: critical=${criticalCount} warning=${warningCount}`];
   for (const cap of sorted.map((e) => specIdOf(e))) {
-    for (const kind of ['unbound', 'stale'] as const) {
+    for (const kind of ['unbound'] as const) {
       const s = signals.find((x) => x.kind === kind && x.capability === cap);
       if (!s) continue;
       lines.push(`${kind}: ${cap} (${s.count})`);

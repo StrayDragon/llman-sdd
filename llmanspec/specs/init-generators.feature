@@ -1,7 +1,6 @@
 # language: zh-CN
 # capability: init-generators
 # purpose: 定义模板渲染语义、locale 兜底链、init 产物面与 skills 命名空间治理,验收基准为渲染基线归一化 diff。
-# scope: packages/core/src/templates/, packages/core/src/init/, packages/core/templates/, apps/cli/src/commands/init.ts, tests/golden/
 
 功能: init-generators
 
@@ -138,7 +137,7 @@
       而且 仓库工作区未被改动
   @req:r93
   规则: init 逐根与 agent 面 skills 策略
-    init MUST 保持逐根构造(init [path] 定根、路径根相对、无嵌套守卫,scope 重叠由路径单一归属 validate 把关);子根 init 照写 AGENTS.md 与 llmanspec/AGENTS.md 双托管块(marker 更新保留既有内容)。.agents/skills 仅当目标为仓库根实例时注入:子根 init 缺省 MUST NOT 注入 skills 且 MUST NOT 清理 skills 命名空间,--skills 旗标显式开启子根注入。init --update MUST 复用根发现算子刷新全部发现根的托管块,skills 渲染与 llman-sdd-* 命名空间清理仍仅作用于仓库根实例。
+    init MUST 保持逐根构造(init [path] 定根、路径根相对、无嵌套守卫,根间重叠不做交叉校验);子根 init 照写 AGENTS.md 与 llmanspec/AGENTS.md 双托管块(marker 更新保留既有内容)。.agents/skills 仅当目标为仓库根实例时注入:子根 init 缺省 MUST NOT 注入 skills 且 MUST NOT 清理 skills 命名空间,--skills 旗标显式开启子根注入。init --update MUST 复用根发现算子刷新全部发现根的托管块,skills 渲染与 llman-sdd-* 命名空间清理仍仅作用于仓库根实例。
 
     场景: 子根 init 缺省不注入 skills
       假如 一个 git 仓库的临时目录

@@ -353,17 +353,14 @@ bdd.when('运行 spec skeleton', (ctx) => {
   ctx.fixtures['skeleton结果'] = { code: skel.code, content };
 });
 
-bdd.thenStep('骨架通过单轨校验且 # scope: 指向 llmanspec/ 而非 src/', (ctx) => {
+bdd.thenStep('骨架通过单轨校验且头部无 # scope: 行', (ctx) => {
   const r = ctx.fixtures['skeleton结果'] as { code: number; content: string };
   if (r.code !== 0) throw new Error('spec skeleton failed');
   const doc = parseCapability(r.content, 'capx.feature');
   if (doc.errors.length > 0)
     throw new Error(`skeleton fails single-track validation: ${JSON.stringify(doc.errors)}`);
-  if (!r.content.includes('# scope: llmanspec/')) {
-    throw new Error(`skeleton does not point scope at llmanspec/:\n${r.content}`);
-  }
-  if (r.content.includes('# scope: src/')) {
-    throw new Error(`skeleton still references src/ scope:\n${r.content}`);
+  if (r.content.includes('# scope:')) {
+    throw new Error(`skeleton must not emit a # scope: header line:\n${r.content}`);
   }
 });
 

@@ -70,43 +70,6 @@ export function discoverRoots(
   return roots;
 }
 
-export interface ScopeCrossing {
-  scope: string;
-  rootDir: string;
-}
-
-/**
- * Single-ownership rule (r92): a file path belongs to exactly one llmanspec
- * root. Scope entries are resolved against the owning instance root; a scope
- * that reaches into another root's instance directory crosses the boundary
- * and is reported with the offending scope and the other root. Ancestor roots
- * are exempt: a sub-root scoping its own subtree always resolves under the
- * ancestor's directory, but ownership there belongs to the descendant.
- */
-export function scopeCrossings(
-  scopePaths: readonly string[],
-  instanceRootDir: string,
-  otherRoots: readonly RootEntry[],
-): ScopeCrossing[] {
-  const crossings: ScopeCrossing[] = [];
-  for (const raw of scopePaths) {
-    const scope = raw.trim().replace(/^\.\//u, '').replace(/\/+$/u, '');
-    if (scope === '') continue;
-    const abs = joinPath(instanceRootDir, scope);
-    for (const other of otherRoots) {
-      if (other.rootDir === instanceRootDir) continue;
-      // Ancestor exemption: our own subtree necessarily sits inside the
-      // ancestor's directory — the ancestor does not own it.
-      if (instanceRootDir.startsWith(`${other.rootDir}/`)) continue;
-      if (abs === other.rootDir || abs.startsWith(`${other.rootDir}/`)) {
-        crossings.push({ scope: raw.trim(), rootDir: other.rootDir });
-        break;
-      }
-    }
-  }
-  return crossings;
-}
-
 /**
  * Nearest instance root at or above `startDir` (inclusive) — the cwd
  * resolution behind "cd into the subpackage and run" (r94). Returns null when

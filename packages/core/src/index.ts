@@ -60,6 +60,16 @@ export {
   type MigrateBlock,
   type MigrateResult,
 } from './spec/migrateNative.ts';
+export { stripLegacyHeaderLines } from './spec/migrateScope.ts';
+export {
+  MIGRATIONS,
+  findMigration,
+  knownMigrationIds,
+  isValidMigrationExpr,
+  migrationPrompt,
+  migrationOverviewLines,
+  type MigrationEntry,
+} from './project/migrations.ts';
 export {
   MIGRATE_KINDS,
   isMigrateKind,
@@ -84,14 +94,9 @@ export type {
   ValidationLevel,
   ValidationReport,
 } from './validation/validate.ts';
-export { validateAllSpecs, validateCapability, applyStrict } from './validation/validate.ts';
+export { validateAllSpecs, validateCapability } from './validation/validate.ts';
 export { buildDuplicatesFor, formatTotals } from './validation/validate.ts';
 export { splitVerb } from './config/changeId.ts';
-export {
-  evaluateStaleness,
-  notApplicableStaleness,
-  type StalenessInfo,
-} from './validation/staleness.ts';
 export {
   checkChangeDoc,
   validateChange,
@@ -109,11 +114,9 @@ export {
   discoverRoots,
   isValidRoot,
   resolveInstanceRoot,
-  scopeCrossings,
   ROOT_EXCLUDED_DIRS,
   type RootEntry,
   type RootsIo,
-  type ScopeCrossing,
 } from './validation/roots.ts';
 export {
   expandRunCommand,
@@ -271,7 +274,6 @@ export {
 export {
   buildReview,
   renderReviewHtml,
-  specRelFor,
   type ReviewInput,
   type ReviewKind,
   type ReviewResult,

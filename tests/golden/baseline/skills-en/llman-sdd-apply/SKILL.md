@@ -140,10 +140,6 @@ After all tasks complete + all gates green, output a structured report (see Outp
 
 When you see this stderr line: **relay** it to the user and suggest `llman-sdd init --update` (refreshes managed blocks and skills to the installed CLI). Until updated, **keep following the current skill** — the notice is informational, never a stop condition. At most once per process.
 
-## Re-review stamp discipline (`# reviewed-through:` header)
-
-When a review concludes "no governed behaviour change", **update** the spec header line `# reviewed-through: <change-id>` to this change — **never** append free-form `# re-review(...)` comments between rules (historical narrative belongs to `changes/archive/<id>/`; the spec keeps only the machine-readable pointer). Staleness consumes it to clear the STALE signal; legacy free-form comments are dropped mechanically on touch, not migrated.
-
 Validation fixes (single-track feature-as-spec):
 
 1) Missing header comments (`missing # capability: header comment`): every capability `.feature` (`llmanspec/specs/<capability>.feature` or the same-named main file in a directory) MUST start with:
@@ -151,7 +147,6 @@ Validation fixes (single-track feature-as-spec):
 # language: zh-CN
 # capability: <capability>
 # purpose: One-line overview.
-# scope: src/
 ```
 
 2) Native layout (`rule must carry an @req:<req_id> tag on the rule header`):

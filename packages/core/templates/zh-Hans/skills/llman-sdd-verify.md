@@ -72,8 +72,6 @@ flowchart LR
 
 {{ unit("skills/version-drift") }}
 
-{{ unit("skills/review-stamp") }}
-
 {{ unit("skills/validation-hints") }}
 
 {{ unit("skills/structured-protocol") }}

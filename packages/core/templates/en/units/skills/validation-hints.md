@@ -5,7 +5,6 @@ Validation fixes (single-track feature-as-spec):
 # language: zh-CN
 # capability: <capability>
 # purpose: One-line overview.
-# scope: src/
 ```
 
 2) Native layout (`rule must carry an @req:<req_id> tag on the rule header`):

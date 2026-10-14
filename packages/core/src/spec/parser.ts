@@ -79,25 +79,19 @@ function stepKeywordToKind(keyword: string): ScenarioStepKind {
   return stepKeywordToOfficialKind(keyword) ?? 'given';
 }
 
-const HEADER_RE = /^#\s*(capability|purpose|scope|reviewed-through):\s*(.*)$/u;
+const HEADER_RE = /^#\s*(capability|purpose):\s*(.*)$/u;
 
 function extractHeader(source: string): CapabilityHeader {
   const header: CapabilityHeader = {
     capability: null,
     purpose: null,
-    scope: null,
-    reviewedThrough: null,
   };
   for (const line of source.split('\n')) {
     if (line.trim() === '') continue;
     if (!line.trimStart().startsWith('#')) break;
     const m = line.trimStart().match(HEADER_RE);
     if (m?.[1]) {
-      const raw = m[1];
-      const field: 'capability' | 'purpose' | 'scope' | 'reviewedThrough' =
-        raw === 'reviewed-through'
-          ? 'reviewedThrough'
-          : (raw as 'capability' | 'purpose' | 'scope');
+      const field = m[1] as 'capability' | 'purpose';
       header[field] = m[2]?.trim() ?? null;
     }
   }
@@ -149,7 +143,7 @@ function collectScenario(sc: {
 export function parseCapability(source: string, fileName = '<inline>'): CapabilityDoc {
   const errors: SpecStructuralError[] = [];
   const header = extractHeader(source);
-  for (const key of ['capability', 'purpose', 'scope'] as const) {
+  for (const key of ['capability', 'purpose'] as const) {
     if (header[key] === null) {
       errors.push({ code: `missing-header:${key}`, message: `missing # ${key}: header comment` });
     }

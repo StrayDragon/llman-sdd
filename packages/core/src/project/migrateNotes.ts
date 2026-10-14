@@ -28,7 +28,7 @@ Agent 该做什么:
 4. 迁移后运行 llman-sdd validate --specs --strict 与项目 BDD 套件,全绿为收口标准。
 
 人类该做什么:
-- 审阅 diff 与 req 语义;把 # scope: 指向该规范管辖的真实源码目录(scope 承载 staleness 扫描,自引用无意义)。
+- 审阅 diff 与 req 语义;确认规范描述与源码现状一致(自引用无意义)。
 
 陷阱:
 - spec.toon 的引号转义存在两种历史风格("" 翻倍与 \\" 反斜杠),手工读表须逐一确认。
@@ -45,7 +45,7 @@ What the agent does:
 4. After migration run llman-sdd validate --specs --strict and the project BDD suite; all-green is the bar.
 
 What the human does:
-- Review the diff and the req semantics; point # scope: at the real source directory the spec governs (scope drives staleness scanning; self-references are useless).
+- Review the diff and the req semantics; confirm the spec matches the current source (self-references are useless).
 
 Pitfalls:
 - spec.toon quoting has two historical escaping styles ("" doubling and \\" backslash); verify cell by cell.
@@ -58,8 +58,8 @@ const SPECS_FLATTEN_ZH = `llman-sdd project migrate --kind specs-flatten — 目
 Agent 该做什么:
 1. 仅处理「目录内只有一个 <cap>.feature、无其他文件」的纯目录;目标 specs/<cap>.feature 已存在(冲突)、目录内有多个 .feature、或有附属文件 → 报告并跳过,勿强迁。
 2. 用 git mv specs/<cap>/<cap>.feature specs/<cap>.feature 保留历史,然后删除空目录。
-3. 检查该文件 # scope: 是否自引用自身路径,是则改写为真实源码目录。
-4. 迁移后运行 llman-sdd validate --specs 确认无 stale 警告。
+3. 检查该文件头部遗留的历史注释行是否仍反映现状,失效则删除。
+4. 迁移后运行 llman-sdd validate --specs 确认结构门全绿。
 
 人类该做什么:
 - 审阅 git diff(move 保历史);确认 scope 指向真实管辖面。`;
@@ -71,8 +71,8 @@ Background: v1 placed capabilities in specs/<cap>/<cap>.feature directories; v2 
 What the agent does:
 1. Only handle pure directories (exactly one <cap>.feature inside, nothing else); if the target specs/<cap>.feature already exists (conflict), the directory holds multiple .feature files, or there are auxiliary entries → report and skip, never force.
 2. git mv specs/<cap>/<cap>.feature specs/<cap>.feature to preserve history, then remove the emptied directory.
-3. Check the file's # scope: for a self-referential path and rewrite it to the real source directory.
-4. After migration run llman-sdd validate --specs and confirm no stale warning remains.
+3. Check the file's leftover legacy header comment lines and drop any that no longer reflect reality.
+4. After migration run llman-sdd validate --specs and confirm the structural gate is green.
 
 What the human does:
 - Review the git diff (moves keep history); confirm scope points at the real governed surface.`;

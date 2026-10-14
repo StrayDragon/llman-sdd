@@ -23,10 +23,8 @@ export interface SpecSummary {
   id: string;
   title: string;
   purpose: string;
-  validScope: string[];
   requirementCount: number;
   health: null;
-  staleness: null;
   morphology: SpecMorphology;
 }
 
@@ -52,13 +50,8 @@ export function collectSpecs(entries: readonly SpecEntry[]): SpecSummary[] {
       id: specIdOf(e),
       title: specIdOf(e),
       purpose: e.doc.header.purpose ?? '',
-      validScope: (e.doc.header.scope ?? '')
-        .split(',')
-        .map((s) => s.trim())
-        .filter((s) => s !== ''),
       requirementCount: total,
       health: null,
-      staleness: null,
       morphology,
     };
   });

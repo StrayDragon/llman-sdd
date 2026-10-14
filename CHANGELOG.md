@@ -2,6 +2,23 @@
 
 本项目遵循语义化版本（SemVer）。breaking 变更随大版本/次版本标注迁移说明。
 
+## 0.8.0 (2026-10-14)
+
+change `drop-review-stamp-and-scope`：手工治理元数据整族退役，spec 头契约收缩为
+`# capability:` + `# purpose:`（breaking；迁移见 `migrations/v0.7-v0.8/README.md`，
+一键 `spec migrate-scope`）。
+
+- 移除 `# scope:` / `# reviewed-through:` 头：parser 不再识别（存量行降级惰性注释），
+  validate 去 scope 存在性门禁与跨根单一归属检查，`spec skeleton` 不再生成。
+- 移除 staleness/STALE 警告链与 `review` 的 `stale` 信号：`validate --json` 去
+  `staleness` 键，review 信号集收缩为 `{unbound, locked, validate}`，
+  `warningCount = unbound` 计数（主动 divergence，替代前代字节对齐口径的相应面）。
+- 新增 `project migrate` 迁移中枢:prompt 子命令按 `--version-expr '0.7.5->0.8.0'` 输出
+  agent 可执行/可自查的迁移手册;strip-legacy-headers 子命令幂等剥除两类历史头行
+  (`--dry-run` 支持);裸调用总览追加已知版本对清单。
+- apply/verify skill 去 review-stamp unit；报告字段清理（`validScope` 等）；
+  core 导出面收缩；`LLMANSPEC_BASE_REF` 不再读取。
+
 ## 0.7.5 (2026-10-11)
 
 本批次包含两个 change（均在仓内走完整 SDD 流程）与一批 quick 修复，按维护者决策以

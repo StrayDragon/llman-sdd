@@ -1,29 +1,22 @@
 import { relative } from 'node:path';
 
 import {
-  applyStrict,
   buildDuplicatesFor,
   checkGlobalChangeIdUniqueness,
   collectChanges,
   currentBranch,
   defaultBranch,
   discoverRoots,
-  evaluateStaleness,
   formatTotals,
-  notApplicableStaleness,
   renderMachine,
   resolveInstanceRoot,
   runHarnessForSpecs,
-  scopeCrossings,
-  specRelFor,
   specIdOf,
   STAGE_ORDER,
   validateCapability,
   validateChange,
   type ChangeIssue,
   type HarnessGate,
-  type RootEntry,
-  type StalenessInfo,
 } from '@llman-sdd/core';
 import type { Command } from 'commander';
 
@@ -48,7 +41,6 @@ interface VItem {
   valid: boolean;
   issues: ChangeIssue[];
   durationMs: number;
-  staleness: StalenessInfo;
   matchedViaPrefix: boolean;
 }
 
@@ -57,34 +49,16 @@ function compareItems(a: VItem, b: VItem): number {
   return a.id < b.id ? -1 : a.id > b.id ? 1 : a.type.localeCompare(b.type);
 }
 
-/**
- * Multi-root context of the specs being validated (r91-r92): `repoRelPrefix`
- * lifts instance-root-relative scopes into repo-relative paths for the
- * staleness diff match ('' when the instance root is the git toplevel —
- * byte-identical legacy behavior); `otherRoots` feeds the single-ownership
- * crossings that surface as ERROR issues.
- */
-export interface InstanceContext {
-  repoRelPrefix: string;
-  otherRoots: RootEntry[];
-}
-
 function specV1Items(
   opts: {
     strict?: boolean;
     harness?: HarnessGate;
     harnessOnlyIds?: string[];
-    instance?: InstanceContext;
   },
   entries: ReturnType<typeof loadSpecEntries> = loadSpecEntries(),
 ): VItem[] {
   const io = newIo();
-  const git = makeCliGit(process.cwd());
   const duplicatesFor = buildDuplicatesFor(entries);
-  const liftScope = (scope: string): string =>
-    opts.instance !== undefined && opts.instance.repoRelPrefix !== ''
-      ? `${opts.instance.repoRelPrefix}/${scope}`
-      : scope;
 
   const items: VItem[] = [];
   for (const entry of entries) {
@@ -92,42 +66,17 @@ function specV1Items(
     const verdict = validateCapability(entry as never, duplicatesFor, io, {
       strict: opts.strict === true,
     });
-    const scopes = entry.doc.header.scope?.split(',').map((s) => s.trim()) ?? [];
-    const specRel = specRelFor(entry.fileName);
-    const staleness = evaluateStaleness({
-      git,
-      root: process.cwd(),
-      specRel,
-      scope: scopes.map(liftScope),
-      reviewedThrough: entry.doc.header.reviewedThrough,
-      baseRefEnv: process.env.LLMANSPEC_BASE_REF,
-    });
-    let issues: ChangeIssue[] = verdict.items.map((i) => ({
+    const issues: ChangeIssue[] = verdict.items.map((i) => ({
       level: i.level,
       path: i.id,
       message: i.message,
     }));
-    if (opts.instance !== undefined) {
-      for (const crossing of scopeCrossings(scopes, process.cwd(), opts.instance.otherRoots)) {
-        issues = [
-          ...issues,
-          {
-            level: 'ERROR',
-            path: 'single-ownership',
-            message: `scope '${crossing.scope}' crosses sub-root '${crossing.rootDir}' — migrate these specs into that root or narrow the scope (one path, one root)`,
-          },
-        ];
-      }
-    }
-    if (opts.strict === true) issues = [...issues, ...applyStrict(staleness.issues)];
-    else issues = [...issues, ...staleness.issues];
     items.push({
       id: cap,
       type: 'spec',
       valid: issues.every((i) => i.level !== 'ERROR'),
       issues,
       durationMs: 0,
-      staleness: staleness.info,
       matchedViaPrefix: false,
     });
   }
@@ -179,7 +128,6 @@ function changeV1Items(names: string[], opts: { stage?: string; strict?: boolean
       valid: res.valid,
       issues: res.issues,
       durationMs: 0,
-      staleness: notApplicableStaleness(),
       matchedViaPrefix: false,
     });
   }
@@ -206,23 +154,12 @@ function changeV1Items(names: string[], opts: { stage?: string; strict?: boolean
         valid: false,
         issues: [issue],
         durationMs: 0,
-        staleness: notApplicableStaleness(),
         matchedViaPrefix: false,
       });
     }
   }
   items.sort(compareItems);
   return items;
-}
-
-function printStalenessLines(info: StalenessInfo): void {
-  if (info.status === 'NOTAPPLICABLE') return;
-  console.log(`Staleness: ${info.status}`);
-  if (info.touchedPaths.length > 0)
-    console.log(`Touched scope paths: ${info.touchedPaths.join(', ')}`);
-  if (info.specUpdated) console.log('Spec file updated since base.');
-  if (info.dirty) console.log('Working tree is dirty; results may be unreliable.');
-  for (const note of info.notes) console.log(`Note: ${note}`);
 }
 
 function renderValidateText(items: VItem[]): void {
@@ -237,7 +174,6 @@ function renderValidateText(items: VItem[]): void {
         console.error(`  [${issue.level}] ${issue.path}: ${issue.message}`);
       }
     }
-    if (item.type === 'spec') printStalenessLines(item.staleness);
   }
   console.log(formatTotals(passed, failed, items.length));
 }
@@ -245,19 +181,6 @@ function renderValidateText(items: VItem[]): void {
 function gitToplevelOrCwd(): string {
   const toplevel = makeCliGit(process.cwd()).runOpt(['rev-parse', '--show-toplevel']);
   return toplevel ?? process.cwd();
-}
-
-/**
- * Multi-root context of the cwd instance (r91-r92): empty otherRoots + ''
- * prefix when run at a lone root — legacy byte-identical behavior.
- */
-function instanceContextFor(maxDepth: number): InstanceContext {
-  const toplevel = gitToplevelOrCwd();
-  const otherRoots = discoverRoots(toplevel, newIo(), { maxDepth }).filter(
-    (r) => r.rootDir !== process.cwd(),
-  );
-  const repoRelPrefix = toplevel === process.cwd() ? '' : relative(toplevel, process.cwd());
-  return { repoRelPrefix, otherRoots };
 }
 
 interface RootReport {
@@ -294,7 +217,7 @@ function renderValidateReport(items: VItem[], mode: 'json' | 'compact-json' | 't
 }
 
 const SPEC_NEXT_STEPS = [
-  '- Ensure each .feature starts with "# capability:", "# purpose:" and "# scope:" header comments',
+  '- Ensure each .feature starts with "# capability:" and "# purpose:" header comments',
   '- Each requirement MUST include at least one scenario object',
   '- Re-run with --json to see structured report',
 ];
@@ -425,7 +348,6 @@ export function registerValidate(program: Command): void {
             const items = specV1Items({
               strict: options.strict,
               harness: makeHarnessGate(options),
-              instance: instanceContextFor(maxDepth),
             });
             const visible = keepInfo ? items : items.map(stripInfo);
             if (visible.some((i) => !i.valid)) anyFail = true;
@@ -488,7 +410,6 @@ export function registerValidate(program: Command): void {
               strict: options.strict,
               harness,
               harnessOnlyIds: [item],
-              instance: instanceContextFor(maxDepth),
             },
             entries,
           );
@@ -511,7 +432,6 @@ export function registerValidate(program: Command): void {
             console.error('Next steps:');
             for (const s of SPEC_NEXT_STEPS) console.error(s);
           }
-          if (shown.type === 'spec') printStalenessLines(shown.staleness);
           if (!shown.valid) console.error('Error: validation failed');
           exitWith(shown.valid ? 0 : 1);
           return;
@@ -547,7 +467,6 @@ export function registerValidate(program: Command): void {
                 valid: res.valid,
                 issues: res.issues,
                 durationMs: 0,
-                staleness: notApplicableStaleness(),
                 matchedViaPrefix: resolved.viaPrefix,
               }),
             ],
@@ -586,7 +505,6 @@ export function registerValidate(program: Command): void {
           specV1Items({
             strict: options.strict,
             harness,
-            instance: instanceContextFor(maxDepth),
           }),
         );
       }

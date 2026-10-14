@@ -1,7 +1,6 @@
 # language: zh-CN
 # capability: config-command
 # purpose: 定义 `config` 命令面的只读概览与 extra_skills 非交互管理合同。
-# scope: apps/cli/src/commands/config.ts, packages/core/src/config/surface.ts
 
 功能: config-command
 
