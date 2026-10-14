@@ -2,6 +2,16 @@
 
 本项目遵循语义化版本（SemVer）。breaking 变更随大版本/次版本标注迁移说明。
 
+## 0.8.2 (2026-10-14)
+
+试验性状态流转校验（`specs.check_transitions`），无 breaking。默认关闭；本仓 dogfood
+开启。升级：安装 0.8.2 后按需设 `specs.check_transitions: true`。
+
+- `config-schema`：`specs.check_transitions` 布尔开关与 JSON Schema 同步。
+- `spec-parsing`：原生 Gherkin `场景大纲` / `例子` IR 与本仓 BDD runner 行展开。
+- `validation`：自动发现 from/event/to 类例子表，XState 四道 ERROR 门禁（确定性、可达、死锁、占位符绑定）；`validate` / `review` 随配置启用。
+- `change-lifecycle`：`@req:r34` 自举 stage 单调迁移场景大纲；CLI 表面零新增子命令。
+
 ## 0.8.1 (2026-10-14)
 
 skill 指引修正，无 breaking。升级：安装 0.8.1 后对项目跑 `llman-sdd init --update` 刷新
