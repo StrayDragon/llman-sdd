@@ -1,7 +1,9 @@
 ---
 depends_on: []
 title: skill 指引收敛至 specs 关联面并清除仓库特定命令残留
-needs_specs_change: false
+branch: sdd/scope-skills-to-specs
+base_branch: main
+base_sha: 5aaa8997c1cd8ea1cd4d319f8b01e7848489cbc5
 ---
 
 # skill 指引收敛至 specs 关联面并清除仓库特定命令残留
@@ -18,16 +20,17 @@ templates 渲染的 skills 同时交付用户项目与本仓自举,但三处指�
 ## What Changes
 
 - `packages/core/templates/zh-Hans/skills/llman-sdd-apply.md` 与 `en` 同位:
-  - 验证块首行改为项目无关表述:门禁入口以项目自身配置为准(package.json scripts、justfile、Makefile、config.yaml `specs.check_command` 等),不拼写具体工具名。
+  - 验证块改为动态发现表述(用户定案:不假定任何任务工具,含 just 本身):执行本仓已声明的验证手段,以仓库文档与配置记载为准;已配置 `specs.check_command` 时以 `llman-sdd config` 读得为准;未声明则询问用户。唯一允许的工具锚点是产品自有约定 `specs.check_command`。
   - 验证阶梯保留 L1→L4 成本递增语义,命令侧改为能力描述(L1 项目单测的直接导入层;L2 定向执行 BDD/等价手段;L3/L4 本就是产品命令 `validate --check`/finalize,不动)。
-  - 实施循环前新增“SDD 管辖范围”条款:SDD 流程(change 分支、proposal、specs 编辑门)只约束 `llmanspec/**` 行为合约面及其产物对齐;仓库其余文件按项目常规工程流程直改直提交,不要求 change 包装;仅当改动触碰行为合约语义时才入 SDD 流程。
-- `packages/core/templates/{zh-Hans,en}/skills/llman-sdd-propose.md` 步骤 0:删除 valid_scope 核对句,替换为“`llman-sdd list --specs` 确认 specs 清单可读”。
+  - 硬约束列表新增“管辖范围”条款:SDD 流程(change 分支、proposal、specs 编辑门)只约束 `llmanspec/**` 行为合约面及其产物对齐;仓库其余文件按项目常规工程流程直改直提交,不要求 change 包装;仅当改动触碰行为合约语义时才入 SDD 流程。
+- valid_scope 残留清理共 4 文件:apply zh/en 的 Preflight 与 propose zh/en 的步骤 0 各有一句“核对 valid_scope 路径”——v0.8.0 已废该概念(实测 `list --specs --json` 无此键,源码仅存注释性示例),统一替换为“`llman-sdd list --specs` 清单可读”检查;propose 另改步骤 4 校验口径:步骤 4 校验口径改为普通 `validate <change-id>`(结构门)——`--strict` 把警告升级为失败,propose 阶段未勾 task 恒为警告,strict 留给实施收口后的完成判定。
 - 重生成 `tests/golden/baseline`(skills 与 skills-en 双 locale),并在绑定分支运行 `init --update` 刷新本仓 `.agents/skills`(自举纪律)。
 - zh/en 成对修改守 parity 门(r70);文案过 STC 门(r97,基线只许下调);模板命令字面过命令对账门(r67)。
+- verify 后用户裁定本分支清零两 finding,扩围两项:①WARNING——peripheral-commands r90 场景化绑定(新增 tests/bdd/assert/morphology-names.ts 对账脚本),unbound 1→0;②SUGGESTION——r97 强度词表外检测整词优先(不要求先于不要),消除“不要求”被子串误读为「不要」的歧义。live 合约编辑已发生,frontmatter needs_specs_change 撤 false回归缺省。
 
 ## Capabilities
 
-- `init-generators`(skills 模板文案面;无 CLI 行为变更,无 schema 变更,无合约句子增删——渲染产物由既有 r67/r70/r80/r97 四门守护,故 `needs_specs_change: false`)。
+- `init-generators`(skills 模板文案面;无 CLI 行为变更,无 schema 变更)与 `peripheral-commands`(仅 r90 增配可运行场景,规则文本零改)——specs 落地随本 change 分支提交。
 
 ## Impact
 

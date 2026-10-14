@@ -102,7 +102,7 @@ If the user just wants to **capture an idea** ("draft a proposal", "note down X"
 ### 0) Preflight
 - Read `llmanspec/config.yaml` for project context, rules, locale.
 - `llman-sdd validate --all --strict` to ensure current artifacts are clean; on pre-existing errors, STOP and report (stacking a new change on dirty artifacts causes cascading errors).
-- **Check spec valid_scope integrity**: `llman-sdd list --specs --json` lists all specs; for each, verify every `valid_scope` path exists on disk. On missing paths, STOP and suggest updating the spec (remove the deleted path).
+- **Specs list readable**: `llman-sdd list --specs` returns the list without errors; on anomaly, STOP and report.
 
 ### 1) Assess change scale
 1. Classify:
@@ -132,9 +132,9 @@ If the user just wants to **capture an idea** ("draft a proposal", "note down X"
 
 ### 4) Validate
 ```bash
-llman-sdd validate <change-id> --strict
+llman-sdd validate <change-id>
 ```
-This MUST pass before proceeding; failing items are listed one by one in the validate output's `items[].issues[]` — fix each and re-run.
+The structure gate MUST pass before proceeding; failing items are listed one by one in the validate output's `items[].issues[]` — fix each and re-run. `--strict` promotes warnings (including unchecked tasks) to failures — reserve it for the post-implementation completion check, once every task is checked.
 
 ### 4a) Optional BDD runner (`specs:` block)
 - Read `llmanspec/config.yaml`. Is there a `specs:` block?

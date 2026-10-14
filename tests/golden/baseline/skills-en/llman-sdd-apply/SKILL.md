@@ -37,6 +37,7 @@ flowchart LR
 
 - **Single-source-of-truth driven**: `proposal.md` / `design.md` / `tasks.md` and `llmanspec/specs/**` on the branch; every behavioral-contract requirement in specs must be fulfilled.
 - **Scope-locked**: only implement the current change's scope; never fix "unrelated issues" on the side; keep changes minimal.
+- **Governing scope**: the SDD flow (change branch, proposal, spec-edit gates) governs the behavior-contract surface only — `llmanspec/**` and its artifact alignment (e.g. `.agents/skills` render freshness). Everything else in the repo (build scripts, CI, general docs, test implementations) follows the project's regular engineering flow with direct edits and commits; no change wrapping required. Return to the corresponding skill flow only when a change reaches behavior-contract semantics.
 - **No guessing**: unclear requirements or specs contradicting reality → STOP and report; don't assume.
 - **No legacy compatibility layers**: if the change requires new behavior, upgrade all call sites directly, unless tasks/proposal explicitly require compatibility.
 - **Close-out**: this loop ends by suggesting `llman-sdd-verify`; finalize/archive belongs to `llman-sdd-archive` (do not finalize inside the self-healing loop).
@@ -53,7 +54,7 @@ flowchart LR
 - Read and obey `llmanspec/config.yaml`, `AGENTS.md` (if present).
 - `git status --porcelain`: if the tree is dirty with changes not belonging to this change → `git stash push -u -m "llman-sdd-apply autopilot backup"` first.
 - `llman-sdd validate --all --strict`: if it fails for reasons unrelated to this change → stop and report (inconsistent artifacts prevent source-of-truth-driven implementation).
-- **Check spec valid_scope integrity**: `llman-sdd list --specs --json` lists all specs; for each, verify every `valid_scope` path exists on disk. On missing paths → stop and suggest updating the spec (remove the deleted path).
+- **Specs list readable**: `llman-sdd list --specs` returns the list without errors; on anomaly → stop and report.
 
 ### 1) Select the change id and check prerequisites
 - If provided, use it; otherwise infer from context, and if ambiguous run `llman-sdd list --json` and let the user pick. Always announce "Using change: <id>" and how to override.
@@ -95,14 +96,13 @@ For each unchecked task:
 4. Task unclear, blocker hit, or specs/design contradict reality → STOP and report; don't assume.
 
 ### 5) Verification and self-healing loop (after each task or batch)
-Run the project gates as appropriate:
-- Test suite: `just test` or `cargo test --all`; format/lint: `just check` or `just lint` + `just fmt`
+- Tests and static gates: run the verification means this repo has declared — as recorded in repo docs and configuration; for repos with `specs.check_command` configured, use the command reported by `llman-sdd config`. If the repo declares none, ask the user; never assume a specific task runner exists.
 - Edit `llmanspec/specs/<capability>.feature` on the branch as needed (flat or directory main file; canonical native layout: `@req:<id>` on the `规则:` block header, nested `场景:` as executable examples); run `llman-sdd validate --specs` after spec edits; commit on the branch freely.
 - SDD validation: `llman-sdd validate <id> --strict`
 
 **Verification ladder (opt-in discipline, escalate by cost)**:
-- L1 minimal unit: `bun test tests/unit/<relevant>` (<1s, direct import), covers only the current change point.
-- L2 targeted behavior: `bun test tests/bdd -t "<scenario/rule title pattern>"` — exercises only the relevant real-CLI path.
+- L1 minimal unit: the fastest declared verification means that loads the changed module directly; covers only the current change point.
+- L2 targeted behavior: run the subset of declared verification means matching the current scenario (prefer targeted `specs.check_command` invocation when configured); reproduce the target behavior only.
 - L3 explicit full harness: `llman-sdd validate --check` (with `specs.check_command` configured; plain `validate` no longer runs the harness).
 - L4 close-out backstop: `change finalize` runs the real harness pre-merge — at least one full run per close-out.
 - Self-heal loops default to L1/L2 for fast reproduction; use L3 only when full-acceptance evidence is needed; avoid paying full-suite cost needlessly.

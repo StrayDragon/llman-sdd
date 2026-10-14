@@ -182,7 +182,8 @@ const ZH_MUST_QUOTE_ALLOWLIST: readonly RegExp[] = [
 ];
 // 「应用/对应/响应」等复合词中的单字应不算强度词:排除前字 用/对/响/反 与后接的常用复合
 const ZH_STRENGTH_VERBS =
-  /(?<![A-Za-z用对响反])应(?!用|答|急)|应当|应该|务必|一定要|不应|不要|禁止|严禁|切勿|尽量|最好/u;
+  // 整词优先:不要求先于不要,防“不要求”被子串误读为表外词「不要」(r97 消歧)。
+  /(?<![A-Za-z用对响反])应(?!用|答|急)|应当|应该|务必|一定要|不应|不要求|不要|禁止|严禁|切勿|尽量|最好/u;
 const EN_ZH_LEAK = /必须|不得|不宜|不必/u;
 
 test('template strength-word vocabulary is per-locale and single-table (r97)', () => {

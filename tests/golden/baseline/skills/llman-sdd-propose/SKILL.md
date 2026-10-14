@@ -102,7 +102,7 @@ flowchart LR
 ### 0) 预检
 - 读 `llmanspec/config.yaml` 获取项目上下文、规则、locale。
 - `llman-sdd validate --all --strict` 确认现有工件干净；有错误则 STOP 并报告（脏工件上叠新 change 会级联出错）。
-- **检查 spec valid_scope 完整性**：`llman-sdd list --specs --json` 列出全部 specs，逐个核对 `valid_scope` 路径在磁盘上存在；有缺失则 STOP 并宜更新该 spec（移除已删路径）。
+- **specs 清单可读**：`llman-sdd list --specs` 返回清单且无错误；异常则 STOP 报告。
 
 ### 1) 判断变更规模
 1. 分类：
@@ -132,9 +132,9 @@ flowchart LR
 
 ### 4) 校验
 ```bash
-llman-sdd validate <change-id> --strict
+llman-sdd validate <change-id>
 ```
-必须 通过才能继续；失败项在 validate 输出的 `items[].issues[]` 逐条指明，按条修复后重跑。
+结构门必须 通过才能继续；失败项在 validate 输出的 `items[].issues[]` 逐条指明，按条修复后重跑。`--strict` 会把警告（含未勾 task）一并升级为失败——留到实施收口、task 全勾后作完成判定。
 
 ### 4a) 可选 BDD runner（`specs:` 段）
 - 读 `llmanspec/config.yaml` 是否含 `specs:` 段：
