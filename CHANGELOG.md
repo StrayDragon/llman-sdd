@@ -2,6 +2,19 @@
 
 本项目遵循语义化版本（SemVer）。breaking 变更随大版本/次版本标注迁移说明。
 
+## 0.8.1 (2026-10-14)
+
+skill 指引修正，无 breaking。升级：安装 0.8.1 后对项目跑 `llman-sdd init --update` 刷新
+skills 与托管块（升级 prompt 见 `docs/release-notes/v0.8.0-to-0.8.1.md`）。
+
+- apply skill（zh/en）验证指引动态化：执行“本仓已声明的验证手段”（唯一工具锚点为
+  `specs.check_command`，未声明则询问用户），移除 `just`/`cargo` 等具体工具示例——原示例
+  与非 Rust/just 项目不符，`just lint`/`just fmt` 在参照仓亦不存在。
+- apply skill（zh/en）新增 SDD 管辖范围条款：SDD 流程（change 分支、proposal、specs 编辑门）
+  只约束 `llmanspec/**` 合约面及其产物对齐；仓库其余文件按项目常规工程流程直改直提交。
+- propose skill（zh/en）：移除已废弃的 `valid_scope` 预检句（0.8.0 起无此概念）；校验步骤
+  改普通 `validate`——`--strict` 会把未勾 task 警告升级为失败，留作收口后完成判定。
+
 ## 0.8.0 (2026-10-14)
 
 change `drop-review-stamp-and-scope`：手工治理元数据整族退役，spec 头契约收缩为
