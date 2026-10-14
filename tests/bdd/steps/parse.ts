@@ -5,15 +5,19 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import {
+  assignSpecIds,
   buildReqRegistry,
   localeToGherkinLang,
   migrateNativeSource,
   officialKeywordsOrEn,
   parseCapability,
   parseFeatureSource,
+  specIdOf,
   SpecParseError,
+  validateAllSpecs,
   type CapabilityDoc,
   type RegistryDuplicate,
+  type SpecEntry,
 } from '@llman-sdd/core';
 
 import { bdd } from '../runner.ts';
@@ -295,35 +299,36 @@ const NO_HEADER_FEATURE = `功能: 裸能力
     系统 MUST 报告缺失
 `;
 
-bdd.given('一个缺失全部头注释的 feature 内容', (ctx) => {
+bdd.given('一个缺失 purpose 头注释的 feature 内容', (ctx) => {
   ctx.fixtures['feature'] = { 源文本: NO_HEADER_FEATURE };
 });
 
-bdd.thenStep('错误逐项报告两处缺失头注释', (ctx) => {
+bdd.thenStep('错误报告缺失 purpose 头注释', (ctx) => {
   const doc = (ctx.fixtures['解析结果'] as ParseResult | undefined)?.doc;
   const codes = doc?.errors.map((e) => e.code) ?? [];
-  for (const key of ['capability', 'purpose']) {
-    if (!codes.includes(`missing-header:${key}`)) {
-      throw new Error(`missing-header:${key} not reported; got [${codes.join(', ')}]`);
-    }
+  if (!codes.includes('missing-header:purpose')) {
+    throw new Error(`missing-header:purpose not reported; got [${codes.join(', ')}]`);
   }
 });
 
-bdd.given('一个头注释区含 `# scope:` 与 `# reviewed-through:` 行的 feature 内容', (ctx) => {
-  ctx.fixtures['feature'] = {
-    源文本: '# capability: legacy\n# purpose: p\n# scope: src/\n# reviewed-through: c12\n\n功能: legacy\n\n  @req:r1\n  规则: 规则\n    描述\n',
-  };
-});
+bdd.given(
+  '一个头注释区含 `# capability:` 与 `# scope:` 与 `# reviewed-through:` 行的 feature 内容',
+  (ctx) => {
+    ctx.fixtures['feature'] = {
+      源文本: '# capability: legacy\n# purpose: p\n# scope: src/\n# reviewed-through: c12\n\n功能: legacy\n\n  @req:r1\n  规则: 规则\n    描述\n',
+    };
+  },
+);
 
-bdd.thenStep('解析成功且 CapabilityHeader 仅含 capability 与 purpose', (ctx) => {
+bdd.thenStep('解析成功且 CapabilityHeader 仅含 purpose', (ctx) => {
   const doc = (ctx.fixtures['解析结果'] as ParseResult | undefined)?.doc;
   if (!doc) throw new Error('no parse result');
-  if (doc.header.capability === null || doc.header.purpose === null) {
-    throw new Error(`header must carry capability+purpose: ${JSON.stringify(doc.header)}`);
+  if (doc.header.purpose === null) {
+    throw new Error(`header must carry purpose: ${JSON.stringify(doc.header)}`);
   }
   const keys = Object.keys(doc.header).toSorted();
-  if (keys.join(',') !== 'capability,purpose') {
-    throw new Error(`CapabilityHeader must be capability+purpose only: ${keys.join(',')}`);
+  if (keys.join(',') !== 'purpose') {
+    throw new Error(`CapabilityHeader must be purpose-only: ${keys.join(',')}`);
   }
 });
 
@@ -667,5 +672,78 @@ bdd.thenStep('迁移产物使用官方 fr 词表关键字且解析无错误', (c
   const doc = parseCapability(res.content, 'démo.feature');
   if (doc.errors.length > 0) {
     throw new Error(`fr output must parse cleanly, got: ${JSON.stringify(doc.errors)}`);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// r101 — spec id assignment (acceptance)
+// ---------------------------------------------------------------------------
+
+const SPECS_ROOT = 'llmanspec/specs';
+const noopIo = { exists: () => true };
+
+const mkSpecEntry = (rel: string, featureTitle: string): SpecEntry => {
+  const src = `# language: zh-CN\n# purpose: p\n\n功能: ${featureTitle}\n\n  @req:r1\n  规则: 规则\n    描述\n`;
+  return { fileName: `${SPECS_ROOT}/${rel}`, doc: parseCapability(src, rel) };
+};
+
+bdd.given('一个含扁平 cli 与目录式 auth/auth 的 specs 目录', (ctx) => {
+  const entries = [mkSpecEntry('cli.feature', 'cli'), mkSpecEntry('auth/auth.feature', 'auth')];
+  assignSpecIds(entries, SPECS_ROOT);
+  ctx.fixtures['specId分配'] = entries;
+});
+
+bdd.given('一个含 cli.feature 与 legacy/cli.feature 的 specs 目录', (ctx) => {
+  const entries = [
+    mkSpecEntry('cli.feature', 'cli'),
+    mkSpecEntry('legacy/cli.feature', 'legacy/cli'),
+  ];
+  assignSpecIds(entries, SPECS_ROOT);
+  ctx.fixtures['specId分配'] = entries;
+});
+
+bdd.given('一个功能标题与分配 spec id 不一致的 specs 目录', (ctx) => {
+  const entries = [mkSpecEntry('cli.feature', 'wrong-title')];
+  assignSpecIds(entries, SPECS_ROOT);
+  ctx.fixtures['specId分配'] = entries;
+});
+
+bdd.when('分配全部 spec id', (ctx) => {
+  const entries = ctx.fixtures['specId分配'] as SpecEntry[] | undefined;
+  if (!entries) throw new Error('missing specId分配 fixture');
+  assignSpecIds(entries, SPECS_ROOT);
+});
+
+bdd.when('对 specId分配 运行 specs 校验', (ctx) => {
+  const entries = ctx.fixtures['specId分配'] as SpecEntry[] | undefined;
+  if (!entries) throw new Error('missing specId分配 fixture');
+  ctx.fixtures['specId校验'] = validateAllSpecs(entries, noopIo);
+});
+
+bdd.thenStep('cli 与 auth 的 spec id 分别为 cli 与 auth', (ctx) => {
+  const entries = ctx.fixtures['specId分配'] as SpecEntry[];
+  const ids = new Map(entries.map((e) => [e.fileName, specIdOf(e)]));
+  if (ids.get(`${SPECS_ROOT}/cli.feature`) !== 'cli') {
+    throw new Error(`cli id mismatch: ${JSON.stringify([...ids.entries()])}`);
+  }
+  if (ids.get(`${SPECS_ROOT}/auth/auth.feature`) !== 'auth') {
+    throw new Error(`auth id mismatch: ${JSON.stringify([...ids.entries()])}`);
+  }
+});
+
+bdd.thenStep('两文件 spec id 分别为 cli 与 legacy/cli', (ctx) => {
+  const entries = ctx.fixtures['specId分配'] as SpecEntry[];
+  const ids = entries.map((e) => specIdOf(e)).toSorted();
+  if (ids.join(',') !== 'cli,legacy/cli') {
+    throw new Error(`expected cli + legacy/cli ids, got ${ids.join(',')}`);
+  }
+});
+
+bdd.thenStep('涉事 capability 被判 FAIL 且含功能标题不一致 ERROR', (ctx) => {
+  const report = ctx.fixtures['specId校验'] as ReturnType<typeof validateAllSpecs>;
+  if (!report.failed) throw new Error('validation must fail');
+  const joined = report.lines.join('\n');
+  if (!joined.includes('Feature title must match assigned spec id')) {
+    throw new Error(`expected feature title ERROR:\n${joined}`);
   }
 });

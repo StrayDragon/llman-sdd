@@ -1,5 +1,4 @@
 # language: zh-CN
-# capability: init-generators
 # purpose: 定义模板渲染语义、locale 兜底链、init 产物面与 skills 命名空间治理,验收基准为渲染基线归一化 diff。
 
 功能: init-generators
@@ -109,7 +108,7 @@
   @req:r71
   规则: authoring helpers 撰写引导
     propose 撰写引导 MUST 将 spec authoring helpers 声明为结构化新增首选(next-req-id 全局 id 分配、add-req/add-scenario
-    追加规则与验收、skeleton 新建 capability、resolve-req 反查),手改 .feature MUST 保留为逃生门;引导 MUST 在 zh-Hans 与 en 双
+    追加规则与验收、skeleton 新建 capability、resolve-req 反查),手改 .feature MUST 保留为逃生门;feature-contract 与 skeleton 引导 MUST 声明 capability 即 discover 分配后的 spec id、等于 `功能:` 标题,MUST NOT 要求或生成 `# capability:` 头;引导 MUST 在 zh-Hans 与 en 双
     locale 模板中同语义存在。
 
     场景: authoring helpers 引导入渲染产物

@@ -49,7 +49,7 @@ function renderSpecJson(
         orphans: { name: string; steps: { kind: string; text: string }[] }[];
       }
     | undefined;
-  const cap = entry ? (doc?.header.capability ?? item) : item;
+  const cap = entry ? specIdOf(entry) : item;
   const purpose = doc?.header.purpose ?? '';
   const rules = doc?.rules ?? [];
   const morphology = morphologyOf(entry?.doc as never);

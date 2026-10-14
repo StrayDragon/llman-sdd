@@ -4,6 +4,7 @@
  * `spec/validation.rs` observable issue order). Pure — filesystem access is
  * injected via SpecIo.
  */
+import { assignSpecIds } from '../spec/assignSpecIds.ts';
 import type { CapabilityDoc } from '../spec/ir.ts';
 import { ruleHasRunnableScenario, specIdOf } from '../spec/ir.ts';
 import { buildReqRegistry } from '../spec/reqRegistry.ts';
@@ -20,6 +21,8 @@ export interface ValidationItem {
 export interface SpecEntry {
   fileName: string;
   doc: CapabilityDoc;
+  /** Set by discoverSpecs / assignSpecIds (r101). */
+  specId?: string;
 }
 
 export interface SpecIo {
@@ -47,7 +50,7 @@ export function validateCapability(
   entry: SpecEntry,
   duplicatesFor: (reqId: string) => boolean,
   _io: SpecIo,
-  _opts: { strict?: boolean } = {},
+  opts: { strict?: boolean; duplicateSpecId?: boolean } = {},
 ): SpecVerdict {
   const { doc } = entry;
   const cap = specIdOf(entry);
@@ -57,30 +60,26 @@ export function validateCapability(
     items.push({ level, id, message });
   };
 
-  // Header gates (r12 / predecessor spec_meta). predecessor treats a missing `# capability:`
-  // header as a parse-level failure: only `file` + registry-scan issues are
-  // emitted and all single-track gates are skipped.
-  if (doc.header.capability === null) {
-    const msg = `spec \`${cap}\`: missing \`# capability:\` header comment`;
-    push('ERROR', 'file', msg);
-    push('ERROR', 'llmanspec/specs', `Failed to scan req_id index: ${msg}`);
-    return { fileName: entry.fileName, capability: cap, ok: false, items };
-  }
-  if (doc.header.purpose === null || doc.header.purpose.trim() === '') {
-    push('ERROR', `${cap}/purpose`, '`# purpose:` header comment must not be empty');
-  }
-  // Spec name must match the capability id (flat stem).
-  if (doc.header.capability !== null && doc.header.capability.trim() !== cap) {
+  if (opts.duplicateSpecId) {
     push(
-      'WARNING',
-      `${cap}/meta.name`,
-      `Spec \`# capability:\` header must match spec id (flat file stem or directory name): \`${doc.header.capability.trim()}\` != \`${cap}\``,
+      'ERROR',
+      `${cap}/spec-id`,
+      `duplicate assigned spec id \`${cap}\` — adjust feature file paths`,
     );
   }
 
-  // Feature title must be non-empty.
+  if (doc.header.purpose === null || doc.header.purpose.trim() === '') {
+    push('ERROR', `${cap}/purpose`, '`# purpose:` header comment must not be empty');
+  }
+
   if ((doc.featureName ?? '').trim() === '') {
     push('ERROR', `${cap}/feature`, 'Feature line must carry a title');
+  } else if (doc.featureName.trim() !== cap) {
+    push(
+      'ERROR',
+      `${cap}/feature`,
+      `Feature title must match assigned spec id: \`${doc.featureName.trim()}\` != \`${cap}\``,
+    );
   }
 
   // Parser-level structural errors. Header gates are owned here (mapped below);
@@ -158,10 +157,21 @@ export function formatTotals(passed: number, failed: number, total: number): str
   return `Totals: ${passed} passed, ${failed} failed (${total} items)`;
 }
 
-export function validateAllSpecs(entries: readonly SpecEntry[], io: SpecIo): ValidationReport {
-  const duplicatesFor = buildDuplicatesFor(entries);
+export function validateAllSpecs(
+  entries: readonly SpecEntry[],
+  io: SpecIo,
+  opts: { specsDir?: string } = {},
+): ValidationReport {
+  const specsDir = opts.specsDir ?? 'llmanspec/specs';
+  const list: SpecEntry[] = entries.map((e) => ({ ...e }));
+  const duplicateSpecIds = assignSpecIds(list, specsDir);
+  const duplicatesFor = buildDuplicatesFor(list);
 
-  const verdicts = entries.map((e) => validateCapability(e, duplicatesFor, io));
+  const verdicts = list.map((e) =>
+    validateCapability(e, duplicatesFor, io, {
+      duplicateSpecId: duplicateSpecIds.has(specIdOf(e)),
+    }),
+  );
   const failed = verdicts.some((v) => !v.ok);
   const passed = verdicts.filter((v) => v.ok).length;
 

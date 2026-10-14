@@ -1,5 +1,4 @@
 # language: zh-CN
-# capability: review-freeze
 # purpose: 定义 review 五信号聚合审查的合同与 archive freeze/thaw 冷备合同(7z 格式自洽双向回置)。
 
 功能: review-freeze

@@ -1,3 +1,4 @@
+import { assignSpecIds } from '../spec/assignSpecIds.ts';
 import { officialKeywords, officialKeywordsOrEn } from '../spec/keywords.ts';
 import { localeToGherkinLang, parseCapability } from '../spec/parser.ts';
 import { buildReqRegistry } from '../spec/reqRegistry.ts';
@@ -6,6 +7,7 @@ import { buildReqRegistry } from '../spec/reqRegistry.ts';
  * skeleton generation + global next req id. Pure, IO injected.
  */
 import { localeFallbacks } from '../templates/locale.ts';
+import type { SpecEntry } from '../validation/validate.ts';
 
 export interface SpecHelperIo {
   exists(path: string): boolean;
@@ -16,13 +18,8 @@ export interface SpecHelperIo {
   listDir(path: string): string[];
 }
 
-interface ParsedEntry {
-  fileName: string;
-  doc: ReturnType<typeof parseCapability>;
-}
-
-function collectSpecEntries(io: SpecHelperIo, specsDir: string): ParsedEntry[] {
-  const entries: ParsedEntry[] = [];
+function collectSpecEntries(io: SpecHelperIo, specsDir: string): SpecEntry[] {
+  const entries: SpecEntry[] = [];
   const walk = (dir: string): void => {
     if (!io.exists(dir)) return;
     for (const name of io.listDir(dir)) {
@@ -35,6 +32,7 @@ function collectSpecEntries(io: SpecHelperIo, specsDir: string): ParsedEntry[] {
     }
   };
   walk(specsDir);
+  assignSpecIds(entries, specsDir);
   return entries;
 }
 
@@ -63,8 +61,8 @@ export function skeletonContent(capability: string, reqId: string, locale: strin
   const language = officialKeywords(mapped) !== null ? mapped : 'en';
   const kw = officialKeywordsOrEn(language);
   const header = zh
-    ? `# language: ${language}\n# capability: ${capability}\n# purpose: TODO: 一句话描述该能力与其目的。`
-    : `# language: ${language}\n# capability: ${capability}\n# purpose: TODO: Describe this capability and its purpose.`;
+    ? `# language: ${language}\n# purpose: TODO: 一句话描述该能力与其目的。`
+    : `# language: ${language}\n# purpose: TODO: Describe this capability and its purpose.`;
   const ruleDesc = zh ? 'TODO: 需求描述(自由文本)。' : 'TODO: requirement statement (free text).';
   // Skeleton placeholder prose is not vocabulary — the zh/en copy stays; keywords do not.
   const steps = zh

@@ -1,5 +1,4 @@
 # language: zh-CN
-# capability: config-command
 # purpose: 定义 `config` 命令面的只读概览与 extra_skills 非交互管理合同。
 
 功能: config-command

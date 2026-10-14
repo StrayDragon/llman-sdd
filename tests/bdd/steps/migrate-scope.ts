@@ -32,6 +32,13 @@ bdd.given('一个 specs 含 # scope: 与 # reviewed-through: 头行的临时仓�
   seedRepo(ctx);
 });
 
+bdd.given(
+  '一个 specs 含 # scope: 与 # reviewed-through: 与 # capability: 头行的临时仓库',
+  (ctx) => {
+    seedRepo(ctx);
+  },
+);
+
 bdd.when('运行 project migrate strip-legacy-headers 后再次运行', (ctx) => {
   const { repo } = ctx.fixtures['strip仓库'] as StripFixture;
   const first = runStrip(repo);
@@ -39,13 +46,13 @@ bdd.when('运行 project migrate strip-legacy-headers 后再次运行', (ctx) =>
   ctx.fixtures['strip结果'] = { first, second };
 });
 
-bdd.thenStep('首次运行后两类头行不再出现且文件仍通过结构校验', (ctx) => {
+bdd.thenStep('首次运行后三类头行不再出现且文件仍通过结构校验', (ctx) => {
   const { repo, specRel } = ctx.fixtures['strip仓库'] as StripFixture;
   const { first } = ctx.fixtures['strip结果'] as { first: { code: number; stdout: string } };
   if (first.code !== 0) throw new Error(`first strip failed:\n${first.stdout}`);
   const content = repo.run('cat', [specRel]).stdout;
   for (const line of content.split('\n')) {
-    if (/^#\s*(scope|reviewed-through):/u.test(line)) {
+    if (/^#\s*(scope|reviewed-through|capability):/u.test(line)) {
       throw new Error(`legacy header line survived: ${line}`);
     }
   }

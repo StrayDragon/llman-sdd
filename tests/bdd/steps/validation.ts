@@ -856,6 +856,8 @@ const mixedDefectSpecs: Record<string, string> = {
     '# language: zh-CN\n# capability: orphan\n# purpose: p\n# scope: llmanspec/\n\n功能: orphan\n\n  场景: 孤儿场景\n    假如 前置\n    当 动作\n    那么 结果\n\n  @req:r108\n  规则: ok\n    系统 MUST x\n',
   'norule.feature':
     '# language: zh-CN\n# capability: norule\n# purpose: p\n# scope: llmanspec/\n\n功能: norule\n\n  场景: acc\n    假如 一个有效工作区\n    当 运行校验\n    那么 退出码为 0\n',
+  'badtitle.feature':
+    '# language: zh-CN\n# purpose: p\n\n功能: wrong-title\n\n  @req:r109\n  规则: ok\n    系统 MUST x\n',
 };
 
 bdd.given('一个每类种子缺陷各占一个 capability 的临时仓库', (ctx) => {
@@ -884,11 +886,12 @@ const requireDefectItems = (ctx: { fixtures: Record<string, unknown> }): DefectJ
 };
 
 bdd.thenStep(
-  '缺头注释、缺 @req、重复 req_id 与零规则 capability 各 capability 均 valid 为 false 且各含对应 ERROR',
+  '缺 purpose 头、功能标题与 spec id 不一致、缺 @req、重复 req_id 与零规则 capability 各 capability 均 valid 为 false 且各含对应 ERROR',
   (ctx) => {
     const byId = new Map(requireDefectItems(ctx).map((i) => [i.id, i]));
     const checks: [string, string][] = [
-      ['llmanspec/specs/noheader', 'missing `# capability:` header comment'],
+      ['noheader', '`# purpose:` header comment must not be empty'],
+      ['badtitle', 'Feature title must match assigned spec id'],
       ['noreq', 'rule must carry an @req'],
       ['dupca', 'global duplicate req_id'],
       ['dupcb', 'global duplicate req_id'],

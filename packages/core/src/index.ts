@@ -31,6 +31,7 @@ export type {
   ScenarioStep,
   SpecStructuralError,
 } from './spec/ir.ts';
+export { assignSpecIds, featureRelPath, preferredSpecIdFromRel } from './spec/assignSpecIds.ts';
 export { ruleHasRunnableScenario, specIdOf } from './spec/ir.ts';
 export {
   SpecParseError,

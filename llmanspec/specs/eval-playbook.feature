@@ -1,5 +1,4 @@
 # language: zh-CN
-# capability: eval-playbook
 # purpose: 规范外部用户影响面的 Harbor 剧本评测：独立镜像、只读挂载 worktree/种子、容器内拷贝后由 agent 走两轮 SDD，Pi 注入 openai-responses+thinking max，结果按 run 结构化留存且不进 qa/golden。
 
 功能: eval-playbook

@@ -1,5 +1,4 @@
 # language: zh-CN
-# capability: cli
 # purpose: 定义 CLI 全局面合同——错误出口(单一前缀与退出码)、全局旗标面与报告命令输出旗标共享注册。
 
 功能: cli

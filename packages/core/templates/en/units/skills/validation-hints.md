@@ -1,10 +1,11 @@
 Validation fixes (single-track feature-as-spec):
 
-1) Missing header comments (`missing # capability: header comment`): every capability `.feature` (`llmanspec/specs/<capability>.feature` or the same-named main file in a directory) MUST start with:
+1) Missing `# purpose:` header: every capability `.feature` MUST carry a non-empty `# purpose:`; the Feature title MUST equal the assigned spec id (`llman-sdd list --specs` for ids).
 ```
 # language: zh-CN
-# capability: <capability>
 # purpose: One-line overview.
+
+Feature: <spec-id>
 ```
 
 2) Native layout (`rule must carry an @req:<req_id> tag on the rule header`):
@@ -13,7 +14,7 @@ Validation fixes (single-track feature-as-spec):
 - Legacy tags `@executable`/`@rule`/`@human`/`@manual` are gone and parse inert; when old files hit structural problems run `llman-sdd spec migrate-native`.
 - Top-level `场景:` outside any `规则:` are plain feature-level examples: no rule handle, no warning, not part of rule accounting (native Gherkin).
 
-Branch guardrail:
-- First `change start` / `attach` to bind the branch, then edit `.feature` on the bound non-default branch and commit (land specs).
-- Locked rules (report-only): editing/removing an existing `规则:` block yields a WARNING and never blocks validate / finalize / `change diff`; the report names the rule by `@req:<id>`. Control points: git branch diff plus `llman-sdd review` / `change diff`. Legacy lock-ack metadata (frontmatter `rules_touched` / `agent_acked`, the `@agent` tag, the `--yes` ack semantics) is fully removed — no aliases, no compat layer.
-- Enter apply when `stage=full` and the specs-landed gate passes (specsLanded ∨ `needs_specs_change: false`); verify/finalize require `readyToImplement=true` (completion signal). Close-out prefers `change finalize`.
+Branch guardrails:
+- Bind with `change start` / `attach` first, then edit `.feature` on the bound branch and commit (land specs).
+- Locked rules (report-only): editing/deleting existing `规则:` blocks emits WARNING only — does not block validate / finalize / `change diff`; reports name the changed rule via `@req:<id>`. Control points: git branch diff + `llman-sdd review` / `change diff`. Legacy lock metadata (`rules_touched` / `agent_acked` / `@agent` tag / `--yes` confirm semantics) is fully removed — no aliases, no compatibility layer.
+- `stage=full` with specs-landed gate green (`specsLanded` ∨ `needs_specs_change: false`) is enough to enter apply; verify/finalize requires `readyToImplement=true` (completion signal). Prefer `change finalize` for close-out.

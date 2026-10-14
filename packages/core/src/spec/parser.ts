@@ -79,21 +79,15 @@ function stepKeywordToKind(keyword: string): ScenarioStepKind {
   return stepKeywordToOfficialKind(keyword) ?? 'given';
 }
 
-const HEADER_RE = /^#\s*(capability|purpose):\s*(.*)$/u;
+const PURPOSE_HEADER_RE = /^#\s*purpose:\s*(.*)$/u;
 
 function extractHeader(source: string): CapabilityHeader {
-  const header: CapabilityHeader = {
-    capability: null,
-    purpose: null,
-  };
+  const header: CapabilityHeader = { purpose: null };
   for (const line of source.split('\n')) {
     if (line.trim() === '') continue;
     if (!line.trimStart().startsWith('#')) break;
-    const m = line.trimStart().match(HEADER_RE);
-    if (m?.[1]) {
-      const field = m[1] as 'capability' | 'purpose';
-      header[field] = m[2]?.trim() ?? null;
-    }
+    const m = line.trimStart().match(PURPOSE_HEADER_RE);
+    if (m) header.purpose = m[1]?.trim() ?? null;
   }
   return header;
 }
@@ -143,10 +137,11 @@ function collectScenario(sc: {
 export function parseCapability(source: string, fileName = '<inline>'): CapabilityDoc {
   const errors: SpecStructuralError[] = [];
   const header = extractHeader(source);
-  for (const key of ['capability', 'purpose'] as const) {
-    if (header[key] === null) {
-      errors.push({ code: `missing-header:${key}`, message: `missing # ${key}: header comment` });
-    }
+  if (header.purpose === null) {
+    errors.push({
+      code: 'missing-header:purpose',
+      message: 'missing # purpose: header comment',
+    });
   }
 
   const { doc, language } = parseFeatureSource(source);

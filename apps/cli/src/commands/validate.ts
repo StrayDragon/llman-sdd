@@ -217,7 +217,7 @@ function renderValidateReport(items: VItem[], mode: 'json' | 'compact-json' | 't
 }
 
 const SPEC_NEXT_STEPS = [
-  '- Ensure each .feature starts with "# capability:" and "# purpose:" header comments',
+  '- Ensure each .feature has a non-empty "# purpose:" header and a Feature title matching the assigned spec id',
   '- Each requirement MUST include at least one scenario object',
   '- Re-run with --json to see structured report',
 ];

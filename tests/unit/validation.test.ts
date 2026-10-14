@@ -141,23 +141,49 @@ describe('validateAllSpecs (native v2)', () => {
     expect(report.lines.at(-1)).toBe('Totals: 0 passed, 2 failed (2 items)');
   });
 
-  test('missing capability header fails (predecessor short-circuit); missing purpose is ERROR', () => {
+  test('missing purpose header fails; empty purpose is ERROR', () => {
     const doc = parseCapability(
       `# scope: llmanspec/\n\n功能: t\n\n  @req:r1\n  规则: ok\n    系统 MUST x\n`,
     );
     const report = validateAllSpecs([{ fileName: 't.feature', doc }], io);
     expect(report.failed).toBe(true);
     const joined = report.lines.join('\n');
-    // predecessor parity: missing capability short-circuits to file + registry issues.
-    expect(joined).toInclude('missing `# capability:` header comment');
+    expect(joined).toInclude('`# purpose:` header comment must not be empty');
 
-    const withCap = parseCapability(
-      `# capability: t\n# scope: llmanspec/\n\n功能: t\n\n  @req:r1\n  规则: ok\n    系统 MUST x\n`,
+    const noPurpose = parseCapability(
+      `# language: zh-CN\n# scope: llmanspec/\n\n功能: t\n\n  @req:r1\n  规则: ok\n    系统 MUST x\n`,
     );
-    const report2 = validateAllSpecs([{ fileName: 't.feature', doc: withCap }], io);
+    const report2 = validateAllSpecs([{ fileName: 't.feature', doc: noPurpose }], io);
     const joined2 = report2.lines.join('\n');
-    // predecessor parity: missing/empty purpose is an ERROR at `{cap}/purpose`.
     expect(joined2).toInclude('[ERROR] t/purpose: `# purpose:` header comment must not be empty');
+  });
+
+  test('feature title must match assigned spec id', () => {
+    const doc = parseCapability(
+      `# language: zh-CN\n# purpose: p\n\n功能: wrong\n\n  @req:r1\n  规则: ok\n    系统 MUST x\n`,
+    );
+    const report = validateAllSpecs([{ fileName: 't.feature', doc }], io);
+    expect(report.failed).toBe(true);
+    expect(report.lines.join('\n')).toInclude('Feature title must match assigned spec id');
+  });
+
+  test('duplicate assigned spec id fails validation (r101 terminal gate)', () => {
+    const doc = parseCapability(
+      native(
+        'dup',
+        `功能: dup\n\n  @req:r1\n  规则: ok\n    系统 MUST x\n\n    场景: acc\n      假如 状态\n      当 动作\n      那么 结果\n`,
+      ),
+      'llmanspec/specs/dup.feature',
+    );
+    const entries: SpecEntry[] = [
+      { fileName: 'llmanspec/specs/dup.feature', doc },
+      { fileName: 'llmanspec/specs/dup.feature', doc },
+    ];
+    const report = validateAllSpecs(entries, io, { specsDir: 'llmanspec/specs' });
+    expect(report.failed).toBe(true);
+    const joined = report.lines.join('\n');
+    expect(joined).toInclude('duplicate assigned spec id');
+    expect(joined).toInclude('FAIL spec/dup');
   });
 });
 

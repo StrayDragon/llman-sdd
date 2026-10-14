@@ -19,9 +19,9 @@ describe('stripLegacyHeaderLines (r100 migrate-scope core)', () => {
 
   test('removes both legacy header lines, keeps the rest byte-identical', () => {
     const result = stripLegacyHeaderLines(SRC);
-    expect(result.removed).toBe(2);
+    expect(result.removed).toBe(3);
     expect(result.content).toBe(
-      '# capability: legacy\n# purpose: p\n\n功能: legacy\n\n  @req:r1\n  规则: 规则\n    描述\n',
+      '# purpose: p\n\n功能: legacy\n\n  @req:r1\n  规则: 规则\n    描述\n',
     );
   });
 

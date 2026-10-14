@@ -1,5 +1,4 @@
 # language: zh-CN
-# capability: validation
 # purpose: 定义 specs 校验引擎的判定规则域、报告行格式与 BDD 检查退出码语义。
 
 功能: validation
@@ -19,7 +18,7 @@
 
   @req:r12
   规则: 规则域(种子缺陷判定)
-    缺 `# capability:` 头注释 MUST 判 ERROR;每条 `规则:` MUST 携带全局唯一的 @req:<id> 句柄(缺失或重复——同一文件内多条规则
+    缺或空 `# purpose:` 头注释 MUST 判 ERROR;分配后的 spec id 与 `功能:` 标题不一致 MUST 判 ERROR;分配完成后重复的 spec id MUST 判 ERROR;每条 `规则:` MUST 携带全局唯一的 @req:<id> 句柄(缺失或重复——同一文件内多条规则
     共用或跨 capability——MUST 判 ERROR);不含任何 `规则:` 的 capability MUST 判 ERROR;顶层 `场景:`(Gherkin 功能级示例,无规则句柄)不告警、不参与规则统计;无 runnable
     嵌套场景的 `规则:`(0 场景或嵌套场景全部带 @skip/@experimental)MUST 输出聚合计数 INFO(按 capability 一条,不逐条爆炸,`--include-info` 可见);规则描述为自由文本
     (MUST/SHALL 词不强制);历史标签 `@human/@rule/@executable/@manual` 解析惰性、不再承载语义(旧文件经 `spec migrate-native`
@@ -41,7 +40,7 @@
     场景: 种子缺陷逐类判定
       假如 一个每类种子缺陷各占一个 capability 的临时仓库
       当 运行 validate --specs --json
-      那么 缺头注释、缺 @req、重复 req_id 与零规则 capability 各 capability 均 valid 为 false 且各含对应 ERROR
+      那么 缺 purpose 头、功能标题与 spec id 不一致、缺 @req、重复 req_id 与零规则 capability 各 capability 均 valid 为 false 且各含对应 ERROR
       而且 退出码非零
 
   @req:r63

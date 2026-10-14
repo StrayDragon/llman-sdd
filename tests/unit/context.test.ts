@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
 import {
+  assignSpecIds,
   buildTreeIndex,
   computeSpecHash,
   loadTreeWithAutoRebuild,
@@ -20,7 +21,7 @@ const SPEC_A = `# language: zh-CN
 # purpose: alpha 用途
 # scope: x/
 
-功能: alpha
+功能: a
 
   @req:r1
   规则: 规则甲
@@ -40,7 +41,12 @@ const hashIo: HashIo = {
 };
 
 function entry(): SpecEntry {
-  return { fileName: 'llmanspec/specs/a.feature', doc: parseCapability(SPEC_A, 'a.feature') };
+  const e: SpecEntry = {
+    fileName: 'llmanspec/specs/a.feature',
+    doc: parseCapability(SPEC_A, 'a.feature'),
+  };
+  assignSpecIds([e], 'llmanspec/specs');
+  return e;
 }
 
 describe('buildTreeIndex', () => {
@@ -52,7 +58,7 @@ describe('buildTreeIndex', () => {
     });
     expect(tree.version).toBe(1);
     expect(tree.spec_hash).toBe('deadbeef');
-    expect(tree.docs[0]?.spec_id).toBe('alpha');
+    expect(tree.docs[0]?.spec_id).toBe('a');
     expect(tree.docs[0]?.purpose).toBe('alpha 用途');
     expect(tree.docs[0]?.reqs[0]).toEqual({
       req_id: 'r1',

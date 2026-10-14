@@ -85,12 +85,11 @@ describe('parseCapability (native v2)', () => {
     expect(doc.errors).toHaveLength(0);
   });
 
-  test('missing header comments are reported per key', () => {
+  test('missing purpose header is reported', () => {
     const doc = parseCapability(`功能: sample\n\n  @req:r1\n  规则: 规则\n    描述\n`, 'a.feature');
     const codes = doc.errors.map((e) => e.code);
-    expect(codes).toContain('missing-header:capability');
     expect(codes).toContain('missing-header:purpose');
-    expect(codes).not.toContain('missing-header:scope');
+    expect(codes).not.toContain('missing-header:capability');
   });
 
   test('rule description is free text: MUST words are not enforced', () => {

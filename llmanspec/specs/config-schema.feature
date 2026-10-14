@@ -1,5 +1,4 @@
 # language: zh-CN
-# capability: config-schema
 # purpose: 定义 llmanspec/config.yaml 的字段契约、校验行为与 schema artifact 漂移门禁。
 
 功能: config-schema

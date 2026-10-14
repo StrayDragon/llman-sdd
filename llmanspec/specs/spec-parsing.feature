@@ -1,5 +1,4 @@
 # language: zh-CN
-# capability: spec-parsing
 # purpose: 定义 .feature 单轨解析的语言兜底链、头注释契约、标签分层语义与全局 rN 注册表。
 
 功能: spec-parsing
@@ -31,20 +30,42 @@
 
   @req:r8
   规则: 头注释契约
-    每个 capability .feature MUST 以 `# capability:` 头注释开始;`# purpose:` MUST 同样存在;两者构成
-    CapabilityDoc 头部,缺失项 MUST 被逐项报告。其余头注释行(含历史 `# scope:` 与 `# reviewed-through:`)MUST 按
-    普通注释解析:不进 CapabilityHeader、不报错、不参与任何校验。
+    每个 capability .feature 的头注释区(连续 `#` 行,至首个非 `#` 行止)MUST 含 `# purpose:` 且非空;其构成
+    CapabilityDoc 头部的唯一结构化字段 `purpose`,缺失或空 MUST 报错。`# language:` 仍按 Gherkin 方言头处理。历史或未知的头注释行(含 `# capability:`、`# scope:`、`# reviewed-through:`)MUST
+    按普通注释解析:不进 CapabilityHeader、不报错、不参与任何校验。
 
-    场景: 头注释缺失逐项报告
-      假如 一个缺失全部头注释的 feature 内容
+    场景: 缺 purpose 头注释报错
+      假如 一个缺失 purpose 头注释的 feature 内容
       当 解析该 feature
-      那么 错误逐项报告两处缺失头注释
+      那么 错误报告缺失 purpose 头注释
 
     场景: 历史头注释行按普通注释解析
-      假如 一个头注释区含 `# scope:` 与 `# reviewed-through:` 行的 feature 内容
+      假如 一个头注释区含 `# capability:` 与 `# scope:` 与 `# reviewed-through:` 行的 feature 内容
       当 解析该 feature
-      那么 解析成功且 CapabilityHeader 仅含 capability 与 purpose
+      那么 解析成功且 CapabilityHeader 仅含 purpose
       而且 不产生任何 issue
+
+  @req:r101
+  规则: spec id 全局分配与消歧
+    在单个 `llmanspec/specs/` 实例内,discover 全部 `.feature` 后 MUST 为每文件分配 spec id(与 CLI 参数 `show`/`validate`/`spec add-req` 的 capability 同名)。设 `rel` 为相对 specs 根的
+    路径、`stem` 为文件名去 `.feature`、`parts` 为 `rel` 按 `/` 分段。偏好 id `preferred` MUST 按:单段 `rel` 时 `preferred=stem`;恰好两段且 `parts[0]===stem` 时
+    `preferred=stem`;否则 `preferred` 为 `rel` 去 `.feature`。若某 `preferred` 在实例内仅出现一次,该文件 spec id MUST 等于 `preferred`;若某 `preferred` 被多个文件共用,这些文件 spec id MUST 各等于其 `rel` 去
+    `.feature`。分配完成后若两文件 spec id 相同 MUST 报错。扁平与目录式 `.feature` 可混搭;消费方 MUST 通过 discover+assign 读取 spec id,MUST NOT 再读 `# capability:` 头。
+
+    场景: 扁平与目录主文件短 id
+      假如 一个含扁平 cli 与目录式 auth/auth 的 specs 目录
+      当 分配全部 spec id
+      那么 cli 与 auth 的 spec id 分别为 cli 与 auth
+
+    场景: preferred 撞名时改用相对路径 id
+      假如 一个含 cli.feature 与 legacy/cli.feature 的 specs 目录
+      当 分配全部 spec id
+      那么 两文件 spec id 分别为 cli 与 legacy/cli
+
+    场景: 功能标题必须等于 spec id
+      假如 一个功能标题与分配 spec id 不一致的 specs 目录
+      当 对 specId分配 运行 specs 校验
+      那么 涉事 capability 被判 FAIL 且含功能标题不一致 ERROR
 
   @req:r9
   规则: 原生分层解析语义

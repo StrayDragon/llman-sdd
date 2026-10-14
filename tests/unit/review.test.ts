@@ -53,7 +53,9 @@ describe('buildReview', () => {
   });
 
   test('feature-level scenario emits no signal; unbound counts requirements without runnable scenarios', () => {
-    const entries = [{ fileName: 'l.feature', doc: parseCapability(UNBOUND_SPEC, 'l.feature') }];
+    const entries = [
+      { fileName: 'loose.feature', doc: parseCapability(UNBOUND_SPEC, 'loose.feature') },
+    ];
     // 顶层功能级示例(无规则句柄)不产生任何信号(unbound 信号已移除,孤儿场景不参与规则计量);无可运行场景的裸规则计 unbound。
     const result = buildReview({ entries, boundChangeCount: 0 }, io);
     const unbound = result.signals.find((s) => s.kind === 'unbound' && s.capability === 'loose');

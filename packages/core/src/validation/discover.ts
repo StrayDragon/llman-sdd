@@ -1,3 +1,4 @@
+import { assignSpecIds } from '../spec/assignSpecIds.ts';
 import { parseCapability } from '../spec/parser.ts';
 /**
  * Spec discovery (validation capability): walk llmanspec/specs/** for
@@ -23,8 +24,11 @@ export function discoverSpecs(specsDir: string, io: DiscoveryIo): SpecEntry[] {
     }
     return out;
   };
-  return walk(specsDir).map((path) => ({
+  const normDir = specsDir.replace(/\\/g, '/').replace(/\/$/u, '');
+  const entries = walk(normDir).map((path) => ({
     fileName: path,
     doc: parseCapability(io.readText(path), path),
   }));
+  assignSpecIds(entries, normDir);
+  return entries;
 }

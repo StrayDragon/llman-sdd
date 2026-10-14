@@ -11,7 +11,6 @@
  */
 
 export interface CapabilityHeader {
-  capability: string | null;
   purpose: string | null;
 }
 
@@ -76,11 +75,11 @@ export function ruleHasRunnableScenario(rule: RuleIR): boolean {
 }
 
 /**
- * Single spec-id caliber (r25) for every consumer that labels a discovered
- * spec entry: the `# capability:` header wins, else the fileName minus the
- * `.feature` suffix. Unifies the former dual caliber (bare `fileName` vs
- * stripped stem) shared by review/context-tree/specs-report/validate paths.
+ * Spec id for a discovered entry (r101): `entry.specId` after assignSpecIds;
+ * inline-parse fallback uses the basename stem only.
  */
-export function specIdOf(entry: { fileName: string; doc: CapabilityDoc }): string {
-  return entry.doc.header.capability ?? entry.fileName.replace(/\.feature$/u, '');
+export function specIdOf(entry: { fileName: string; doc: CapabilityDoc; specId?: string }): string {
+  if (entry.specId !== undefined && entry.specId !== '') return entry.specId;
+  const base = entry.fileName.replace(/\\/g, '/').split('/').pop() ?? entry.fileName;
+  return base.replace(/\.feature$/u, '');
 }

@@ -18,11 +18,27 @@ export interface MigrationEntry {
 
 export const MIGRATIONS: readonly MigrationEntry[] = [
   {
+    id: '0.8.1->0.9.0',
+    title: 'Retire `# capability:` header; assign spec ids from paths (r101)',
+    steps: [
+      'Run `llman-sdd project migrate strip-legacy-headers --dry-run` to preview spec header strips.',
+      'Run `llman-sdd project migrate strip-legacy-headers` to remove `# capability:` (and any remaining `# scope:` / `# reviewed-through:`) lines.',
+      'Ensure each `功能:` / `Feature:` title equals the assigned spec id (`llman-sdd list --specs` for ids).',
+      'Run `llman-sdd init --update` to refresh managed skills and feature-contract guidance.',
+      'Run `llman-sdd validate --all --strict` — it must pass.',
+    ],
+    checks: [
+      'No `# capability:` lines remain under `llmanspec/specs/**`.',
+      'Each spec file `功能:` title matches `llman-sdd show <spec-id>` id.',
+      '`llman-sdd list --specs` reports stable ids for flat and directory layouts.',
+    ],
+  },
+  {
     id: '0.7.5->0.8.0',
     title: 'Governance metadata retirement (`# reviewed-through:` stamp & `# scope:` header)',
     steps: [
       'Run `llman-sdd project migrate strip-legacy-headers --dry-run` to preview the affected spec files.',
-      'Run `llman-sdd project migrate strip-legacy-headers` to strip the legacy `# scope:` / `# reviewed-through:` header comment lines (idempotent).',
+      'Run `llman-sdd project migrate strip-legacy-headers` to strip legacy `# scope:` / `# reviewed-through:` / `# capability:` header comment lines (idempotent).',
       'Run `llman-sdd init --update` to refresh the managed AGENTS blocks and agent skills.',
       'Run `llman-sdd validate --all --strict` — it must pass.',
     ],

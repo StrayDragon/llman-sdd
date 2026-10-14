@@ -1,5 +1,4 @@
 # language: zh-CN
-# capability: monorepo-structure
 # purpose: 规范本仓的 Bun workspaces 布局、oxc 工具链门禁、core 纯域纪律与 BDD runner 就绪要求,并以只读对账断言锁定本地门禁与 CI 的一致性。
 
 功能: monorepo-structure
