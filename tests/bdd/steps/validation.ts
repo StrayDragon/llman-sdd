@@ -206,7 +206,8 @@ bdd.when('运行 validate --specs --check', (ctx) => {
 
 // 结构门(缺省不跑 harness):种子缺陷逐类判定等结构场景使用
 bdd.when('运行 validate --specs --json', (ctx) => {
-  const { repo } = ctx.fixtures['validate仓库'] as { repo: TempRepo };
+  const five = ctx.fixtures['transitions四类仓库'] as { repo: TempRepo } | undefined;
+  const { repo } = five ?? (ctx.fixtures['validate仓库'] as { repo: TempRepo });
   const result = repo.run('bun', [CLI, 'validate', '--specs', '--json']);
   ctx.fixtures['validate结果'] = {
     code: result.code,
@@ -1225,3 +1226,212 @@ bdd.thenStep('输出不含 "finalize is a pipeline step"', (ctx) => {
     throw new Error('close-out hint must not fire for a task ABOUT close-out');
   }
 });
+
+// ---------------------------------------------------------------------------
+// r104 — check_transitions auto-discovery validation gates
+// ---------------------------------------------------------------------------
+
+function scFeature(
+  cap: string,
+  reqId: string,
+  scenario: string,
+  stepBlock: string,
+  tableRows: string,
+): string {
+  return `# language: zh-CN
+# purpose: ${cap}
+功能: ${cap}
+
+  @req:${reqId}
+  规则: rule
+    系统 MUST x
+
+    场景大纲: ${scenario}
+${stepBlock}
+      例子:
+        | from | event | to |
+${tableRows}
+`;
+}
+
+const GOOD_STEPS = `      假如 在 "<from>"
+      当 发 "<event>"
+      那么 到 "<to>"`;
+
+const GOOD_ROWS = `        | a | e1 | b |
+        | b | e2 | c |`;
+
+function incompleteFeature(cap: string, reqId: string): string {
+  return `# language: zh-CN
+# purpose: ${cap}
+功能: ${cap}
+
+  @req:${reqId}
+  规则: rule
+    系统 MUST x
+
+    场景大纲: incomplete
+      假如 在 "<from>"
+      当 发 "<event>"
+      那么 到 "<to>"
+      例子:
+        | from | to |
+        | a | b |
+`;
+}
+
+bdd.given(
+  '一个含合法状态流转场景大纲与含孤岛缺陷状态流转表但未启用 specs.check_transitions 的临时仓库',
+  (ctx) => {
+    const repo = makeTempRepo();
+    mkdirSync(join(repo.root, 'llmanspec', 'specs'), { recursive: true });
+    writeFileSync(
+      join(repo.root, 'llmanspec', 'config.yaml'),
+      'schema: spec-driven\nspecs:\n  check_transitions: false\n',
+    );
+    writeFileSync(
+      join(repo.root, 'llmanspec', 'specs', 'sc-good.feature'),
+      scFeature('sc-good', 'r50', 'ok', GOOD_STEPS, GOOD_ROWS),
+    );
+    writeFileSync(
+      join(repo.root, 'llmanspec', 'specs', 'sc-island.feature'),
+      scFeature(
+        'sc-island',
+        'r51',
+        'bad',
+        GOOD_STEPS,
+        `        | a | e1 | b |
+        | orphan | e0 | c |`,
+      ),
+    );
+    ctx.fixtures['transitions仓库'] = { repo };
+  },
+);
+
+bdd.when('在未启用与启用 specs.check_transitions 下分别运行 validate --specs --json', (ctx) => {
+  const { repo } = ctx.fixtures['transitions仓库'] as { repo: TempRepo };
+  const off = repo.run('bun', [CLI, 'validate', '--specs', '--json']);
+  writeFileSync(
+    join(repo.root, 'llmanspec', 'config.yaml'),
+    'schema: spec-driven\nspecs:\n  check_transitions: true\n',
+  );
+  const on = repo.run('bun', [CLI, 'validate', '--specs', '--json']);
+  ctx.fixtures['transitions校验'] = { off, on };
+});
+
+bdd.thenStep('未启用时孤岛状态流转表不报错且启用后合法状态流转表 valid 为 true', (ctx) => {
+  const { off, on } = ctx.fixtures['transitions校验'] as {
+    off: { code: number; stdout: string };
+    on: { code: number; stdout: string };
+  };
+  const offParsed = JSON.parse(off.stdout) as {
+    items?: { id: string; valid: boolean; issues: { path: string }[] }[];
+  };
+  const island = (offParsed.items ?? []).find((i) => i.id === 'sc-island');
+  if (island && island.issues.some((x) => x.path.includes('/transitions/'))) {
+    throw new Error('island must not trigger transitions when disabled');
+  }
+  const onParsed = JSON.parse(on.stdout) as { items?: { id: string; valid: boolean }[] };
+  const good = (onParsed.items ?? []).find((i) => i.id === 'sc-good');
+  if (!good?.valid) throw new Error(`sc-good must be valid when enabled: ${on.stdout}`);
+});
+
+bdd.given(
+  '一个启用 specs.check_transitions 且分别含残缺表头漏列或假步骤未绑定占位符、非确定性冲突、孤岛不可达状态与死锁陷阱状态四类缺陷的临时仓库',
+  (ctx) => {
+    const repo = makeTempRepo();
+    mkdirSync(join(repo.root, 'llmanspec', 'specs'), { recursive: true });
+    writeFileSync(
+      join(repo.root, 'llmanspec', 'config.yaml'),
+      'schema: spec-driven\nspecs:\n  check_transitions: true\n',
+    );
+    writeFileSync(
+      join(repo.root, 'llmanspec', 'specs', 'sc-incomplete.feature'),
+      incompleteFeature('sc-incomplete', 'r9'),
+    );
+    writeFileSync(
+      join(repo.root, 'llmanspec', 'specs', 'sc-fake.feature'),
+      scFeature(
+        'sc-fake',
+        'r10',
+        'fake',
+        `      假如 固定
+      当 固定
+      那么 固定`,
+        GOOD_ROWS,
+      ),
+    );
+    writeFileSync(
+      join(repo.root, 'llmanspec', 'specs', 'sc-nondet.feature'),
+      scFeature(
+        'sc-nondet',
+        'r11',
+        'dup',
+        GOOD_STEPS,
+        `        | a | e1 | b |
+        | a | e1 | c |`,
+      ),
+    );
+    writeFileSync(
+      join(repo.root, 'llmanspec', 'specs', 'sc-island2.feature'),
+      scFeature(
+        'sc-island2',
+        'r12',
+        'island',
+        GOOD_STEPS,
+        `        | a | e1 | b |
+        | orphan | e0 | c |`,
+      ),
+    );
+    writeFileSync(
+      join(repo.root, 'llmanspec', 'specs', 'sc-dead.feature'),
+      scFeature(
+        'sc-dead',
+        'r13',
+        'dead',
+        GOOD_STEPS,
+        `        | a | e1 | trap |
+        | a | e2 | b |
+        | trap | self | trap |
+        | b | fin | done |`,
+      ),
+    );
+    ctx.fixtures['transitions四类仓库'] = { repo };
+  },
+);
+
+bdd.thenStep(
+  '四类状态流转缺陷均被自动发现并判 ERROR 且对应 capability valid 为 false 且退出码非零',
+  (ctx) => {
+    const r = ctx.fixtures['validate结果'] as { code: number; stdout: string };
+    if (r.code === 0) throw new Error('validate must fail for transition defects');
+    const parsed = JSON.parse(r.stdout) as {
+      items?: {
+        id: string;
+        valid: boolean;
+        issues: { level: string; path: string; message: string }[];
+      }[];
+    };
+    const caps = ['sc-incomplete', 'sc-fake', 'sc-nondet', 'sc-island2', 'sc-dead'];
+    for (const cap of caps) {
+      const item = (parsed.items ?? []).find((i) => i.id === cap);
+      if (!item || item.valid) throw new Error(`${cap} must be invalid`);
+      if (!item.issues.some((x) => x.level === 'ERROR' && x.path.includes('/transitions/'))) {
+        throw new Error(`${cap} must carry transitions ERROR`);
+      }
+    }
+    const messages = (parsed.items ?? []).flatMap((i) => i.issues.map((x) => x.message));
+    const need = [
+      'transition scenario',
+      'steps must bind placeholders',
+      'non-deterministic or duplicate transition',
+      'unreachable state',
+      'deadlock state',
+    ];
+    for (const fragment of need) {
+      if (!messages.some((m) => m.includes(fragment))) {
+        throw new Error(`missing transition defect message containing: ${fragment}`);
+      }
+    }
+  },
+);

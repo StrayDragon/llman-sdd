@@ -747,3 +747,61 @@ bdd.thenStep('涉事 capability 被判 FAIL 且含功能标题不一致 ERROR', 
     throw new Error(`expected feature title ERROR:\n${joined}`);
   }
 });
+
+// ---------------------------------------------------------------------------
+// r103 — Scenario Outline / Examples IR
+// ---------------------------------------------------------------------------
+
+const OUTLINE_FEATURE = `# language: zh-CN
+# purpose: outline parse
+功能: outline-cap
+
+  @req:r103
+  规则: 大纲规则
+    系统 MUST 支持场景大纲
+
+    场景大纲: 带数据
+      假如 值是 "<col>"
+      当 执行
+      那么 结果为 "<col>"
+
+      例子:
+        | col |
+        | x   |
+
+    场景大纲: 空例子
+      假如 无数据
+      当 执行
+      那么 跳过
+
+      例子:
+        | col |
+`;
+
+bdd.given('一个含带例子表的场景大纲与空例子表场景大纲的中文 feature 内容', (ctx) => {
+  ctx.fixtures['feature'] = { 源文本: OUTLINE_FEATURE };
+});
+
+bdd.when('解析该包含场景大纲的 feature', (ctx) => {
+  const source = String(field(ctx.fixtures['feature'], '源文本') ?? '');
+  ctx.fixtures['解析结果'] = {
+    doc: parseCapability(source, 'outline.feature'),
+  } satisfies ParseResult;
+});
+
+bdd.thenStep('ScenarioIR 保留 examples 表头与行数据且空例子表场景 runnable 为 false', (ctx) => {
+  const doc = (ctx.fixtures['解析结果'] as ParseResult).doc;
+  const rule = doc.rules[0];
+  if (!rule) throw new Error('missing rule');
+  const withData = rule.scenarios.find((s) => s.name === '带数据');
+  const empty = rule.scenarios.find((s) => s.name === '空例子');
+  if (!withData?.examples?.[0]?.headers.includes('col')) {
+    throw new Error('expected examples headers on data outline');
+  }
+  if ((withData.examples?.[0]?.rows.length ?? 0) !== 1) {
+    throw new Error('expected one example row');
+  }
+  if (empty?.runnable !== false) {
+    throw new Error('empty examples outline must be non-runnable');
+  }
+});

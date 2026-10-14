@@ -16,6 +16,7 @@ import {
   CliError,
   cliMaxScanDepth,
   exitWith,
+  loadCliConfig,
   loadSpecEntries,
   newIo,
   resolveOutMode,
@@ -58,6 +59,7 @@ export function registerReview(program: Command): void {
             boundChangeCount: activeChanges.filter((c) => c.hasBinding).length,
             activeChanges,
             capability: options.capability,
+            checkTransitions: Boolean(loadCliConfig()?.specs?.check_transitions),
           },
           io,
         );

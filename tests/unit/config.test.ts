@@ -79,6 +79,16 @@ describe('loadConfig', () => {
     expect(() => loadConfig(`schema: something-else\n`)).toThrow(/schema/);
   });
 
+  test('check_transitions boolean config and rejects non-boolean', () => {
+    const off = loadConfig('schema: spec-driven\n');
+    expect(off.specs?.check_transitions).toBeUndefined();
+    const on = loadConfig('schema: spec-driven\nspecs:\n  check_transitions: true\n');
+    expect(on.specs?.check_transitions).toBe(true);
+    expect(() => loadConfig('schema: spec-driven\nspecs:\n  check_transitions: yes\n')).toThrow(
+      /specs\/check_transitions/,
+    );
+  });
+
   test('validation failure reports at most 5 issues', () => {
     const bad = `schema: 123
 locale: 5

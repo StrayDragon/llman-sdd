@@ -9,8 +9,8 @@
     schema/locale/extra_skills/archive/specs/sdd/change_id 组成(specs 承接前代 bdd 段的 spec 验证配置角色;旧 bdd 段在兼容期经兼容提升消费,见旧配置兼容条),未知字段 SHALL 宽松放行(不报错)。schema 字段必填且 MUST 为
     "spec-driven"。extra_skills 取值域 MUST 限于
     llman-sdd-continue/llman-sdd-ff/llman-sdd-validate/llman-sdd-arch-review/llman-sdd-wayfinder/llman-sdd-research。
-    specs 段 MUST 仅由 framework/check_command/verify_prompt 组成(语义为「整个 spec 验证」的 harness:check_command 承接前代
-    run_command,支持占位符与 batch-once,由 validate 执行且缺省跳过、经 `--check` 显式执行);specs 段 MUST NOT 声明无消费方的字段(bindings、default_language、feature_dir 已移除或归入兼容处理)。
+    specs 段 MUST 仅由 framework/check_command/verify_prompt/check_transitions 组成(语义为「整个 spec 验证」的 harness:check_command 承接前代
+    run_command,支持占位符与 batch-once,由 validate 执行且缺省跳过、经 `--check` 显式执行;check_transitions 为状态流转表自动发现与校验布尔开关,见 @req:r102);specs 段 MUST NOT 声明无消费方的字段(bindings、default_language、feature_dir 已移除或归入兼容处理)。
     旧配置的 bdd 段(framework/run_command/verify_prompt)在加载期 MUST 被识别并兼容提升为新 specs 语义(run_command → check_command 字段级映射,framework/verify_prompt 同名随迁):解析结果 MUST 以 specs 呈现、旧 bdd 段内无消费方字段 SHALL 保持宽松剥离/忽略,且 MUST 向 stderr 输出 WARNING 提示改用新形。
 
     场景: 顶层字段域与未知字段宽松
@@ -69,3 +69,12 @@
       假如 一个 config 内容 change_id.pattern 为 "[unclosed"
       当 加载该 config
       那么 报错信息包含 "change_id.pattern"
+  @req:r102
+  规则: specs.check_transitions 状态流转表自动校验开关契约
+    specs 段 SHALL 支持可选布尔字段 check_transitions(缺省 false/未启用,不设嵌套对象或规则列表,开启后全自动发现所有状态流转表);非布尔值在加载期 MUST 报错且错误信息包含 specs/check_transitions;JSON Schema artifact MUST 同步包含该字段定义。
+
+
+    场景: check_transitions 布尔配置解析与非布尔值被拒
+      假如 一个分别配置 specs.check_transitions 为 true、false、未设置与非法非布尔值的 config 样本集
+      当 依次加载 check_transitions 配置
+      那么 布尔值与未设置加载成功且缺省为关闭,非布尔值报错包含 specs/check_transitions

@@ -185,6 +185,55 @@ function keywordToKind(keyword: string, prevKind: StepKind): StepKind {
   return STEP_KIND_BY_KEYWORD.get(keyword.trim()) ?? prevKind;
 }
 
+function substituteOutlinePlaceholders(text: string, colMap: Record<string, string>): string {
+  return text.replace(/<([^>]+)>/gu, (match, col: string) => colMap[col] ?? match);
+}
+
+function expandOutlineRows(scenario: {
+  name: string;
+  steps: readonly {
+    keyword: string;
+    text: string;
+    docString?: { content?: string } | null;
+  }[];
+  examples?: readonly {
+    name: string;
+    tableHeader?: { cells: readonly { value: string }[] } | null;
+    tableBody: readonly { cells: readonly { value: string }[] }[];
+  }[];
+}): { name: string; steps: typeof scenario.steps }[] {
+  const blocks = scenario.examples ?? [];
+  if (blocks.length === 0) return [{ name: scenario.name, steps: scenario.steps }];
+  const expanded: { name: string; steps: typeof scenario.steps }[] = [];
+  for (const block of blocks) {
+    const headers = block.tableHeader?.cells.map((c) => c.value.trim()) ?? [];
+    for (let rowIndex = 0; rowIndex < block.tableBody.length; rowIndex++) {
+      const row = block.tableBody[rowIndex];
+      const cells = row?.cells.map((c) => c.value.trim()) ?? [];
+      const colMap: Record<string, string> = {};
+      for (let i = 0; i < headers.length; i++) {
+        colMap[headers[i] ?? ''] = cells[i] ?? '';
+      }
+      const steps = scenario.steps.map((step) => ({
+        ...step,
+        text: substituteOutlinePlaceholders(step.text, colMap),
+        docString:
+          step.docString?.content === undefined
+            ? step.docString
+            : {
+                ...step.docString,
+                content: substituteOutlinePlaceholders(step.docString.content ?? '', colMap),
+              },
+      }));
+      expanded.push({
+        name: `${scenario.name} [${rowIndex + 1}: ${cells.join(', ')}]`,
+        steps,
+      });
+    }
+  }
+  return expanded.length > 0 ? expanded : [{ name: scenario.name, steps: scenario.steps }];
+}
+
 function parseFeature(featurePath: string) {
   const src = readFileSync(featurePath, 'utf8');
   const parser = new Parser(
@@ -231,7 +280,13 @@ export function runFeature(
           text: string;
           docString?: { content?: string } | null;
         }[];
+        examples?: readonly {
+          name: string;
+          tableHeader?: { cells: readonly { value: string }[] } | null;
+          tableBody: readonly { cells: readonly { value: string }[] }[];
+        }[];
       };
+      outlineLabel?: string;
     }[] = [];
     const featureBackgrounds = feature.children
       .filter((c) => c.background)
@@ -246,13 +301,22 @@ export function runFeature(
       }
     }
 
+    const runnableCases: {
+      name: string;
+      steps: (typeof scenarios)[0]['scenario']['steps'];
+      tags: readonly { name: string }[];
+    }[] = [];
     for (const { scenario } of scenarios) {
-      // stepless scenarios carry no runnable behavior (legacy rule placeholders)
       if ((scenario.steps ?? []).length === 0) continue;
+      for (const expanded of expandOutlineRows(scenario)) {
+        runnableCases.push({ ...expanded, tags: scenario.tags ?? [] });
+      }
+    }
 
+    for (const scenario of runnableCases) {
       const shouldSkip =
         options.skipScenarios?.test(scenario.name) ||
-        (scenario.tags ?? []).some((t) => t.name === '@skip' || t.name === '@experimental');
+        scenario.tags.some((t) => t.name === '@skip' || t.name === '@experimental');
 
       const runScenario = async () => {
         const ctx = makeContext();

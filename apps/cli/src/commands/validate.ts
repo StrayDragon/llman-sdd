@@ -65,6 +65,7 @@ function specV1Items(
     const cap = specIdOf(entry);
     const verdict = validateCapability(entry as never, duplicatesFor, io, {
       strict: opts.strict === true,
+      checkTransitions: Boolean(loadCliConfig()?.specs?.check_transitions),
     });
     const issues: ChangeIssue[] = verdict.items.map((i) => ({
       level: i.level,

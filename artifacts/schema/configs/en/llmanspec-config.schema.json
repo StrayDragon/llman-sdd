@@ -80,6 +80,13 @@
                 "string",
                 "null"
               ]
+            },
+            "check_transitions": {
+              "description": "When true, automatically discovers Gherkin Scenario Outline state transition tables (from/event/to) and enforces strict XState graph gates (determinism, reachability, deadlock, and step placeholder binding). Default: false.",
+              "type": [
+                "boolean",
+                "null"
+              ]
             }
           }
         },

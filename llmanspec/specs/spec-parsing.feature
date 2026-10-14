@@ -139,3 +139,12 @@
       假如 一个 `# language: fr` 的 legacy feature 内容
       当 迁移该 feature 为原生格式
       那么 迁移产物使用官方 fr 词表关键字且解析无错误
+  @req:r103
+  规则: 原生 Gherkin 场景大纲与例子表解析及行展开
+    parseCapability MUST 将原生 Gherkin 场景大纲(Scenario Outline)及其例子(Examples)表解析入 ScenarioIR.examples(含 headers 与 rows,不引入任何额外 Tag 字段);空例子表(0 数据行)的场景大纲 MUST 判定为非 runnable;BDD runner MUST 按例子表逐行替换步骤与 DocString 中的 <col> 占位符并作为独立用例执行。
+
+
+    场景: 场景大纲与例子表进入 IR 且空表不计入 runnable
+      假如 一个含带例子表的场景大纲与空例子表场景大纲的中文 feature 内容
+      当 解析该包含场景大纲的 feature
+      那么 ScenarioIR 保留 examples 表头与行数据且空例子表场景 runnable 为 false

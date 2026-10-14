@@ -17,6 +17,8 @@ export interface GherkinKeywords {
   feature: string;
   rule: string;
   scenario: string;
+  scenarioOutline: string;
+  examples: string;
   given: string;
   when: string;
   thenText: string;
@@ -29,6 +31,8 @@ const TABLE_KEY_PAIRS = [
   ['feature', 'feature'],
   ['rule', 'rule'],
   ['scenario', 'scenario'],
+  ['scenarioOutline', 'scenarioOutline'],
+  ['examples', 'examples'],
   ['given', 'given'],
   ['when', 'when'],
   ['then', 'thenText'],
@@ -40,6 +44,8 @@ const LOCKED_KEYWORDS: Record<string, GherkinKeywords> = {
     feature: 'Feature',
     rule: 'Rule',
     scenario: 'Scenario',
+    scenarioOutline: 'Scenario Outline',
+    examples: 'Examples',
     given: 'Given',
     when: 'When',
     thenText: 'Then',
@@ -48,6 +54,8 @@ const LOCKED_KEYWORDS: Record<string, GherkinKeywords> = {
     feature: '功能',
     rule: '规则',
     scenario: '场景',
+    scenarioOutline: '场景大纲',
+    examples: '例子',
     given: '假如',
     when: '当',
     thenText: '那么',
@@ -63,6 +71,8 @@ function keywordsFromTable(table: Dialect): GherkinKeywords | null {
     feature: pickKeyword(table.feature),
     rule: pickKeyword(table.rule),
     scenario: pickKeyword(table.scenario),
+    scenarioOutline: pickKeyword(table.scenarioOutline),
+    examples: pickKeyword(table.examples),
     given: pickKeyword(table.given),
     when: pickKeyword(table.when),
     thenText: pickKeyword(table.then),

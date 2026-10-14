@@ -8,6 +8,7 @@ import { assignSpecIds } from '../spec/assignSpecIds.ts';
 import type { CapabilityDoc } from '../spec/ir.ts';
 import { ruleHasRunnableScenario, specIdOf } from '../spec/ir.ts';
 import { buildReqRegistry } from '../spec/reqRegistry.ts';
+import { validateTransitionsForRule } from './transitions.ts';
 
 export type ValidationLevel = 'ERROR' | 'WARNING' | 'INFO';
 
@@ -50,7 +51,11 @@ export function validateCapability(
   entry: SpecEntry,
   duplicatesFor: (reqId: string) => boolean,
   _io: SpecIo,
-  opts: { strict?: boolean; duplicateSpecId?: boolean } = {},
+  opts: {
+    strict?: boolean;
+    duplicateSpecId?: boolean;
+    checkTransitions?: boolean;
+  } = {},
 ): SpecVerdict {
   const { doc } = entry;
   const cap = specIdOf(entry);
@@ -129,6 +134,14 @@ export function validateCapability(
     );
   }
 
+  if (opts.checkTransitions === true) {
+    for (const rule of rules) {
+      for (const item of validateTransitionsForRule(cap, rule, true)) {
+        push(item.level, item.id, item.message);
+      }
+    }
+  }
+
   return {
     fileName: entry.fileName,
     capability: cap,
@@ -160,7 +173,7 @@ export function formatTotals(passed: number, failed: number, total: number): str
 export function validateAllSpecs(
   entries: readonly SpecEntry[],
   io: SpecIo,
-  opts: { specsDir?: string } = {},
+  opts: { specsDir?: string; checkTransitions?: boolean } = {},
 ): ValidationReport {
   const specsDir = opts.specsDir ?? 'llmanspec/specs';
   const list: SpecEntry[] = entries.map((e) => ({ ...e }));
@@ -170,8 +183,10 @@ export function validateAllSpecs(
   const verdicts = list.map((e) =>
     validateCapability(e, duplicatesFor, io, {
       duplicateSpecId: duplicateSpecIds.has(specIdOf(e)),
+      checkTransitions: opts.checkTransitions,
     }),
   );
+
   const failed = verdicts.some((v) => !v.ok);
   const passed = verdicts.filter((v) => v.ok).length;
 

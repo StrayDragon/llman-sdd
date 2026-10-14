@@ -21,6 +21,14 @@ export interface ScenarioStep {
   text: string;
 }
 
+export interface ExamplesBlockIR {
+  name: string;
+  /** Trimmed header column names, e.g. ['from', 'event', 'to']. */
+  headers: string[];
+  /** Each row is a list of trimmed cell values aligned with `headers`. */
+  rows: string[][];
+}
+
 export interface ScenarioIR {
   name: string;
   /** Non-`@req` tags on this scenario (e.g. `@skip`, `@experimental`). */
@@ -31,6 +39,10 @@ export interface ScenarioIR {
   steps: ScenarioStep[];
   /** Step-texts joined (retrieval/context surface); empty for a stepless scenario. */
   statement: string;
+  /** True when the scenario has at least one Examples block or uses Scenario Outline keyword. */
+  isOutline?: boolean;
+  /** Parsed Examples blocks attached to this scenario. */
+  examples?: ExamplesBlockIR[];
 }
 
 export interface RuleIR {

@@ -298,3 +298,17 @@
       假如 一个经 change new 刚生成骨架的临时仓库
       当 对该骨架 change 运行 validate
       那么 骨架自带的非空 title 占位通过本门（无 title 相关 ERROR）
+  @req:r104
+  规则: check_transitions 状态流转表自动发现与零逃逸 ERROR 门禁
+    当 specs.check_transitions 为 true 时,validate MUST 自动扫描所有包含例子(Examples)表的场景大纲(不引入任何 Tag,不设人工规则列表):凡例子表头出现状态流转特征列(同时含 from/to、初始状态/目标状态、或含 event/事件 与其一)即自动识别为状态流转表,并执行基于 XState 的 4 道零逃逸 ERROR 门禁(挂载路径 <cap>/transitions/<req_id>):1)表结构与占位符绑定门禁——缺必填列(from/event/to 或 初始状态/事件/目标状态,如只写了 from/to 漏写 event)、行数<1、去重状态数<2、含空单元格、非 runnable,或 Given/When/Then 步骤未分别绑定 <from>/<event>/<to>(及有 guard 列时的 <guard>)占位符 MUST 判 ERROR;2)确定性门禁——同一 (from,event,guard) 重复或指向不同目标状态 MUST 判 ERROR;3)孤岛可达门禁——从首行初始状态不可达的孤岛状态 MUST 判 ERROR;4)死锁陷阱门禁——无法到达任何终态的死锁/自环陷阱状态 MUST 判 ERROR;specs.check_transitions 未启用(false 或未设置)时 MUST 完全跳过上述校验。
+
+
+    场景: 合法状态流转表通过且缺省关闭时不触发校验
+      假如 一个含合法状态流转场景大纲与含孤岛缺陷状态流转表但未启用 specs.check_transitions 的临时仓库
+      当 在未启用与启用 specs.check_transitions 下分别运行 validate --specs --json
+      那么 未启用时孤岛状态流转表不报错且启用后合法状态流转表 valid 为 true
+
+    场景: 四道零逃逸 ERROR 门禁自动发现并逐类拦截
+      假如 一个启用 specs.check_transitions 且分别含残缺表头漏列或假步骤未绑定占位符、非确定性冲突、孤岛不可达状态与死锁陷阱状态四类缺陷的临时仓库
+      当 运行 validate --specs --json
+      那么 四类状态流转缺陷均被自动发现并判 ERROR 且对应 capability valid 为 false 且退出码非零

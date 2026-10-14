@@ -121,6 +121,18 @@
       那么 四个 change 的 stage 依次为 draft、designed、planned、full
       而且 各 proposal 均不含 stage 字段
 
+
+    场景大纲: stage 状态机单调迁移表
+      假如 一个处于 "<from>" 阶段的 change 工作区
+      当 执行 stage 迁移事件 "<event>"
+      那么 该 change 的 stage 迁移为 "<to>"
+
+      例子:
+        | from     | event       | to       |
+        | draft    | add_design  | designed |
+        | designed | add_tasks   | planned  |
+        | planned  | bind_branch | full     |
+
   @req:r35
   规则: next-id 数字编号计数
     `change next-id` MUST 无参数执行,递归扫描 `llmanspec/` 全树目录名(任意深度,跳过符号链接与点目录)提取编号:内置启发式 MUST 取 token 边界上的

@@ -1071,6 +1071,57 @@ bdd.thenStep('各 proposal 均不含 stage 字段', (ctx) => {
   }
 });
 
+// r34 — stage 状态机场景大纲行展开
+interface StageOutlineFixture {
+  repo: TempRepo;
+  id: string;
+}
+
+bdd.given('一个处于 "{from}" 阶段的 change 工作区', (ctx, from) => {
+  const repo = makeTempRepo();
+  const id = 'demo-stage-machine';
+  const files: Record<string, string> = {};
+  if (from !== 'draft') files['design.md'] = '# design\n';
+  if (from === 'planned' || from === 'full') files['tasks.md'] = '# Tasks\n- [ ] t\n';
+  seedChange(repo, id, {
+    proposal: '---\ndepends_on: []\n---\n\n## Why\nx\n',
+    files,
+  });
+  repo.run('git', ['add', '-A']);
+  repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'seed']);
+  if (from === 'full') {
+    repo.run('git', ['switch', '-qc', 'feat/bind']);
+    repo.run('bun', [CLI, 'change', 'attach', id]);
+  }
+  ctx.fixtures['stage大纲'] = { repo, id } satisfies StageOutlineFixture;
+  ctx.fixtures['stage工作区'] = { root: repo.root };
+});
+
+bdd.when('执行 stage 迁移事件 "{event}"', (ctx, event) => {
+  const { repo, id } = ctx.fixtures['stage大纲'] as StageOutlineFixture;
+  const dir = join(repo.root, 'llmanspec', 'changes', id);
+  if (event === 'add_design') {
+    writeFileSync(join(dir, 'design.md'), '# design\n');
+  } else if (event === 'add_tasks') {
+    writeFileSync(join(dir, 'tasks.md'), '# Tasks\n- [ ] t\n');
+  } else if (event === 'bind_branch') {
+    repo.run('git', ['switch', '-qc', 'feat/bind']);
+    repo.run('bun', [CLI, 'change', 'attach', id]);
+  } else {
+    throw new Error(`unknown stage event: ${event}`);
+  }
+  repo.run('git', ['add', '-A']);
+  repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', `event:${event}`]);
+});
+
+bdd.thenStep('该 change 的 stage 迁移为 "{to}"', (ctx, to) => {
+  const { repo, id } = ctx.fixtures['stage大纲'] as StageOutlineFixture;
+  const result = repo.run('bun', [CLI, 'list', '--json']);
+  const parsed = JSON.parse(result.stdout) as { changes?: { name: string; stage: string }[] };
+  const stage = (parsed.changes ?? []).find((c) => c.name === id)?.stage;
+  if (stage !== to) throw new Error(`expected stage ${to} for ${id}, got ${stage}`);
+});
+
 // r35 — 纯前导数字目录不计编号
 bdd.given('一个仅含 3-third 与 2026-01-01-slug 目录的 llmanspec 树', (ctx) => {
   const root = mkdtempSync(join(tmpdir(), 'llman-nextid-plain-'));

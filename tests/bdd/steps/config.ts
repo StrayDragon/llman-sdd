@@ -424,3 +424,76 @@ bdd.thenStep('仓库内 schema artifact 未被修改', (ctx) => {
     throw new Error('repo schema artifact must stay untouched by --check runs');
   }
 });
+
+// ---------------------------------------------------------------------------
+// r102 — specs.check_transitions config contract
+// ---------------------------------------------------------------------------
+
+interface CheckTransitionsSample {
+  label: string;
+  yaml: string;
+}
+
+bdd.given(
+  '一个分别配置 specs.check_transitions 为 true、false、未设置与非法非布尔值的 config 样本集',
+  (ctx) => {
+    const samples: CheckTransitionsSample[] = [
+      { label: 'absent', yaml: 'schema: spec-driven\n' },
+      { label: 'false-bool', yaml: 'schema: spec-driven\nspecs:\n  check_transitions: false\n' },
+      { label: 'true-bool', yaml: 'schema: spec-driven\nspecs:\n  check_transitions: true\n' },
+      { label: 'bad-type', yaml: 'schema: spec-driven\nspecs:\n  check_transitions: yes\n' },
+    ];
+    ctx.fixtures['checkTransitions样本'] = samples;
+  },
+);
+
+bdd.when('依次加载 check_transitions 配置', (ctx) => {
+  const samples = ctx.fixtures['checkTransitions样本'] as CheckTransitionsSample[];
+  const results: {
+    label: string;
+    error: string | null;
+    checkTransitions: boolean | null | undefined;
+  }[] = [];
+  for (const sample of samples) {
+    try {
+      const cfg = loadConfig(sample.yaml);
+      results.push({
+        label: sample.label,
+        error: null,
+        checkTransitions: cfg.specs?.check_transitions ?? undefined,
+      });
+    } catch (err) {
+      results.push({
+        label: sample.label,
+        error: (err as Error).message,
+        checkTransitions: undefined,
+      });
+    }
+  }
+  ctx.fixtures['checkTransitions加载'] = results;
+});
+
+bdd.thenStep(
+  '布尔值与未设置加载成功且缺省为关闭,非布尔值报错包含 specs/check_transitions',
+  (ctx) => {
+    const results = ctx.fixtures['checkTransitions加载'] as {
+      label: string;
+      error: string | null;
+      checkTransitions: boolean | null | undefined;
+    }[];
+    const byLabel = new Map(results.map((r) => [r.label, r]));
+    if (byLabel.get('absent')?.checkTransitions !== undefined || byLabel.get('absent')?.error) {
+      throw new Error('absent config must load with check_transitions unset');
+    }
+    if (byLabel.get('false-bool')?.checkTransitions !== false || byLabel.get('false-bool')?.error) {
+      throw new Error('false must load');
+    }
+    if (byLabel.get('true-bool')?.checkTransitions !== true || byLabel.get('true-bool')?.error) {
+      throw new Error('true must load');
+    }
+    const bad = byLabel.get('bad-type');
+    if (!bad?.error?.includes('specs/check_transitions')) {
+      throw new Error(`non-boolean must fail load: ${bad?.error ?? 'no error'}`);
+    }
+  },
+);

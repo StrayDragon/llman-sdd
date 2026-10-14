@@ -97,6 +97,12 @@ export type {
 } from './validation/validate.ts';
 export { validateAllSpecs, validateCapability } from './validation/validate.ts';
 export { buildDuplicatesFor, formatTotals } from './validation/validate.ts';
+export {
+  isTransitionOutline,
+  parseTransitionExpr,
+  validateTransitionScenario,
+  type TransitionEdge,
+} from './validation/transitions.ts';
 export { splitVerb } from './config/changeId.ts';
 export {
   checkChangeDoc,

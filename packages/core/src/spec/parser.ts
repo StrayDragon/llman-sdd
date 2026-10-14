@@ -14,6 +14,7 @@ import type { GherkinDocument } from '@cucumber/messages';
 import {
   type CapabilityDoc,
   type CapabilityHeader,
+  type ExamplesBlockIR,
   type RuleIR,
   type ScenarioIR,
   type ScenarioStepKind,
@@ -104,18 +105,45 @@ function parseTags(tags: readonly { name: string }[]): RawTags {
   return { names, reqId: req ?? '' };
 }
 
+function collectExamples(
+  examples: readonly {
+    name: string;
+    tableHeader?: { cells: readonly { value: string }[] } | null;
+    tableBody: readonly { cells: readonly { value: string }[] }[];
+  }[],
+): ExamplesBlockIR[] {
+  return examples.map((ex) => ({
+    name: ex.name ?? '',
+    headers: (ex.tableHeader?.cells ?? []).map((c) => c.value.trim()),
+    rows: ex.tableBody.map((row) => row.cells.map((c) => c.value.trim())),
+  }));
+}
+
 function collectScenario(sc: {
+  keyword?: string;
   tags: readonly { name: string }[];
   name: string;
   steps: readonly { keyword: string; text: string }[];
+  examples?: readonly {
+    name: string;
+    tableHeader?: { cells: readonly { value: string }[] } | null;
+    tableBody: readonly { cells: readonly { value: string }[] }[];
+  }[];
 }): ScenarioIR {
   const { names, reqId: _ignored } = parseTags(sc.tags);
   const skipTokens = new Set(['skip', 'experimental']);
-  const runnable = !names.some((n) => skipTokens.has(n));
+  let runnable = !names.some((n) => skipTokens.has(n));
   const steps = sc.steps.map((s) => ({
     kind: stepKeywordToKind(s.keyword),
     text: s.text.trim(),
   }));
+  const examplesBlocks = collectExamples(sc.examples ?? []);
+  const hasDataRows = examplesBlocks.some((b) => b.rows.length > 0);
+  const keyword = sc.keyword ?? '';
+  const isOutline = /outline|大纲/iu.test(keyword) || examplesBlocks.length > 0;
+  if (runnable && examplesBlocks.length > 0 && !hasDataRows) {
+    runnable = false;
+  }
   return {
     name: sc.name,
     tags: names.filter(
@@ -130,6 +158,8 @@ function collectScenario(sc: {
     stepCount: steps.length,
     steps,
     statement: steps.map((s) => s.text).join('\n'),
+    isOutline,
+    examples: examplesBlocks.length > 0 ? examplesBlocks : undefined,
   };
 }
 
