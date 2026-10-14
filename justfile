@@ -15,10 +15,6 @@ OXLINT_FLAGS := if QA_VERBOSE == "2" { "" } else { "--quiet" }
 default:
     @just --list
 
-# 安装依赖(frozen lockfile,与 CI 一致)
-install:
-    bun install --frozen-lockfile
-
 # 本地注册命令面:bun link 只登记包名(不写 bin),故 bin symlink 手工补。
 # 单一真源:PATH 上的 symlink 直指 src/main.ts —— 源码改动即时生效(单轨)。
 # ELF 二进制只由 release 工作流产出,不进日常 link(双轨漂移教训:0.7.1 vs 0.7.2)。
@@ -28,24 +24,20 @@ link:
     ln -sfn {{justfile_directory()}}/apps/cli/src/main.ts ~/.bun/bin/llman-sdd
     ln -sfn {{justfile_directory()}}/apps/cli/src/main.ts ~/.bun/bin/llmanspec
 
-# 对账:本仓 git 描述 vs PATH 解析的 CLI 版本(detect 双轨漂移 / stale 二进制)
-link-check:
-    @echo "repo:  $(git -C {{justfile_directory()}} describe --tags --always --dirty)"
-    @echo "PATH:  $(which llman-sdd)"
-    @llman-sdd --version
-    @[ -x ~/.local/bin/llman-sdd ] && echo "local-bin: $(~/.local/bin/llman-sdd --version 2>/dev/null) (release artifact,仅对账用)" || echo "local-bin: absent"
-
 # 静态门禁:typecheck + lint + format(缺一不可)
 check:
     @{{BUN_RUN}} typecheck && echo "[check] typecheck"
     @{{BUN_RUN}} lint {{OXLINT_FLAGS}} && echo "[check] lint"
     @{{BUN_RUN}} format:check && echo "[check] format"
 
-# 主门禁:check + test + skills 模板渲染门 + pending + schema(等价 CI)
+# 门名真源 = 根 package.json scripts(monorepo-structure r2 用语),qa body 直呼脚本不走 just 中转;
+# 三处(justfile/package.json/ci.yml)接线一致由 tests/bdd/assert/quality-gates.ts 对账锁定;
+# 单门 just 入口按 qa- 前缀,check/qa 合约钉名、test 供 skill 文案引用保持原名。
+# 主门禁(等价 CI):check + test + check:stc + skills 渲染 + pending + schema。
 qa: check
     @{{BUN_RUN}} test {{BUN_TEST_FLAGS}} && echo "[pass] test"
     @{{BUN_RUN}} check:stc && echo "[pass] check:stc"
-    @just check-skills-template-render && echo "[pass] check-skills-template-render"
+    @{{BUN_RUN}} check:skills-template-render && echo "[pass] check:skills-template-render"
     @{{BUN_RUN}} pending-gate && echo "[pass] pending-gate"
     @{{BUN_RUN}} check:schema && echo "[pass] check:schema"
 
@@ -62,22 +54,19 @@ format:
     bun run format:write
 
 # pending 计量门:无配对 @executable 验收的规则数不得高于基线(阶段 QA,随 executable 化批次下调)
-pending-gate:
+qa-pending:
     bun run pending-gate
-
-# 构建 CLI 单二进制(apps/cli/dist/)
-build:
-    bun run build
 
 # skills 模板渲染门:runInit 产物 vs tests/golden/baseline(版本号归一化)+ 本仓 .agents/skills 新鲜度
 generate-skills-template-baseline:
     bun run generate:skills-template-baseline
 
 # 模板中文文风门:STC 检查器 errors 计数对照基线(只许下调),合约 init-generators r97
-check-stc:
+qa-stc:
     bun run check:stc
 
-check-skills-template-render:
+# skills 模板渲染门单门入口(qa body 直呼脚本,此处仅供人单独触发)
+qa-skills-render:
     bun run check:skills-template-render
 
 # 真实 LLM 链路冒烟(env 守卫,未配置模型时干净跳过)
@@ -85,7 +74,8 @@ smoke-context:
     bun run smoke:context
 
 # 单文件二进制冒烟:先构建再跑 tests/integration/binary.test.ts
-smoke-binary: build
+smoke-binary:
+    bun run build
     bun test tests/integration/binary.test.ts
 
 # 性能冒烟基线(不进 qa):参照计时;量级回归由 check-perf 捕获
@@ -105,7 +95,7 @@ coverage:
 gen-schema:
     bun run gen:schema
 
-check-schema:
+qa-schema:
     bun run check:schema
 
 # 外部影响面剧本 eval（默认 Pi）。不进 qa。先 `cp eval/groups.yaml.example eval/groups.yaml` 并替换 FILL。

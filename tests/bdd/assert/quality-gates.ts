@@ -30,7 +30,7 @@ const qaBodyText = qaBody.join('\n');
 for (const gate of [
   'test',
   'check:stc',
-  'check-skills-template-render',
+  'check:skills-template-render',
   'pending-gate',
   'check:schema',
 ]) {
