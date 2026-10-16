@@ -17,7 +17,8 @@
 ### 升级步骤
 
 ```bash
-llman-sdd project migrate prompt --version-expr '0.8.1->0.9.0'
+# 迁移手册按版本聚合:范围内全部已登记版本逐版输出(左开右闭)
+llman-sdd project migrate prompt --from-version 0.8.2 --to-version 0.9.0
 
 llman-sdd project migrate strip-legacy-headers --dry-run
 llman-sdd project migrate strip-legacy-headers

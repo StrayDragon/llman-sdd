@@ -20,7 +20,7 @@
 
 ```bash
 # 0. 查看 agent 可执行的迁移手册(可整段交给任何 agent 执行与自查):
-llman-sdd project migrate prompt --version-expr '0.7.5->0.8.0'
+llman-sdd project migrate prompt --from-version 0.7.5 --to-version 0.8.0
 
 # 1. 一键剥除存量头(幂等;先预览):
 llman-sdd project migrate strip-legacy-headers --dry-run

@@ -3,19 +3,59 @@ import { join } from 'node:path';
 
 import {
   buildReqRegistry,
-  findMigration,
-  isValidMigrationExpr,
+  compareVersions,
+  isValidVersion,
   migrateNoteFor,
   migrateOverviewFor,
   migrationOverviewLines,
   migrationPrompt,
-  knownMigrationIds,
+  knownMigrationVersions,
+  parseVersionExpr,
   planDedupe,
   stripLegacyHeaderLines,
 } from '@llman-sdd/core';
 import type { Command } from 'commander';
 
 import { CliError, loadCliConfig, loadSpecEntries, newIo } from '../cli-shared.ts';
+
+interface MigrateOptions {
+  kind?: string;
+  fromVersion?: string;
+  toVersion?: string;
+  versionExpr?: string;
+  dryRun?: boolean;
+}
+
+/** Resolve the playbook range from --from-version/--to-version or the
+ * deprecated --version-expr (r100): conflict → ERROR, missing half → ERROR,
+ * malformed version → ERROR, from >= to → ERROR. Returns null when no
+ * selector was given at all (caller prints usage). */
+function resolvePromptRange(options: MigrateOptions): {
+  from: string;
+  to: string;
+  viaExpr: boolean;
+} | null {
+  const hasNew = options.fromVersion !== undefined || options.toVersion !== undefined;
+  if (options.versionExpr !== undefined && hasNew) {
+    throw new CliError(
+      '--version-expr is deprecated and conflicts with --from-version/--to-version; pass only the new flags',
+    );
+  }
+  if (options.versionExpr !== undefined) {
+    const parsed = parseVersionExpr(options.versionExpr);
+    if (parsed === null) {
+      throw new CliError(
+        `invalid --version-expr: ${options.versionExpr} (expected '<from>-><to>', e.g. '0.7.5->0.8.0')`,
+      );
+    }
+    return { ...parsed, viaExpr: true };
+  }
+  if (!hasNew) return null;
+  if (options.fromVersion === undefined || options.toVersion === undefined) {
+    throw new CliError('--from-version and --to-version must be given together (x.y.z)');
+  }
+  return { from: options.fromVersion, to: options.toVersion, viaExpr: false };
+}
 
 function collectFeatureFiles(paths: string[]): string[] {
   const out: string[] = [];
@@ -68,82 +108,91 @@ export function registerProject(program: Command): void {
     )
     .argument('[action]', 'prompt | strip-legacy-headers')
     .option('--kind <kind>', 'legacy collaboration notes: toon2features | specs-flatten')
-    .option('--version-expr <expr>', "migration playbook selector, e.g. '0.7.5->0.8.0'")
+    .option('--from-version <version>', 'migration playbook range start, exclusive (x.y.z)')
+    .option('--to-version <version>', 'migration playbook range end, inclusive (x.y.z)')
+    .option(
+      '--version-expr <expr>',
+      "deprecated — use --from-version/--to-version instead (e.g. '0.7.5->0.8.0')",
+    )
     .option('--dry-run', 'strip-legacy-headers: report affected files without writing')
-    .action(
-      (
-        action: string | undefined,
-        options: { kind?: string; versionExpr?: string; dryRun?: boolean },
-      ) => {
-        const locale = loadCliConfig()?.locale ?? 'en';
-        if (action === 'prompt') {
-          const expr = options.versionExpr;
-          if (expr === undefined) {
-            console.log(
-              [
-                'Migration playbook selector is required.',
-                `Known migrations: ${knownMigrationIds().join(', ')}`,
-                "Usage: llman-sdd project migrate prompt --version-expr '<from>-><to>'",
-              ].join('\n'),
-            );
-            return;
-          }
-          if (!isValidMigrationExpr(expr)) {
-            throw new CliError(
-              `invalid --version-expr: ${expr} (expected '<from>-><to>', e.g. '0.7.5->0.8.0')`,
-            );
-          }
-          const migration = findMigration(expr);
-          if (migration === null) {
-            throw new CliError(
-              `unknown migration: ${expr} (known: ${knownMigrationIds().join(', ')})`,
-            );
-          }
-          console.log(migrationPrompt(migration));
-          return;
-        }
-        if (action === 'strip-legacy-headers') {
-          if (options.kind !== undefined || options.versionExpr !== undefined) {
-            throw new CliError('strip-legacy-headers takes no --kind/--version-expr');
-          }
-          const targets = collectFeatureFiles(['llmanspec/specs']);
-          let touched = 0;
-          let removed = 0;
-          for (const file of targets) {
-            const source = readFileSync(file, 'utf8');
-            const result = stripLegacyHeaderLines(source);
-            if (result.removed === 0) continue;
-            touched++;
-            removed += result.removed;
-            console.log(
-              `[strip] ${file}: ${result.removed} line(s)${options.dryRun === true ? ' (dry-run)' : ''}`,
-            );
-            if (options.dryRun !== true) writeFileSync(file, result.content, 'utf8');
-          }
-          const mode = options.dryRun === true ? ' (dry-run)' : '';
+    .action((action: string | undefined, options: MigrateOptions) => {
+      const locale = loadCliConfig()?.locale ?? 'en';
+      if (action === 'prompt') {
+        const range = resolvePromptRange(options);
+        if (range === null) {
           console.log(
-            `strip-legacy-headers: ${touched} file(s), ${removed} line(s) removed${mode}`,
+            [
+              'Migration playbook range is required.',
+              `Known migrations: ${knownMigrationVersions().join(', ')}`,
+              'Usage: llman-sdd project migrate prompt --from-version <from> --to-version <to>',
+            ].join('\n'),
           );
-          console.log('next: re-run `llman-sdd init --update` to refresh skills and templates');
           return;
         }
-        if (action !== undefined) {
+        for (const v of [range.from, range.to]) {
+          if (!isValidVersion(v)) {
+            throw new CliError(`invalid version '${v}': expected x.y.z (e.g. 0.9.0), got '${v}'`);
+          }
+        }
+        if (compareVersions(range.from, range.to) >= 0) {
           throw new CliError(
-            `unknown migrate action: ${action} (expected: prompt | strip-legacy-headers)`,
+            `invalid range: --from-version (${range.from}) must be less than --to-version (${range.to})`,
           );
         }
-        if (options.kind === undefined) {
-          console.log(migrateOverviewFor(locale));
-          console.log(migrationOverviewLines().join('\n'));
-          return;
-        }
-        const note = migrateNoteFor(options.kind, locale);
-        if (note === null) {
-          throw new CliError(
-            `unknown migration kind: ${options.kind} (expected: toon2features | specs-flatten)`,
+        if (range.viaExpr) {
+          console.error(
+            '[WARNING] --version-expr is deprecated; use --from-version/--to-version instead.',
           );
         }
-        console.log(note);
-      },
-    );
+        console.log(migrationPrompt(range.from, range.to));
+        return;
+      }
+      if (action === 'strip-legacy-headers') {
+        if (
+          options.kind !== undefined ||
+          options.versionExpr !== undefined ||
+          options.fromVersion !== undefined ||
+          options.toVersion !== undefined
+        ) {
+          throw new CliError(
+            'strip-legacy-headers takes no --kind/--version-expr/--from-version/--to-version',
+          );
+        }
+        const targets = collectFeatureFiles(['llmanspec/specs']);
+        let touched = 0;
+        let removed = 0;
+        for (const file of targets) {
+          const source = readFileSync(file, 'utf8');
+          const result = stripLegacyHeaderLines(source);
+          if (result.removed === 0) continue;
+          touched++;
+          removed += result.removed;
+          console.log(
+            `[strip] ${file}: ${result.removed} line(s)${options.dryRun === true ? ' (dry-run)' : ''}`,
+          );
+          if (options.dryRun !== true) writeFileSync(file, result.content, 'utf8');
+        }
+        const mode = options.dryRun === true ? ' (dry-run)' : '';
+        console.log(`strip-legacy-headers: ${touched} file(s), ${removed} line(s) removed${mode}`);
+        console.log('next: re-run `llman-sdd init --update` to refresh skills and templates');
+        return;
+      }
+      if (action !== undefined) {
+        throw new CliError(
+          `unknown migrate action: ${action} (expected: prompt | strip-legacy-headers)`,
+        );
+      }
+      if (options.kind === undefined) {
+        console.log(migrateOverviewFor(locale));
+        console.log(migrationOverviewLines().join('\n'));
+        return;
+      }
+      const note = migrateNoteFor(options.kind, locale);
+      if (note === null) {
+        throw new CliError(
+          `unknown migration kind: ${options.kind} (expected: toon2features | specs-flatten)`,
+        );
+      }
+      console.log(note);
+    });
 }

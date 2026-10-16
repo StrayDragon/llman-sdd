@@ -272,14 +272,39 @@
       那么 输出 r6 而非根部空缺号
 
   @req:r100
-  规则: project migrate 迁移手册与存量头剥离
-    `project migrate` 裸调用 MUST 在既有总览之上追加已知迁移版本对清单(含获取方式提示);`project migrate prompt --version-expr '<from>-><to>'` MUST 输出面向 agent 的迁移手册(英文;背景、逐步命令、受影响面、逐项自检清单),版本对未注册 MUST 报错并列出全部已知版本对;`project migrate strip-legacy-headers` MUST 扫描当前实例根 `llmanspec/specs/**` 全部 .feature,删除行首 `# scope:`、`# reviewed-through:` 或 `# capability:` 的注释行(全文范围,幂等:无匹配则零改动),`--dry-run` MUST 仅报告将改动的文件与行数而不写盘,执行结束 MUST 输出后续清单(重跑 `init --update`)与改动统计,剥除后产物 MUST 通过结构校验。
+  规则: project migrate 按版本组织的迁移手册与存量头剥离
+    迁移注册表 MUST 按单版本组织(每版本声明自己的迁移条目,条目含标题、逐步命令与自检清单),`project migrate` 裸调用 MUST 在既有总览之上追加已知迁移版本清单(含获取方式提示);
+    `project migrate prompt --from-version <v> --to-version <v>` MUST 输出面向 agent 的英文迁移手册:按 `(from, to]` 左开右闭的数值比较聚合范围内全部已登记版本并升序输出,逐版本 `## <version>` 头,版本内逐条目标题、编号步骤与逐项自检清单,版本间以水平分割线分隔,同一范围的输出 MUST 逐字节确定;
+    版本 MUST 为 `x.y.z` 三段数字,非法格式或 `from >= to` MUST 报错;范围合法但无登记条目 MUST 输出无登记迁移提示且退出码为 0;
+    `--version-expr` 为废弃旗标:继续解析并等价映射为新旗标语义,MUST 向 stderr 输出弃用 WARNING 指引新旗标,与新旗标同给 MUST 报冲突错;
+    `project migrate strip-legacy-headers` MUST 扫描当前实例根 `llmanspec/specs/**` 全部 .feature,删除行首 `# scope:`、`# reviewed-through:` 或 `# capability:` 的注释行(全文范围,幂等:无匹配则零改动),`--dry-run` MUST 仅报告将改动的文件与行数而不写盘,执行结束 MUST 输出后续清单(重跑 `init --update`)与改动统计,剥除后产物 MUST 通过结构校验。
 
-    场景: 迁移手册按版本对输出且未知对报错
+    场景: 迁移手册按版本范围聚合输出
       假如 一个已安装本 CLI 的临时仓库
-      当 运行 project migrate prompt --version-expr "0.7.5->0.8.0" 与 project migrate prompt --version-expr "9.9.9->9.9.10"
-      那么 前者输出含 strip-legacy-headers 与 init --update 步骤及自检清单
-      而且 后者报未知版本对且列出 0.7.5->0.8.0
+      当 运行 project migrate prompt --from-version 0.7.5 --to-version 0.9.0
+      那么 输出依次含 0.8.0 与 0.9.0 版本头及各条目的编号步骤与自检清单
+      而且 版本间以水平分割线分隔
+
+    场景: 范围左开右闭排除下界版本
+      假如 一个已安装本 CLI 的临时仓库
+      当 运行 project migrate prompt --from-version 0.8.0 --to-version 0.9.0
+      那么 输出含 0.9.0 版本头且不含治理元数据退役条目
+
+    场景: 空范围输出无迁移提示
+      假如 一个已安装本 CLI 的临时仓库
+      当 运行 project migrate prompt --from-version 0.8.0 --to-version 0.8.2
+      那么 输出含无登记迁移提示且退出码为 0
+
+    场景: 非法版本与逆序范围报错
+      假如 一个已安装本 CLI 的临时仓库
+      当 运行 prompt 携带非法版本格式与携带 from 大于 to 两例
+      那么 均报错且非法格式例的错误信息含 x.y.z 格式提示
+
+    场景: 废弃旗标可用但告警且与新旗标冲突报错
+      假如 一个已安装本 CLI 的临时仓库
+      当 运行 project migrate prompt --version-expr "0.7.5->0.8.0" 与其再同给 --from-version 0.7.5 一例
+      那么 前者输出 0.8.0 迁移手册且 stderr 含弃用 WARNING
+      而且 后者报旗标冲突错
 
     场景: 剥除历史头行且幂等
       假如 一个 specs 含 # scope: 与 # reviewed-through: 与 # capability: 头行的临时仓库

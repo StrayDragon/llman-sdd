@@ -1,6 +1,9 @@
 ---
 depends_on: []
 title: 迁移手册按版本组织并以版本范围查询
+branch: sdd/migrate-prompt-per-version
+base_branch: main
+base_sha: bf9a38f329c9071ecb0c5e08b8d53eff7483ff17
 ---
 
 # 迁移手册 per-version 化与范围查询

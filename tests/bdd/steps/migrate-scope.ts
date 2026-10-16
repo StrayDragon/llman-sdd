@@ -98,58 +98,139 @@ bdd.thenStep('报告含将改动的文件且文件内容不变', (ctx) => {
   if (before !== after) throw new Error('dry-run must not write');
 });
 
-// r100 — 迁移手册 playbook 与未知版本对
+// r100 — 迁移手册 per-version 注册表与范围查询
+interface RunResult {
+  code: number;
+  stdout: string;
+  stderr: string;
+}
+
+function runPrompt(repo: TempRepo, extra: string[]): RunResult {
+  const r = repo.run('bun', [CLI, 'project', 'migrate', 'prompt', ...extra]);
+  return { code: r.code, stdout: r.stdout, stderr: r.stderr };
+}
+
 bdd.given('一个已安装本 CLI 的临时仓库', (ctx) => {
   const repo = makeTempRepo();
   ctx.fixtures['playbook仓库'] = { repo, specRel: '' } satisfies StripFixture;
 });
 
-bdd.when(
-  '运行 project migrate prompt --version-expr "0.7.5->0.8.0" 与 project migrate prompt --version-expr "9.9.9->9.9.10"',
-  (ctx) => {
-    const { repo } = ctx.fixtures['playbook仓库'] as StripFixture;
-    const hit = repo.run('bun', [
-      CLI,
-      'project',
-      'migrate',
-      'prompt',
-      '--version-expr',
-      '0.7.5->0.8.0',
-    ]);
-    const miss = repo.run('bun', [
-      CLI,
-      'project',
-      'migrate',
-      'prompt',
-      '--version-expr',
-      '9.9.9->9.9.10',
-    ]);
-    ctx.fixtures['playbook结果'] = { hit, miss };
-  },
-);
+bdd.when('运行 project migrate prompt --from-version 0.7.5 --to-version 0.9.0', (ctx) => {
+  const { repo } = ctx.fixtures['playbook仓库'] as StripFixture;
+  ctx.fixtures['playbook结果'] = runPrompt(repo, [
+    '--from-version',
+    '0.7.5',
+    '--to-version',
+    '0.9.0',
+  ]);
+});
 
-bdd.thenStep('前者输出含 strip-legacy-headers 与 init --update 步骤及自检清单', (ctx) => {
-  const { hit } = ctx.fixtures['playbook结果'] as {
-    hit: { code: number; stdout: string };
-  };
-  if (hit.code !== 0) throw new Error(`playbook lookup failed:\n${hit.stdout}`);
+bdd.thenStep('输出依次含 0.8.0 与 0.9.0 版本头及各条目的编号步骤与自检清单', (ctx) => {
+  const hit = ctx.fixtures['playbook结果'] as RunResult;
+  if (hit.code !== 0) throw new Error(`playbook failed:\n${hit.stdout}${hit.stderr}`);
   for (const needle of [
-    'Migration playbook: 0.7.5->0.8.0',
-    'strip-legacy-headers',
-    'init --update',
-    '## Verification checklist',
+    '# Migration playbook: 0.7.5 -> 0.9.0',
+    '## 0.8.0',
+    '## 0.9.0',
+    '#### Steps',
+    '#### Verification checklist',
+    '- [ ] ',
   ]) {
     if (!hit.stdout.includes(needle)) throw new Error(`playbook missing '${needle}'`);
   }
+  if (hit.stdout.indexOf('## 0.8.0') >= hit.stdout.indexOf('## 0.9.0')) {
+    throw new Error('versions must render in ascending order');
+  }
 });
 
-bdd.thenStep('后者报未知版本对且列出 0.7.5->0.8.0', (ctx) => {
-  const { miss } = ctx.fixtures['playbook结果'] as {
-    miss: { code: number; stdout: string; stderr: string };
+bdd.thenStep('版本间以水平分割线分隔', (ctx) => {
+  const hit = ctx.fixtures['playbook结果'] as RunResult;
+  const dividers = hit.stdout.match(/^---$/gm)?.length ?? 0;
+  if (dividers !== 1)
+    throw new Error(`expected exactly 1 divider between 2 versions:\n${hit.stdout}`);
+});
+
+bdd.when('运行 project migrate prompt --from-version 0.8.0 --to-version 0.9.0', (ctx) => {
+  const { repo } = ctx.fixtures['playbook仓库'] as StripFixture;
+  ctx.fixtures['playbook结果'] = runPrompt(repo, [
+    '--from-version',
+    '0.8.0',
+    '--to-version',
+    '0.9.0',
+  ]);
+});
+
+bdd.thenStep('输出含 0.9.0 版本头且不含治理元数据退役条目', (ctx) => {
+  const hit = ctx.fixtures['playbook结果'] as RunResult;
+  if (hit.code !== 0) throw new Error(`playbook failed:\n${hit.stdout}${hit.stderr}`);
+  if (!hit.stdout.includes('## 0.9.0')) throw new Error('0.9.0 section missing');
+  if (hit.stdout.includes('## 0.8.0') || hit.stdout.includes('Governance metadata retirement')) {
+    throw new Error('left-open bound violated: 0.8.0 must be excluded');
+  }
+});
+
+bdd.when('运行 project migrate prompt --from-version 0.8.0 --to-version 0.8.2', (ctx) => {
+  const { repo } = ctx.fixtures['playbook仓库'] as StripFixture;
+  ctx.fixtures['playbook结果'] = runPrompt(repo, [
+    '--from-version',
+    '0.8.0',
+    '--to-version',
+    '0.8.2',
+  ]);
+});
+
+bdd.thenStep('输出含无登记迁移提示且退出码为 0', (ctx) => {
+  const hit = ctx.fixtures['playbook结果'] as RunResult;
+  if (hit.code !== 0) {
+    throw new Error(`empty range must not fail:\n${hit.stdout}${hit.stderr}`);
+  }
+  if (!hit.stdout.includes('No documented migrations for 0.8.0 -> 0.8.2.')) {
+    throw new Error(`empty range must print the no-migrations notice:\n${hit.stdout}`);
+  }
+});
+
+bdd.when('运行 prompt 携带非法版本格式与携带 from 大于 to 两例', (ctx) => {
+  const { repo } = ctx.fixtures['playbook仓库'] as StripFixture;
+  const malformed = runPrompt(repo, ['--from-version', '0.9', '--to-version', '0.9.0']);
+  const reversed = runPrompt(repo, ['--from-version', '0.9.0', '--to-version', '0.8.2']);
+  ctx.fixtures['playbook结果'] = { malformed, reversed };
+});
+
+bdd.thenStep('均报错且非法格式例的错误信息含 x.y.z 格式提示', (ctx) => {
+  const { malformed, reversed } = ctx.fixtures['playbook结果'] as {
+    malformed: RunResult;
+    reversed: RunResult;
   };
-  if (miss.code === 0) throw new Error(`unknown migration must fail:\n${miss.stdout}`);
-  const err = `${miss.stderr}${miss.stdout}`;
-  if (!err.includes('unknown migration: 9.9.9->9.9.10') || !err.includes('0.7.5->0.8.0')) {
-    throw new Error(`unknown-migration error must list known pairs:\n${err}`);
+  if (malformed.code === 0) throw new Error('malformed version must fail');
+  if (!`${malformed.stderr}${malformed.stdout}`.includes('x.y.z')) {
+    throw new Error(`malformed-version error must hint the x.y.z format:\n${malformed.stderr}`);
+  }
+  if (reversed.code === 0) throw new Error('reversed range must fail');
+});
+
+bdd.when(
+  '运行 project migrate prompt --version-expr "0.7.5->0.8.0" 与其再同给 --from-version 0.7.5 一例',
+  (ctx) => {
+    const { repo } = ctx.fixtures['playbook仓库'] as StripFixture;
+    const legacy = runPrompt(repo, ['--version-expr', '0.7.5->0.8.0']);
+    const conflict = runPrompt(repo, ['--version-expr', '0.7.5->0.8.0', '--from-version', '0.7.5']);
+    ctx.fixtures['playbook结果'] = { legacy, conflict };
+  },
+);
+
+bdd.thenStep('前者输出 0.8.0 迁移手册且 stderr 含弃用 WARNING', (ctx) => {
+  const { legacy } = ctx.fixtures['playbook结果'] as { legacy: RunResult };
+  if (legacy.code !== 0) throw new Error(`deprecated expr must keep working:\n${legacy.stderr}`);
+  if (!legacy.stdout.includes('## 0.8.0')) throw new Error('0.8.0 playbook missing');
+  if (!legacy.stderr.includes('deprecated')) {
+    throw new Error(`deprecation WARNING missing from stderr:\n${legacy.stderr}`);
+  }
+});
+
+bdd.thenStep('后者报旗标冲突错', (ctx) => {
+  const { conflict } = ctx.fixtures['playbook结果'] as { conflict: RunResult };
+  if (conflict.code === 0) throw new Error('expr + new flags must conflict');
+  if (!`${conflict.stderr}${conflict.stdout}`.includes('conflicts')) {
+    throw new Error(`conflict error must name the conflict:\n${conflict.stderr}`);
   }
 });

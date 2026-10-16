@@ -64,12 +64,15 @@ export {
 export { stripLegacyHeaderLines } from './spec/migrateScope.ts';
 export {
   MIGRATIONS,
-  findMigration,
-  knownMigrationIds,
-  isValidMigrationExpr,
-  migrationPrompt,
+  compareVersions,
+  isValidVersion,
+  knownMigrationVersions,
   migrationOverviewLines,
-  type MigrationEntry,
+  migrationPrompt,
+  parseVersionExpr,
+  resolveMigrations,
+  type MigrationDoc,
+  type MigrationItem,
 } from './project/migrations.ts';
 export {
   MIGRATE_KINDS,
