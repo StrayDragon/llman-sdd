@@ -141,7 +141,8 @@
     两行;`--json` MUST 输出 {maxNumber, nextNumber, warnings},无编号时 maxNumber MUST 为 null 且 nextNumber MUST
     为 1;本命令 MUST 为只读,不创建任何目录;归档内条目扫描 SHALL 为 best-effort 扩展,当前最小实现不进入冻结包。
     扫描范围 MUST 为当前工作树加全部关联 git worktree(`git worktree list --porcelain`,路径去重)各自的 `llmanspec/`
-    全树;worktree list 失败 SHALL 退化为仅当前树(best-effort,与归档扫描同级)并在 warnings 记录退化;同一编号出现于多个 worktree 时
+    全树;`prunable`(目录已失效)的 worktree 条目 MUST 静默跳过,保留条目的 `llmanspec/` 目录缺席时 MUST 视为空树静默跳过(均不产生
+    warning);worktree list 失败 SHALL 退化为仅当前树(best-effort,与归档扫描同级)并在 warnings 记录退化;同一编号出现于多个 worktree 时
     `--json` 的 warnings MUST 给出提示(含该编号与 worktree 路径);human 两行输出形态 MUST 不变。
 
     场景: 编号扫描与 next free
@@ -160,6 +161,11 @@
       假如 一个主检出与关联 worktree 均含相同编号目录的临时仓库
       当 在主检出运行 change next-id --json
       那么 warnings 提示编号 2620 出现在多个 worktree
+
+    场景: prunable worktree 静默跳过
+      假如 一个关联 worktree 目录已被删除(git worktree list 标注 prunable)的临时仓库
+      当 在主检出运行 change next-id --json
+      那么 warnings 为空且编号统计与无残留 worktree 时一致
 
 
     场景: 纯前导数字目录不计编号

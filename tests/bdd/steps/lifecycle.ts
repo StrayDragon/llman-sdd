@@ -9,6 +9,7 @@ import {
   mkdtempSync,
   readFileSync,
   readdirSync,
+  rmSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
@@ -837,6 +838,21 @@ bdd.given('一个主检出与关联 worktree 均含相同编号目录的临时�
   ctx.fixtures['跨worktree'] = { root: repo.root, sidePath };
 });
 
+bdd.given('一个关联 worktree 目录已被删除(git worktree list 标注 prunable)的临时仓库', (ctx) => {
+  const repo = makeTempRepo();
+  writeNumberedChange(repo.root, 'c10-active');
+  commitAll(repo, 'seed c10');
+  const sidePath = `${repo.root}-side`;
+  const added = repo.run('git', ['worktree', 'add', '-b', 'feature/side', sidePath]);
+  if (added.code !== 0) throw new Error(`worktree add failed: ${added.stderr}`);
+  rmSync(sidePath, { recursive: true, force: true });
+  const list = repo.run('git', ['worktree', 'list', '--porcelain']);
+  if (!list.stdout.includes('prunable')) {
+    throw new Error(`side worktree not prunable after deletion:\n${list.stdout}`);
+  }
+  ctx.fixtures['跨worktree'] = { root: repo.root, sidePath };
+});
+
 bdd.when('在主检出运行 change next-id --json', (ctx) => {
   const { root } = ctx.fixtures['跨worktree'] as { root: string };
   const proc = runCli(['change', 'next-id', '--json'], root);
@@ -866,6 +882,18 @@ bdd.thenStep('warnings 提示编号 {n:d} 出现在多个 worktree', (ctx, n: st
     throw new Error(
       `expected cross-worktree warning for ${n}, got: ${JSON.stringify(r.payload.warnings)}`,
     );
+  }
+});
+
+bdd.thenStep('warnings 为空且编号统计与无残留 worktree 时一致', (ctx) => {
+  const r = ctx.fixtures['跨worktree结果'] as CrossWorktreeNextId;
+  if (r.code !== 0) throw new Error(`next-id exited non-zero: ${JSON.stringify(r.payload)}`);
+  if (r.payload.warnings.length > 0) {
+    throw new Error(`expected no warnings, got: ${JSON.stringify(r.payload.warnings)}`);
+  }
+  // 残留 worktree 被跳过后,编号统计只来自主检出的种子(c10)
+  if (r.payload.maxNumber !== 10 || r.payload.nextNumber !== 11) {
+    throw new Error(`expected max=10 next=11, got ${JSON.stringify(r.payload)}`);
   }
 });
 

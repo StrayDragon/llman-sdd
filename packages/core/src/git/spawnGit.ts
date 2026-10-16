@@ -141,6 +141,8 @@ export interface WorktreeEntry {
   head: string | null;
   /** Checked-out local branch (`refs/heads/` stripped); null when detached/bare. */
   branch: string | null;
+  /** `prunable` porcelain attribute: the worktree directory is missing or broken. */
+  prunable: boolean;
 }
 
 /** Parse `git worktree list --porcelain` into entries (r69 held-target detection). */
@@ -151,13 +153,15 @@ export function worktreeList(git: GitLike): WorktreeEntry[] {
   for (const line of out.split('\n')) {
     if (line.startsWith('worktree ')) {
       if (current !== null) entries.push(current);
-      current = { path: line.slice('worktree '.length), head: null, branch: null };
+      current = { path: line.slice('worktree '.length), head: null, branch: null, prunable: false };
     } else if (current === null) {
       continue;
     } else if (line.startsWith('HEAD ')) {
       current.head = line.slice('HEAD '.length);
     } else if (line.startsWith('branch ')) {
       current.branch = line.slice('branch '.length).replace(/^refs\/heads\//u, '');
+    } else if (line.startsWith('prunable')) {
+      current.prunable = true;
     }
     // `detached` / `bare` marker lines leave branch null on purpose.
   }

@@ -13,6 +13,7 @@ import {
   startChange,
   deriveChangeId,
   extractUniqueNumber,
+  harvestAcrossWorktrees,
   harvestUniqueNumbers,
   makeSpawnGit,
   readBinding,
@@ -298,5 +299,60 @@ describe('finalize branch gate (r15 / predecessor r94)', () => {
     const after = run(['rev-parse', 'HEAD']).stdout;
     expect(after).toBe(before);
     expect(existsSync(join(root, 'llmanspec', 'changes', 'fam'))).toBe(true);
+  });
+});
+
+describe('harvestAcrossWorktrees skips absent worktrees silently (r35, issue #8)', () => {
+  const porcelain = [
+    'worktree /repo',
+    'HEAD 1111111111111111111111111111111111111111',
+    'branch refs/heads/main',
+    '',
+    'worktree /repo-wt-prunable',
+    'HEAD 1111111111111111111111111111111111111111',
+    'prunable',
+    '',
+    'worktree /repo-wt-nospec',
+    'HEAD 1111111111111111111111111111111111111111',
+    'branch refs/heads/feature/side',
+    '',
+  ].join('\n');
+  const git = {
+    run: (args: string[]): string => (args[0] === 'worktree' ? porcelain : ''),
+    runOpt: (): string | null => null,
+  };
+  /** llmanspec trees that exist: only the main checkout's. */
+  const existingTrees = new Set(['/repo/llmanspec']);
+  const io = {
+    listDir: (p: string): string[] => {
+      if (p === '/repo/llmanspec/changes' || p === '/repo/llmanspec/c10-active') return [];
+      if (!existingTrees.has(p))
+        throw new Error(`ENOENT: no such file or directory, scandir '${p}'`);
+      return p.endsWith('/changes') ? [] : ['changes', 'c10-active'];
+    },
+    isDirectory: (p: string): boolean =>
+      existingTrees.has(p) || p === '/repo/llmanspec/changes' || p === '/repo/llmanspec/c10-active',
+  };
+
+  test('prunable entry and absent llmanspec tree are skipped without warnings', () => {
+    const harvest = harvestAcrossWorktrees(git, io, '/repo/llmanspec');
+    expect(harvest.warnings).toEqual([]);
+    expect(harvest.maxNumber).toBe(10);
+    expect(harvest.nextNumber).toBe(11);
+  });
+
+  test('real read errors inside an existing tree still warn', () => {
+    const flakyIo = {
+      ...io,
+      listDir: (p: string): string[] => {
+        if (p === '/repo/llmanspec/changes') throw new Error('EACCES: permission denied');
+        return io.listDir(p);
+      },
+    };
+    const harvest = harvestAcrossWorktrees(git, flakyIo, '/repo/llmanspec');
+    expect(harvest.warnings.some((w) => w.includes('cannot list /repo/llmanspec/changes'))).toBe(
+      true,
+    );
+    expect(harvest.maxNumber).toBe(10);
   });
 });

@@ -1,6 +1,9 @@
 ---
 depends_on: []
 title: next-id 静默跳过已失效 worktree,消除 ENOENT 噪音告警
+branch: sdd/fix-next-id-prunable-worktree-warning
+base_branch: main
+base_sha: c45cbad032c5a500f3f85db08ede54067120ac59
 ---
 
 ## Why

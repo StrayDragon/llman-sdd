@@ -73,6 +73,9 @@ export function harvestUniqueNumbers(io: NextIdIo, root: string): IdHarvest {
  * failure degrades to the current tree only (best-effort, same grade as the
  * archive sweep) with the cause recorded in warnings; the same number visible
  * in more than one worktree raises a warning naming it and the worktrees.
+ * r35 (issue #8): `prunable` worktree entries and kept entries whose
+ * `llmanspec/` directory is absent count as empty trees — silently skipped,
+ * never warned; only real read errors reach warnings.
  */
 export function harvestAcrossWorktrees(git: GitLike, io: NextIdIo, root: string): IdHarvest {
   const warnings: string[] = [];
@@ -81,6 +84,7 @@ export function harvestAcrossWorktrees(git: GitLike, io: NextIdIo, root: string)
     const seen = new Set<string>();
     paths = [];
     for (const entry of worktreeList(git)) {
+      if (entry.prunable) continue;
       const path = entry.path.replace(/\/+$/u, '');
       if (!seen.has(path)) {
         seen.add(path);
@@ -94,7 +98,9 @@ export function harvestAcrossWorktrees(git: GitLike, io: NextIdIo, root: string)
     );
   }
   const trees = paths === null ? [root] : paths.map((p) => `${p}/llmanspec`);
-  const perTree = trees.map((at) => ({ at, ...collectNumbers(io, at) }));
+  const perTree = trees
+    .filter((at) => io.isDirectory(at))
+    .map((at) => ({ at, ...collectNumbers(io, at) }));
   for (const tree of perTree) warnings.push(...tree.warnings);
   const where = new Map<number, Set<string>>();
   for (const tree of perTree) {
