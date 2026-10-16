@@ -32,7 +32,7 @@ llman-sdd:spec 驱动开发(SDD)工作流(TypeScript + Bun),完全接替 Rust ll
 ## 范围决策(定案,勿反复)
 
 - 保留:archive freeze/thaw(核心功能;`.7z` 格式必须与前代冻结产物双向兼容)
-- `project migrate`:保留子命令入口,内容为指向前代(Rust llman ≤ 0.0.x)的引导提示,不移植迁移实现
+- `project migrate`:保留子命令入口;迁移手册注册表按版本组织,`prompt` 以 `--from-version/--to-version` 范围查询聚合输出(peripheral-commands r100);前代(Rust llman ≤ 0.0.x)的迁移实现体不移植
 - 移除:`project import`(OpenSpec 互导)、`change checkpoint`/`change delta` 及其兼容桩、rust-i18n;已移除的命令与选项彻底删除,不保留报错 stub(调用得到 CLI 的 unknown command/option 错误)
 - worktree:前代的并行 change 机制不移植;本仓支持单 change 单 worktree——`change start --worktree`(r68)与 finalize/archive 的目标 worktree 感知(r69)
 - ink 是 TUI 战略方向(前代不引入):交互提示收敛在 CLI 适配层(当前 `spec migrate-native` 确认经 node:readline 实现),core 域逻辑不发起终端交互;未来若引入 @inquirer/prompts 向导或 ink TUI,二者禁止同进程混用,届时在 CLI 适配层另建交互端口

@@ -17,6 +17,11 @@
 - `init-generators`：渲染 locale 优先级链统一为「config 显式键 > CLI 选项 > 内置 en」，
   既有 config 缺键输出 WARNING；`init --update` 任意实例根均刷新 workspace 全部发现根
   托管块（per-workspace，skills 仍仅仓库根）；新建实例告警；托管块 marker 更新契约成文。
+- `peripheral-commands`：`project migrate prompt` 改用 `--from-version`/`--to-version` 范围
+  查询（`0.8.2->0.9.0` 这类真实升级范围不再报 unknown migration）：迁移注册表按版本组织，
+  手册聚合范围内全部已登记版本（版本头 + 编号步骤 + 自检清单 + 版本间分割线）；
+  `--version-expr` 软废弃（stderr WARNING，同给新旗标报冲突）；空范围输出无迁移提示且
+  退出码 0。
 - `change-lifecycle`：`change next-id` 静默跳过 prunable worktree 与缺席的 `llmanspec/`
   目录，消除 ENOENT 噪音告警（fixed #8）。
 
