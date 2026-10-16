@@ -1,6 +1,6 @@
 # v0.8 → v0.9 迁移
 
-本窗口包含两项迁移,依次阅读适用部分。
+本窗口包含三项迁移,依次阅读适用部分。
 
 ## 迁移 1: 移除 `# capability:` 头,spec id 由路径全局分配
 
@@ -45,5 +45,29 @@ llman-sdd validate --all --strict
 # 2. 形似转移表但非状态机语义的误伤场景,在其 场景大纲: 头上加 @no-transitions
 # 3. 列名不匹配特征词但确属转移表的场景,加 @transitions 强制纳管
 llman-sdd spec transitions   # 查看特征词/判据/tag/门禁的权威说明
+llman-sdd validate --all --strict
+```
+
+## 迁移 3: init locale 优先级链与托管块刷新 per-workspace 化
+
+init 渲染生效 locale 统一为 `config.yaml 显式 locale 键 > CLI 选项(--locale/--lang) > 内置默认 'en'`；
+config 缺失时生成 config 并取 `CLI 选项 > 内置默认`。多 workspace 实例各自独立解析,互不继承。
+`init --update` 的托管块刷新收敛为 per-workspace 语义:任意实例根上运行均自 git toplevel
+扫描并刷新全部发现根的托管块(skills 注入与 llman-sdd-* 命名空间清理仍仅仓库根实例)。
+
+### 破坏面
+
+1. **update 时 `--locale` 生效**:config 无显式 `locale:` 键的仓库,`init --update --locale <x>` 从"静默忽略"变为"实际生效"——托管块按传入 locale 重渲染;有显式键时 config 压制 CLI 选项。
+2. **缺键 WARNING**:既有 config.yaml 无显式 `locale:` 键时,每次 init / init --update 输出 WARNING 指明回退值与修复路径,补键前每次都会出现。
+3. **子根 update 扫描范围扩大**:在子根实例上 `init --update` 现在会刷新同一 workspace 内全部发现根(含仓库根与兄弟子根)的托管块,此前只刷新自身;对其他实例托管块的手工改动会被模板渲染覆盖。
+4. **新增告警与契约成文**(无行为变化):目标根无实例而祖先存在实例时 init 输出新建实例 WARNING;托管块 marker 更新契约(双标记有序原位替换/END 先于 START 报错/标记缺失前置插入)由既有行为显式成文。
+
+### 升级步骤
+
+```bash
+# 1. 在 llmanspec/config.yaml 顶层补显式 locale 键(钉住渲染语言并消除每次 update 的 WARNING)
+#    locale: zh-Hans
+# 2. 在仓库根(或任意实例根)统一刷新托管块,确认语言与内容符合预期
+llman-sdd init --update
 llman-sdd validate --all --strict
 ```
