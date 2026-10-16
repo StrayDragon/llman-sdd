@@ -2,6 +2,24 @@
 
 本项目遵循语义化版本（SemVer）。breaking 变更随大版本/次版本标注迁移说明。
 
+## 0.9.0 (2026-10-16)
+
+流转校验 tag 定界化与 init locale/更新语义统一。行为变更（非硬破坏）：流转校验缺省启用、
+`init --update` 扫描 per-workspace 化。升级路径见 `migrations/v0.8-v0.9/README.md`。
+
+- `validation`：流转表发现改为场景级 tag 定界（`@transitions` 强制纳管、`@no-transitions`
+  全量豁免、双 tag 判 ERROR），无 tag 保留特征词嗅探且始终启用、不再依赖配置；E4 消息
+  按实际违反项表述（无终态陷阱改报 `cannot return to the initial state`）。
+- `config-schema`：移除 `specs.check_transitions`，遗留键加载期宽松剥离并输出 WARNING
+  指引改用 tag；JSON Schema artifact 同步删除该字段。
+- `peripheral-commands`：新增只读子命令 `spec transitions`，内省特征词别名、发现判据、
+  tag 语义与 E1–E4 门禁清单（core 单一事实源常量）。
+- `init-generators`：渲染 locale 优先级链统一为「config 显式键 > CLI 选项 > 内置 en」，
+  既有 config 缺键输出 WARNING；`init --update` 任意实例根均刷新 workspace 全部发现根
+  托管块（per-workspace，skills 仍仅仓库根）；新建实例告警；托管块 marker 更新契约成文。
+- `change-lifecycle`：`change next-id` 静默跳过 prunable worktree 与缺席的 `llmanspec/`
+  目录，消除 ENOENT 噪音告警（fixed #8）。
+
 ## 0.8.2 (2026-10-14)
 
 试验性状态流转校验（`specs.check_transitions`），无 breaking。默认关闭；本仓 dogfood
