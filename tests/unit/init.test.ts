@@ -1,9 +1,10 @@
 import { describe, expect, test } from 'bun:test';
+import type { SpawnSyncReturns } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { updateFileWithMarkers } from '@llman-sdd/core';
+import { resolveEffectiveLocale, updateFileWithMarkers } from '@llman-sdd/core';
 
 import { initGitRepo, runCli } from '../helpers/spawn.ts';
 
@@ -148,5 +149,93 @@ describe('init per-root skills policy (r93)', () => {
     const swept = readFileSync(join(root, 'packages', 'tui', 'AGENTS.md'), 'utf8');
     expect(swept).toContain('LLMANSPEC:START');
     expect(swept).toContain('# TUI notes');
+  });
+});
+
+describe('init effective-locale precedence (r50)', () => {
+  const runInit = (root: string, args: string[]): SpawnSyncReturns<string> =>
+    runCli(['init', ...args], root);
+  const seedZhWorkspace = (prefix: string): string => {
+    const root = mkdtempSync(join(tmpdir(), prefix));
+    expect(runInit(root, ['--locale', 'zh-Hans']).status).toBe(0);
+    return root;
+  };
+  const stripLocaleKey = (root: string): void => {
+    const cfg = join(root, 'llmanspec', 'config.yaml');
+    writeFileSync(cfg, readFileSync(cfg, 'utf8').replace(/^locale:.*\n/mu, ''));
+  };
+
+  test('resolveEffectiveLocale: explicit config key > option > schema floor', () => {
+    expect(
+      resolveEffectiveLocale({
+        configLocale: 'zh-Hans',
+        configLocaleExplicit: true,
+        optionLocale: 'en',
+      }),
+    ).toBe('zh-Hans');
+    expect(
+      resolveEffectiveLocale({
+        configLocale: 'en',
+        configLocaleExplicit: false,
+        optionLocale: 'zh-Hans',
+      }),
+    ).toBe('zh-Hans');
+    expect(resolveEffectiveLocale({ configLocale: 'en', configLocaleExplicit: false })).toBe('en');
+  });
+
+  test('update: explicit config locale wins over --locale, no warning', () => {
+    const root = seedZhWorkspace('llman-locprec-');
+    expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).toContain('LLMAN 规范驱动开发');
+    expect(runInit(root, ['--update', '--locale', 'en']).status).toBe(0);
+    expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).toContain('LLMAN 规范驱动开发');
+    expect(readFileSync(join(root, 'llmanspec', 'config.yaml'), 'utf8')).toContain(
+      'locale: zh-Hans',
+    );
+  });
+
+  test('update: missing locale key falls back to the option and warns', () => {
+    const root = seedZhWorkspace('llman-locwarn-');
+    stripLocaleKey(root);
+    const proc = runInit(root, ['--update', '--locale', 'zh-Hans']);
+    expect(proc.status).toBe(0);
+    expect(proc.stderr).toContain('WARNING');
+    expect(proc.stderr).toContain("'zh-Hans'");
+    expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).toContain('LLMAN 规范驱动开发');
+  });
+
+  test('update: missing key without option falls back to built-in en and warns', () => {
+    const root = seedZhWorkspace('llman-locfloor-');
+    stripLocaleKey(root);
+    const proc = runInit(root, ['--update']);
+    expect(proc.status).toBe(0);
+    expect(proc.stderr).toContain('WARNING');
+    expect(proc.stderr).toContain("'en'");
+    expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).toContain(
+      'LLMAN Spec-Driven Development',
+    );
+  });
+});
+
+describe('init new-instance warning (r106)', () => {
+  const runInit = (root: string, args: string[]): SpawnSyncReturns<string> =>
+    runCli(['init', ...args], root);
+
+  test('init in a sub-root under an existing instance warns with its path', () => {
+    const root = mkdtempSync(join(tmpdir(), 'llman-newinst-'));
+    initGitRepo(root);
+    expect(runInit(root, []).status).toBe(0);
+    mkdirSync(join(root, 'packages', 'tui'), { recursive: true });
+    const proc = runInit(join(root, 'packages', 'tui'), []);
+    expect(proc.status).toBe(0);
+    expect(proc.stderr).toContain('WARNING');
+    expect(proc.stderr).toContain(root);
+    expect(existsSync(join(root, 'packages', 'tui', 'llmanspec', 'config.yaml'))).toBe(true);
+  });
+
+  test('init in a fresh workspace emits no instance warning', () => {
+    const root = mkdtempSync(join(tmpdir(), 'llman-freshws-'));
+    const proc = runInit(root, []);
+    expect(proc.status).toBe(0);
+    expect(proc.stderr).not.toContain('WARNING');
   });
 });

@@ -217,6 +217,7 @@ export {
 export {
   TEMPLATES_ROOT,
   refreshSubRootBlocks,
+  resolveEffectiveLocale,
   runInit,
   updateFileWithMarkers,
   type InitIo,

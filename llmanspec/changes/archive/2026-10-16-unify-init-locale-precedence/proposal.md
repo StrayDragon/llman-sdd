@@ -1,6 +1,9 @@
 ---
 depends_on: []
 title: 统一 init 渲染 locale 优先级链并将托管块刷新收敛为 per-workspace 语义
+branch: sdd/unify-init-locale-precedence
+base_branch: main
+base_sha: 3cd80d34a3fa8514de980b4c53597b4dafab8abd
 ---
 
 ## Why

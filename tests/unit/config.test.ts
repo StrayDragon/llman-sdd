@@ -19,6 +19,11 @@ describe('loadConfig', () => {
     expect(cfg.locale).toBe('en');
   });
 
+  test('localeExplicit reports whether the raw mapping carried the key (r50)', () => {
+    expect(loadConfigDetail('schema: spec-driven\nlocale: zh-Hans\n').localeExplicit).toBe(true);
+    expect(loadConfigDetail(MINIMAL).localeExplicit).toBe(false);
+  });
+
   test('unknown top-level keys are tolerated', () => {
     const cfg = loadConfig(`${MINIMAL}unknown_key: 1\n`);
     expect(cfg.schema).toBe('spec-driven');

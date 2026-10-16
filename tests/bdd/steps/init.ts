@@ -14,7 +14,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { ETHICS_KEYS, runInit } from '@llman-sdd/core';
+import { ETHICS_KEYS, runInit, updateFileWithMarkers } from '@llman-sdd/core';
 
 import {
   BASELINE_DIR,
@@ -240,6 +240,159 @@ bdd.thenStep('config locale 为 zh-Hans 且同给两个别名报错', (ctx) => {
   const config = readFileSync(join(root, 'llmanspec', 'config.yaml'), 'utf8');
   if (!config.includes('zh-Hans')) throw new Error(`locale not zh-Hans:\n${config}`);
 });
+
+// ---------------------------------------------------------------------------
+// r50 — 生效 locale 优先级链(config 显式键 > CLI 选项 > 内置默认)与缺键告警
+// ---------------------------------------------------------------------------
+
+bdd.given('一个 locale 为 zh-Hans 的已初始化工作区', (ctx) => {
+  const root = mkdtempSync(join(tmpdir(), 'llman-loc-zh-'));
+  const seed = runCli(['init', '--locale', 'zh-Hans'], root);
+  if ((seed.status ?? 1) !== 0) throw new Error(`seed init failed: ${seed.stderr ?? ''}`);
+  ctx.fixtures['init工作区'] = { root };
+});
+
+bdd.given('一个 config.yaml 无 locale 键的已初始化工作区', (ctx) => {
+  const root = mkdtempSync(join(tmpdir(), 'llman-loc-nokey-'));
+  const seed = runCli(['init', '--locale', 'zh-Hans'], root);
+  if ((seed.status ?? 1) !== 0) throw new Error(`seed init failed: ${seed.stderr ?? ''}`);
+  const cfg = join(root, 'llmanspec', 'config.yaml');
+  writeFileSync(cfg, readFileSync(cfg, 'utf8').replace(/^locale:.*\n/mu, ''));
+  ctx.fixtures['init工作区'] = { root };
+});
+
+bdd.when('运行 init --update --locale en', (ctx) => {
+  const { root } = ctx.fixtures['init工作区'] as { root: string };
+  const proc = runCli(['init', '--update', '--locale', 'en'], root);
+  ctx.fixtures['locale结果'] = {
+    code: proc.status ?? 1,
+    stdout: proc.stdout ?? '',
+    stderr: proc.stderr ?? '',
+    root,
+  };
+});
+
+bdd.when('运行 init --update --locale zh-Hans', (ctx) => {
+  const { root } = ctx.fixtures['init工作区'] as { root: string };
+  const proc = runCli(['init', '--update', '--locale', 'zh-Hans'], root);
+  ctx.fixtures['locale结果'] = {
+    code: proc.status ?? 1,
+    stdout: proc.stdout ?? '',
+    stderr: proc.stderr ?? '',
+    root,
+  };
+});
+
+bdd.when('运行 init --update', (ctx) => {
+  const { root } = ctx.fixtures['init工作区'] as { root: string };
+  const proc = runCli(['init', '--update'], root);
+  ctx.fixtures['locale结果'] = {
+    code: proc.status ?? 1,
+    stdout: proc.stdout ?? '',
+    stderr: proc.stderr ?? '',
+    root,
+  };
+});
+
+bdd.thenStep('根 AGENTS.md 托管块仍为 zh-Hans 渲染且 config locale 保持 zh-Hans', (ctx) => {
+  const { code, stderr, root } = ctx.fixtures['locale结果'] as {
+    code: number;
+    stderr: string;
+    root: string;
+  };
+  if (code !== 0) throw new Error(`update failed:\n${stderr}`);
+  if (stderr.includes('WARNING')) throw new Error(`unexpected warning:\n${stderr}`);
+  if (!readFileSync(join(root, 'AGENTS.md'), 'utf8').includes('LLMAN 规范驱动开发')) {
+    throw new Error('root managed block is not zh-Hans rendered');
+  }
+  if (!/^locale: zh-Hans$/mu.test(readFileSync(join(root, 'llmanspec', 'config.yaml'), 'utf8'))) {
+    throw new Error('config locale was overwritten by the option');
+  }
+});
+
+bdd.thenStep('根 AGENTS.md 托管块为 zh-Hans 渲染且 stderr 含缺键 WARNING', (ctx) => {
+  const { code, stderr, root } = ctx.fixtures['locale结果'] as {
+    code: number;
+    stderr: string;
+    root: string;
+  };
+  if (code !== 0) throw new Error(`update failed:\n${stderr}`);
+  if (!stderr.includes('WARNING') || !stderr.includes("'zh-Hans'")) {
+    throw new Error(`missing fallback WARNING:\n${stderr}`);
+  }
+  if (!readFileSync(join(root, 'AGENTS.md'), 'utf8').includes('LLMAN 规范驱动开发')) {
+    throw new Error('root managed block is not zh-Hans rendered');
+  }
+});
+
+bdd.thenStep('根 AGENTS.md 托管块为 en 渲染且 stderr 含缺键 WARNING', (ctx) => {
+  const { code, stderr, root } = ctx.fixtures['locale结果'] as {
+    code: number;
+    stderr: string;
+    root: string;
+  };
+  if (code !== 0) throw new Error(`update failed:\n${stderr}`);
+  if (!stderr.includes('WARNING') || !stderr.includes("'en'")) {
+    throw new Error(`missing fallback WARNING:\n${stderr}`);
+  }
+  if (!readFileSync(join(root, 'AGENTS.md'), 'utf8').includes('LLMAN Spec-Driven Development')) {
+    throw new Error('root managed block is not en rendered');
+  }
+});
+
+// ---------------------------------------------------------------------------
+// r93 — 托管块 marker 更新契约(双齐替换 / 逆序报错 / 缺失前置插入)
+// ---------------------------------------------------------------------------
+
+bdd.given('含双标记的 AGENTS.md 内容样例集(块体可替换、END 先于 START、标记缺失)', (ctx) => {
+  ctx.fixtures['marker样例'] = {
+    ordered: '<!-- LLMANSPEC:START -->\nold body\n<!-- LLMANSPEC:END -->\n\n# Project\n',
+    reversed: '<!-- LLMANSPEC:END -->\nold body\n<!-- LLMANSPEC:START -->\n',
+    missing: '# Project\n',
+  };
+});
+
+bdd.when('逐样例执行块体更新', (ctx) => {
+  const samples = ctx.fixtures['marker样例'] as {
+    ordered: string;
+    reversed: string;
+    missing: string;
+  };
+  const results: Record<string, string> = {
+    ordered: updateFileWithMarkers(samples.ordered, 'NEW BODY'),
+  };
+  try {
+    updateFileWithMarkers(samples.reversed, 'NEW BODY');
+    results['reversed'] = 'no-error';
+  } catch {
+    results['reversed'] = 'error';
+  }
+  results['missing'] = updateFileWithMarkers(samples.missing, 'NEW BODY');
+  ctx.fixtures['marker结果'] = results;
+});
+
+bdd.thenStep(
+  '双标记有序样例块体被替换且标记外内容保留、逆序样例报错、缺失样例整块前置插入',
+  (ctx) => {
+    const r = ctx.fixtures['marker结果'] as Record<string, string>;
+    if (!r['ordered']?.includes('NEW BODY') || r['ordered'].includes('old body')) {
+      throw new Error(`ordered body not replaced:\n${r['ordered']}`);
+    }
+    if (!r['ordered'].endsWith('\n\n# Project\n')) {
+      throw new Error(`ordered content below END not preserved:\n${r['ordered']}`);
+    }
+    if (r['reversed'] !== 'error')
+      throw new Error(`reversed markers did not error: ${r['reversed']}`);
+    const missing = r['missing'] ?? '';
+    if (
+      !missing.startsWith('<!-- LLMANSPEC:START -->') ||
+      !missing.includes('NEW BODY') ||
+      !missing.includes('# Project')
+    ) {
+      throw new Error(`missing-marker sample not prepended:\n${missing}`);
+    }
+  },
+);
 
 // ---------------------------------------------------------------------------
 // r97 — 模板文风门随 qa 聚合(check:stc 接线三处一致性,quality-gates 断言复核)

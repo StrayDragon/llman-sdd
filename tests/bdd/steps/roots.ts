@@ -2,7 +2,8 @@
 // aggregate validate, single-ownership ERROR, sub-root init skills policy,
 // per-root req registry.
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { bdd } from '../runner.ts';
@@ -135,6 +136,112 @@ bdd.thenStep('子根双托管块写入且缺省无 .agents/skills 且 --skills �
   if (r.skillsAfterDefault) throw new Error('sub-root default must not inject skills');
   if (r.secondCode !== 0) throw new Error('sub-root init --skills failed');
   if (!r.skillsAfterFlag) throw new Error('--skills did not inject');
+});
+
+// ---------------------------------------------------------------------------
+// r93 per-workspace sweep — sub-root --update refreshes every discovered root
+// ---------------------------------------------------------------------------
+
+const tamperManagedBlock = (path: string): void => {
+  const s = readFileSync(path, 'utf8');
+  writeFileSync(
+    path,
+    s.replace('<!-- LLMANSPEC:START -->\n', '<!-- LLMANSPEC:START -->\nTAMPER-MARK\n'),
+  );
+};
+
+bdd.given('一个含根实例与子根实例的 git 仓库且两实例托管块均被篡改', (ctx) => {
+  const repo = makeTempRepo();
+  const rootInit = repo.run('bun', [CLI, 'init']);
+  const subInit = repo.run('bun', [CLI, 'init', SUB]);
+  if (rootInit.code !== 0) throw new Error(`root init failed: ${rootInit.stderr}`);
+  if (subInit.code !== 0) throw new Error(`sub-root init failed: ${subInit.stderr}`);
+  tamperManagedBlock(join(repo.root, 'AGENTS.md'));
+  tamperManagedBlock(join(subRootOf(repo), 'AGENTS.md'));
+  ctx.fixtures['双根仓库'] = { repo };
+});
+
+bdd.when('在子根运行 init --update', (ctx) => {
+  const { repo } = ctx.fixtures['双根仓库'] as { repo: TempRepo };
+  const { LLMAN_SDD_HARNESS_ACTIVE: _guard, ...env } = process.env;
+  const proc = spawnSync('bun', [CLI, 'init', '--update'], {
+    cwd: subRootOf(repo),
+    encoding: 'utf8',
+    env,
+  });
+  ctx.fixtures['子根update结果'] = {
+    code: proc.status ?? 1,
+    out: `${proc.stdout ?? ''}${proc.stderr ?? ''}`,
+  } satisfies RunResult;
+});
+
+bdd.thenStep('根实例与子根实例的托管块均恢复为当前模板渲染且子根仍无 .agents/skills', (ctx) => {
+  const { repo } = ctx.fixtures['双根仓库'] as { repo: TempRepo };
+  const r = ctx.fixtures['子根update结果'] as RunResult;
+  if (r.code !== 0) throw new Error(`sub-root --update failed: ${r.out}`);
+  for (const p of [join(repo.root, 'AGENTS.md'), join(subRootOf(repo), 'AGENTS.md')]) {
+    const s = readFileSync(p, 'utf8');
+    if (s.includes('TAMPER-MARK')) throw new Error(`stale body survived in ${p}`);
+    if (!s.includes('LLMANSPEC:START')) throw new Error(`managed block missing in ${p}`);
+  }
+  if (existsSync(join(subRootOf(repo), '.agents', 'skills'))) {
+    throw new Error('sub-root --update must not inject skills');
+  }
+});
+
+// ---------------------------------------------------------------------------
+// r106 — 新建实例告警(祖先存在实例时 init 输出 WARNING)
+// ---------------------------------------------------------------------------
+
+bdd.given('一个根实例已初始化的 git 仓库', (ctx) => {
+  const repo = makeTempRepo();
+  const rootInit = repo.run('bun', [CLI, 'init']);
+  if (rootInit.code !== 0) throw new Error(`root init failed: ${rootInit.stderr}`);
+  ctx.fixtures['双根仓库'] = { repo };
+});
+
+bdd.when('在其空子目录运行 init packages/tui', (ctx) => {
+  const { repo } = ctx.fixtures['双根仓库'] as { repo: TempRepo };
+  mkdirSync(subRootOf(repo), { recursive: true });
+  const proc = repo.run('bun', [CLI, 'init', SUB]);
+  ctx.fixtures['新建实例结果'] = {
+    code: proc.code,
+    out: `${proc.stdout}${proc.stderr}`,
+  } satisfies RunResult;
+});
+
+bdd.thenStep('packages/tui 成为新实例且 stderr 含指向根实例位置的 WARNING', (ctx) => {
+  const { repo } = ctx.fixtures['双根仓库'] as { repo: TempRepo };
+  const r = ctx.fixtures['新建实例结果'] as RunResult;
+  if (r.code !== 0) throw new Error(`sub-root init failed: ${r.out}`);
+  if (!existsSync(join(subRootOf(repo), 'llmanspec', 'config.yaml'))) {
+    throw new Error('packages/tui did not become a new instance');
+  }
+  if (!r.out.includes('WARNING')) throw new Error(`no new-instance WARNING:\n${r.out}`);
+  if (!r.out.includes(repo.root)) {
+    throw new Error(`WARNING lacks the existing instance path ${repo.root}:\n${r.out}`);
+  }
+});
+
+bdd.given('一个无任何 llmanspec 实例的空目录', (ctx) => {
+  const root = mkdtempSync(join(tmpdir(), 'llman-empty-ws-'));
+  ctx.fixtures['空目录工作区'] = { root };
+});
+
+bdd.when('运行 init', (ctx) => {
+  const { root } = ctx.fixtures['空目录工作区'] as { root: string };
+  const { LLMAN_SDD_HARNESS_ACTIVE: _guard, ...env } = process.env;
+  const proc = spawnSync('bun', [CLI, 'init'], { cwd: root, encoding: 'utf8', env });
+  ctx.fixtures['空目录init结果'] = {
+    code: proc.status ?? 1,
+    out: `${proc.stdout ?? ''}${proc.stderr ?? ''}`,
+  } satisfies RunResult;
+});
+
+bdd.thenStep('stderr 无新建实例 WARNING 且实例正常创建', (ctx) => {
+  const r = ctx.fixtures['空目录init结果'] as RunResult;
+  if (r.code !== 0) throw new Error(`init failed: ${r.out}`);
+  if (r.out.includes('WARNING')) throw new Error(`unexpected WARNING:\n${r.out}`);
 });
 
 bdd.given('一个子根含 r5 规则的临时仓库', (ctx) => {

@@ -1,7 +1,13 @@
 import { mkdirSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 
-import { discoverRoots, refreshSubRootBlocks, runInit } from '@llman-sdd/core';
+import {
+  discoverRoots,
+  isValidRoot,
+  refreshSubRootBlocks,
+  resolveInstanceRoot,
+  runInit,
+} from '@llman-sdd/core';
 import type { Command } from 'commander';
 
 import { CliError, templateIo, version } from '../cli-shared.ts';
@@ -28,7 +34,10 @@ export function registerInit(program: Command): void {
       '--skills',
       'inject .agents/skills at a sub-root instance (repo-root instances always inject)',
     )
-    .option('--locale <locale>', 'locale for generated templates (defaults to config or en)')
+    .option(
+      '--locale <locale>',
+      'locale for generated templates (explicit config.yaml locale wins; fills a missing key; built-in default en)',
+    )
     .option('--lang <locale>', 'alias of --locale')
     .action(
       (
@@ -43,23 +52,44 @@ export function registerInit(program: Command): void {
           root = resolve(path);
           mkdirSync(root, { recursive: true });
         }
+        const io = makeIo(root);
+        const warn = (message: string): void => {
+          console.error(message);
+        };
+        // r106 new-instance notice: creating a fresh instance below an existing
+        // one is legal (r93 逐根构造) but usually a cwd mistake — surface both.
+        if (!isValidRoot(join(root, 'llmanspec'), io)) {
+          const ancestor = resolveInstanceRoot(root, io);
+          if (ancestor !== null) {
+            warn(
+              `WARNING: no llman-sdd instance at ${root}; creating a new one (nearest existing instance: ${ancestor})`,
+            );
+          }
+        }
         const repoRootInstance = isRepoRootInstance(root);
         // 模板生成/子根扫块可能耗时 — 进度提示防止看上去卡住(B1)
         progressNote('init.generate', root);
-        const result = runInit(makeIo(root), templateIo, {
+        const result = runInit(io, templateIo, {
           update: options.update ?? false,
           locale: options.locale ?? options.lang,
           version,
           skills: options.skills === true || repoRootInstance,
+          onWarning: warn,
         });
         let swept = '';
-        if ((options.update ?? false) && repoRootInstance) {
-          // r93 --update sweep: refresh managed blocks of every discovered
-          // sub-root (blocks only; skills stay a repo-root surface).
-          const subRoots = discoverRoots(root, makeIo(root)).filter((r) => r.rootDir !== root);
+        if (options.update ?? false) {
+          // r93 --update sweep, per-workspace from any instance root: refresh
+          // managed blocks of every root discovered from the repo toplevel
+          // (outside a repo: from the target). Blocks only; skills stay a
+          // repo-root surface.
+          const toplevel = makeCliGit(root).runOpt(['rev-parse', '--show-toplevel']);
+          const sweepStart = toplevel !== null ? resolve(toplevel) : root;
+          const subRoots = discoverRoots(sweepStart, makeIo(sweepStart)).filter(
+            (r) => r.rootDir !== root,
+          );
           const refreshed: string[] = [];
           for (const sub of subRoots) {
-            if (refreshSubRootBlocks(makeIo(sub.rootDir), templateIo, version)) {
+            if (refreshSubRootBlocks(makeIo(sub.rootDir), templateIo, version, warn)) {
               refreshed.push(sub.rootDir);
             }
           }

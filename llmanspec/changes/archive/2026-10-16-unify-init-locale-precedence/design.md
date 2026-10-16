@@ -37,3 +37,5 @@ resolveEffectiveLocale(config, configLocaleExplicit, optsLocale):
 ## D5: 扫描门控移除
 
 CLI `init.ts:56` 的 `(options.update ?? false) && repoRootInstance` 改为仅 `options.update`；skills 渲染/命名空间清理仍由 `runInit` 内部 `opts.skills` 逻辑天然限定在仓库根实例（r93 后半句不变）。
+
+扫描起点（r93 场景「子根 update 刷新全部发现根托管块」要求祖先实例也被刷新，向下发现不覆盖祖先）：git toplevel 存在时以 toplevel 为 `discoverRoots` 起点（目标根已被 `runInit` 刷新，经 `rootDir !== root` 过滤去重）；仓库外回退目标根自身。

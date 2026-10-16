@@ -8,7 +8,8 @@
  */
 import { join } from 'node:path';
 
-import { loadConfig } from '../config/load.ts';
+import { loadConfigDetail } from '../config/load.ts';
+import type { SddConfig } from '../config/schema.ts';
 import { writeSddState } from '../context/sddState.ts';
 import { renderTemplate } from '../templates/engine.ts';
 import { localeFallbacks } from '../templates/locale.ts';
@@ -80,6 +81,47 @@ function writeDefaultConfig(io: InitIo, locale: string): void {
   io.writeText('llmanspec/config.yaml', prependSchemaHeader(raw, LLMANSPEC_SCHEMA_URL));
 }
 
+/**
+ * Effective-locale precedence (init-generators r50): an explicit `locale` key
+ * in the workspace config wins; a CLI option fills a missing key; the schema
+ * default ('en', already baked into config.locale here) is the built-in floor.
+ * Per-instance: callers resolve per workspace root, no cross-instance inheritance.
+ */
+export function resolveEffectiveLocale(input: {
+  configLocale: string;
+  configLocaleExplicit: boolean;
+  optionLocale?: string;
+}): string {
+  if (input.configLocaleExplicit) return input.configLocale;
+  return input.optionLocale ?? input.configLocale;
+}
+
+/**
+ * Config as rendered: resolve the effective locale per r50 and attach the
+ * missing-key WARNING when an existing config lacks the key (a freshly
+ * written default config always carries the key, so no warning there).
+ */
+function withEffectiveLocale(
+  detail: ReturnType<typeof loadConfigDetail>,
+  optionLocale: string | undefined,
+  configExisted: boolean,
+  onWarning: ((message: string) => void) | undefined,
+): SddConfig {
+  const { config, localeExplicit } = detail;
+  if (localeExplicit) return config;
+  const effective = resolveEffectiveLocale({
+    configLocale: config.locale,
+    configLocaleExplicit: false,
+    optionLocale,
+  });
+  if (configExisted) {
+    onWarning?.(
+      `WARNING: config.yaml has no explicit 'locale' key; rendering fell back to '${effective}' (set locale: in config.yaml or pass --locale)`,
+    );
+  }
+  return { ...config, locale: effective };
+}
+
 export interface InitResult {
   /** Skill dirs written, in render order ([] when skills injection is off). */
   skills: string[];
@@ -94,7 +136,7 @@ const SKILLS_BASE = '.agents/skills';
 function writeManagedBlocks(
   io: InitIo,
   templates: TemplateIo,
-  config: ReturnType<typeof loadConfig>,
+  config: SddConfig,
   version: string,
 ): void {
   const vars = buildTemplateVars(config, version);
@@ -114,14 +156,26 @@ function writeManagedBlocks(
 export function runInit(
   io: InitIo,
   templates: TemplateIo,
-  opts: { update: boolean; locale?: string; version: string; skills: boolean },
+  opts: {
+    update: boolean;
+    locale?: string;
+    version: string;
+    skills: boolean;
+    onWarning?: (message: string) => void;
+  },
 ): InitResult {
   io.mkdirp('llmanspec');
 
   // 1) config: create with defaults if missing, then always load.
   const configPath = 'llmanspec/config.yaml';
-  if (!io.exists(configPath)) writeDefaultConfig(io, opts.locale ?? 'en');
-  const config = loadConfig(io.readText(configPath));
+  const configExisted = io.exists(configPath);
+  if (!configExisted) writeDefaultConfig(io, opts.locale ?? 'en');
+  const config = withEffectiveLocale(
+    loadConfigDetail(io.readText(configPath)),
+    opts.locale,
+    configExisted,
+    opts.onWarning,
+  );
 
   // 1b) scaffold-state stamp: record the rendering version for drift notices
   // (version-awareness). Corrupt/missing state on later reads is silent-OK.
@@ -175,10 +229,20 @@ export function runInit(
  * (blocks only — no scaffold, no config touch, no skills). Returns false for
  * a missing config (discovery guarantees validity; a race is not fatal).
  */
-export function refreshSubRootBlocks(io: InitIo, templates: TemplateIo, version: string): boolean {
+export function refreshSubRootBlocks(
+  io: InitIo,
+  templates: TemplateIo,
+  version: string,
+  onWarning?: (message: string) => void,
+): boolean {
   const configPath = 'llmanspec/config.yaml';
   if (!io.exists(configPath)) return false;
-  const config = loadConfig(io.readText(configPath));
+  const config = withEffectiveLocale(
+    loadConfigDetail(io.readText(configPath)),
+    undefined,
+    true,
+    onWarning,
+  );
   writeManagedBlocks(io, templates, config, version);
   return true;
 }

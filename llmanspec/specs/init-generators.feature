@@ -60,13 +60,31 @@
       那么 产物面完整落在该子目录下
 
   @req:r50
-  规则: init locale 选项别名
+  规则: init locale 选项别名与生效 locale 优先级链
     `init` MUST 接受 `--lang <locale>` 作为 `--locale` 的别名(渲染语义完全等效);两者同给 MUST 报错。
+    渲染生效 locale MUST 按 `工作区 config 显式 locale 键 > CLI 选项 > 内置默认 'en'` 解析;config.yaml 缺失时 MUST 生成 config
+    并取 `CLI 选项 > 内置默认` 写入 locale;每个 workspace 实例 MUST 独立解析生效 locale,实例间不继承。
+    既有 config.yaml 无显式 `locale` 键时,init 与 `init --update` MUST 输出 WARNING 指明实际回退值与修复路径(补键或显式传选项)。
 
     场景: lang 别名等效
       假如 一个空的临时工作区
       当 运行 init --lang zh-Hans
       那么 config locale 为 zh-Hans 且同给两个别名报错
+
+    场景: update 时工作区 config locale 压制 CLI 选项
+      假如 一个 locale 为 zh-Hans 的已初始化工作区
+      当 运行 init --update --locale en
+      那么 根 AGENTS.md 托管块仍为 zh-Hans 渲染且 config locale 保持 zh-Hans
+
+    场景: config 缺 locale 键时 CLI 选项生效并告警
+      假如 一个 config.yaml 无 locale 键的已初始化工作区
+      当 运行 init --update --locale zh-Hans
+      那么 根 AGENTS.md 托管块为 zh-Hans 渲染且 stderr 含缺键 WARNING
+
+    场景: config 缺 locale 键且无选项时回退内置并告警
+      假如 一个 config.yaml 无 locale 键的已初始化工作区
+      当 运行 init --update
+      那么 根 AGENTS.md 托管块为 en 渲染且 stderr 含缺键 WARNING
 
   @req:r66
   规则: spec 撰写配对引导判据
@@ -136,12 +154,23 @@
       而且 仓库工作区未被改动
   @req:r93
   规则: init 逐根与 agent 面 skills 策略
-    init MUST 保持逐根构造(init [path] 定根、路径根相对、无嵌套守卫,根间重叠不做交叉校验);子根 init 照写 AGENTS.md 与 llmanspec/AGENTS.md 双托管块(marker 更新保留既有内容)。.agents/skills 仅当目标为仓库根实例时注入:子根 init 缺省 MUST NOT 注入 skills 且 MUST NOT 清理 skills 命名空间,--skills 旗标显式开启子根注入。init --update MUST 复用根发现算子刷新全部发现根的托管块,skills 渲染与 llman-sdd-* 命名空间清理仍仅作用于仓库根实例。
+    init MUST 保持逐根构造(init [path] 定根、路径根相对、无嵌套守卫,根间重叠不做交叉校验);子根 init 照写 AGENTS.md 与 llmanspec/AGENTS.md 双托管块(marker 更新保留既有内容)。.agents/skills 仅当目标为仓库根实例时注入:子根 init 缺省 MUST NOT 注入 skills 且 MUST NOT 清理 skills 命名空间,--skills 旗标显式开启子根注入。`init --update` 在任意实例根上运行 MUST 复用根发现算子刷新全部发现根的托管块(per-workspace,不限于仓库根目标),skills 渲染与 llman-sdd-* 命名空间清理仍仅作用于仓库根实例。
+    托管块 marker 更新契约:START 与 END 双标记齐且有序时 MUST 原位替换块体(标记外既有内容保留);END 先于 START MUST 报错;标记缺失时 MUST 将整块前置插入。
 
     场景: 子根 init 缺省不注入 skills
       假如 一个 git 仓库的临时目录
       当 运行 init packages/tui 与 init packages/tui --skills
       那么 子根双托管块写入且缺省无 .agents/skills 且 --skills 后注入
+
+    场景: 子根 update 刷新全部发现根托管块
+      假如 一个含根实例与子根实例的 git 仓库且两实例托管块均被篡改
+      当 在子根运行 init --update
+      那么 根实例与子根实例的托管块均恢复为当前模板渲染且子根仍无 .agents/skills
+
+    场景: 托管块 marker 更新契约
+      假如 含双标记的 AGENTS.md 内容样例集(块体可替换、END 先于 START、标记缺失)
+      当 逐样例执行块体更新
+      那么 双标记有序样例块体被替换且标记外内容保留、逆序样例报错、缺失样例整块前置插入
 
   @req:r97
   规则: 模板强度词汇表唯一与 check-stc 文风门
@@ -152,3 +181,16 @@
       当 执行命令 "bun run check:stc"
       那么 退出码为 0
       而且 模板文风门随 qa 聚合运行
+  @req:r106
+  规则: init 新建实例告警
+    目标根不存在有效 llmanspec 实例而其祖先存在有效实例时,init MUST 输出 WARNING 指明将新建独立实例与最近既有实例的位置;祖先也不存在有效实例时 MUST NOT 告警。实例根判定 MUST 复用根发现算子的有效性判据(config.yaml 或 specs/ 子目录)。
+
+    场景: 新建实例触发告警
+      假如 一个根实例已初始化的 git 仓库
+      当 在其空子目录运行 init packages/tui
+      那么 packages/tui 成为新实例且 stderr 含指向根实例位置的 WARNING
+
+    场景: 空白项目不告警
+      假如 一个无任何 llmanspec 实例的空目录
+      当 运行 init
+      那么 stderr 无新建实例 WARNING 且实例正常创建
