@@ -98,11 +98,16 @@ export type {
 export { validateAllSpecs, validateCapability } from './validation/validate.ts';
 export { buildDuplicatesFor, formatTotals } from './validation/validate.ts';
 export {
+  ESCAPE_TRANSITIONS_TAG,
+  FORCE_TRANSITIONS_TAG,
+  TRANSITIONS_INTROSPECTION,
   isTransitionOutline,
   parseTransitionExpr,
+  resolveTransitionDecision,
+  type TransitionDecision,
   validateTransitionScenario,
   type TransitionEdge,
-} from './validation/transitions.ts';
+} from './validation/xstateTransitions.ts';
 export { splitVerb } from './config/changeId.ts';
 export {
   checkChangeDoc,

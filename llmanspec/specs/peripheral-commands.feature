@@ -291,3 +291,12 @@
       假如 一个 specs 含历史头行的临时仓库
       当 运行 project migrate strip-legacy-headers --dry-run
       那么 报告含将改动的文件且文件内容不变
+  @req:r105
+  规则: spec transitions 只读内省输出契约
+    llman-sdd spec transitions MUST 为零参数只读子命令:输出状态流转校验的判定细节,内容 MUST 含特征词列别名族(from/初始状态、event/事件、to/目标状态)、无 tag 时的嗅探判据(三族至少两族)、@transitions/@no-transitions 双向覆盖语义与 1-4 道门禁清单;内容常量 MUST 由 core 单一事实源导出,输出为人读格式。
+
+
+    场景: spec-transitions-introspection
+      假如 一个可用的工作区
+      当 运行 spec transitions
+      那么 退出码为 0 且输出含特征词别名族、@transitions 与 @no-transitions 及四道门禁标识

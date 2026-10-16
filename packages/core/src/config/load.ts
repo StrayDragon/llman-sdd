@@ -67,12 +67,34 @@ export function elevateLegacyBdd(data: unknown): { data: unknown; legacyBddEleva
 }
 
 /**
+ * Removed-key stripping (config-schema r102): `specs.check_transitions` is
+ * gone — transition validation is tag-scoped per scenario (validation r104).
+ * Any value (booleans included) is dropped before schema parsing and the
+ * caller surfaces the migration warning. Pure — never mutates the input.
+ */
+export function stripLegacyCheckTransitions(data: unknown): { data: unknown; stripped: boolean } {
+  if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+    return { data, stripped: false };
+  }
+  const rec = data as Record<string, unknown>;
+  const specs = rec['specs'];
+  if (typeof specs !== 'object' || specs === null || Array.isArray(specs)) {
+    return { data, stripped: false };
+  }
+  if (!('check_transitions' in specs)) return { data, stripped: false };
+  const nextSpecs: Record<string, unknown> = { ...(specs as Record<string, unknown>) };
+  delete nextSpecs['check_transitions'];
+  return { data: { ...rec, specs: nextSpecs }, stripped: true };
+}
+
+/**
  * Load + validate, returning the parsed config and whether a legacy `bdd:`
  * section was elevated. The CLI surfaces the migration warning from the flag.
  */
 export function loadConfigDetail(source: string): {
   config: SddConfig;
   legacyBddElevated: boolean;
+  legacyCheckTransitionsStripped: boolean;
 } {
   let data: unknown;
   try {
@@ -83,7 +105,8 @@ export function loadConfigDetail(source: string): {
     ]);
   }
   const elevated = elevateLegacyBdd(data);
-  const result = sddConfigSchema.safeParse(elevated.data);
+  const stripped = stripLegacyCheckTransitions(elevated.data);
+  const result = sddConfigSchema.safeParse(stripped.data);
   if (!result.success) {
     const issues = result.error.issues.map((iss) => {
       const path = iss.path.map(String).join('/');
@@ -104,7 +127,11 @@ export function loadConfigDetail(source: string): {
       throw new ConfigValidationError([(error as Error).message]);
     }
   }
-  return { config: result.data, legacyBddElevated: elevated.legacyBddElevated };
+  return {
+    config: result.data,
+    legacyBddElevated: elevated.legacyBddElevated,
+    legacyCheckTransitionsStripped: stripped.stripped,
+  };
 }
 
 export function loadConfig(source: string): SddConfig {

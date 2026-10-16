@@ -51,7 +51,6 @@ function compareItems(a: VItem, b: VItem): number {
 
 function specV1Items(
   opts: {
-    strict?: boolean;
     harness?: HarnessGate;
     harnessOnlyIds?: string[];
   },
@@ -63,10 +62,7 @@ function specV1Items(
   const items: VItem[] = [];
   for (const entry of entries) {
     const cap = specIdOf(entry);
-    const verdict = validateCapability(entry as never, duplicatesFor, io, {
-      strict: opts.strict === true,
-      checkTransitions: Boolean(loadCliConfig()?.specs?.check_transitions),
-    });
+    const verdict = validateCapability(entry as never, duplicatesFor, io);
     const issues: ChangeIssue[] = verdict.items.map((i) => ({
       level: i.level,
       path: i.id,
@@ -347,7 +343,6 @@ export function registerValidate(program: Command): void {
           for (const root of roots) {
             process.chdir(root.rootDir);
             const items = specV1Items({
-              strict: options.strict,
               harness: makeHarnessGate(options),
             });
             const visible = keepInfo ? items : items.map(stripInfo);
@@ -408,7 +403,6 @@ export function registerValidate(program: Command): void {
         if (specEntry !== undefined) {
           const items = specV1Items(
             {
-              strict: options.strict,
               harness,
               harnessOnlyIds: [item],
             },
@@ -504,7 +498,6 @@ export function registerValidate(program: Command): void {
       if (effectiveSpecs) {
         items = items.concat(
           specV1Items({
-            strict: options.strict,
             harness,
           }),
         );

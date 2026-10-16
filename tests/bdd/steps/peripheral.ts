@@ -658,3 +658,41 @@ bdd.thenStep('输出 r6 而非复用空缺号 r2', (ctx) => {
   // smallest free would alias the retired r2-r4 range; max+1 must skip it.
   if (r.reqId !== 'r6') throw new Error(`expected max+1 r6, got "${r.reqId}"\n${r.out}`);
 });
+
+// ---------------------------------------------------------------------------
+// r105 — spec transitions read-only introspection
+// ---------------------------------------------------------------------------
+
+bdd.given('一个可用的工作区', (ctx) => {
+  ctx.fixtures['工作区'] = { root: REPO_ROOT };
+});
+
+bdd.when('运行 spec transitions', (ctx) => {
+  const proc = runCli(['spec', 'transitions']);
+  ctx.fixtures['specTransitions输出'] = { code: proc.status ?? 1, stdout: proc.stdout ?? '' };
+});
+
+bdd.thenStep(
+  '退出码为 0 且输出含特征词别名族、@transitions 与 @no-transitions 及四道门禁标识',
+  (ctx) => {
+    const r = ctx.fixtures['specTransitions输出'] as { code: number; stdout: string };
+    if (r.code !== 0) throw new Error(`spec transitions must exit 0, got ${r.code}`);
+    const need = [
+      'from',
+      '初始状态',
+      'event',
+      '事件',
+      'to',
+      '目标状态',
+      '@transitions',
+      '@no-transitions',
+      'E1',
+      'E2',
+      'E3',
+      'E4',
+    ];
+    for (const frag of need) {
+      if (!r.stdout.includes(frag)) throw new Error(`output must contain "${frag}":\n${r.stdout}`);
+    }
+  },
+);

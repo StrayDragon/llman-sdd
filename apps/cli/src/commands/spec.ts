@@ -12,6 +12,7 @@ import {
   renderMachine,
   resolveReq,
   scaffoldSpec,
+  TRANSITIONS_INTROSPECTION,
   type UnboundFeed,
 } from '@llman-sdd/core';
 import type { Command } from 'commander';
@@ -225,6 +226,23 @@ export function registerSpec(program: Command): void {
       console.log(`statement: ${resolved.statement.replaceAll('\n', ' ')}`);
       console.log('harness:');
       for (const h of resolved.harness) console.log(`  - ${h}`);
+    });
+
+  spec
+    .command('transitions')
+    .description('Show transition-table validation rules: alias families, tags, gates')
+    .action(() => {
+      const info = TRANSITIONS_INTROSPECTION;
+      console.log('columns:');
+      for (const fam of info.columnFamilies) {
+        const optional = 'optional' in fam && fam.optional ? ' (optional)' : '';
+        console.log(`  ${fam.role}${optional}: ${fam.aliases.join(' | ')}`);
+      }
+      console.log(`discovery: ${info.discovery}`);
+      console.log('tags:');
+      for (const t of info.tags) console.log(`  ${t.tag} — ${t.semantics}`);
+      console.log('gates:');
+      for (const g of info.gates) console.log(`  - ${g}`);
     });
 
   const unbound = spec

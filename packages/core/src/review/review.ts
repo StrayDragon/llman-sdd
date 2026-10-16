@@ -22,7 +22,6 @@ export interface ReviewInput {
   activeChanges?: readonly { name: string; completedTasks: number; totalTasks: number }[];
   /** Restrict per-capability signals (unbound) to this capability. */
   capability?: string;
-  checkTransitions?: boolean;
 }
 
 export interface ReviewResult {
@@ -42,7 +41,7 @@ export function buildReview(input: ReviewInput, io: SpecIo): ReviewResult {
     signals.push({ kind, capability, count, detail });
   };
 
-  const sweep = validateAllSpecs(entries, io, { checkTransitions: input.checkTransitions });
+  const sweep = validateAllSpecs(entries, io);
   const sorted = [...entries].toSorted((a, b) => a.fileName.localeCompare(b.fileName));
 
   for (const entry of sorted) {

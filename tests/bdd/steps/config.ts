@@ -14,7 +14,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { loadConfig } from '@llman-sdd/core';
+import { loadConfig, loadConfigDetail } from '@llman-sdd/core';
 
 import { bdd } from '../runner.ts';
 import {
@@ -426,47 +426,58 @@ bdd.thenStep('仓库内 schema artifact 未被修改', (ctx) => {
 });
 
 // ---------------------------------------------------------------------------
-// r102 — specs.check_transitions config contract
+// r102 — legacy specs.check_transitions strip + WARNING (tag-scoped r104)
 // ---------------------------------------------------------------------------
 
 interface CheckTransitionsSample {
   label: string;
   yaml: string;
+  dir: string;
 }
 
 bdd.given(
-  '一个分别配置 specs.check_transitions 为 true、false、未设置与非法非布尔值的 config 样本集',
+  '一个 specs 段分别配置 check_transitions 为 true、false 与非布尔值的 config 样本集',
   (ctx) => {
-    const samples: CheckTransitionsSample[] = [
-      { label: 'absent', yaml: 'schema: spec-driven\n' },
-      { label: 'false-bool', yaml: 'schema: spec-driven\nspecs:\n  check_transitions: false\n' },
-      { label: 'true-bool', yaml: 'schema: spec-driven\nspecs:\n  check_transitions: true\n' },
-      { label: 'bad-type', yaml: 'schema: spec-driven\nspecs:\n  check_transitions: yes\n' },
-    ];
+    const samples: CheckTransitionsSample[] = [];
+    for (const [label, value] of [
+      ['true-bool', 'true'],
+      ['false-bool', 'false'],
+      ['bad-type', 'yes'],
+    ] as const) {
+      const dir = mkdtempSync(join(tmpdir(), 'llman-r102-'));
+      mkdirSync(join(dir, 'llmanspec'), { recursive: true });
+      writeFileSync(
+        join(dir, 'llmanspec', 'config.yaml'),
+        `schema: spec-driven\nspecs:\n  check_transitions: ${value}\n`,
+      );
+      samples.push({
+        label,
+        yaml: `schema: spec-driven\nspecs:\n  check_transitions: ${value}\n`,
+        dir,
+      });
+    }
     ctx.fixtures['checkTransitions样本'] = samples;
   },
 );
 
-bdd.when('依次加载 check_transitions 配置', (ctx) => {
+bdd.when('依次加载这些 config', (ctx) => {
   const samples = ctx.fixtures['checkTransitions样本'] as CheckTransitionsSample[];
-  const results: {
-    label: string;
-    error: string | null;
-    checkTransitions: boolean | null | undefined;
-  }[] = [];
+  const results: { label: string; error: string | null; hasKey: boolean; stderr: string }[] = [];
   for (const sample of samples) {
     try {
-      const cfg = loadConfig(sample.yaml);
+      const detail = loadConfigDetail(sample.yaml);
       results.push({
         label: sample.label,
         error: null,
-        checkTransitions: cfg.specs?.check_transitions ?? undefined,
+        hasKey: 'check_transitions' in (detail.config.specs ?? {}),
+        stderr: runCli(['validate', '--specs'], sample.dir).stderr,
       });
     } catch (err) {
       results.push({
         label: sample.label,
         error: (err as Error).message,
-        checkTransitions: undefined,
+        hasKey: true,
+        stderr: '',
       });
     }
   }
@@ -474,26 +485,27 @@ bdd.when('依次加载 check_transitions 配置', (ctx) => {
 });
 
 bdd.thenStep(
-  '布尔值与未设置加载成功且缺省为关闭,非布尔值报错包含 specs/check_transitions',
+  '均加载成功且解析结果不含 check_transitions 且 stderr 各输出一条含 tag 指引的 WARNING',
   (ctx) => {
     const results = ctx.fixtures['checkTransitions加载'] as {
       label: string;
       error: string | null;
-      checkTransitions: boolean | null | undefined;
+      hasKey: boolean;
+      stderr: string;
     }[];
-    const byLabel = new Map(results.map((r) => [r.label, r]));
-    if (byLabel.get('absent')?.checkTransitions !== undefined || byLabel.get('absent')?.error) {
-      throw new Error('absent config must load with check_transitions unset');
-    }
-    if (byLabel.get('false-bool')?.checkTransitions !== false || byLabel.get('false-bool')?.error) {
-      throw new Error('false must load');
-    }
-    if (byLabel.get('true-bool')?.checkTransitions !== true || byLabel.get('true-bool')?.error) {
-      throw new Error('true must load');
-    }
-    const bad = byLabel.get('bad-type');
-    if (!bad?.error?.includes('specs/check_transitions')) {
-      throw new Error(`non-boolean must fail load: ${bad?.error ?? 'no error'}`);
+    if (results.length !== 3) throw new Error(`expected 3 samples, got ${results.length}`);
+    for (const r of results) {
+      if (r.error) throw new Error(`${r.label}: load must succeed, got ${r.error}`);
+      if (r.hasKey) throw new Error(`${r.label}: parsed specs must not carry check_transitions`);
+      const warns = r.stderr
+        .split('\n')
+        .filter((l) => l.includes('check_transitions') && l.includes('[WARNING]'));
+      if (warns.length !== 1)
+        throw new Error(
+          `${r.label}: expected exactly one WARNING, got ${warns.length}: ${r.stderr}`,
+        );
+      if (!warns[0]?.includes('@transitions'))
+        throw new Error(`${r.label}: WARNING must point at the tag guidance: ${warns[0]}`);
     }
   },
 );

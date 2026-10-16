@@ -29,12 +29,6 @@ export const specsSchema = z.object({
       'Spec verification command executed by validate for spec targets (opt-in via --check; default skips). Placeholders: {feature_path}, {feature_dir}, {feature_name}; without placeholders it runs once per validate invocation (batch-once). Legacy `bdd.run_command` is elevated onto this key at load time.',
     ),
   verify_prompt: z.string().nullish().describe('Extra prompt text injected during verify phase.'),
-  check_transitions: z
-    .boolean()
-    .nullish()
-    .describe(
-      'When true, automatically discovers Gherkin Scenario Outline state transition tables (from/event/to) and enforces strict XState graph gates (determinism, reachability, deadlock, and step placeholder binding). Default: false.',
-    ),
 });
 
 export const archiveSchema = z.object({

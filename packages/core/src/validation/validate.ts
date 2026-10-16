@@ -8,7 +8,7 @@ import { assignSpecIds } from '../spec/assignSpecIds.ts';
 import type { CapabilityDoc } from '../spec/ir.ts';
 import { ruleHasRunnableScenario, specIdOf } from '../spec/ir.ts';
 import { buildReqRegistry } from '../spec/reqRegistry.ts';
-import { validateTransitionsForRule } from './transitions.ts';
+import { validateTransitionsForRule } from './xstateTransitions.ts';
 
 export type ValidationLevel = 'ERROR' | 'WARNING' | 'INFO';
 
@@ -52,9 +52,7 @@ export function validateCapability(
   duplicatesFor: (reqId: string) => boolean,
   _io: SpecIo,
   opts: {
-    strict?: boolean;
     duplicateSpecId?: boolean;
-    checkTransitions?: boolean;
   } = {},
 ): SpecVerdict {
   const { doc } = entry;
@@ -134,11 +132,10 @@ export function validateCapability(
     );
   }
 
-  if (opts.checkTransitions === true) {
-    for (const rule of rules) {
-      for (const item of validateTransitionsForRule(cap, rule, true)) {
-        push(item.level, item.id, item.message);
-      }
+  // Transition-table gates (r104) are tag-scoped per scenario — no config switch.
+  for (const rule of rules) {
+    for (const item of validateTransitionsForRule(cap, rule)) {
+      push(item.level, item.id, item.message);
     }
   }
 
@@ -173,7 +170,7 @@ export function formatTotals(passed: number, failed: number, total: number): str
 export function validateAllSpecs(
   entries: readonly SpecEntry[],
   io: SpecIo,
-  opts: { specsDir?: string; checkTransitions?: boolean } = {},
+  opts: { specsDir?: string } = {},
 ): ValidationReport {
   const specsDir = opts.specsDir ?? 'llmanspec/specs';
   const list: SpecEntry[] = entries.map((e) => ({ ...e }));
@@ -183,7 +180,6 @@ export function validateAllSpecs(
   const verdicts = list.map((e) =>
     validateCapability(e, duplicatesFor, io, {
       duplicateSpecId: duplicateSpecIds.has(specIdOf(e)),
-      checkTransitions: opts.checkTransitions,
     }),
   );
 

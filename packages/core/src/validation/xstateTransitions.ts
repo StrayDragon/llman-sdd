@@ -1,6 +1,7 @@
 /**
- * XState-powered transition-table validation (validation r104): auto-discovery,
- * zero Tag, Examples-table driven gates E1–E4. Pure — no I/O.
+ * XState-powered transition-table validation (validation r104): tag-scoped
+ * discovery (@transitions force / @no-transitions escape / shape sniff),
+ * Examples-table driven gates E1–E4. Pure — no I/O.
  */
 import { createGraph, addNode, addEdge, genBFS, hasPath } from '@statelyai/graph';
 import { createMachine } from 'xstate';
@@ -63,6 +64,57 @@ export function isTransitionOutline(sc: ScenarioIR): boolean {
     if ((hasFrom && hasTo) || (hasFrom && hasEvent) || (hasEvent && hasTo)) return true;
   }
   return false;
+}
+
+export const FORCE_TRANSITIONS_TAG = 'transitions';
+export const ESCAPE_TRANSITIONS_TAG = 'no-transitions';
+
+/**
+ * Single source of truth for `spec transitions` introspection (peripheral r105):
+ * the discovery contract as enforced above — alias families, sniff rule, tags
+ * and gates. The CLI renders this verbatim; do not duplicate it elsewhere.
+ */
+export const TRANSITIONS_INTROSPECTION = {
+  columnFamilies: [
+    { role: 'from', aliases: ['from', '初始状态'] },
+    { role: 'event', aliases: ['event', '事件'] },
+    { role: 'to', aliases: ['to', '目标状态'] },
+    { role: 'guard', aliases: ['guard', '守卫'], optional: true },
+  ],
+  discovery:
+    'no-tag scenario outline: examples header hitting at least 2 of the 3 families (from/event/to) is scoped in as a transition table',
+  tags: [
+    {
+      tag: '@transitions',
+      semantics: 'force validation even when no alias family matches (malformed tables fail E1)',
+    },
+    {
+      tag: '@no-transitions',
+      semantics: 'total escape even when the sniff matches (both tags together is an ERROR)',
+    },
+  ],
+  gates: [
+    'E1 structure & placeholder binding (columns from/event/to, runnable, steps bind <from>/<event>/<to>/<guard>)',
+    'E2 determinism (same (from, event, guard) must not target different states)',
+    'E3 reachability (every state reachable from the first-row from state)',
+    'E4 deadlock/trap (with terminal states: reach one; without: return to the initial state)',
+  ],
+} as const;
+
+export type TransitionDecision = 'conflict' | 'skip' | 'force' | 'sniff';
+
+/**
+ * Per-scenario scoping (r104), short-circuiting in order: both tags → ERROR,
+ * @no-transitions → total escape, @transitions → forced entry, no tag →
+ * shape sniff. Tags carry no leading `@` in the IR (parser strips it).
+ */
+export function resolveTransitionDecision(sc: ScenarioIR): TransitionDecision {
+  const force = sc.tags.includes(FORCE_TRANSITIONS_TAG);
+  const escape = sc.tags.includes(ESCAPE_TRANSITIONS_TAG);
+  if (force && escape) return 'conflict';
+  if (escape) return 'skip';
+  if (force) return 'force';
+  return 'sniff';
 }
 
 function placeholderVariants(col: string): string[] {
@@ -216,15 +268,16 @@ export function validateTransitionScenario(
     outTargets.set(t.from, set);
   }
 
+  // E4 unified invariant (r104): with terminal states (out-degree 0) every
+  // non-terminal state must reach one; without any terminal state (cyclic
+  // machine) every state must be able to return to the initial state. E3 has
+  // already guaranteed all states are reachable FROM the initial state.
   const terminalStates = [...states].filter((s) => (outTargets.get(s)?.size ?? 0) === 0);
 
   if (terminalStates.length > 0) {
-    const deadlocks: string[] = [];
-    for (const s of states) {
-      if (terminalStates.includes(s)) continue;
-      const canReachTerminal = terminalStates.some((term) => hasPath(graph, s, term));
-      if (!canReachTerminal) deadlocks.push(s);
-    }
+    const deadlocks = [...states].filter(
+      (s) => !terminalStates.includes(s) && !terminalStates.some((term) => hasPath(graph, s, term)),
+    );
     if (deadlocks.length > 0) {
       push(
         `deadlock state(s) in transition table \`${sc.name}\` (cannot reach any terminal state): ${deadlocks.join(', ')}`,
@@ -232,43 +285,34 @@ export function validateTransitionScenario(
       return items;
     }
   } else {
-    for (const s of states) {
-      const targets = outTargets.get(s) ?? new Set<string>();
-      const onlySelf = targets.size === 1 && targets.has(s);
-      const hasIncomingFromOther = transitions.some((t) => t.to === s && t.from !== s);
-      const hasOutgoingToOther = transitions.some((t) => t.from === s && t.to !== s);
-      if (onlySelf && !hasIncomingFromOther && !hasOutgoingToOther) {
-        push(
-          `deadlock state(s) in transition table \`${sc.name}\` (cannot reach any terminal state): ${s}`,
-        );
-        return items;
-      }
-    }
-    for (const s of states) {
-      if (!hasPath(graph, s, initial) && s !== initial) {
-        const canReturn = hasPath(graph, s, initial);
-        if (!canReturn) {
-          push(
-            `deadlock state(s) in transition table \`${sc.name}\` (cannot reach any terminal state): ${s}`,
-          );
-          return items;
-        }
-      }
+    const trapped = [...states].filter((s) => s !== initial && !hasPath(graph, s, initial));
+    if (trapped.length > 0) {
+      push(
+        `trap state(s) in transition table \`${sc.name}\` (cannot return to the initial state \`${initial}\`): ${trapped.join(', ')}`,
+      );
+      return items;
     }
   }
 
   return items;
 }
 
-export function validateTransitionsForRule(
-  cap: string,
-  rule: RuleIR,
-  checkTransitions: boolean,
-): ValidationItem[] {
-  if (!checkTransitions) return [];
+export function validateTransitionsForRule(cap: string, rule: RuleIR): ValidationItem[] {
   const items: ValidationItem[] = [];
   for (const sc of rule.scenarios) {
-    if (!isTransitionOutline(sc)) continue;
+    const decision = resolveTransitionDecision(sc);
+    if (decision === 'conflict') {
+      items.push({
+        level: 'ERROR',
+        id: anchor(cap, rule),
+        message: `scenario \`${sc.name}\` carries conflicting @transitions and @no-transitions tags — keep exactly one`,
+      });
+      continue;
+    }
+    // Escape is total: skip even malformed tables; force enters validation so
+    // a malformed table fails E1 loudly.
+    if (decision === 'skip') continue;
+    if (decision === 'sniff' && !isTransitionOutline(sc)) continue;
     items.push(...validateTransitionScenario(cap, rule, sc));
   }
   return items;

@@ -8,4 +8,3 @@ locale: zh-Hans
 # list --specs / show 以嵌套场景拆分已绑定计数。
 specs:
   check_command: "bun test tests/bdd"
-  check_transitions: true

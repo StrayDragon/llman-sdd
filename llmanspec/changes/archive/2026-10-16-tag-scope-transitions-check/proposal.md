@@ -1,6 +1,9 @@
 ---
 depends_on: []
 title: 状态流转校验以 @transitions/@no-transitions 显式标记定界并移除配置开关
+branch: sdd/tag-scope-transitions-check
+base_branch: main
+base_sha: 852a8c7d4ae1b48a918353bf095966bb435bb30c
 ---
 
 # 状态流转校验 tag 定界化

@@ -146,10 +146,24 @@ function warnLegacyBdd(elevated: boolean): void {
   );
 }
 
-/** Surface the legacy-section warning from a raw config source (config command). */
+/** One-time removed-key warning (config-schema r102): `specs.check_transitions`
+ * is stripped at load; transition validation is tag-scoped (validation r104). */
+let legacyCheckTransitionsWarningShown = false;
+
+function warnLegacyCheckTransitions(stripped: boolean): void {
+  if (!stripped || legacyCheckTransitionsWarningShown) return;
+  legacyCheckTransitionsWarningShown = true;
+  console.error(
+    '[WARNING] llmanspec/config.yaml `specs.check_transitions` was removed — transition-table validation is now tag-scoped per scenario (@transitions force / @no-transitions escape). Delete the key. See migrations/v0.8-v0.9/README.md.',
+  );
+}
+
+/** Surface the legacy-section warnings from a raw config source (config command). */
 export function warnLegacyBddOnce(source: string): void {
-  if (legacyBddWarningShown) return;
-  warnLegacyBdd(loadConfigDetail(source).legacyBddElevated);
+  if (legacyBddWarningShown && legacyCheckTransitionsWarningShown) return;
+  const detail = loadConfigDetail(source);
+  warnLegacyBdd(detail.legacyBddElevated);
+  warnLegacyCheckTransitions(detail.legacyCheckTransitionsStripped);
 }
 
 /**
@@ -177,6 +191,7 @@ export function loadCliConfig(): ReturnType<typeof loadConfig> | null {
   if (!existsSync('llmanspec/config.yaml')) return null;
   const detail = loadConfigDetail(readFileSync('llmanspec/config.yaml', 'utf8'));
   warnLegacyBdd(detail.legacyBddElevated);
+  warnLegacyCheckTransitions(detail.legacyCheckTransitionsStripped);
   noteVersionDriftOnce();
   return detail.config;
 }

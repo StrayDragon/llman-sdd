@@ -1228,7 +1228,7 @@ bdd.thenStep('输出不含 "finalize is a pipeline step"', (ctx) => {
 });
 
 // ---------------------------------------------------------------------------
-// r104 — check_transitions auto-discovery validation gates
+// r104 — tag-scoped transition-table validation gates
 // ---------------------------------------------------------------------------
 
 function scFeature(
@@ -1237,6 +1237,7 @@ function scFeature(
   scenario: string,
   stepBlock: string,
   tableRows: string,
+  tags = '',
 ): string {
   return `# language: zh-CN
 # purpose: ${cap}
@@ -1246,7 +1247,7 @@ function scFeature(
   规则: rule
     系统 MUST x
 
-    场景大纲: ${scenario}
+${tags}    场景大纲: ${scenario}
 ${stepBlock}
       例子:
         | from | event | to |
@@ -1260,6 +1261,9 @@ const GOOD_STEPS = `      假如 在 "<from>"
 
 const GOOD_ROWS = `        | a | e1 | b |
         | b | e2 | c |`;
+
+const ISLAND_ROWS = `        | a | e1 | b |
+        | orphan | e0 | c |`;
 
 function incompleteFeature(cap: string, reqId: string): string {
   return `# language: zh-CN
@@ -1280,78 +1284,112 @@ function incompleteFeature(cap: string, reqId: string): string {
 `;
 }
 
+function transitionsRepo(files: Record<string, string>): TempRepo {
+  const repo = makeTempRepo();
+  mkdirSync(join(repo.root, 'llmanspec', 'specs'), { recursive: true });
+  writeFileSync(join(repo.root, 'llmanspec', 'config.yaml'), 'schema: spec-driven\n');
+  for (const [name, content] of Object.entries(files)) {
+    writeFileSync(join(repo.root, 'llmanspec', 'specs', name), content);
+  }
+  return repo;
+}
+
+// --- 场景: tag 定界四级判定 -----------------------------------------------
+
 bdd.given(
-  '一个含合法状态流转场景大纲与含孤岛缺陷状态流转表但未启用 specs.check_transitions 的临时仓库',
+  '一个分别含挂 @no-transitions 的孤岛缺陷特征词表、挂 @transitions 的残缺列表现、双 tag 同挂场景与无 tag 孤岛缺陷特征词表的临时仓库',
   (ctx) => {
-    const repo = makeTempRepo();
-    mkdirSync(join(repo.root, 'llmanspec', 'specs'), { recursive: true });
-    writeFileSync(
-      join(repo.root, 'llmanspec', 'config.yaml'),
-      'schema: spec-driven\nspecs:\n  check_transitions: false\n',
-    );
-    writeFileSync(
-      join(repo.root, 'llmanspec', 'specs', 'sc-good.feature'),
-      scFeature('sc-good', 'r50', 'ok', GOOD_STEPS, GOOD_ROWS),
-    );
-    writeFileSync(
-      join(repo.root, 'llmanspec', 'specs', 'sc-island.feature'),
-      scFeature(
-        'sc-island',
-        'r51',
-        'bad',
+    const repo = transitionsRepo({
+      'sc-escape.feature': scFeature(
+        'sc-escape',
+        'r50',
+        'escape',
         GOOD_STEPS,
-        `        | a | e1 | b |
-        | orphan | e0 | c |`,
+        ISLAND_ROWS,
+        '    @no-transitions\n',
       ),
-    );
-    ctx.fixtures['transitions仓库'] = { repo };
+      'sc-force.feature': `# language: zh-CN
+# purpose: sc-force
+功能: sc-force
+
+  @req:r51
+  规则: rule
+    系统 MUST x
+
+    @transitions
+    场景大纲: force
+      假如 在 "<from>"
+      当 发 "<event>"
+      那么 到 "<to>"
+      例子:
+        | from | to |
+        | a | b |
+`,
+      'sc-conflict.feature': scFeature(
+        'sc-conflict',
+        'r52',
+        'conflict',
+        GOOD_STEPS,
+        GOOD_ROWS,
+        '    @transitions @no-transitions\n',
+      ),
+      'sc-island3.feature': scFeature('sc-island3', 'r53', 'island', GOOD_STEPS, ISLAND_ROWS),
+    });
+    ctx.fixtures['validate仓库'] = { repo };
   },
 );
 
-bdd.when('在未启用与启用 specs.check_transitions 下分别运行 validate --specs --json', (ctx) => {
-  const { repo } = ctx.fixtures['transitions仓库'] as { repo: TempRepo };
-  const off = repo.run('bun', [CLI, 'validate', '--specs', '--json']);
-  writeFileSync(
-    join(repo.root, 'llmanspec', 'config.yaml'),
-    'schema: spec-driven\nspecs:\n  check_transitions: true\n',
-  );
-  const on = repo.run('bun', [CLI, 'validate', '--specs', '--json']);
-  ctx.fixtures['transitions校验'] = { off, on };
-});
+bdd.thenStep(
+  '@no-transitions 孤岛表不报错,@transitions 残缺表报缺必填列 ERROR,双 tag 同挂报冲突 ERROR,无 tag 孤岛表照常报 ERROR',
+  (ctx) => {
+    const r = ctx.fixtures['validate结果'] as { code: number; stdout: string };
+    if (r.code === 0) throw new Error('validate must fail for the conflict/island defects');
+    const parsed = JSON.parse(r.stdout) as {
+      items?: {
+        id: string;
+        valid: boolean;
+        issues: { level: string; path: string; message: string }[];
+      }[];
+    };
+    const byId = new Map((parsed.items ?? []).map((i) => [i.id, i]));
+    const messagesOf = (id: string): string[] =>
+      (byId.get(id)?.issues ?? [])
+        .filter((x) => x.path.includes('/transitions/'))
+        .map((x) => x.message);
+    if (!byId.get('sc-escape')?.valid || messagesOf('sc-escape').length > 0) {
+      throw new Error('@no-transitions must fully escape the island table');
+    }
+    const force = messagesOf('sc-force');
+    if (
+      byId.get('sc-force')?.valid ||
+      !force.some((m) => m.includes('requires a runnable non-empty Examples table'))
+    ) {
+      throw new Error('@transitions must force E1 on the malformed table');
+    }
+    const conflict = messagesOf('sc-conflict');
+    if (
+      byId.get('sc-conflict')?.valid ||
+      !conflict.some((m) => m.includes('conflicting @transitions and @no-transitions tags'))
+    ) {
+      throw new Error('both tags must conflict-ERROR');
+    }
+    if (
+      byId.get('sc-island3')?.valid ||
+      !messagesOf('sc-island3').some((m) => m.includes('unreachable state'))
+    ) {
+      throw new Error('no-tag sniff must still catch the island table');
+    }
+  },
+);
 
-bdd.thenStep('未启用时孤岛状态流转表不报错且启用后合法状态流转表 valid 为 true', (ctx) => {
-  const { off, on } = ctx.fixtures['transitions校验'] as {
-    off: { code: number; stdout: string };
-    on: { code: number; stdout: string };
-  };
-  const offParsed = JSON.parse(off.stdout) as {
-    items?: { id: string; valid: boolean; issues: { path: string }[] }[];
-  };
-  const island = (offParsed.items ?? []).find((i) => i.id === 'sc-island');
-  if (island && island.issues.some((x) => x.path.includes('/transitions/'))) {
-    throw new Error('island must not trigger transitions when disabled');
-  }
-  const onParsed = JSON.parse(on.stdout) as { items?: { id: string; valid: boolean }[] };
-  const good = (onParsed.items ?? []).find((i) => i.id === 'sc-good');
-  if (!good?.valid) throw new Error(`sc-good must be valid when enabled: ${on.stdout}`);
-});
+// --- 场景: 四道门禁对嗅探路径逐类拦截 ---------------------------------------
 
 bdd.given(
-  '一个启用 specs.check_transitions 且分别含残缺表头漏列或假步骤未绑定占位符、非确定性冲突、孤岛不可达状态与死锁陷阱状态四类缺陷的临时仓库',
+  '一个无任何 tag 且分别含残缺表头漏列或假步骤未绑定占位符、非确定性冲突、孤岛不可达状态与死锁陷阱状态四类缺陷表的临时仓库',
   (ctx) => {
-    const repo = makeTempRepo();
-    mkdirSync(join(repo.root, 'llmanspec', 'specs'), { recursive: true });
-    writeFileSync(
-      join(repo.root, 'llmanspec', 'config.yaml'),
-      'schema: spec-driven\nspecs:\n  check_transitions: true\n',
-    );
-    writeFileSync(
-      join(repo.root, 'llmanspec', 'specs', 'sc-incomplete.feature'),
-      incompleteFeature('sc-incomplete', 'r9'),
-    );
-    writeFileSync(
-      join(repo.root, 'llmanspec', 'specs', 'sc-fake.feature'),
-      scFeature(
+    const repo = transitionsRepo({
+      'sc-incomplete.feature': incompleteFeature('sc-incomplete', 'r9'),
+      'sc-fake.feature': scFeature(
         'sc-fake',
         'r10',
         'fake',
@@ -1360,10 +1398,7 @@ bdd.given(
       那么 固定`,
         GOOD_ROWS,
       ),
-    );
-    writeFileSync(
-      join(repo.root, 'llmanspec', 'specs', 'sc-nondet.feature'),
-      scFeature(
+      'sc-nondet.feature': scFeature(
         'sc-nondet',
         'r11',
         'dup',
@@ -1371,21 +1406,8 @@ bdd.given(
         `        | a | e1 | b |
         | a | e1 | c |`,
       ),
-    );
-    writeFileSync(
-      join(repo.root, 'llmanspec', 'specs', 'sc-island2.feature'),
-      scFeature(
-        'sc-island2',
-        'r12',
-        'island',
-        GOOD_STEPS,
-        `        | a | e1 | b |
-        | orphan | e0 | c |`,
-      ),
-    );
-    writeFileSync(
-      join(repo.root, 'llmanspec', 'specs', 'sc-dead.feature'),
-      scFeature(
+      'sc-island2.feature': scFeature('sc-island2', 'r12', 'island', GOOD_STEPS, ISLAND_ROWS),
+      'sc-dead.feature': scFeature(
         'sc-dead',
         'r13',
         'dead',
@@ -1395,8 +1417,8 @@ bdd.given(
         | trap | self | trap |
         | b | fin | done |`,
       ),
-    );
-    ctx.fixtures['transitions四类仓库'] = { repo };
+    });
+    ctx.fixtures['validate仓库'] = { repo };
   },
 );
 
@@ -1432,6 +1454,80 @@ bdd.thenStep(
       if (!messages.some((m) => m.includes(fragment))) {
         throw new Error(`missing transition defect message containing: ${fragment}`);
       }
+    }
+  },
+);
+
+// --- 场景: E4 死锁消息按实际违反不变式表述 ----------------------------------
+
+bdd.given(
+  '一个分别含无法到达终态的死锁表、无终态且无法回到初始状态的单向环区表与合法纯环表的临时仓库',
+  (ctx) => {
+    const repo = transitionsRepo({
+      'sc-term-dead.feature': scFeature(
+        'sc-term-dead',
+        'r60',
+        'term-dead',
+        GOOD_STEPS,
+        `        | a | e1 | b |
+        | a | e2 | c |
+        | b | self | b |`,
+      ),
+      'sc-sink-cycle.feature': scFeature(
+        'sc-sink-cycle',
+        'r61',
+        'sink-cycle',
+        GOOD_STEPS,
+        `        | a | e1 | b |
+        | b | e2 | c |
+        | c | e3 | b |`,
+      ),
+      'sc-pure-cycle.feature': scFeature(
+        'sc-pure-cycle',
+        'r62',
+        'pure-cycle',
+        GOOD_STEPS,
+        `        | on | toggle | off |
+        | off | toggle | on |`,
+      ),
+    });
+    ctx.fixtures['validate仓库'] = { repo };
+  },
+);
+
+bdd.thenStep(
+  '死锁表消息含无法到达终态,单向环区表消息含无法回到初始状态,合法纯环表不报错',
+  (ctx) => {
+    const r = ctx.fixtures['validate结果'] as { code: number; stdout: string };
+    if (r.code === 0) throw new Error('validate must fail for the two E4 defects');
+    const parsed = JSON.parse(r.stdout) as {
+      items?: {
+        id: string;
+        valid: boolean;
+        issues: { level: string; path: string; message: string }[];
+      }[];
+    };
+    const byId = new Map((parsed.items ?? []).map((i) => [i.id, i]));
+    const transitionsMsgs = (id: string): string[] =>
+      (byId.get(id)?.issues ?? [])
+        .filter((x) => x.path.includes('/transitions/'))
+        .map((x) => x.message);
+    if (
+      byId.get('sc-term-dead')?.valid ||
+      !transitionsMsgs('sc-term-dead').some((m) => m.includes('cannot reach any terminal state'))
+    ) {
+      throw new Error('terminal-deadlock table must report cannot-reach-terminal');
+    }
+    if (
+      byId.get('sc-sink-cycle')?.valid ||
+      !transitionsMsgs('sc-sink-cycle').some((m) =>
+        m.includes('cannot return to the initial state'),
+      )
+    ) {
+      throw new Error('sink-cycle table must report cannot-return-to-initial');
+    }
+    if (!byId.get('sc-pure-cycle')?.valid || transitionsMsgs('sc-pure-cycle').length > 0) {
+      throw new Error('pure cycle table must pass clean');
     }
   },
 );
