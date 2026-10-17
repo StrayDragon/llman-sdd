@@ -61,6 +61,8 @@ en 树与 zh-Hans 树各 29 个文件，一一平行。每次改动要改两份�
 - 收口门禁漏洞：`change finalize` 可对 `stage: draft`、仅 `proposal.md`、specs 未改的 change 收口并退出 0。`packages/core/src/report/show.ts:129` 已算好 6 项判据，收口却未复用。
 - `review` 在开发期恒失败：只要存在在途 change 的未勾任务，`criticalCount` 即为 1，退出 1。
 - 静默忽略与单值旗标：`project migrate` 带 `--from-version/--to-version` 而不带 `action` 时旗标被忽略且退出 0；`graph --format` 仅接受 mermaid。
+- 只读命令违反 r91：`validation` r91 是 CLI 级条款，写明“仅发现单根时所有命令输出 MUST 与单根时代逐字节一致”。实测从子目录运行 `list` 与 `graph` 静默返回空、`config` 泄漏 `ENOENT`，而 `validate --specs` 正确。
+- `--backend` 归一化落后前代：前代 `Backend::parse` 做 trim 与 lowercase、接受 `page-index` 别名、空值归 pageindex。现仓四种输入全部报错退出 1。
 
 ## What Changes
 
@@ -82,17 +84,19 @@ en 树与 zh-Hans 树各 29 个文件，一一平行。每次改动要改两份�
 - `init/init.ts:149` 对缺失资源的静默跳过改为显式报错。
 - golden 与测试单 locale 化：删除 `tests/golden/baseline/skills-en/`，改写 `tests/golden/{lib,generate,check}.ts` 与对应用例。
 - 模板单一事实来源：ethics 块收敛为一份、抽取 `index-fallback` 单元、合并 `git-native-flow` 与 `git-native-flow-brief`。
-- 处置死单元与单用单元：`spec/feature-contract` 接回引用、`workflow/archive-freeze-guidance` 内联。
+- 处置死单元与单用单元：`spec/feature-contract` 精简后接回 `propose` 引用，只留独有内容；`workflow/archive-freeze-guidance` 内联。
+- 新增“未引用单元”门禁：`UNIT_FILES` 与 `unit()` 引用集合的差集非空即失败。
 - 删除无引用模板变量 `specs_framework` 与 `specs_check_command`。
 - 修正 4 处与实际不符的指引。
 - 新增 `migrations/v0.9-v0.10/README.md`、CHANGELOG 条目与 `MIGRATIONS` 注册项。
 
-### 批次 2：CLI 结构
+### 批次 2：CLI 结构与根发现
 
-- 抽出 `createProgram()` 工厂，`await main()` 移入 `import.meta.main` 守卫。
+- 抽出 `createProgram()` 工厂，`await main()` 移入 `import.meta.main` 守卫。守卫 MUST 带 realpath 兜底：`import.meta.main` 自 Node 24.2.0 才有，而 `engines.node` 声明的下界是 24.0.0。
 - 抽出 `emitReport()` 统一报告输出管线。
-- 抽出 `addSpecDirOption()` 与 `withSpecRoot()`。
-- 注入 `CliContext { io, git, root, cwd }`，删除 `process.chdir` 全局态。
+- 抽出 `addSpecDirOption()` 与 `withSpecRoot()`，`addSpecDirOption` 对全部命令可用。
+- 注入 `CliContext { io, git, root, cwd }`，删除 `process.chdir` 全局态，`process.cwd()` 归零。
+- 只读命令接入同一根发现算子，未找到实例根时报域错误，不再静默返回空。
 - 拆分 `validate.ts` 的 245 行 action。
 
 ### 批次 3：core 去重
@@ -108,26 +112,30 @@ en 树与 zh-Hans 树各 29 个文件，一一平行。每次改动要改两份�
 ### 批次 4：命令面口径收敛
 
 - 输出旗标组合定为单一规则：`--output` 显式值优先；`--compact-json` 与 `--json` 成对（前代语义保留）；紧凑输出改由 `JSON.stringify` 单点产生，不再删换行；`--compact-json` 的成对约束写入 help 与 spec。
-- 退出码口径补全：参数解析失败（缺必需参数、非法枚举值、非法组合）一律退出 2。
+- 退出码口径补全：参数解析失败（缺必需参数、非法枚举值、非法组合）一律退出 2。根裸调用等同 `--help`，走 stdout 且退出 0；五个纯父分组缺必需子命令报用法错误退出 2，`config` 保留默认 action。此口径是主动 divergence，前代的 handler 级枚举校验原本退出 1。
+- `--backend` 归一化改为前代口径：trim 与 lowercase、接受 `page-index` 别名、空值与空 env 归 pageindex。报错文案保留现写法。
+- 补一条回归：旧 `rag/` 目录 MUST NOT 满足 pageindex 新鲜度。
 - `change next-id`、`change diff`、`spec next-req-id` 接入共享输出面，同时保留 `--json` 的字节一致输出。
 - `show` 与 `list` 回显 frontmatter `title`，H1 仅作回退。
 - 收口复用 `readyToImplement` 的判据：要求 `specsLanded || !needsSpecsChange`，tasks.md 存在时要求全勾。
 - `review` 把在途 change 的未勾任务由 critical 降为 warning。
 - `project migrate` 带范围旗标而不带 `action` 时报用法错误。
-- 收口细节：`change diff` 空 diff 输出提示、组命令空调用的退出码、`change archive` 与 `archive` 的 help 交叉指引。
+- 收口细节：`change diff` 空 diff 输出提示、`project migrate` 无 `action` 时报用法错误、`change archive` 与 `archive` 的 help 交叉指引。
 
 ## Capabilities
 
 | capability | 变更 |
 |---|---|
-| `specs/init-generators` | r18 兜底链、r19 双 locale 基线、r50 默认值、r66/r70/r71 双 locale 措辞、r97 en 强度词条款；r70 增加两条门禁 MUST |
+| `specs/init-generators` | r18 兜底链、r19 双 locale 基线、r50 默认值、r66/r70/r71 双 locale 措辞、r97 en 强度词条款；r70 增加两条门禁 MUST；r71 采“引导对使用者可见”读法 |
 | `specs/config-schema` | r6 的 `locale` 缺省值由 `en` 改为 `zh-Hans` |
 | `specs/spec-parsing` | r7 与 r88 的方言口径：未知 locale 归一后 `spec skeleton` 恒产出 zh-CN 方言 |
 | `specs/monorepo-structure` | r3 守护范围含 `apps/cli/src`；r67 模板面不再含 en |
-| `specs/cli` | r75 退出码口径补全；r76 输出旗标组合语义、紧凑输出定义、共享面扩到 3 个命令 |
+| `specs/cli` | r75 退出码口径补全；r76 输出旗标组合语义、紧凑输出定义、共享面扩到 3 个命令；新增三条 requirement：入口可导入与守卫、上下文注入与 cwd 隔离、只读命令接入根发现与 `--directory` |
+| `specs/validation` | r91 拆两段：多根枚举（`validate`，从 git 根向下扫）与单根解析（各命令，从 cwd 或 `--directory` 向上找最近实例根） |
 | `specs/change-lifecycle` | r45/r79 收口复用 `specs-landed` 与 `tasks-done` 判据；r99 的 title 读取面扩到 show/list |
 | `specs/review-freeze` | `review` 的未勾任务信号由 critical 降为 warning |
-| `specs/peripheral-commands` | `project migrate` 的范围旗标缺 `action` 时报用法错误 |
+| `specs/peripheral-commands` | `project migrate` 的范围旗标缺 `action` 时报用法错误；`--format` 保留值域守护 |
+| `specs/context-index` | r57 的 `--backend` 归一化：trim 与 lowercase、接受 `page-index` 别名、空值归 pageindex |
 
 其余 capability 不产生对外行为变更，作回归守护。
 
@@ -138,7 +146,9 @@ en 树与 zh-Hans 树各 29 个文件，一一平行。每次改动要改两份�
 - 迁移：新增 `migrations/v0.9-v0.10/README.md`，并在 `packages/core/src/project/migrations.ts` 注册版本项。
 - 破坏面一：`locale: en` 的存量项目升级后渲染结果变为中文。
 - 破坏面二：`change finalize` 的守卫收紧，合约未改的 change 不再能收口。
-- 破坏面三：组命令空调用退出码由 0 改为 2；缺必需参数与非法枚举值的退出码由 1 改为 2。
+- 破坏面三：五个纯父分组空调用退出码由 0 改为 2；缺必需参数与非法枚举值的退出码由 1 改为 2。根裸调用仍退出 0，但帮助改走 stdout。
+- 破坏面四：只读命令在子目录运行时的结果改变。`list` 与 `graph` 此前静默返回空，`config` 此前泄漏 `ENOENT`；此后解析到最近实例根。
+- 破坏面五：`--backend` 的空值、大小写与 `page-index` 别名由报错改为接受。
 
 ## Non-Goals
 
@@ -147,12 +157,16 @@ en 树与 zh-Hans 树各 29 个文件，一一平行。每次改动要改两份�
 - 不改 Gherkin 解析器语义、不改 config schema 字段集、不改冻结归档格式。
 - 不改变 Gherkin 方言匹配器（`parser.ts` 仍以 en 起步、回退 zh-CN）。
 - 不引入打包器，不引入新运行时依赖。
-- 不处理 `--backend`、`--version-expr`、`--lang` 的去留，按先前定案排除。
+- `graph --format`、`index rebuild --backend`、`context --backend` 三个旗标保留，本 change 只补 `--backend` 的归一化。不处理 `--version-expr` 与 `--lang` 的去留。
 
 ## Open Questions
 
-- `spec/feature-contract` 单元接回引用还是删除。倾向接回，因为 r71 已把该单元当作权威引导实体。
-- `CliContext` 注入的推进幅度。倾向全量替换，否则不解决嵌入态。
-- 组命令空调用的退出码取向。倾向按用法错误一律退出 2，但前代可能维持 0。
-- `graph --format`、`index rebuild --backend`、`context --backend` 三个单值旗标的去留。倾向删除，值域只有一个时不提供旗标。
-- `--directory` 是否扩到只读命令。当前只覆盖 validate 与 5 个 spec 子命令。
+无。五条已定案：
+
+- `spec/feature-contract`：精简后接回 `propose` 引用，并加“未引用单元”门禁。
+- `CliContext`：全量注入，并把可导入与 cwd 隔离写成合约。
+- 组命令空调用：根裸调用等同 `--help`，走 stdout 与退出 0；分组缺必需子命令退出 2。
+- 三个单值旗标：全部保留，并补 `--backend` 归一化。
+- `--directory`：扩到全部命令，只读命令接入根发现算子。
+
+结论的完整依据与数字见 `design.md` 的“决策记录”。

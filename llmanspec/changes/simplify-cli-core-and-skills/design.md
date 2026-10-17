@@ -18,8 +18,9 @@ packages/core                    纯域逻辑，每个概念一个 SSOT
 
 apps/cli                         应用服务层加可嵌入入口
   ├─ program.ts                 export createProgram(ctx): Command
-  ├─ main.ts                    import.meta.main 守卫，仅装配
+  ├─ main.ts                    执行守卫（含 realpath 兜底），仅装配
   ├─ CliContext                 { io, git, root, cwd }
+  ├─ resolveCommandRoot()       实例根发现单点，--directory 起点
   ├─ emitReport()               输出管线单点，含紧凑化与退出码归类
   └─ commands/*                 仅解析参数，调 core
 
@@ -115,8 +116,25 @@ packages/core/templates          中文单线
 
 ### 1.7 死单元与单用单元
 
-- `spec/feature-contract`：接回 `unit()` 引用，兑现 r71。若实施期改判删除，须同步改 r71 措辞。
-- `workflow/archive-freeze-guidance`：内联进 `skills/llman-sdd-archive.md`，从 `UNIT_FILES` 移除。
+结论：`spec/feature-contract` 精简后接回，`workflow/archive-freeze-guidance` 内联。
+
+`spec/feature-contract` 的取证：
+
+- 前代 `UNIT_FILES`（`templates.rs:44`）同样含 `spec/feature-contract.md`，且前代全模板 `unit("spec/feature-contract")` 引用为 0（en 与 zh-Hans 都查了）。该孤儿由前代继承，不是移植时丢引用。
+- 本仓该单元被 9 次提交改过，自 `port-init-and-generators` 起，属持续同步的权威文本。
+- specs 里该单元的唯一提及由 `2f89ceb drop-capability-header` 引入，前代 specs 无此措辞。r71 因此把该单元称作“引导”。
+- 承载通道只有 `unit()` 内联进技能正文（`skills.ts:146-151`）。`init` 不把 `units/` 落到使用者仓库，故该单元文本对使用者零到达。
+
+改法：
+
+1. 删去与 `propose`、`validation-hints` 重复的行，只留独有内容：两布局并存算冲突、不存在 `spec.toon`、`# language:` 必填、覆盖分级、缩进层级。
+2. 在 `propose` 的 4b 段接回 `unit()` 引用，兑现 r71。
+3. r71 采“引导对使用者可见”读法：要求算出的指引文本声明该约定。
+4. 新增“未引用单元”门禁：`UNIT_FILES` 与 `unit()` 引用集合的差集非空即失败。
+
+备选（删除并把独有内容并入 `validation-hints`）被否：`validation-hints` 被引用 16 次，写进去要乘 16 渲染进 16 个技能，约 12 KB；接回只乘 1。
+
+`workflow/archive-freeze-guidance`：内联进 `skills/llman-sdd-archive.md`，从 `UNIT_FILES` 移除。
 
 ### 1.8 死变量与不符指引
 
@@ -129,18 +147,42 @@ packages/core/templates          中文单线
 - `packages/core/src/project/migrations.ts` 增加版本项，`prompt` 说明 en 移除与 locale 归一。
 - `CHANGELOG.md` 增加条目，标注破坏性。
 
-## 批次 2：CLI 结构
+## 批次 2：CLI 结构与根发现
 
 ### 2.1 createProgram 工厂
 
 结论：拆出入口，使其可导入。
 
 - 新增 `apps/cli/src/program.ts`，导出 `createProgram(ctx): Command`，只建命令树不解析。
-- `main.ts` 保留参数解析与统一错误出口，并加 `if (import.meta.main)` 守卫。
+- `main.ts` 保留参数解析与统一错误出口，并加执行守卫。
 - `apps/cli/package.json` 的 `exports` 改指可导入入口。
 - `tests/unit/removed-surface.test.ts` 改为调用工厂，删除注册顺序的复刻。
 
 注意：`main.ts:19-22` 声明注册顺序 load-bearing，工厂必须保持同一顺序。
+
+守卫 MUST 带 realpath 兜底。`import.meta.main` 的实测取值：
+
+| 场景 | Node 24.7 | Bun 1.4.3 |
+|---|---|---|
+| 直接入口 | true | true |
+| 被 import | false | false |
+| 符号链接调用 | true | true |
+| 单二进制（`bun build --compile`） | — | true |
+
+雷点：`import.meta.main` 的官方引入版本是 Node v24.2.0，而本仓 `engines.node` 写 `>=24.0.0`。Node 24.0 与 24.1 上该属性为 `undefined`，`if (import.meta.main) main()` 不求值，命令全不执行、进程退出 0、零输出。开发机（Node 24.7）复现不出该形态。
+
+兜底写法：
+
+```ts
+const isMain =
+  import.meta.main ??
+  (process.argv[1] !== undefined &&
+    realpathSync(process.argv[1]) === import.meta.filename);
+```
+
+反例：用 `pathToFileURL(process.argv[1])` 当兜底会坏在 npm bin 场景。实测 Node 走符号链接时 `process.argv[1]` 是链接路径、`import.meta.filename` 是真路径，直接比较恒为 false。必须 realpath 归一，并包 try/catch（`argv[1]` 可能不存在）。
+
+验收：兜底分支用单测直击（构造 argv 与 filename 不匹配），不起旧 Node 进程。
 
 ### 2.2 emitReport 输出管线
 
@@ -154,22 +196,79 @@ packages/core/templates          中文单线
 
 ### 2.3 选项与根解析收敛
 
-- 抽 `addSpecDirOption(cmd)`，消除 6 处逐字节相同的 `--directory` 声明。
+- 抽 `addSpecDirOption(cmd)`，消除 6 处逐字节相同的 `--directory` 声明，并按 2.6 扩到全部命令。
 - 抽 `withSpecRoot(dir, fn)`，统一 `resolveRootSpecsDir`、`loadRootSpecEntries` 与 `loadSpecEntries` 的分叉。
+
+`withSpecRoot` 是单点，`root === ctx.cwd` 的相对与绝对分叉语义收在 `withSpecRoot` 内部，不在各命令复制。
 
 ### 2.4 CliContext 注入
 
-结论：全局态收敛为注入。
+结论：全局态收敛为注入，并把该契约写入 `cli` 条款。
 
-- 引入 `CliContext { io, git, root, cwd }`，由 `main` 解析一次并注入。
-- 替换 16 处 `makeCliGit(process.cwd())` 与 39 处 `process.cwd()`。
+实测计数（本轮复核）：
+
+| 项 | 数量 |
+|---|---|
+| `process.cwd()` | 40 |
+| `newIo()` | 37 |
+| `makeCliGit(...)` | 22 |
+
+`newIo()` 的现状是 `makeIo(process.cwd())`，注释写明“在 action 时刻读 cwd”。`validate` 靠 4 处 `process.chdir` 让 io 跟随根。两者是一套隐式耦合。故本项的真实动作是拆掉该耦合，而非删 40 个调用点。
+
+改动点：
+
+- 引入 `CliContext { io, git, root, cwd }`，由 `main` 解析一次并注入 13 个 `registerX`。
+- `process.cwd()` 与 `makeCliGit(...)` 归零，改取 `ctx.cwd` 与 `ctx.git`。
 - 删除 `validate.ts` 的 `process.chdir` 与配套 `try/finally`，改为按 root 传参。
+- 取消 `newIo()` 的懒读语义，io 由 ctx 持有。
+
+硬约束：`resolveRootSpecsDir` 的“`root === process.cwd()` 才用相对路径”分叉有可观测后果。实测 `spec skeleton demo-cap --directory <绝对路径>` 输出 `wrote <绝对路径>/demo-cap.feature`。单根下运行时输出形状 MUST 不变，含该绝对与相对分叉。
+
+有利证据：前代把 root 显式传给子进程（`Command::current_dir(root)`，archive 与 finalize 共十余处），不靠进程级 cwd。注入是回到前代原型。
 
 警告：本批改动面最大，宜最后做并单独提交，便于回退。
 
 ### 2.5 validate action 拆分
 
 把 `validate.ts:291-535` 的 245 行回调提取为 `runAllRoots`、`resolveRootArg`、`runSingleItem`、`runBulk`。纯提取，不改行为。
+
+### 2.6 只读命令接入根发现
+
+结论：只读命令接入同一根发现算子。这不是新能力，是修 r91 违约。
+
+规范依据：`validation` r91 的主语是 `llman-sdd`，措辞含“仅发现单根时所有命令输出 MUST 与单根时代逐字节一致”。`init-generators` 也写明实例根判定复用同一算子。故只读命令是这套算子的例外。
+
+实测现状（在 `apps/cli/` 子目录运行）：
+
+| 命令 | 退出码 | 实际输出 | 正解 |
+|---|---|---|---|
+| `list` | 0 | `changes: []` | 1 个活跃 change |
+| `list --specs` | 0 | `[]` | 13 个 spec |
+| `show <id>` | 1 | `Error: change not found` | change 存在 |
+| `graph` | 0 | 55 字节空图 | 有依赖图 |
+| `config` | 1 | `Error: ENOENT: ...` | 泄漏 Node 原始错误 |
+| `index check` | 1 | `fresh: false` | 索引就在仓库根 |
+| `validate --specs` | 0 | `items[13]` | 正确 |
+
+根因：`validate` 走 `resolveInstanceRoot(cwd)` 向上找最近实例根。只读命令直接拼相对路径（`list.ts:53`、`graph.ts:32`、`show.ts:237`、`index.ts:24`、`context.ts:32`），不做发现。`--directory` 只在 `spec.ts` 五处与 `validate.ts:281` 声明。
+
+前代对照：前代 `list` 是 `let root = Path::new(".");`，同样不做向上发现；向上发现只存在于 `context`（`find_llmanspec_dir`，3 处调用 + 2 条单测）。故本项超出前代，属有意 divergence，须在条款里标注。
+
+规则（写入 `cli` 第三条新增 requirement）：
+
+- 全部命令 MUST 经同一算子解析实例根。起点为 `--directory <path>`，缺省为当前工作目录，向上找最近的 `config.yaml` 或 `specs/` 所在实例。
+- 仅发现单根时，全部命令输出 MUST 与单根时代逐字节一致。
+- 未找到实例根时 MUST 报域错误，形如 `no llmanspec root at or above <path>`，MUST NOT 泄漏 `ENOENT`。
+- `--directory` MUST 对全部命令可用。
+
+同时把 r91 拆两段。多根枚举供 `validate`：从 git 根向下扫，git 根自身的 llmanspec 为 0 号根。单根解析供各命令：从 cwd 或 `--directory` 向上找最近实例根。
+
+改动点：
+
+- 新增单点 `resolveCommandRoot(ctx, directory?)`，`ctx.root` 由该单点产出。
+- `list`、`show`、`graph`、`review`、`config`、`index`、`context` 的相对路径改为基于该根。
+
+回归：在 `packages/core` 与 `apps/cli` 各跑一次只读命令，断言与仓库根一致；无实例根时报域错误而非 `ENOENT`。
 
 ## 批次 3：core 去重
 
@@ -261,21 +360,46 @@ dated-archive id 正则的 4 个变体收敛为单点。semver 比较的 2 份�
 
 ### 4.2 退出码口径
 
-结论：参数解析失败一律退出 2。
+结论：参数解析失败一律退出 2；根裸调用等同 `--help`；分组缺必需子命令走用法错误。该口径是主动 divergence。
 
-实测现状：
+前代依据：
+
+- 根裸调用：前代 `llmanspec` 包装器把裸调用改写成 `sdd --help`，注释写着“show sdd subcommand help and exit 0”（`src/bin/llmanspec.rs:43-50`）。即 stdout 与退出 0。
+- 分组缺子命令：前代 `SddArgs.command` 必填（`crates/llman-sdd/src/sdd/command.rs:17-20`），clap 报 MissingSubcommand，退出码取 `use_stderr() ? 2 : 0`（`clap_builder-4.6.2/src/error/mod.rs:233-239`），即 stderr 与 2。
+- 非法枚举值：前代对 `--stage`、`--method`、`--kind` 用 clap `value_parser`，解析期报错退出 2（`sdd/command.rs:202,365,500,551`）。
+
+divergence 说明：前代自身不一致——handler 级校验（`--format`、`--backend`）退出 1，`--sort` 甚至完全不校验（非 `name` 一律当 `recent`）。故“统一为 2”对 clap 级多数点是回归，对 handler 级少数点是偏离。这是有意的口径选择：同一类用户错误不因校验点位置给出不同码。
+
+实测现状与目标：
 
 | 触发 | 现状 | 目标 |
 |---|---|---|
 | `unknown command` | 2 | 2 |
+| `unknown option` | 2 | 2 |
 | `invalid --output` | 2 | 2 |
 | `--compact-json requires --json` | 2 | 2 |
-| `unsupported --format` | 2 | 2 |
+| `unsupported --format` | 2 | 2（前代 1，有意偏离） |
 | `missing required argument` | 1 | 2 |
-| `invalid --type` / `--stage` / `--sort` | 1 | 2 |
+| 多余参数（`list extra`） | 1 | 2 |
+| `invalid --type`、`--stage`、`--sort`、`--method`、`--depth` | 1 | 2 |
+| `project migrate` 版本不成对或非法 | 0 或 1 | 2 |
+| 根裸无参数 | 0（help 到 stderr） | 0（help 到 stdout） |
+| 五个纯父分组裸调用 | 0（help 到 stderr） | 2（用法错误到 stderr） |
+| `config` 裸调用 | 0（stdout 概览） | 不变 |
 | 域错误（如 `change not found`） | 1 | 1 |
 
-设计：在 `main.ts` 的统一错误出口把用例错误归到退出 2。commander 的 `missingArgument` 默认退出 1，须经 `exitOverride` 改写。
+机制（探针验证）：
+
+- 根挂 `program.action(() => program.help())`：无参时触发，help 走 stdout，抛 `commander.help`。
+- 分组挂 action：只在无子命令匹配时触发；`change new x` 不触发。
+- main.ts 的错误分类从两个特判码扩成“非 help/version 的 `commander.*` 一律 2”。
+
+改动清单：
+
+1. 根挂 action，覆盖只给根级选项（如 `--max-scan-depth 5`）的情形。
+2. 5 个纯父分组（`change`、`spec`、`project`、`archive`、`index`）各挂 action 抛用法错误；`config` 保留默认 action。
+3. 枚举校验点补 2：`change --method`、`graph --depth`、`list --sort`、`validate --type`、`validate --stage`、`project migrate` 未知 action。
+4. `project migrate` 无 action 由静默改为用法错误。
 
 ### 4.3 共享输出面扩面
 
@@ -332,14 +456,42 @@ dated-archive id 正则的 4 个变体收敛为单点。semver 比较的 2 份�
 ### 4.8 收口细节
 
 - `change diff` 空 diff 输出一行提示，不再只输出空行。
-- 组命令空调用：按 Open Question 定为用法错误退出 2，或维持 0 并写入 spec。
+- 组命令空调用：见 4.2。根裸调用等同 `--help`，五个纯父分组退出 2。
 - `change archive` 与 `archive freeze/thaw` 的 help 互相交叉指引，消解同词不同义。
 - `assertCompactJsonPairing` 的布尔返回改为 `void`。现返回无人消费。
+
+### 4.9 `--backend` 归一化改为前代口径
+
+结论：三个单值旗标全部保留；本项只补 `--backend` 的归一化。
+
+保留依据：
+
+| 旗标 | 前代出处 | 语义 |
+|---|---|---|
+| `--backend` | `sdd/command.rs:256-260,281-285` | 文档含 `LLMAN_SDD_INDEX_BACKEND`，即“旗标 > env > 缺省 pageindex”的三值优先级链 |
+| `--format` | `sdd/command.rs:231-232` | 默认 `mermaid`，handler 拒绝其它值，是值域守护而非单值装饰 |
+
+`rag` 不是残留：前代 `Backend::parse` 保留专门的弃用报错分支，并有回归测试断言“pageindex 不得静默使用 rag 索引”。
+
+归一化分歧（实测）：
+
+| 输入 | 前代 | 现仓 |
+|---|---|---|
+| `--backend ''` | pageindex | rc 1 |
+| `LLMAN_SDD_INDEX_BACKEND=''` | pageindex | rc 1 |
+| `--backend PAGEINDEX` 或 `page-index` | 可用 | rc 1 |
+| `--backend ' pageindex '` | 可用 | rc 1 |
+
+改法：`resolveBackend` 补 trim 与 lowercase、接受 `page-index` 别名、空值与空 env 归 pageindex。报错文案保留本仓写法（人读文案不逐字复制前代）。
+
+补一条回归：旧 `rag/` 目录 MUST NOT 满足 pageindex 新鲜度。
 
 ## 保留红线
 
 - `report/specHelpers.ts:47` 的 max+1 与 `spec/authoring.ts:240` 的 smallest-free 是有意分叉。前者注释已记载与前任分叉的理由，不得合并。
 - `--json` 与 `--json --compact-json` 的载荷字节属前代兼容别名面，不得改动。
+- `spec *.--directory` 的绝对路径输出行，与单根下全部命令输出的逐字节一致，属不可变集。
+- 根发现算子只有一份：`--directory` 起点与向上查找的语义不得在命令间分叉。
 - 破环必须同步收缩允许边表，否则 `module-dependency-parity` 因表漂移而失败。
 - 批次 3 的任何收敛都不得引入 `node:fs`、`node:child_process`、`process` 或墙钟到 core。
 - 不得把 `progress.ts` 的进度提示语言、`migrateNotes.ts` 的迁移 note 语言、`parser.ts` 的 Gherkin 方言当成模板 locale 一并删除。三者是独立维度。
@@ -351,6 +503,8 @@ dated-archive id 正则的 4 个变体收敛为单点。semver 比较的 2 份�
 - 前后对比判据（重复代码数、死导出数、模板复制份数、测试用例数）必须在本 change 分支相对 merge-base 测量。默认分支测得的值不构成证据。
 - 重构类任务必须对比测试用例数，不得以减少覆盖换绿。
 - 批次 4 须补命令面矩阵测试：7 个报告命令乘 5 种旗标组合，断言行数与可解析性。
+- 子目录运行矩阵：在 `packages/core` 与 `apps/cli` 各跑一次只读命令，断言与仓库根一致。
+- 守卫兜底分支用单测直击（构造 argv 与 filename 不匹配），不起旧 Node 进程。
 - 退出码须补用法错误矩阵测试：逐项断言 1 与 2 的归属。
 - 编辑与验证不得同批并行。
 
@@ -361,3 +515,23 @@ dated-archive id 正则的 4 个变体收敛为单点。semver 比较的 2 份�
 - 保留 en 树只改默认值：双语言维护成本与两树分歧仍在，不符合本次目标。
 - 未知 locale 只改兜底链尾：改动面更小，但语义不统一。已按决策采用“一律归一为 zh-Hans”。
 - 收口只要求 tasks.md 全勾（口径 B）：迷你 change 要多写一行任务，且不堵“合约未改却收口”这一真实漏洞。已按决策采用口径 D。
+- 删除 `spec/feature-contract`：该单元由前代继承且被 9 次提交维护，删除等于销毁持续同步的权威文本；其独有内容若并入 `validation-hints` 要乘 16 渲染。已按决策改为精简后接回。
+- 只给 `--directory` 而不接入根发现：从子目录运行的静默错答仍在，且 r91 已要求所有命令参与发现。
+- 删除三个单值旗标：`--backend` 是三值优先级链加 `rag` 弃用指引，`--format` 是值域守护，前代二者都有。已按决策保留。
+
+## 决策记录
+
+五条 Open Question 的定案与一手证据。
+
+| # | 议题 | 定案 | 关键证据 |
+|---|---|---|---|
+| 1 | `spec/feature-contract` 去留 | 精简后接回 `propose`，并加“未引用单元”门禁 | 前代 `UNIT_FILES` 同样含该单元且零引用；本仓 9 次提交维护过该单元；r71 措辞使其成为权威引导 |
+| 2 | `CliContext` 推进幅度 | 全量注入，并把契约写入 `cli` | 37 处 `newIo()` 与 22 处 `makeCliGit` 是工作主体；前代把 root 显式传子进程 |
+| 3 | 组命令空调用退出码 | 根裸调用等同 `--help`（stdout 与 0），五个纯父分组退出 2 | 前代包装器把裸调用改写为 `sdd --help`；`SddArgs.command` 必填由 clap 报 MissingSubcommand |
+| 4 | 三个单值旗标 | 全部保留，并补 `--backend` 归一化；退出码统一为 2 标为主动 divergence | 前代三个旗标都有；前代 `Backend::parse` 做 trim、lowercase 与 `page-index` 别名 |
+| 5 | `--directory` 是否扩到只读命令 | 扩到全部命令，接入同一根发现算子 | r91 是 CLI 级条款且写“所有命令”；前代 `list` 不做向上发现，故本项超出前代 |
+
+另记两条本轮复现的雷，实施期必须防：
+
+- `import.meta.main` 的 Node 引入版本是 24.2.0，`engines.node` 下界是 24.0.0。守卫须带 realpath 兜底（见 2.1）。
+- `resolveRootSpecsDir` 的相对与绝对分叉有可观测后果（见 2.4 与 2.6）。

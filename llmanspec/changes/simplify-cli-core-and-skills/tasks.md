@@ -11,11 +11,13 @@
 ## 批次 0：止血
 
 - [ ] T1：提交规格
-  - 改 `llmanspec/specs/init-generators.feature`。r18 兜底链尾改为内置默认 `zh-Hans`，未知 locale 归一为 `zh-Hans`。r19 删双 locale 基线要求，只留 zh-Hans。r50 内置默认改为 `zh-Hans`。r66、r70、r71 删“双 locale”措辞。r97 删 en 强度词条款。r70 增加两条 MUST：模板加粗标记必须配对、模板示例必须可解析。
+  - 改 `llmanspec/specs/init-generators.feature`。r18 兜底链尾改为内置默认 `zh-Hans`，未知 locale 归一为 `zh-Hans`。r19 删双 locale 基线要求，只留 zh-Hans。r50 内置默认改为 `zh-Hans`。r66、r70、r71 删“双 locale”措辞。r97 删 en 强度词条款。r70 增加两条 MUST：模板加粗标记必须配对、模板示例必须可解析。r71 采“引导对使用者可见”读法：要求算出的指引文本声明该约定。
   - 改 `llmanspec/specs/config-schema.feature` r6。`locale` 缺省改为 `zh-Hans`。
   - 改 `llmanspec/specs/spec-parsing.feature` r7、r88。locale 归一后 `spec skeleton` 恒产出 zh-CN 方言，删 en 骨架场景。
   - 改 `llmanspec/specs/monorepo-structure.feature`。r3 守护范围加 `apps/cli/src`。r67 模板面不再含 en。
-  - 改 `llmanspec/specs/cli.feature`。r75 补退出码口径：缺必需参数、非法枚举值、非法组合一律退出 2。r76 补输出旗标组合语义与紧凑输出定义，并把共享面扩到 `change next-id`、`change diff`、`spec next-req-id`。
+  - 改 `llmanspec/specs/cli.feature`。r75 补退出码口径：缺必需参数、非法枚举值、非法组合一律退出 2；根裸调用等同 `--help`（stdout 与 0）；五个纯父分组缺必需子命令报用法错误退出 2，`config` 保留默认 action。r76 补输出旗标组合语义与紧凑输出定义，并把共享面扩到 `change next-id`、`change diff`、`spec next-req-id`。新增三条 requirement：入口可导入与守卫、上下文注入与 cwd 隔离、只读命令接入根发现与 `--directory`。
+  - 改 `llmanspec/specs/validation.feature`。r91 拆两段：多根枚举（`validate`，从 git 根向下扫）与单根解析（各命令，从 cwd 或 `--directory` 向上找最近实例根）。标注各命令接入根发现为超出前代的有意 divergence。
+  - 改 `llmanspec/specs/context-index.feature`。r57 的 `--backend` 归一化：trim 与 lowercase、接受 `page-index` 别名、空值与空 env 归 pageindex。
   - 改 `llmanspec/specs/change-lifecycle.feature`。r45 与 r79 补收口判据：要求 `specsLanded || !needsSpecsChange`，tasks.md 存在时要求全勾。r99 的 title 读取面扩到 `show` 与 `list`。
   - 改 `llmanspec/specs/review-freeze.feature`。`review` 的在途 change 未勾任务由 critical 降为 warning。
   - 改 `llmanspec/specs/peripheral-commands.feature`。`project migrate` 带范围旗标而无 `action` 时报用法错误。
@@ -25,10 +27,11 @@
   - 恢复 `zh-Hans/skills/{propose,continue,wayfinder,archive,verify,apply,apply-cycle}.md` 的加粗配对，共 8 处。
   - 把全部 `要不得继续` 改为 `是否继续`。
 
-- [ ] T3：补两条门禁断言 [blocked-by: T2]
+- [ ] T3：补三条门禁断言 [blocked-by: T2]
   - 在 `tests/unit/template-guidance-parity.test.ts` 增加加粗配对断言。扫描围栏外 `**` 计数，奇数报出来源文件与行号。
   - 增加模板示例可解析断言。抽取带 `# language:` 头的围栏块，用 `parseCapability` 试解析。
-  - 补单测：人工植入奇数 `**` 与不可解析示例，各自被报出。
+  - 增加“未引用单元”断言。`UNIT_FILES` 与 `unit()` 引用集合的差集非空即失败。
+  - 补单测：人工植入奇数 `**`、不可解析示例、未引用单元，各自被报出。
 
 - [ ] T4：修 CLI 侧 node-only 并加守护 [blocked-by: T1]
   - 改 `apps/cli/src/cli-shared.ts`。`Bun.spawnSync` 换 `node:child_process.spawnSync`，`exitCode` 断言换 `status`。`import.meta.dir` 换 `import.meta.dirname`。
@@ -85,7 +88,8 @@
   - 修“根 AGENTS.md 含全图”的悬空引用。
 
 - [ ] T13：处置死单元与单用单元
-  - 接回 `units/spec/feature-contract.md` 的引用，兑现 r71。
+  - 精简 `units/spec/feature-contract.md`：删与 `propose`、`validation-hints` 重复的行，只留独有内容（两布局并存算冲突、不存在 `spec.toon`、`# language:` 必填、覆盖分级、缩进层级）。
+  - 在 `propose` 的 4b 段接回 `unit()` 引用，兑现 r71。
   - 把 `units/workflow/archive-freeze-guidance.md` 内联进 `skills/llman-sdd-archive.md`，从 `UNIT_FILES` 移除。
 
 - [ ] T14：删死变量并修 4 处指引
@@ -108,7 +112,8 @@
 
 - [ ] T17：抽出 createProgram 工厂
   - 新增 `apps/cli/src/program.ts`，导出 `createProgram(ctx)`，保持注册顺序。
-  - `main.ts` 加 `if (import.meta.main)` 守卫。
+  - `main.ts` 加执行守卫：`import.meta.main` 为 undefined 时回退到 `process.argv[1]` 经 realpath 归一后与 `import.meta.filename` 比较，比较包 try/catch。
+  - 补单测直击兜底分支：构造 argv 与 filename 不匹配的输入，不起旧 Node 进程。
   - 改 `apps/cli/package.json` 的 `exports`。
   - 改 `tests/unit/removed-surface.test.ts` 为调用工厂，删注册顺序复刻。
 
@@ -119,16 +124,18 @@
   - 回归：旗标面、缺省 TOON、`show --output compact-json` 单行可解析都不变。
 
 - [ ] T19：收敛选项与 specs 根解析
-  - 抽 `addSpecDirOption(cmd)`，消除 6 处 `--directory` 重复声明。
-  - 抽 `withSpecRoot(dir, fn)`，统一三处分叉。
+  - 抽 `addSpecDirOption(cmd)`，消除 6 处 `--directory` 重复声明，并扩到全部命令，供 T38 使用。
+  - 抽 `withSpecRoot(dir, fn)`，统一三处分叉，相对与绝对路径的分叉语义收在其中。
 
 - [ ] T20：拆分 validate action
   - 把 `validate.ts:291-535` 提取为 `runAllRoots`、`resolveRootArg`、`runSingleItem`、`runBulk`。
 
 - [ ] T21：注入 CliContext [blocked-by: T17, T18, T19, T20]
-  - 引入 `CliContext { io, git, root, cwd }`，由 `main` 解析一次并注入。
-  - 替换 16 处 `makeCliGit(process.cwd())` 与 39 处 `process.cwd()`。
+  - 引入 `CliContext { io, git, root, cwd }`，由 `main` 解析一次并注入 13 个 `registerX`；`ctx.root` 来自 T38 的单点。
+  - `process.cwd()` 与 `makeCliGit(process.cwd())` 归零，改取 `ctx.cwd` 与 `ctx.git`。起点为 40 处与 22 处。
+  - 取消 `newIo()` 的懒读语义，io 由 ctx 持有。
   - 删 `validate.ts` 的 `process.chdir` 与配套 `try/finally`。
+  - 硬约束：单根运行时输出逐字节不变，含 `spec *.--directory <绝对路径>` 的绝对路径分叉。
   - 回归：集成测试与临时仓库 harness 场景全绿。
 
 ## 批次 3：core 去重
@@ -186,9 +193,11 @@
   - 回归：`--json` 与 `--json --compact-json` 的载荷字节不变。
 
 - [ ] T31：补全退出码口径
-  - 在 `main.ts` 统一出口把用法错误归到退出 2。
-  - 经 `exitOverride` 改写 commander 的 `missingArgument` 默认退出 1。
-  - 修 `invalid --type`、`invalid --stage`、`invalid --sort` 的退出码。
+  - 根挂 `program.action(() => program.help())`，覆盖只给根级选项的情形；help 走 stdout，退出 0。
+  - 5 个纯父分组（`change`、`spec`、`project`、`archive`、`index`）各挂 action 抛用法错误，退出 2；`config` 保留默认 action。
+  - 在 `main.ts` 统一出口把非 help/version 的 `commander.*` 一律归到退出 2，覆盖 `missingArgument` 与 `excessArguments`。
+  - 修 `change --method`、`graph --depth`、`list --sort`、`validate --type`、`validate --stage`、`project migrate` 未知 action 的退出码为 2。
+  - 修 `project migrate` 无 action 的静默行为；其版本解析错误归 2。
   - 补用法错误矩阵测试，逐项断言 1 与 2 的归属。
 
 - [ ] T32：三个命令接入共享输出面
@@ -217,13 +226,25 @@
 
 - [ ] T37：收口细节
   - `change diff` 空 diff 输出一行提示。
-  - 组命令空调用按定论统一退出码，并把该行为写入 spec。
+  - 组命令空调用的退出码见 T31，行为写入 spec。
   - `change archive` 与 `archive freeze/thaw` 的 help 互相交叉指引。
   - `assertCompactJsonPairing` 的布尔返回改 `void`。
 
+- [ ] T38：只读命令接入根发现 [blocked-by: T19, T21]
+  - 新增单点 `resolveCommandRoot(ctx, directory?)`，`ctx.root` 由该单点产出。
+  - 把 `list`、`show`、`graph`、`review`、`config`、`index`、`context` 的相对路径改为基于该根。
+  - 未找到实例根时报 `no llmanspec root at or above <path>`，不泄漏 `ENOENT`。
+  - 回归：在 `packages/core` 与 `apps/cli` 子目录各跑一次只读命令，结果与仓库根一致。
+  - 回归：单根下输出逐字节不变，含 `spec *.--directory <绝对路径>` 的绝对路径分叉。
+
+- [ ] T39：`--backend` 归一化与 rag 回归
+  - `cli-shared.ts` 的 `resolveBackend` 补 trim 与 lowercase、接受 `page-index` 别名、空值与空 env 归 pageindex。
+  - 报错文案保留现写法。
+  - 补回归：旧 `rag/` 目录 MUST NOT 满足 pageindex 新鲜度。
+
 ## 验证
 
-- [ ] T38：全量验收 [blocked-by: T3, T4, T5, T15, T16, T21, T22, T24, T25, T26, T27, T28, T29, T30, T31, T32, T33, T34, T35, T36, T37]
+- [ ] T40：全量验收 [blocked-by: T3, T4, T5, T15, T16, T21, T22, T24, T25, T26, T27, T28, T29, T30, T31, T32, T33, T34, T35, T36, T37, T38, T39]
   - 在 change 分支跑 `just qa`，全绿。
   - 跑 `llman-sdd validate --all --strict --check`，通过。
   - 记录前后对比证据：重复代码数、死导出数、模板复制份数、测试用例数。全部相对 merge-base 测量。
