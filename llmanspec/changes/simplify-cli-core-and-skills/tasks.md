@@ -15,6 +15,10 @@
   - 改 `llmanspec/specs/config-schema.feature` r6。`locale` 缺省改为 `zh-Hans`。
   - 改 `llmanspec/specs/spec-parsing.feature` r7、r88。locale 归一后 `spec skeleton` 恒产出 zh-CN 方言，删 en 骨架场景。
   - 改 `llmanspec/specs/monorepo-structure.feature`。r3 守护范围加 `apps/cli/src`。r67 模板面不再含 en。
+  - 改 `llmanspec/specs/cli.feature`。r75 补退出码口径：缺必需参数、非法枚举值、非法组合一律退出 2。r76 补输出旗标组合语义与紧凑输出定义，并把共享面扩到 `change next-id`、`change diff`、`spec next-req-id`。
+  - 改 `llmanspec/specs/change-lifecycle.feature`。r45 与 r79 补收口判据：要求 `specsLanded || !needsSpecsChange`，tasks.md 存在时要求全勾。r99 的 title 读取面扩到 `show` 与 `list`。
+  - 改 `llmanspec/specs/review-freeze.feature`。`review` 的在途 change 未勾任务由 critical 降为 warning。
+  - 改 `llmanspec/specs/peripheral-commands.feature`。`project migrate` 带范围旗标而无 `action` 时报用法错误。
   - 在本 change 分支提交 specs。
 
 - [ ] T2：修 zh-Hans 模板加粗与语义
@@ -171,9 +175,55 @@
   - 提取 `change/lifecycle.ts` 的 close-out 门错误构造。
   - 改 `review/review.ts` 为复用 `collectUnboundRequirements`。
 
+## 批次 4：命令面口径收敛
+
+- [ ] T30：统一输出旗标组合语义 [blocked-by: T18]
+  - 新增单点 `renderMachine(value, mode)`。`compact-json` 用 `JSON.stringify(value)`，不带缩进。
+  - 删 `commands/list.ts` 的 `text.replaceAll('\n','')`，改由单点按 mode 渲染。
+  - `--compact-json` 与 `--output toon|human` 同用时报用法错误，退出 2。
+  - 把 `--compact-json` 的成对约束写入 help 文案。
+  - 补矩阵测试：7 个报告命令乘 5 种旗标组合，断言行数与可解析性。
+  - 回归：`--json` 与 `--json --compact-json` 的载荷字节不变。
+
+- [ ] T31：补全退出码口径
+  - 在 `main.ts` 统一出口把用法错误归到退出 2。
+  - 经 `exitOverride` 改写 commander 的 `missingArgument` 默认退出 1。
+  - 修 `invalid --type`、`invalid --stage`、`invalid --sort` 的退出码。
+  - 补用法错误矩阵测试，逐项断言 1 与 2 的归属。
+
+- [ ] T32：三个命令接入共享输出面
+  - `commands/change.ts` 的 `next-id` 与 `diff`、`commands/spec.ts` 的 `next-req-id` 改用 `addReportOutputOptions`。
+  - 回归：`--json` 载荷字节不变。
+
+- [ ] T33：show 与 list 回显权威 title
+  - 新增 `changeTitle(proposal)`，frontmatter `title` 优先，`firstH1` 回退。
+  - 改 `packages/core/src/change/collect.ts` 与 `packages/core/src/report/show.ts` 的 title 取值。
+  - 回归：title 缺失时回退 H1 的行为不变。
+
+- [ ] T34：收口复用 readyToImplement 判据
+  - 抽出 `closeOutGate(change)`，复用 `specs-landed` 与 `tasks-done` 判据。
+  - 收口要求 `specsLanded || !needsSpecsChange`；tasks.md 存在时要求全勾。
+  - `change finalize` 与 `change archive` 在合并前调用该门，失败零写入。
+  - 改 `show.ts` 的 `tasksHint`，tasks.md 缺失时不再提示“complete or check off remaining tasks”。
+  - 补场景测试：合约未改而收口被拒；迷你 change 收口通过。
+
+- [ ] T35：review 未勾任务降级
+  - `validate` 信号的未勾任务落 `warningCount`，不计 `criticalCount`。
+  - 回归：`locked` 与 `unbound` 信号不变。
+
+- [ ] T36：project migrate 范围旗标校验
+  - 出现 `--from-version`、`--to-version`、`--kind` 而无 `action` 时报用法错误，退出 2。
+  - 错误消息列出 `prompt` 与 `strip-legacy-headers` 两个合法 `action`。
+
+- [ ] T37：收口细节
+  - `change diff` 空 diff 输出一行提示。
+  - 组命令空调用按定论统一退出码，并把该行为写入 spec。
+  - `change archive` 与 `archive freeze/thaw` 的 help 互相交叉指引。
+  - `assertCompactJsonPairing` 的布尔返回改 `void`。
+
 ## 验证
 
-- [ ] T30：全量验收 [blocked-by: T3, T4, T5, T15, T16, T21, T22, T24, T25, T26, T27, T28, T29]
+- [ ] T38：全量验收 [blocked-by: T3, T4, T5, T15, T16, T21, T22, T24, T25, T26, T27, T28, T29, T30, T31, T32, T33, T34, T35, T36, T37]
   - 在 change 分支跑 `just qa`，全绿。
   - 跑 `llman-sdd validate --all --strict --check`，通过。
   - 记录前后对比证据：重复代码数、死导出数、模板复制份数、测试用例数。全部相对 merge-base 测量。

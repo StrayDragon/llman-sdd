@@ -1,12 +1,19 @@
 ---
 depends_on: []
-title: 统一 CLI 与 core 的重复代码，默认中文化 skills 模板并补齐门禁盲区
+title: 统一 CLI 与 core 的重复代码，中文单线化模板，并收敛命令面口径
 needs_specs_change: true
 ---
 
 ## Why
 
-本 change 解决三类问题：skills 产物教出错误内容、同一逻辑写了三份代码、模板树维护两份语言。
+本 change 解决四类问题：
+
+- skills 产物教出错误内容。
+- 运行时代码违反本仓硬规则。
+- 同一逻辑写了三份。
+- 模板树维护两份语言。
+
+另有一批命令面口径问题，随本轮调研一并并入。
 
 ### skills 产物教出错误内容
 
@@ -44,9 +51,20 @@ core 内三组概念各写了三份代码，语义已漂移：
 
 en 树与 zh-Hans 树各 29 个文件，一一平行。每次改动要改两份，两树已出现真实分歧：archive-freeze 的保留窗口、arch-review 的 `subagent_type`、`Feature:` 与 `功能:`。删除 en 树可一次性消除这类分歧，并为后续精简腾出空间。
 
+### 命令面口径不自洽
+
+本轮遍历 36 个命令入口，其中 29 条只读调用在真实仓库执行，30 条写盘调用在临时仓库执行。发现 6 组问题：
+
+- 输出旗标组合三态：`--output json --compact-json` 在 `show` 与 `list` 落单行，在 `validate`、`index check`、`config skills`、`spec unbound`、`review` 被静默忽略（分别 142、6、11、7、98 行）。`list` 的单行由 `apps/cli/src/commands/list.ts:41` 删换行得到，比正确紧凑输出多 858 字节空白。
+- 退出码同族不一致：非法枚举值 `--type`、`--stage`、`--sort` 退出 1，而同为非法枚举值的 `--output` 退出 2；`missing required argument` 退出 1，`unknown command` 退出 2。
+- `show` 不显示权威 title：frontmatter `title` 非空时仍输出 `title: ""`。根因是 `packages/core/src/change/collect.ts:127` 取 `firstH1`，而模板正文以 `## Why` 开头。
+- 收口门禁漏洞：`change finalize` 可对 `stage: draft`、仅 `proposal.md`、specs 未改的 change 收口并退出 0。`packages/core/src/report/show.ts:129` 已算好 6 项判据，收口却未复用。
+- `review` 在开发期恒失败：只要存在在途 change 的未勾任务，`criticalCount` 即为 1，退出 1。
+- 静默忽略与单值旗标：`project migrate` 带 `--from-version/--to-version` 而不带 `action` 时旗标被忽略且退出 0；`graph --format` 仅接受 mermaid。
+
 ## What Changes
 
-分四批推进。批次内可并行，批次间按依赖串行。
+分五批推进。批次内可并行，批次间按依赖串行。
 
 ### 批次 0：止血
 
@@ -87,6 +105,17 @@ en 树与 zh-Hans 树各 29 个文件，一一平行。每次改动要改两份�
 - 破 `config` 与 `templates` 模块环，同步收缩允许边表。
 - 收敛局部重复：pattern gate、close-out 门错误构造、`review` 复用 `collectUnboundRequirements`。
 
+### 批次 4：命令面口径收敛
+
+- 输出旗标组合定为单一规则：`--output` 显式值优先；`--compact-json` 与 `--json` 成对（前代语义保留）；紧凑输出改由 `JSON.stringify` 单点产生，不再删换行；`--compact-json` 的成对约束写入 help 与 spec。
+- 退出码口径补全：参数解析失败（缺必需参数、非法枚举值、非法组合）一律退出 2。
+- `change next-id`、`change diff`、`spec next-req-id` 接入共享输出面，同时保留 `--json` 的字节一致输出。
+- `show` 与 `list` 回显 frontmatter `title`，H1 仅作回退。
+- 收口复用 `readyToImplement` 的判据：要求 `specsLanded || !needsSpecsChange`，tasks.md 存在时要求全勾。
+- `review` 把在途 change 的未勾任务由 critical 降为 warning。
+- `project migrate` 带范围旗标而不带 `action` 时报用法错误。
+- 收口细节：`change diff` 空 diff 输出提示、组命令空调用的退出码、`change archive` 与 `archive` 的 help 交叉指引。
+
 ## Capabilities
 
 | capability | 变更 |
@@ -95,6 +124,10 @@ en 树与 zh-Hans 树各 29 个文件，一一平行。每次改动要改两份�
 | `specs/config-schema` | r6 的 `locale` 缺省值由 `en` 改为 `zh-Hans` |
 | `specs/spec-parsing` | r7 与 r88 的方言口径：未知 locale 归一后 `spec skeleton` 恒产出 zh-CN 方言 |
 | `specs/monorepo-structure` | r3 守护范围含 `apps/cli/src`；r67 模板面不再含 en |
+| `specs/cli` | r75 退出码口径补全；r76 输出旗标组合语义、紧凑输出定义、共享面扩到 3 个命令 |
+| `specs/change-lifecycle` | r45/r79 收口复用 `specs-landed` 与 `tasks-done` 判据；r99 的 title 读取面扩到 show/list |
+| `specs/review-freeze` | `review` 的未勾任务信号由 critical 降为 warning |
+| `specs/peripheral-commands` | `project migrate` 的范围旗标缺 `action` 时报用法错误 |
 
 其余 capability 不产生对外行为变更，作回归守护。
 
@@ -103,17 +136,23 @@ en 树与 zh-Hans 树各 29 个文件，一一平行。每次改动要改两份�
 - 代码：`apps/cli/src/**`、`packages/core/src/**`、`tests/unit/**`、`tests/bdd/**`。
 - 资源与基线：删 en 树 29 个文件；重生成双份基线收敛为一份；刷新 `.agents/skills/**`。
 - 迁移：新增 `migrations/v0.9-v0.10/README.md`，并在 `packages/core/src/project/migrations.ts` 注册版本项。
-- 破坏面：`locale: en` 的存量项目升级后渲染结果变为中文。
+- 破坏面一：`locale: en` 的存量项目升级后渲染结果变为中文。
+- 破坏面二：`change finalize` 的守卫收紧，合约未改的 change 不再能收口。
+- 破坏面三：组命令空调用退出码由 0 改为 2；缺必需参数与非法枚举值的退出码由 1 改为 2。
 
 ## Non-Goals
 
-- 不删任何对外命令或旗标。
+- 不删除任何对外命令。
 - 不把 6 个 optional skill 纳入 golden 快照门。
 - 不改 Gherkin 解析器语义、不改 config schema 字段集、不改冻结归档格式。
 - 不改变 Gherkin 方言匹配器（`parser.ts` 仍以 en 起步、回退 zh-CN）。
 - 不引入打包器，不引入新运行时依赖。
+- 不处理 `--backend`、`--version-expr`、`--lang` 的去留，按先前定案排除。
 
 ## Open Questions
 
 - `spec/feature-contract` 单元接回引用还是删除。倾向接回，因为 r71 已把该单元当作权威引导实体。
 - `CliContext` 注入的推进幅度。倾向全量替换，否则不解决嵌入态。
+- 组命令空调用的退出码取向。倾向按用法错误一律退出 2，但前代可能维持 0。
+- `graph --format`、`index rebuild --backend`、`context --backend` 三个单值旗标的去留。倾向删除，值域只有一个时不提供旗标。
+- `--directory` 是否扩到只读命令。当前只覆盖 validate 与 5 个 spec 子命令。

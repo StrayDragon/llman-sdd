@@ -6,10 +6,12 @@
 packages/core                    纯域逻辑，每个概念一个 SSOT
   ├─ frontmatter 读取            extractFrontmatter 为唯一切分口径
   │    readDeps(text, mode)      mode=lenient 供 graph，mode=strict 供 validate
+  │    changeTitle(proposal)     frontmatter title 优先，H1 回退
   ├─ 共享算子
   │    walkActiveChangeDirs()    收编三份遍历
   │    discoverSpecs()           收编三份 .feature 发现
   │    datedArchiveId() / compareSemver()
+  │    closeOutGate(change)      收口门，复用 specs-landed 与 tasks-done 判据
   ├─ ports
   │    interface FsPort          各模块 Pick 收窄
   └─ barrel index.ts            只导出有消费者的符号
@@ -18,7 +20,7 @@ apps/cli                         应用服务层加可嵌入入口
   ├─ program.ts                 export createProgram(ctx): Command
   ├─ main.ts                    import.meta.main 守卫，仅装配
   ├─ CliContext                 { io, git, root, cwd }
-  ├─ emitReport()               输出管线单点
+  ├─ emitReport()               输出管线单点，含紧凑化与退出码归类
   └─ commands/*                 仅解析参数，调 core
 
 packages/core/templates          中文单线
@@ -35,7 +37,7 @@ packages/core/templates          中文单线
 
 - 根因：r97 禁 `不要` 子串，既有文案 `要不要继续` 被无边界替换成 `要不得继续`，加粗标记同时被拆散。
 - 修法：`要不要继续` 改为 `是否继续`。语义不变，且不含被禁子串。
-- 修法：逐处恢复加粗配对，写成 `**不得问"是否继续？"**`。
+- 修法：逐处恢复加粗配对，写成 `**不得问“是否继续？”**`。
 - 说明：放宽 r97 词表要改 spec，且削弱门禁。改近义词成本更低。
 
 ### 0.2 门禁补盲
@@ -144,7 +146,7 @@ packages/core/templates          中文单线
 
 结论：输出分派收敛为单点。
 
-签名：`emitReport(value, opts, humanFn?)`。内部依次做 pairing 校验、`resolveOutMode`、`renderMachine`、human 回退。
+签名：`emitReport(value, opts, humanFn?)`。内部依次做配对校验、`resolveOutMode`、`renderMachine`、human 回退。
 
 迁移 `config`、`index`、`spec`、`review`、`list`、`validate`。删除 `show.ts` 的 49 行自建 token 解析，改为复用，保留其自定义 `outputHint`。
 
@@ -230,18 +232,126 @@ dated-archive id 正则的 4 个变体收敛为单点。semver 比较的 2 份�
 - 提取 `change/lifecycle.ts` 中 finalize 与 archive 逐字重复的 close-out 门错误构造。
 - `review/review.ts:56` 改用 `report/unbound.ts:29` 的 `collectUnboundRequirements`。
 
+## 批次 4：命令面口径收敛
+
+### 4.1 输出旗标组合语义
+
+结论：`--output` 显式值优先，`--compact-json` 是修饰符，紧凑化单点产生。
+
+实测三态：
+
+| 命令 | `--output json --compact-json` 行数 |
+|---|---|
+| `show`、`list` | 1 |
+| `validate` | 142 |
+| `index check` | 6 |
+| `config skills` | 11 |
+| `spec unbound` | 7 |
+| `review` | 98 |
+
+设计：
+
+1. `resolveOutMode` 保持取值序：显式 `--output` > `--compact-json` > `--json` > toon。
+2. 新增单点 `renderMachine(value, mode)`。`mode='compact-json'` 时用 `JSON.stringify(value)`，不带缩进。
+3. 删除 `commands/list.ts:41` 的 `text.replaceAll('\n','')`，改由 `renderMachine` 按 mode 渲染。该 hack 是 858 字节多余空白的来源。
+4. 组合规则：`--compact-json` 与 `--output toon|human` 同用报用法错误（退出 2），不再静默忽略。
+5. `--compact-json` 单独使用的成对约束写入 help 文案与 `cli` r76。
+
+前代兼容别名面不动：`--json` 与 `--json --compact-json` 的载荷字节保持不变。
+
+### 4.2 退出码口径
+
+结论：参数解析失败一律退出 2。
+
+实测现状：
+
+| 触发 | 现状 | 目标 |
+|---|---|---|
+| `unknown command` | 2 | 2 |
+| `invalid --output` | 2 | 2 |
+| `--compact-json requires --json` | 2 | 2 |
+| `unsupported --format` | 2 | 2 |
+| `missing required argument` | 1 | 2 |
+| `invalid --type` / `--stage` / `--sort` | 1 | 2 |
+| 域错误（如 `change not found`） | 1 | 1 |
+
+设计：在 `main.ts` 的统一错误出口把用例错误归到退出 2。commander 的 `missingArgument` 默认退出 1，须经 `exitOverride` 改写。
+
+### 4.3 共享输出面扩面
+
+结论：三个命令接入共享注册。
+
+`change next-id`、`change diff`、`spec next-req-id` 当前自挂 `--json`（`commands/change.ts:252,348`、`commands/spec.ts:86`）。接入 `addReportOutputOptions` 后同时支持 `--output` 与 `--compact-json`。
+
+硬约束：`--json` 的载荷字节不变。
+
+### 4.4 show 与 list 回显权威 title
+
+结论：title 取值改为 frontmatter 优先、H1 回退。
+
+- 新增单点 `changeTitle(proposal)`：先取 frontmatter `title`（非空），否则 `firstH1`。
+- `packages/core/src/change/collect.ts:127` 与 `packages/core/src/report/show.ts:126` 改用该单点。
+- 依据：`llmanspec/AGENTS.md` 与 r99 已规定 frontmatter `title` 权威、freeze 优先。
+- 回归：frontmatter title 缺失时回退 H1 的行为不变。
+
+### 4.5 收口复用 readyToImplement 判据（口径 D）
+
+结论：收口要求合约已改并提交，或显式声明不改合约。
+
+规则：
+
+- 收口要求 `specsLanded || !needsSpecsChange`。
+- tasks.md 存在时要求全部勾选；缺失不阻断。
+- 不要求 design.md。
+
+改动点：
+
+- 抽出 `closeOutGate(change)`，复用 `report/show.ts:104-115` 已有的 `specs-landed` 与 `tasks-done` 判据。
+- `change finalize` 与 `change archive` 在合并前调用该门，失败零写入。
+- 同步改 `show.ts:82-85` 的 `tasksHint`，tasks.md 缺失时不再提示“complete or check off remaining tasks”。
+- `specsLanded` 判据来自 `packages/core/src/change/frontmatter.ts:72-76`：`git diff --name-only <base_branch>...<branch>` 中出现 `llmanspec/specs/` 路径。
+
+注意：`needs_specs_change` 缺省为 true，故默认路径要求 specs 已改。迷你 change（`llman-sdd-quick.md:32`）在绑定分支已改 specs，天然通过。实测命中的漏洞形态正是“`needs_specs_change` 缺省 true、specs 从未改动、却收口成功”。
+
+### 4.6 review 的未勾任务降级
+
+结论：未勾任务计为 warning，不计 critical。
+
+现状：只要存在在途 change 的未勾任务，`review` 的 `criticalCount` 即为 1，退出 1。开发期恒失败，命令不可用。
+
+设计：`validate` 信号按 `validate` 缺省口径呈现，未勾任务落 `warningCount`；`locked` 与 `unbound` 信号不动。
+
+### 4.7 project migrate 的范围旗标
+
+结论：带范围旗标而无 `action` 时报用法错误。
+
+现状：`--from-version`、`--to-version`、`--kind` 在无 `action` 时被忽略，退出 0。
+
+设计：三者任一出现而无 `action` → 用法错误，退出 2，提示 `prompt` 与 `strip-legacy-headers` 两个合法 `action`。
+
+### 4.8 收口细节
+
+- `change diff` 空 diff 输出一行提示，不再只输出空行。
+- 组命令空调用：按 Open Question 定为用法错误退出 2，或维持 0 并写入 spec。
+- `change archive` 与 `archive freeze/thaw` 的 help 互相交叉指引，消解同词不同义。
+- `assertCompactJsonPairing` 的布尔返回改为 `void`。现返回无人消费。
+
 ## 保留红线
 
 - `report/specHelpers.ts:47` 的 max+1 与 `spec/authoring.ts:240` 的 smallest-free 是有意分叉。前者注释已记载与前任分叉的理由，不得合并。
+- `--json` 与 `--json --compact-json` 的载荷字节属前代兼容别名面，不得改动。
 - 破环必须同步收缩允许边表，否则 `module-dependency-parity` 因表漂移而失败。
 - 批次 3 的任何收敛都不得引入 `node:fs`、`node:child_process`、`process` 或墙钟到 core。
 - 不得把 `progress.ts` 的进度提示语言、`migrateNotes.ts` 的迁移 note 语言、`parser.ts` 的 Gherkin 方言当成模板 locale 一并删除。三者是独立维度。
+- `change finalize` 与 `change archive` 的合并语义、`--into`/`--method`/`--no-commit` 取值序不动，只加合并前的收口门。
 
 ## 验证策略
 
 - 层级：L1 定向 `tests/unit/*`；L2 定向 `bun test tests/bdd -t "<模式>"`；L3 `llman-sdd validate --check`；L4 `just qa` 兜底。
 - 前后对比判据（重复代码数、死导出数、模板复制份数、测试用例数）必须在本 change 分支相对 merge-base 测量。默认分支测得的值不构成证据。
 - 重构类任务必须对比测试用例数，不得以减少覆盖换绿。
+- 批次 4 须补命令面矩阵测试：7 个报告命令乘 5 种旗标组合，断言行数与可解析性。
+- 退出码须补用法错误矩阵测试：逐项断言 1 与 2 的归属。
 - 编辑与验证不得同批并行。
 
 ## 备选方案
@@ -250,3 +360,4 @@ dated-archive id 正则的 4 个变体收敛为单点。semver 比较的 2 份�
 - 只修文案不补门禁：r97 的 `不要` 子串规则仍在，缺陷会再次被固化，故必须补门禁。
 - 保留 en 树只改默认值：双语言维护成本与两树分歧仍在，不符合本次目标。
 - 未知 locale 只改兜底链尾：改动面更小，但语义不统一。已按决策采用“一律归一为 zh-Hans”。
+- 收口只要求 tasks.md 全勾（口径 B）：迷你 change 要多写一行任务，且不堵“合约未改却收口”这一真实漏洞。已按决策采用口径 D。
