@@ -22,7 +22,10 @@ const SRC_DIR = join(REPO_ROOT, 'packages', 'core', 'src');
 const ALLOWED: Readonly<Record<string, readonly string[]>> = {
   archive: ['change', 'util'],
   change: ['git', 'util'],
-  config: ['change', 'templates', 'root'],
+  // config -> change edge removed by unify-numeric-id-allocation (r72 shrink):
+  // changeId.ts no longer imports the tree-only harvest; template vars take
+  // the CLI-injected worktree-union collector instead.
+  config: ['templates', 'root'],
   context: ['spec', 'validation', 'util'],
   init: ['change', 'config', 'context', 'root', 'templates', 'util'],
   project: ['util'],

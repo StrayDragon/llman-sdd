@@ -2,6 +2,9 @@
 depends_on: []
 title: 数字标识符分发口径统一——全勘察范围 max+1 单一分配器与工作区内唯一性检验
 needs_specs_change: true
+branch: sdd/unify-numeric-id-allocation
+base_branch: main
+base_sha: 06ce4d7d8458584ac6f833e371bdca914cde68dc
 ---
 
 ## Why

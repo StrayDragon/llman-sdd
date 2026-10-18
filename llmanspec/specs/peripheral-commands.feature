@@ -58,8 +58,10 @@
   规则: spec 助手与 migrate 引导壳
     `spec skeleton <cap>` MUST 生成通过单轨校验的骨架(locale 按 config);骨架 MUST NOT 创建仓库根 `src/` 目录,且 MUST NOT 写入
     `# scope:` 或 `# capability:` 头注释(头部仅 `# language:`/`# purpose:`);`spec next-req-id` MUST 扫描全局 rN 注册表输出最大已用号加一(空注册表输出 r1)且 MUST NOT 复用树内已
-    退役的空缺号段(`spec skeleton` 取号共用同一语义;有意 divergent 于前代 smallest free 语义,依据 issue #5 与
-    align-next-req-id-max-plus-one 的 design);`project migrate` 的 `--kind` legacy 协作说明 MUST 保持输出且该路径不执行任何迁移;迁移总览、playbook 与 strip 子命令见 peripheral-commands r100。
+    退役的空缺号段(`spec skeleton` 取号共用同一语义;数字 id 分发统一为 max+1 单点分配器原语,分发与 already-in-use 检验
+    MUST 同源且 MUST 零持久化状态(不写计数器/tombstone/缓存文件,重扫描即真相),`project dedupe-req-ids` 重映射与
+    change_id.template 的 llman_sdd_unique_id 同受此约束;本条取代「与前代
+    smallest free 有意分叉、不得合并」旧红线,退役号不复用的理由继承 issue #5 与 align-next-req-id-max-plus-one 的 design);`project migrate` 的 `--kind` legacy 协作说明 MUST 保持输出且该路径不执行任何迁移;迁移总览、playbook 与 strip 子命令见 peripheral-commands r100。
 
     场景: spec 助手产物与 migrate 三态
       假如 一个已初始化且含 r1 规则的临时仓库

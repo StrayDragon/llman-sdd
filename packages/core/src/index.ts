@@ -18,7 +18,6 @@ export {
 export {
   ChangeIdError,
   compileChangeIdPattern,
-  nextUniqueNumber,
   renderChangeIdTemplate,
 } from './config/changeId.ts';
 export { renderConfigOverview, skillsJson } from './config/surface.ts';
@@ -330,3 +329,4 @@ export {
   type TierEntry,
   type TreeToolDeps,
 } from './context/retrieve.ts';
+export { maxUsedNumber, nextNumber } from './util/nextNumber.ts';

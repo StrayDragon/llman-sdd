@@ -53,7 +53,10 @@
   @req:r43
   规则: resolve-req 反查与注册表去重
     `spec resolve-req <req_id>` MUST 输出该 req 的 capability 与 statement,未命中 MUST
-    报错;`project dedupe-req-ids` MUST 扫描主库(非归档 specs)冲突 rN(同文件内多条规则共用或跨文件)并重映射为空闲短 id,重映射语义为按出现顺序首现保留、其余出现逐个重取号,替换 MUST 精确匹配 `@req:<id>` 标签边界(不得误伤前缀相近的 id);`--dry-run` MUST 仅输出映射计划且零副作用。
+    报错;`project dedupe-req-ids` MUST 扫描主库(非归档 specs)冲突 rN(同文件内多条规则共用或跨文件)并重映射,重映射取号
+    MUST 消费与全局取号同一的数字 id 分配器(工作区已用号集合上的 max+1 序列:首个重映射取当前最大已用号加一,后续每占用
+    一个递增一,MUST NOT 取最小空闲号;如已用号含 r5 时冲突重映射序列为 r6,r7),重映射语义为按出现顺序首现保留,替换 MUST
+    精确匹配 `@req:<id>` 标签边界(不得误伤前缀相近的 id);`--dry-run` MUST 仅输出映射计划且零副作用。
     `spec unbound` 未绑定需求检索(同属 spec 命令组,命令契约见 peripheral-commands r89):与 resolve-req 共用共享判定
     (ruleHasRunnableScenario,见 spec-parsing r9)与注册表句柄,检索面不新增独立定义。
 
@@ -74,12 +77,17 @@
     场景: dedupe 重映射冲突
       假如 一个两个 spec 含相同 rN 的临时 specs 目录
       当 运行 project dedupe-req-ids
-      那么 后一个文件的 rN 被重映射为空闲 id
+      那么 后一个文件的 rN 被重映射为 max+1 序列号
 
     场景: dedupe 重映射同文件冲突
       假如 一个同文件内两条规则挂相同 rN 的临时 specs 目录
       当 运行 project dedupe-req-ids
-      那么 文件内首处 rN 保留且后一处被重映射为空闲 id
+      那么 文件内首处 rN 保留且后一处被重映射为 max+1 序列号
+
+    场景: dedupe 重映射取 max+1 序列而非最小空闲号
+      假如 一个两个 spec 含相同 r1 且注册表已用 r5 的临时 specs 目录
+      当 运行 project dedupe-req-ids
+      那么 冲突 r1 被重映射为 r6 而非最小空闲号
 
     场景: dedupe 重映射不误伤前缀相近句柄
       假如 一个两个 spec 含相同 r1 且其一文件含 @req:r10 的临时 specs 目录

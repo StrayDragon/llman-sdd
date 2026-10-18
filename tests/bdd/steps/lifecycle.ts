@@ -1527,6 +1527,25 @@ bdd.thenStep('报错含 "{text}"', (ctx, text) => {
   throw new Error('missing finalize/dryrun/archive result fixture');
 });
 
+// unify-numeric-id-allocation — 模板变量与 change next-id 同收集器夹具:
+// 主树已用 c1,链接 worktree 另有 c50 → 并集 max=50,分发必须 51。
+bdd.given('一个配置模板且主树含 c1 与链接 worktree 含 c50 的临时仓库', (ctx) => {
+  const repo = makeTempRepo();
+  mkdirSync(join(repo.root, 'llmanspec', 'changes', 'c1-seed'), { recursive: true });
+  writeFileSync(
+    join(repo.root, 'llmanspec', 'config.yaml'),
+    'schema: spec-driven\nchange_id:\n  template: "c{{ llman_sdd_unique_id }}-{{ subject }}"\n',
+  );
+  repo.run('git', ['add', '-A']);
+  repo.run('git', ['commit', '-qm', 'seed c1']);
+  const basename = repo.root.slice(repo.root.lastIndexOf('/') + 1);
+  const wt = join(repo.root, '..', `${basename}-wt`);
+  repo.run('git', ['worktree', 'add', '-q', wt, '-b', 'wt-side']);
+  mkdirSync(join(wt, 'llmanspec', 'changes', 'c50-other'), { recursive: true });
+  ctx.fixtures['nextid工作区'] = { root: repo.root };
+  ctx.fixtures['dryrun工作区'] = { root: repo.root };
+});
+
 // r60 — template 未定义变量
 bdd.given('一个 change_id.template 引用未定义变量 "{tpl}" 的临时仓库', (ctx, tpl) => {
   const root = mkdtempSync(join(tmpdir(), 'llman-tpl-'));

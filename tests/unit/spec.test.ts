@@ -422,9 +422,39 @@ describe('spec authoring helpers (r41-r43, native v2)', () => {
     planDedupe(entries, io, 'llmanspec/specs', registry.duplicates);
     const after = store['llmanspec/specs/b.feature'] as string;
     expect(after).toInclude('@req:r10');
-    expect(after).toInclude('@req:r2');
+    // max+1 口径:已用 {r1, r10} → 重映射取 r11(旧 smallest-free 行为 r2 已废弃)
+    expect(after).toInclude('@req:r11');
     expect(after).not.toInclude('@req:r20');
     expect(after).not.toMatch(/@req:r1(?!\d)/u);
+  });
+
+  // unify-numeric-id-allocation:重映射序列 = 已用集合上的 max+1 迭代
+  // ({r1 冲突×2, r5 已用} → r6, r7),MUST NOT 取最小空闲号(r2/r3)。
+  test('planDedupe remap sequence takes max+1 iterations, not smallest-free', () => {
+    const a = HEAD + '\n  @req:r5\n  规则: 乙\n    系统 MUST 抬号\n';
+    const b = HEAD.replace('capability: a', 'capability: b');
+    const c = HEAD.replace('capability: a', 'capability: c');
+    const { io, store } = memIo({
+      'llmanspec/specs/a.feature': a,
+      'llmanspec/specs/b.feature': b,
+      'llmanspec/specs/c.feature': c,
+    });
+    const entries = [
+      { fileName: 'llmanspec/specs/a.feature', doc: parseCapability(a, 'a.feature') },
+      { fileName: 'llmanspec/specs/b.feature', doc: parseCapability(b, 'b.feature') },
+      { fileName: 'llmanspec/specs/c.feature', doc: parseCapability(c, 'c.feature') },
+    ];
+    const registry = buildReqRegistry(entries);
+    expect(registry.duplicates.map((d) => d.reqId)).toEqual(['r1']);
+    const plan = planDedupe(entries, io, 'llmanspec/specs', registry.duplicates);
+    expect(plan.map((p) => p.newReqId)).toEqual(['r6', 'r7']);
+    const afterB = store['llmanspec/specs/b.feature'] as string;
+    const afterC = store['llmanspec/specs/c.feature'] as string;
+    expect(afterB).toInclude('@req:r6');
+    expect(afterC).toInclude('@req:r7');
+    // 已用号段之间的空闲号(r2/r3/r4)保持空缺,不被复用
+    expect(afterB).not.toMatch(/@req:r[23](?!\d)/u);
+    expect(afterC).not.toMatch(/@req:r[234](?!\d)/u);
   });
 
   test('fr spec files get official fr keywords for appended blocks and scenarios', () => {

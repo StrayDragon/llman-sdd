@@ -4,7 +4,6 @@
  * template rendering (Strict via templates/engine.ts) with the predecessor preset vars.
  */
 
-import { harvestUniqueNumbers, type NextIdIo } from '../change/nextId.ts';
 import { renderTemplate } from '../templates/engine.ts';
 
 export class ChangeIdError extends Error {}
@@ -56,11 +55,6 @@ export function renderChangeIdTemplate(template: string, vars: ChangeIdVars): st
   }).trim();
   if (rendered === '') throw new ChangeIdError('change_id.template rendered to an empty id');
   return rendered;
-}
-
-/** Whole-tree next free number for the llman_sdd_unique_id preset var. */
-export function nextUniqueNumber(io: NextIdIo, llmanspecRoot: string): number {
-  return harvestUniqueNumbers(io, llmanspecRoot).nextNumber;
 }
 
 const VERB_TABLE = ['add', 'update', 'remove', 'refactor', 'fix'] as const;

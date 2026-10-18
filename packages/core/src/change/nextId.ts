@@ -8,6 +8,7 @@
  */
 
 import { worktreeList, type GitLike } from '../git/spawnGit.ts';
+import { maxUsedNumber, nextNumber } from '../util/nextNumber.ts';
 
 export interface NextIdIo {
   listDir(path: string): string[];
@@ -63,8 +64,7 @@ export function collectNumbers(
 
 export function harvestUniqueNumbers(io: NextIdIo, root: string): IdHarvest {
   const { numbers, warnings } = collectNumbers(io, root);
-  const maxNumber = numbers.length > 0 ? Math.max(...numbers) : null;
-  return { maxNumber, nextNumber: maxNumber === null ? 1 : maxNumber + 1, warnings };
+  return { maxNumber: maxUsedNumber(numbers), nextNumber: nextNumber(numbers), warnings };
 }
 
 /**
@@ -117,6 +117,5 @@ export function harvestAcrossWorktrees(git: GitLike, io: NextIdIo, root: string)
     }
   }
   const all = perTree.flatMap((tree) => tree.numbers);
-  const maxNumber = all.length > 0 ? Math.max(...all) : null;
-  return { maxNumber, nextNumber: maxNumber === null ? 1 : maxNumber + 1, warnings };
+  return { maxNumber: maxUsedNumber(all), nextNumber: nextNumber(all), warnings };
 }

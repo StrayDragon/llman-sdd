@@ -109,7 +109,7 @@ bdd.when('运行 project dedupe-req-ids', (ctx) => {
   };
 });
 
-bdd.thenStep('后一个文件的 rN 被重映射为空闲 id', (ctx) => {
+bdd.thenStep('后一个文件的 rN 被重映射为 max+1 序列号', (ctx) => {
   const { code, out, root } = ctx.fixtures['dedupe结果'] as {
     code: number;
     out: string;
@@ -117,8 +117,13 @@ bdd.thenStep('后一个文件的 rN 被重映射为空闲 id', (ctx) => {
   };
   if (code !== 0) throw new Error(`dedupe failed: ${out}`);
   const billing = readFileSync(join(root, 'llmanspec', 'specs', 'billing.feature'), 'utf8');
-  if (billing.includes('@req:r1')) throw new Error('billing still carries the colliding r1');
-  if (!/^  @req:r\d+$/mu.test(billing)) throw new Error(`no remapped id found: ${billing}`);
+  const ids = [...billing.matchAll(/@req:(r\d+)/gu)].map((m) => m[1] ?? '');
+  // 勘察范围已用 {r1} → 分配器 max+1 序列首项必为 r2
+  if (ids.length !== 1 || ids[0] !== 'r2') {
+    throw new Error(
+      `max+1 remap expected [r2] over used {r1}, got [${ids.join(', ')}]:\n${billing}`,
+    );
+  }
 });
 
 // r43 — 同文件冲突重映射 + 标签边界精确替换(issue #4)
@@ -130,7 +135,7 @@ bdd.given('一个同文件内两条规则挂相同 rN 的临时 specs 目录', (
   ctx.fixtures['authoring工作区'] = { root };
 });
 
-bdd.thenStep('文件内首处 rN 保留且后一处被重映射为空闲 id', (ctx) => {
+bdd.thenStep('文件内首处 rN 保留且后一处被重映射为 max+1 序列号', (ctx) => {
   const { code, out, root } = ctx.fixtures['dedupe结果'] as {
     code: number;
     out: string;
@@ -139,10 +144,47 @@ bdd.thenStep('文件内首处 rN 保留且后一处被重映射为空闲 id', (c
   if (code !== 0) throw new Error(`dedupe failed: ${out}`);
   const auth = readFileSync(join(root, 'llmanspec', 'specs', 'auth.feature'), 'utf8');
   const ids = [...auth.matchAll(/@req:(r\d+)/gu)].map((m) => m[1] ?? '');
-  if (ids.length !== 2 || ids[0] !== 'r1' || ids[1] === 'r1') {
+  // 首现保留 r1,后一处分配器续发 r2(已用集合 {r1} 的 max+1)
+  if (ids.length !== 2 || ids[0] !== 'r1' || ids[1] !== 'r2') {
     throw new Error(
-      `first r1 must be kept and the second remapped, got [${ids.join(', ')}]:\n${auth}`,
+      `first r1 must be kept and the second remapped to max+1, got [${ids.join(', ')}]:\n${auth}`,
     );
+  }
+});
+
+bdd.given('一个两个 spec 含相同 r1 且注册表已用 r5 的临时 specs 目录', (ctx) => {
+  const root = mkdtempSync(join(tmpdir(), 'llman-dedupe-max-'));
+  mkdirSync(join(root, 'llmanspec', 'specs'), { recursive: true });
+  for (const cap of ['auth', 'billing', 'pricing']) {
+    writeFileSync(
+      join(root, 'llmanspec', 'specs', `${cap}.feature`),
+      AUTHORING_HEAD.replace('capability: auth', `capability: ${cap}`).replace(
+        '功能: auth',
+        `功能: ${cap}`,
+      ),
+    );
+  }
+  // 抬高勘察范围已用号:max = r5
+  const pricingPath = join(root, 'llmanspec', 'specs', 'pricing.feature');
+  writeFileSync(pricingPath, readFileSync(pricingPath, 'utf8').replace('@req:r1', '@req:r5'));
+  ctx.fixtures['authoring工作区'] = { root };
+});
+
+// unify-numeric-id-allocation — 重映射取已用号 max+1 序列,不取最小空闲号
+bdd.thenStep('冲突 r1 被重映射为 r6 而非最小空闲号', (ctx) => {
+  const { code, out, root } = ctx.fixtures['dedupe结果'] as {
+    code: number;
+    out: string;
+    root: string;
+  };
+  if (code !== 0) throw new Error(`dedupe failed: ${out}`);
+  const billing = readFileSync(join(root, 'llmanspec', 'specs', 'billing.feature'), 'utf8');
+  if (!billing.includes('@req:r6')) {
+    throw new Error(`max+1 remap must take r6 (used max r5 + 1):\n${billing}`);
+  }
+  // 最小空闲号段 r2/r3/r4 保持空缺(退役号不复用,issue #5 继承)
+  if (/@req:r[234](?!\d)/u.test(billing)) {
+    throw new Error(`smallest-free ids must stay vacant (max+1 contract):\n${billing}`);
   }
 });
 

@@ -15,7 +15,6 @@ import {
   archiveTaskGate,
   isCleanTree,
   newChange,
-  nextUniqueNumber,
   renderChangeIdTemplate,
   splitVerb,
   startChange,
@@ -127,20 +126,20 @@ function assertMergeMethod(method: string | undefined): void {
 function isDirectoryNoFollow(path: string): boolean {
   return lstatSync(resolve(path)).isDirectory();
 }
-function deriveNewId(description: string, verb: string | undefined): string {
+function deriveNewId(description: string, verb: string | undefined, git: GitLike): string {
   const slug = deriveChangeId(description);
   const cliConfig = loadCliConfig();
   const template = cliConfig?.change_id?.template;
   if (template) {
     const { verb: v, subject } = splitVerb(slug, verb);
+    // unify-numeric-id-allocation: the template variable consumes the same
+    // worktree-union collector as `change next-id` — one survey, one max+1.
+    const io = {
+      listDir: (p: string) => readdirSync(resolve(p)),
+      isDirectory: isDirectoryNoFollow,
+    };
     return renderChangeIdTemplate(template, {
-      llman_sdd_unique_id: nextUniqueNumber(
-        {
-          listDir: (p) => readdirSync(resolve(p)),
-          isDirectory: isDirectoryNoFollow,
-        },
-        'llmanspec',
-      ),
+      llman_sdd_unique_id: harvestAcrossWorktrees(git, io, 'llmanspec').nextNumber,
       verb: v,
       subject,
       date: new Date().toISOString().slice(0, 10),
@@ -175,11 +174,11 @@ export function registerChange(program: Command, ctx: CliContext): void {
           throw new CliError('<CHANGE> and --from are mutually exclusive; pass one or the other');
         }
         if (options.dryRun) {
-          console.log(id ?? deriveNewId(options.from as string, options.verb));
+          console.log(id ?? deriveNewId(options.from as string, options.verb, ctx.git));
           return;
         }
         if (options.from !== undefined) {
-          const derived = deriveNewId(options.from, options.verb);
+          const derived = deriveNewId(options.from, options.verb, ctx.git);
           console.log(`derived change id: ${derived}`);
           const io = ctx.io;
           const result = newChange(io, { id: derived, force: options.force });

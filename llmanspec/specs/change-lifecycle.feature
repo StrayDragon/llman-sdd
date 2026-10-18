@@ -349,7 +349,8 @@
   @req:r60
   规则: change_id template 渲染
     config `change_id.template` 存在时,`change new --from` 的 id MUST 由模板渲染生成(nunjucks Strict:未定义变量引用 MUST
-    报错);内置变量 MUST 为 llman_sdd_unique_id(全树含归档的最小空闲编号)、verb(--verb 显式覆盖或按五动词表自动识别,描述无动词且模板引用 {{ verb }}
+    报错);内置变量 MUST 为 llman_sdd_unique_id(全 worktree 并集勘察范围已用号的 max+1(空集为一),与 `change next-id` 消费
+    同一收集器)、verb(--verb 显式覆盖或按五动词表自动识别,描述无动词且模板引用 {{ verb }}
     时 MUST 报 unprovided variable)、subject(描述派生 id 剥离检测到的动词前缀)与 date(YYYY-MM-DD);渲染 id 派生遵循前代纯 slug
     语义(无动词强制);未配置 template 时 MUST 保持启发式派生不变。
 
@@ -365,6 +366,13 @@
       那么 报错含 "nope" 且不创建 changes 目录
       当 把 template 改为引用 "{{ verb }}" 后以无动词描述 "the thing" 运行 change new --from --dry-run
       那么 报错含 "verb"
+
+    场景: 模板变量与 change next-id 消费同一收集器
+      假如 一个配置模板且主树含 c1 与链接 worktree 含 c50 的临时仓库
+      当 运行 change next-id --json
+      那么 maxNumber 为 50 且 nextNumber 为 51
+      当 运行 change new --from "port the importer" --dry-run
+      那么 派生 id 以 "c51-" 开头
 
   @req:r68
   规则: start 分叉保真与 worktree 模式

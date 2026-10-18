@@ -6,6 +6,7 @@
  */
 
 import { type FsPort } from '../util/fsPort.ts';
+import { nextNumber } from '../util/nextNumber.ts';
 import type { CapabilityDoc, RuleIR } from './ir.ts';
 import { specIdOf } from './ir.ts';
 import { BLOCK_KEYWORD_LINE_RE, officialKeywordsOrEn } from './keywords.ts';
@@ -234,12 +235,14 @@ export function planDedupe(
   opts: { apply?: boolean } = {},
 ): DedupePlanItem[] {
   const used = ruleReqIds(entries);
-  let next = 1;
-  const fresh = (): string => {
-    while (used.has(`r${String(next)}`)) next += 1;
-    used.add(`r${String(next)}`);
-    return `r${String(next)}`;
-  };
+  // Allocator primitive (unify-numeric-id-allocation): the remap sequence
+  // starts at max(used)+1 over the in-memory registry set (no second
+  // filesystem pass) and advances by one per allocation — never a
+  // smallest-free probing loop. Zero persisted state.
+  let next = nextNumber(
+    [...used].map((id) => Number(id.slice(1))).filter((n) => Number.isFinite(n)),
+  );
+  const fresh = (): string => `r${String(next++)}`;
   const plan: DedupePlanItem[] = [];
   for (const dup of duplicates) {
     // occurrences are in scan order (sorted files, in-file rule order); the
