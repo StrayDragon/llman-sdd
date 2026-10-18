@@ -20,6 +20,7 @@ import './steps/peripheral.ts';
 import './steps/output-contract.ts';
 import './steps/spec-authoring.ts';
 import './steps/roots.ts';
+import './steps/scope-boundaries.ts';
 import './steps/spec-unbound.ts';
 import './steps/migrate-scope.ts';
 import './steps/context.ts';

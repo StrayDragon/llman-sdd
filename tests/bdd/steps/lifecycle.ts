@@ -171,6 +171,9 @@ interface NextIdResult {
 
 bdd.given('一个含 c10-active 与嵌套 c2620 目录的 llmanspec 树', (ctx) => {
   const root = mkdtempSync(join(tmpdir(), 'llman-nextid-'));
+  // r91 instance predicate: an empty specs/ dir is what makes the tree a valid
+  // instance root (r118 reports a domain error only when no instance exists).
+  mkdirSync(join(root, 'llmanspec', 'specs'), { recursive: true });
   const mk = (rel: string): void => {
     mkdirSync(join(root, 'llmanspec', rel), { recursive: true });
     writeFileSync(join(root, 'llmanspec', rel, 'proposal.md'), '---\ndepends_on: []\n---\nx\n');
@@ -186,6 +189,9 @@ bdd.given('一个含符号链接目录与真实编号目录的 llmanspec 树', (
     mkdirSync(join(root, 'llmanspec', rel), { recursive: true });
     writeFileSync(join(root, 'llmanspec', rel, 'proposal.md'), '---\ndepends_on: []\n---\nx\n');
   };
+  // r91 instance predicate: an empty specs/ dir is what makes the tree a valid
+  // instance root (r118 reports a domain error only when no instance exists).
+  mkdirSync(join(root, 'llmanspec', 'specs'), { recursive: true });
   mk('changes/c30-real');
   // The link target lives OUTSIDE the scanned llmanspec/ tree: without the
   // r35 no-follow rule the symlink c50-link would both count itself and pull
@@ -213,6 +219,9 @@ bdd.thenStep('maxNumber 为 {n:d} 且 nextNumber 为 {m:d}', (ctx, maxN: string,
 bdd.given('一个已初始化的临时 llmanspec 工作区', (ctx) => {
   const root = mkdtempSync(join(tmpdir(), 'llman-dryrun-'));
   mkdirSync(join(root, 'llmanspec'), { recursive: true });
+  // r91 instance predicate: an empty specs/ dir is what makes the tree a valid
+  // instance root (r118 reports a domain error only when no instance exists).
+  mkdirSync(join(root, 'llmanspec', 'specs'), { recursive: true });
   ctx.fixtures['dryrun工作区'] = { root };
 });
 
@@ -1169,6 +1178,9 @@ bdd.thenStep('该 change 的 stage 迁移为 "{to}"', (ctx, to) => {
 // r35 — 纯前导数字目录不计编号
 bdd.given('一个仅含 3-third 与 2026-01-01-slug 目录的 llmanspec 树', (ctx) => {
   const root = mkdtempSync(join(tmpdir(), 'llman-nextid-plain-'));
+  // r91 instance predicate: an empty specs/ dir is what makes the tree a valid
+  // instance root (r118 reports a domain error only when no instance exists).
+  mkdirSync(join(root, 'llmanspec', 'specs'), { recursive: true });
   for (const rel of ['changes/3-third', 'changes/archive/2026-01-01-slug']) {
     mkdirSync(join(root, 'llmanspec', rel), { recursive: true });
     writeFileSync(join(root, 'llmanspec', rel, 'proposal.md'), '---\ndepends_on: []\n---\nx\n');

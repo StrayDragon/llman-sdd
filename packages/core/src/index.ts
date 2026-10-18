@@ -109,6 +109,7 @@ export {
   checkChangeDoc,
   validateChange,
   checkGlobalChangeIdUniqueness,
+  collectChangeIdValues,
   STAGE_ORDER,
   type ChangeCheckConfig,
   type ChangeCheckInput,
@@ -126,6 +127,12 @@ export {
   type RootEntry,
   type RootsIo,
 } from './validation/roots.ts';
+export {
+  computeCrossRootCollisions,
+  type CrossRootCollision,
+  type CrossRootNamespace,
+  type RootNamespaceValues,
+} from './validation/crossRoot.ts';
 export {
   expandRunCommand,
   runHarnessForSpecs,

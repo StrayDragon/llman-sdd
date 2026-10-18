@@ -12,7 +12,7 @@ import {
 } from '@llman-sdd/core';
 import type { Command } from 'commander';
 
-import type { CliContext } from '../cli-shared.ts';
+import { addSpecDirOption, reRootContext, type CliContext } from '../cli-shared.ts';
 import { makeCliGit } from '../io.ts';
 import { progressNote } from '../progress.ts';
 
@@ -47,40 +47,45 @@ export function registerArchive(program: Command, ctx: CliContext): void {
       'Archive workflow commands (cold backup). Seal a change with `llman-sdd change finalize` first',
     );
 
-  archive
+  const freeze = archive
     .command('freeze')
     .description('Freeze dated archived changes into a single 7z cold backup')
     .option('--before <date>', 'freeze entries older than this date (YYYY-MM-DD)')
     .option('--keep-recent <n>', 'keep N most recent candidates unfrozen', '0')
     .option('--dry-run', 'list candidates without freezing')
-    .option('--list', 'list entries already in the cold-backup archive')
-    .action(
-      async (options: {
-        before?: string;
-        keepRecent: string;
-        dryRun?: boolean;
-        list?: boolean;
-      }) => {
-        const root = ctx.root;
-        warnIfNotMainCheckout(ctx.git);
-        const sz = await makeEmbeddedSevenZip();
-        const io = ctx.io;
-        if (options.list) {
-          for (const line of await runList(io, sz, root)) console.log(line);
-          return;
-        }
-        // 7z 压缩可能耗时 — 进度提示防止看上去卡住(B1);dry-run/list 不走压缩
-        if (!options.dryRun) progressNote('freeze.pack', root);
-        const result = await runFreeze(io, sz, root, {
-          before: options.before,
-          keepRecent: Number(options.keepRecent),
-          dryRun: options.dryRun,
-        });
-        for (const line of result.lines) console.log(line);
-      },
-    );
+    .option('--list', 'list entries already in the cold-backup archive');
+  addSpecDirOption(freeze);
+  freeze.action(
+    async (options: {
+      before?: string;
+      keepRecent: string;
+      dryRun?: boolean;
+      list?: boolean;
+      directory?: string;
+    }) => {
+      // r118: the cold-backup reads and writes stay inside the resolved
+      // instance root (`llmanspec/changes/archive`), never the launch cwd.
+      const rctx = reRootContext(ctx, options.directory);
+      const root = rctx.root;
+      warnIfNotMainCheckout(ctx.git);
+      const sz = await makeEmbeddedSevenZip();
+      const io = rctx.io;
+      if (options.list) {
+        for (const line of await runList(io, sz, root)) console.log(line);
+        return;
+      }
+      // 7z 压缩可能耗时 — 进度提示防止看上去卡住(B1);dry-run/list 不走压缩
+      if (!options.dryRun) progressNote('freeze.pack', root);
+      const result = await runFreeze(io, sz, root, {
+        before: options.before,
+        keepRecent: Number(options.keepRecent),
+        dryRun: options.dryRun,
+      });
+      for (const line of result.lines) console.log(line);
+    },
+  );
 
-  archive
+  const thaw = archive
     .command('thaw')
     .description('Restore archived change directories from the cold-backup archive')
     .requiredOption(
@@ -92,18 +97,26 @@ export function registerArchive(program: Command, ctx: CliContext): void {
       },
       [] as string[],
     )
-    .option('--dest <path>', 'restore into this directory (created when missing)')
-    .action(async (options: { change: string[]; dest?: string }) => {
-      if (options.dest !== undefined) {
-        mkdirSync(resolve(options.dest), { recursive: true });
-      }
-      const root = ctx.root;
-      warnIfNotMainCheckout(ctx.git);
-      const sz = await makeEmbeddedSevenZip();
-      const io = ctx.io;
-      // 7z 解包可能耗时 — 进度提示防止看上去卡住(B1)
-      progressNote('thaw.unpack', root);
-      const result = await runThaw(io, sz, root, options.change, { dest: options.dest });
-      for (const line of result.lines) console.log(line);
-    });
+    .option('--dest <path>', 'restore into this directory (created when missing)');
+  addSpecDirOption(thaw);
+  thaw.action(async (options: { change: string[]; dest?: string; directory?: string }) => {
+    const rctx = reRootContext(ctx, options.directory);
+    if (options.dest !== undefined) {
+      mkdirSync(resolve(options.dest), { recursive: true });
+    }
+    const root = rctx.root;
+    warnIfNotMainCheckout(ctx.git);
+    const sz = await makeEmbeddedSevenZip();
+    const io = rctx.io;
+    // r116 exemption: `--dest` is a user-supplied path and keeps its
+    // cwd-literal meaning. Core resolves it against the (possibly re-rooted)
+    // instance io, so hand it over already made absolute — single-root
+    // invocations keep the literal spelling untouched.
+    const dest =
+      options.dest === undefined || rctx.root === ctx.root ? options.dest : resolve(options.dest);
+    // 7z 解包可能耗时 — 进度提示防止看上去卡住(B1)
+    progressNote('thaw.unpack', root);
+    const result = await runThaw(io, sz, root, options.change, { dest });
+    for (const line of result.lines) console.log(line);
+  });
 }

@@ -5,7 +5,7 @@
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { isAbsolute, join, resolve } from 'node:path';
 
 import {
   discoverSpecs,
@@ -137,12 +137,28 @@ export function resolveRootSpecsDir(
   directory?: string,
   io: ReturnType<typeof makeIo> = newIo(),
 ): string {
-  const start = directory ?? process.cwd();
+  // r115: the default start is the io's own anchor, NOT the ambient cwd — a
+  // re-rooted io (reRootContext) must discover its own instance, otherwise
+  // every re-rooted read silently falls back to the launch directory.
+  const start = directory ?? io.root;
   const root = resolveInstanceRoot(start, io);
   if (root === null) {
     throw new CliError(`no llmanspec root at or above: ${start}`);
   }
-  return root === start ? 'llmanspec/specs' : join(root, 'llmanspec', 'specs');
+  // r115: the legacy relative identity is only valid when the resolved
+  // instance IS this io's own anchor (the single-root default) — there the
+  // returned path means `llmanspec/specs` relative to that very anchor, never
+  // to the ambient cwd. Every other instance is addressed absolutely, so a
+  // caller consuming the result with its own io cannot re-join a
+  // launch-relative path into a non-existent directory (which would silently
+  // empty the registry and turn a red gate green).
+  const absolute = isAbsolute(root) ? root : resolve(io.root, root);
+  return sameDir(absolute, io.root) ? 'llmanspec/specs' : join(absolute, 'llmanspec', 'specs');
+}
+
+/** Path identity by absolute resolution (`a` and `b` denote the same directory). */
+function sameDir(a: string, b: string): boolean {
+  return resolve(a) === resolve(b);
 }
 
 /** Spec entries of the resolved instance root (per-root registry, r94). */
@@ -342,21 +358,36 @@ export function resolveBackend(flag: string | undefined): 'pageindex' {
  * changes-only workspaces have no resolvable instance root; there the legacy
  * relative identity is kept so discovery yields an empty set (predecessor
  * behavior) instead of failing the change path.
+ *
+ * r115: the dir is derived from the ALREADY re-anchored context alone. The
+ * resolved instance root decides the registry, so the two output faces of one
+ * command cannot disagree; re-resolving `--directory` from the launch context
+ * would return a launch-relative path that the re-anchored io re-joins into a
+ * non-existent directory, silently emptying the gate.
  */
-export function resolveRootSpecsDirTolerant(ctx: CliContext, directory?: string): string {
+export function resolveRootSpecsDirTolerant(ctx: CliContext): string {
   try {
-    const root = resolveCommandRoot(ctx, directory);
-    return root === ctx.root ? 'llmanspec/specs' : join(root, 'llmanspec', 'specs');
+    return resolveRootSpecsDir(undefined, ctx.io);
   } catch {
     return 'llmanspec/specs';
   }
 }
 
-/** Domain-checked upward root search (r109 shared error text, never ENOENT). */
-export function resolveInstanceRootOrThrow(start: string): string {
-  const root = resolveInstanceRoot(start, newIo());
-  if (root === null) throw new CliError(`no llmanspec root at or above: ${start}`);
-  return root;
+/**
+ * r115/r116/r118: re-root a command context onto the resolved instance root.
+ * Start = `--directory` when given, else the launch root, through the shared
+ * operator (nearest valid instance at or above it). The returned io/git are
+ * anchored at that root, so root-relative read AND write paths (e.g. the
+ * `llmanspec/.context` index store) stay inside the resolved instance instead
+ * of the launch directory. When the launch directory already is the instance
+ * — every single-root invocation — the original context is returned untouched,
+ * so byte parity holds by construction.
+ */
+export function reRootContext(ctx: CliContext, directory?: string): CliContext {
+  const resolved = resolveCommandRoot(ctx, directory);
+  const root = isAbsolute(resolved) ? resolved : resolve(ctx.cwd, resolved);
+  if (root === ctx.root) return ctx;
+  return { io: makeIo(root), git: makeCliGit(root), root, cwd: ctx.cwd };
 }
 
 /**
@@ -366,9 +397,15 @@ export function resolveInstanceRootOrThrow(start: string): string {
  * Throws the shared domain error when no instance exists at or above start.
  */
 export function resolveCommandRoot(ctx: CliContext, directory?: string): string {
-  const start = directory ?? ctx.root;
-  const root = resolveInstanceRoot(start, ctx.io);
-  if (root === null) throw new CliError(`no llmanspec root at or above: ${start}`);
+  // r109/r115: the start is absolutized at this CLI boundary — a relative
+  // `--directory` (`packages`, `..`, `.`) is relative to the process cwd, and
+  // the core walk-up cannot climb above a single-segment relative name (its
+  // parent is the empty string, which terminates the walk). The returned root
+  // is therefore always absolute, so every downstream path/io join stays
+  // single-anchored. The error keeps the user's own spelling of the start.
+  const given = directory ?? ctx.root;
+  const root = resolveInstanceRoot(resolve(given), ctx.io);
+  if (root === null) throw new CliError(`no llmanspec root at or above: ${given}`);
   return root;
 }
 

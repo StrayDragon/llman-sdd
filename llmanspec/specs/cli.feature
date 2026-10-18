@@ -121,7 +121,12 @@
     有效实例(config.yaml 或 specs/ 判定,MUST 复用 validation r91 的有效性判据);`--directory` MUST 对全部命令可用;仅发现单根时
     全部命令输出 MUST 与单根时代逐字节一致;向上未找到有效实例时 MUST 报域错误(消息形如 `no llmanspec root at or above <path>`,
     退出码 1)且 MUST NOT 泄漏底层 `ENOENT` 错误。只读命令(list/show/graph/review/config/index/context)接入根发现属超出前代的
-    有意 divergence:前代 `list` 以进程当前目录为根、不做向上发现。
+    有意 divergence:前代 `list` 以进程当前目录为根、不做向上发现。写入命令(change/archive/project)MUST 同样经该算子解析:解析
+    起点缺省为进程当前工作目录并向上归位最近有效实例,MUST NOT 以 cwd 字面量为实例根、MUST NOT 在无实例处就地新建实例。
+    `--directory` 覆盖面有两处显式豁免:`init`(以位置参数 `[path]` 定根)与 `self *`(无实例根语义);豁免之外的全部命令 MUST
+    声明并接受 `--directory`,MUST NOT 存在读取该选项却未声明的命令。
+    `show` 的 change 面另有一处由本条单根逐字节一致条款推出的宽容面:目标工作区无有效实例但含 `llmanspec/changes/<id>` 时,
+    缺省面 MUST 仍按缺省实例目录读出该 change(前代行为),仅当显式传入 `--directory` 时 MUST 报上述域错误。
 
     场景: 子目录运行只读命令解析到实例根
       假如 一个含活跃 change 与 specs 的临时仓库
@@ -138,3 +143,8 @@
       当 在该目录运行 list
       那么 stderr 含 "no llmanspec root" 且不含 "ENOENT"
       而且 退出码为 1
+
+    场景: show 在无有效实例但含 changes 的工作区保持单根行为
+      假如 一个只有 changes 目录而无有效实例判据的临时仓库
+      当 在该仓库运行 show 该 change 并在同一目录以 --directory 显式限定
+      那么 缺省形态读出该 change 而显式 --directory 形态与 list 都报域错误

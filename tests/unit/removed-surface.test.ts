@@ -154,3 +154,24 @@ test('execution-guard fallback folds argv-less input to not-entry (r107)', () =>
   expect(fallback('/definitely/not/a/file', import.meta.filename)).toBe(false);
   expect(fallback(import.meta.filename, import.meta.filename)).toBe(true);
 });
+
+// r109 (subproject-namespace-scope): 豁免之外的全部命令 MUST 声明并接受
+// `--directory`,且 MUST NOT 存在读取该选项却未声明的命令。这是该规则的表
+// 面半边;行为半边(根发现/归位)在 tests/bdd/steps/scope-boundaries.ts。
+test('every leaf command declares --directory except init and self * (r109)', () => {
+  const program = buildProgram();
+  const nodes = flatten(program);
+  expect(nodes.length).toBeGreaterThan(0);
+
+  const exemptGroups = new Set(['init', 'self']);
+  const violations: string[] = [];
+  for (const node of nodes) {
+    if (node.chain.length === 0) continue;
+    if (node.command.commands.length > 0) continue; // parent group: no own surface
+    if (exemptGroups.has(node.chain[0] ?? '')) continue;
+    if (!registeredFlag(node.command, '--directory')) {
+      violations.push(`[${node.chain.join(' ')}] declares no --directory`);
+    }
+  }
+  expect(violations).toEqual([]);
+});

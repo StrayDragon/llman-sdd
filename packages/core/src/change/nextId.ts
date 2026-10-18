@@ -76,8 +76,17 @@ export function harvestUniqueNumbers(io: NextIdIo, root: string): IdHarvest {
  * r35 (issue #8): `prunable` worktree entries and kept entries whose
  * `llmanspec/` directory is absent count as empty trees — silently skipped,
  * never warned; only real read errors reach warnings.
+ *
+ * r118: `instanceDirRel` is the harvested instance directory *relative to each
+ * worktree root* (`llmanspec` for the repo-root instance, e.g.
+ * `packages/tui/llmanspec` for a sub-project instance). Linked worktrees share
+ * one layout, so the same relative path addresses each checkout's own instance.
  */
-export function harvestAcrossWorktrees(git: GitLike, io: NextIdIo, root: string): IdHarvest {
+export function harvestAcrossWorktrees(
+  git: GitLike,
+  io: NextIdIo,
+  instanceDirRel: string,
+): IdHarvest {
   const warnings: string[] = [];
   let paths: string[] | null;
   try {
@@ -97,7 +106,7 @@ export function harvestAcrossWorktrees(git: GitLike, io: NextIdIo, root: string)
       `worktree list failed: ${(error as Error).message} — scanned the current tree only`,
     );
   }
-  const trees = paths === null ? [root] : paths.map((p) => `${p}/llmanspec`);
+  const trees = paths === null ? [instanceDirRel] : paths.map((p) => `${p}/${instanceDirRel}`);
   const perTree = trees
     .filter((at) => io.isDirectory(at))
     .map((at) => ({ at, ...collectNumbers(io, at) }));

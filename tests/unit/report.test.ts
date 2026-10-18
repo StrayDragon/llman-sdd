@@ -4,6 +4,7 @@ import {
   collectChanges,
   graphData,
   graphMermaid,
+  nextNumber,
   nextReqId,
   renderChangesJson,
   renderChangesList,
@@ -232,6 +233,17 @@ describe('nextReqId', () => {
     // smallest free would hand out r2 (freed by the deleted r2-r4 capability);
     // max+1 skips the retired gap entirely.
     expect(nextReqId(io, 'llmanspec/specs')).toBe('r6');
+  });
+
+  test('shares the nextNumber allocator source — zero output drift (r113)', () => {
+    // 同源断言:输出恒等于 nextNumber(maxUsedNumber(used)) 的结果,不存在第二处
+    // max+1 折叠;空注册表空集语义(1)与旧式 Math.max(0, ...[]) + 1 等价。
+    const io = ioWithRules({
+      'llmanspec/specs/a.feature': featureWithRule('a', 'r1'),
+      'llmanspec/specs/b.feature': featureWithRule('b', 'r7'),
+    });
+    expect(nextReqId(io, 'llmanspec/specs')).toBe(`r${nextNumber([1, 7])}`);
+    expect(nextReqId(ioWithRules({}), 'llmanspec/specs')).toBe(`r${nextNumber([])}`);
   });
 });
 

@@ -8,6 +8,7 @@ import { officialKeywords, officialKeywordsOrEn } from '../spec/keywords.ts';
 import { localeToGherkinLang, parseCapability } from '../spec/parser.ts';
 import { buildReqRegistry } from '../spec/reqRegistry.ts';
 import { type FsPort } from '../util/fsPort.ts';
+import { nextNumber } from '../util/nextNumber.ts';
 import { discoverFeatureFiles } from '../validation/discover.ts';
 import type { SpecEntry } from '../validation/validate.ts';
 
@@ -40,7 +41,9 @@ export function nextReqId(io: SpecHelperIo, specsDir: string): string {
   const used = [...buildReqRegistry(entries).byId.keys()].map((reqId) =>
     Math.trunc(Number(reqId.replace(/^r/u, ''))),
   );
-  return `r${Math.max(0, ...used) + 1}`;
+  // SSOT: the numeric-id allocator primitive (unify-numeric-id-allocation) —
+  // never a second max+1 fold. Same source as change sequence numbers.
+  return `r${nextNumber(used)}`;
 }
 
 export function skeletonContent(capability: string, reqId: string, locale: string): string {

@@ -24,6 +24,7 @@ import {
   loadCliConfig,
   loadRootSpecEntries,
   emitReport,
+  resolveCommandRoot,
   resolveRootSpecsDir,
   type CliContext,
 } from '../cli-shared.ts';
@@ -69,7 +70,9 @@ export function registerSpec(program: Command, ctx: CliContext): void {
       'instance root resolution start (default: nearest llmanspec/ at or above cwd)',
     )
     .action((capability: string, options: { force?: boolean; directory?: string }) => {
-      const locale = loadCliConfig()?.locale ?? DEFAULT_LOCALE;
+      // r109/r115: locale 属命中实例根的配置,`--directory` 指向子根时不得读启动根
+      const locale =
+        loadCliConfig(resolveCommandRoot(ctx, options.directory))?.locale ?? DEFAULT_LOCALE;
       const specsDir = resolveRootSpecsDir(options.directory, ctx.io);
       const path = join(specsDir, `${capability}.feature`);
       if (!options.force && existsSync(path)) {
@@ -165,15 +168,18 @@ export function registerSpec(program: Command, ctx: CliContext): void {
       },
     );
 
-  spec
+  const migrateNative = spec
     .command('migrate-native')
     .description('Migrate legacy tag-based .feature files to the native 规则:/场景: layout')
     .argument('[paths...]', 'feature files or directories (default: llmanspec/specs)')
     .option('--dry-run', 'print the migration plan without writing')
-    .option('-y, --yes', 'proceed without per-file confirmation')
-    .action(async (paths: string[], options: { dryRun?: boolean; yes?: boolean }) => {
+    .option('-y, --yes', 'proceed without per-file confirmation');
+  addSpecDirOption(migrateNative);
+  migrateNative.action(
+    async (paths: string[], options: { dryRun?: boolean; yes?: boolean; directory?: string }) => {
+      // r116: 显式传入的路径按参数原义处理(豁免);缺省目标才经根发现算子
       const targets = collectFeatureFiles(
-        paths.length > 0 ? paths : [resolveRootSpecsDir(undefined, ctx.io)],
+        paths.length > 0 ? paths : [resolveRootSpecsDir(options.directory, ctx.io)],
       );
       const io = ctx.io;
       let migrated = 0;
@@ -206,7 +212,8 @@ export function registerSpec(program: Command, ctx: CliContext): void {
         }
       }
       console.log(`migrate-native: ${migrated} file(s) migrated, ${skipped} already native`);
-    });
+    },
+  );
 
   spec
     .command('resolve-req')
@@ -229,36 +236,50 @@ export function registerSpec(program: Command, ctx: CliContext): void {
       for (const h of resolved.harness) console.log(`  - ${h}`);
     });
 
-  spec
+  const transitions = spec
     .command('transitions')
-    .description('Show transition-table validation rules: alias families, tags, gates')
-    .action(() => {
-      const info = TRANSITIONS_INTROSPECTION;
-      console.log('columns:');
-      for (const fam of info.columnFamilies) {
-        const optional = 'optional' in fam && fam.optional ? ' (optional)' : '';
-        console.log(`  ${fam.role}${optional}: ${fam.aliases.join(' | ')}`);
-      }
-      console.log(`discovery: ${info.discovery}`);
-      console.log('tags:');
-      for (const t of info.tags) console.log(`  ${t.tag} — ${t.semantics}`);
-      console.log('gates:');
-      for (const g of info.gates) console.log(`  - ${g}`);
-    });
+    .description('Show transition-table validation rules: alias families, tags, gates');
+  addSpecDirOption(transitions);
+  transitions.action((options: { directory?: string }) => {
+    // r109: 本命令输出为静态内省,无实例根语义;仍按「豁免外全部命令声明并接受
+    // --directory」声明该选项,并仅在显式给出时经同一根发现算子校验(无实例报域错误)。
+    if (options.directory !== undefined) resolveCommandRoot(ctx, options.directory);
+    const info = TRANSITIONS_INTROSPECTION;
+    console.log('columns:');
+    for (const fam of info.columnFamilies) {
+      const optional = 'optional' in fam && fam.optional ? ' (optional)' : '';
+      console.log(`  ${fam.role}${optional}: ${fam.aliases.join(' | ')}`);
+    }
+    console.log(`discovery: ${info.discovery}`);
+    console.log('tags:');
+    for (const t of info.tags) console.log(`  ${t.tag} — ${t.semantics}`);
+    console.log('gates:');
+    for (const g of info.gates) console.log(`  - ${g}`);
+  });
 
   const unbound = spec
     .command('unbound')
     .description('List unbound requirements (no runnable nested scenario) for implementation')
     .option('--limit <N>', 'max entries to return (default 1; 0 = all)');
   addReportOutputOptions(unbound);
+  addSpecDirOption(unbound);
   unbound.action(
-    (options: { limit?: string; output?: string; json?: boolean; compactJson?: boolean }) => {
+    (options: {
+      limit?: string;
+      output?: string;
+      json?: boolean;
+      compactJson?: boolean;
+      directory?: string;
+    }) => {
       const raw = options.limit ?? '1';
       if (!/^\d+$/u.test(raw)) {
         throw new CliError(`invalid --limit: ${raw} (non-negative integer)`, 2);
       }
       const limit = Number(raw);
-      const feed: UnboundFeed = buildUnboundFeed(loadRootSpecEntries(undefined, ctx.io), limit);
+      const feed: UnboundFeed = buildUnboundFeed(
+        loadRootSpecEntries(options.directory, ctx.io),
+        limit,
+      );
       emitReport(feed, options, () => {
         const lines = [`spec unbound: ${feed.returned} shown of ${feed.total} total`];
         for (const r of feed.requirements) {

@@ -18,6 +18,7 @@ import {
   CliError,
   cliMaxScanDepth,
   loadRootSpecEntries,
+  reRootContext,
   resolveCommandRoot,
   resolveChangeIdOrExit,
   resolveRootSpecsDirTolerant,
@@ -190,20 +191,22 @@ export function registerShow(program: Command, ctx: CliContext): void {
       // spec discovery is attempted but a root-less workspace must not fail
       // here — the change path below is root-independent until the spec half.
       let specEntry: SpecEntries[number] | undefined;
+      // r115: the instance root resolved from `--directory` decides where the
+      // flat-spec probe, the spec source read and the change face below look —
+      // never the launch directory. Absent an instance the change face stays
+      // root-independent (changes-only workspace, r109).
+      let specRoot = ctx.root;
       try {
-        const root = resolveCommandRoot(ctx, options.directory);
-        entriesCache ??= discoverSpecs(join(root, 'llmanspec', 'specs'), ctx.io);
+        specRoot = resolveCommandRoot(ctx, options.directory);
+        entriesCache ??= discoverSpecs(join(specRoot, 'llmanspec', 'specs'), ctx.io);
         specEntry = entriesCache?.find((e) => specIdOf(e) === item);
       } catch {
         specEntry = undefined;
       }
-      const isSpec =
-        options.type === 'spec' ||
-        existsSync(join('llmanspec', 'specs', `${item}.feature`)) ||
-        specEntry !== undefined;
+      const flatSpecPath = join(specRoot, 'llmanspec', 'specs', `${item}.feature`);
+      const isSpec = options.type === 'spec' || existsSync(flatSpecPath) || specEntry !== undefined;
 
       if (isSpec) {
-        const flatSpecPath = join('llmanspec', 'specs', `${item}.feature`);
         // discoverSpecs 的 fileName 已是含 specs 目录前缀的相对路径
         // (如 `llmanspec/specs/<cap>/<cap>.feature`),直接使用。
         const specPath =
@@ -236,13 +239,34 @@ export function registerShow(program: Command, ctx: CliContext): void {
 
       // ---- change ----
       // r61: predecessor r112 prefix chain — exact > unique prefix > multiple > not found.
-      const resolved = resolveChangeIdOrExit(ctx, program, item, { suppressHint: asJson });
+      // r115: id resolution, the proposal read and the phase collection all use
+      // the resolved instance root; git stays repo-level (r118: branch is a
+      // git-level notion, not an instance-root one).
+      let rctx = ctx;
+      try {
+        rctx = reRootContext(ctx, options.directory);
+      } catch (error) {
+        // changes-only workspace (no config.yaml / specs/): the change path is
+        // root-independent, but an explicitly named root must resolve (r109).
+        if (options.directory !== undefined) throw error;
+      }
+      const resolved = resolveChangeIdOrExit(rctx, program, item, { suppressHint: asJson });
       const changeId = resolved.id;
       const viaPrefix = resolved.viaPrefix;
       const proposal = readFileSync(
-        join(ctx.root, 'llmanspec', 'changes', changeId, 'proposal.md'),
+        join(rctx.root, 'llmanspec', 'changes', changeId, 'proposal.md'),
         'utf8',
       );
+      // r115: ONE dependency set for the change path, built from the resolved
+      // instance root — io/git/root are the re-rooted ones and the spec gate
+      // reads THAT instance's registry (derived from this very io). Both
+      // output faces share it, so they can never disagree on a gate.
+      const deps = {
+        io: rctx.io,
+        git: rctx.git,
+        root: rctx.root,
+        specsDir: resolveRootSpecsDirTolerant(rctx),
+      };
       if (asJson) {
         // predecessor parse_change gates: Why first, then What Changes (json only).
         if (!hasSection(proposal, 'Why')) {
@@ -251,21 +275,12 @@ export function registerShow(program: Command, ctx: CliContext): void {
         if (!hasSection(proposal, 'What Changes')) {
           throw new CliError('Change must have a What Changes section');
         }
-        const result = showChangeJson(
-          {
-            io: ctx.io,
-            git: ctx.git,
-            root: ctx.root,
-            specsDir: resolveRootSpecsDirTolerant(ctx, options.directory),
-          },
-          changeId,
-          { matchedViaPrefix: viaPrefix },
-        );
+        const result = showChangeJson(deps, changeId, { matchedViaPrefix: viaPrefix });
         console.log(renderMachine(result, showMode));
         return;
       }
       // text: Stage / path / content / Gates trailer (no section gates).
-      const changes = collectChanges(ctx.io, ctx.root, new Date(), {
+      const changes = collectChanges(rctx.io, rctx.root, new Date(), {
         maxScanDepth: cliMaxScanDepth(program),
       });
       const change = changes.find((c) => c.name === changeId);
@@ -273,15 +288,11 @@ export function registerShow(program: Command, ctx: CliContext): void {
       console.log(`path: ${changeId}`);
       process.stdout.write(proposal);
       if (!proposal.endsWith('\n')) console.log();
-      const gates = showChangeJson(
-        {
-          io: ctx.io,
-          git: ctx.git,
-          root: ctx.root,
-          specsDir: resolveRootSpecsDirTolerant(ctx),
-        },
-        changeId,
-      ).gateChecks as { name: string; pass: boolean; hint: string }[];
+      const gates = showChangeJson(deps, changeId).gateChecks as {
+        name: string;
+        pass: boolean;
+        hint: string;
+      }[];
       const passCount = gates.filter((g) => g.pass).length;
       console.log(`Gates: ${passCount}/${gates.length} pass`);
       for (const g of gates.filter((g) => !g.pass)) console.log(`✗ ${g.name}: ${g.hint}`);

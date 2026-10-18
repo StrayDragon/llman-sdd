@@ -29,6 +29,12 @@ export function parentOf(p: string): string {
 }
 
 export interface CliIo {
+  /**
+   * The directory this io is anchored at (relative paths resolve against it).
+   * r115: root discovery defaults to this anchor, never to the ambient
+   * `process.cwd()` — a re-rooted context must read its own instance.
+   */
+  root: string;
   exists(path: string): boolean;
   readText(path: string): string;
   writeText(path: string, content: string): void;
@@ -48,6 +54,7 @@ export interface CliIo {
 export function makeIo(root: string): CliIo {
   const full = (p: string): string => (isAbsolute(p) ? p : join(root, p));
   return {
+    root,
     exists: (p) => existsSync(full(p)),
     readText: (p) => readFileSync(full(p), 'utf8'),
     writeText: (p, content) => {

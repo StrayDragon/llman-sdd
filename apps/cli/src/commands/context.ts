@@ -10,13 +10,19 @@ import {
 } from '@llman-sdd/core';
 import type { Command } from 'commander';
 
-import { CliError, resolveCommandRoot, resolveBackend, type CliContext } from '../cli-shared.ts';
+import {
+  CliError,
+  addSpecDirOption,
+  reRootContext,
+  resolveBackend,
+  type CliContext,
+} from '../cli-shared.ts';
 import { progressNote } from '../progress.ts';
 
 // (err path below converted to CliError; resolveBackend may also throw CliError)
 
 export function registerContext(program: Command, ctx: CliContext): void {
-  program
+  const context = program
     .command('context')
     .description('Get specs relevant to a task (agent-oriented, pageindex agentic retrieval)')
     .option('--task <task>', 'natural language task description')
@@ -38,11 +44,18 @@ export function registerContext(program: Command, ctx: CliContext): void {
         const config = resolveChatConfig(process.env as Record<string, string | undefined>);
         // r62: lazy refresh runs BEFORE the chat-model gate (predecessor r97 — the index
         // self-heals even when retrieval subsequently fails with api_error).
-        const root = resolveCommandRoot(ctx, options.directory);
-        const specsDir = join(root, 'llmanspec', 'specs');
-        const refresh = loadTreeWithAutoRebuild(ctx.io, specsDir, discoverSpecs(specsDir, ctx.io), {
-          chatModel: process.env.LLMAN_SDD_INDEX_CHAT_MODEL ?? '',
-        });
+        // r115/r116: the resolved instance root decides every read AND write target,
+        // so the index store lands in the --directory instance, not the launch dir.
+        const rctx = reRootContext(ctx, options.directory);
+        const specsDir = join(rctx.root, 'llmanspec', 'specs');
+        const refresh = loadTreeWithAutoRebuild(
+          rctx.io,
+          specsDir,
+          discoverSpecs(specsDir, rctx.io),
+          {
+            chatModel: process.env.LLMAN_SDD_INDEX_CHAT_MODEL ?? '',
+          },
+        );
         if (refresh.tree === null || refresh.error !== null) {
           const failed = unavailableResult();
           failed.status.errorKind = 'index_rebuild_failed';
@@ -58,7 +71,7 @@ export function registerContext(program: Command, ctx: CliContext): void {
           return;
         }
         // LLM 链路可能是秒级 — 进度提示防止看上去卡住(B1)
-        progressNote('context.retrieve', ctx.root);
+        progressNote('context.retrieve', rctx.root);
         const result = await runContextRetrieval({
           config,
           task: options.task ?? '',
@@ -66,9 +79,10 @@ export function registerContext(program: Command, ctx: CliContext): void {
           top: Number(options.top),
           tree,
           readFile: (p) => readFileSync(p, 'utf8'),
-          root: ctx.root,
+          root: rctx.root,
         });
         console.log(JSON.stringify(result, null, 2));
       },
     );
+  addSpecDirOption(context);
 }

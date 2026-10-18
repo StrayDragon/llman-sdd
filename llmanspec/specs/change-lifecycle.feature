@@ -544,3 +544,44 @@
       那么 输出含就地收口提示且特性分支获得单条 archive(sdd) 提交
       而且 changes 目录下只剩 archive 改名产物
 
+  @req:r118
+  规则: change/archive 命令的实例根解析
+    `change`(new/start/attach/next-id/diff/finalize)与 `archive`(freeze/thaw)命令 MUST 经 cli r109 的同一根发现算子解析实例根,不得以 cwd 字面量为根:在向上存在有效实例的子目录调用时 MUST 归位最近实例根,落盘与读写目标随之锚定该根;向上无有效实例时 MUST 报域错误(消息形如 `no llmanspec root at or above <path>`,退出码 1),MUST NOT 就地新建 `llmanspec/`。命中实例根后的输出文本 MUST 与单根时代逐字节一致(cwd 字面量归位到实例根属有意修正,随迁移窗口提示)。change 分支的创建、合并与归档仍是 git 级操作,不因 per-root 的 `changes/` 树而拆分。
+
+    场景: 子包源码子目录下 change new 归位最近实例根
+      假如 一个含根与子根双 llmanspec 的临时仓库
+      当 在子包源码子目录运行 change new
+      那么 proposal 落在子根实例且根实例与该子目录均无新建 llmanspec
+
+    场景: 无有效实例时 change new 报域错误且不就地新建
+      假如 一个无任何 llmanspec 实例的空目录
+      当 在该空目录运行 change new
+      那么 stderr 含 "no llmanspec root at or above" 且退出码为 1
+      而且 该空目录下未创建 llmanspec
+
+    场景: change next-id 只清点命中实例根的编号树
+      假如 一个根与子根各含编号 change 目录的临时仓库
+      当 分别在仓库根与子包源码子目录运行 change next-id
+      那么 两次清点分别只见各自实例根下的编号目录
+
+    场景: 链接 worktree 缺实例目录时编号清点跳过而不泄漏 ENOENT
+      假如 一个含链接 worktree 且该 worktree 无 llmanspec 的临时仓库
+      当 在主检出运行 change next-id
+      那么 退出码为 0 且输出不含 ENOENT
+
+    场景: 单根仓库按实例根归位的输出零漂移
+      假如 一个含活跃 change 与 specs 的临时仓库
+      当 分别在仓库根与其子目录运行 change new --dry-run
+      那么 两次 change new 派生输出逐字节一致
+      而且 在子目录真实落盘的 change 归位仓库根的 llmanspec
+
+    场景: 子包源码子目录下 archive freeze 归位子根归档目录
+      假如 一个根与子根各含归档 change 的临时仓库
+      当 在子包源码子目录运行 archive freeze --dry-run
+      那么 只列出子根实例的归档目录名
+
+    场景: 子包源码子目录下 archive freeze/thaw 归位子根实例
+      假如 一个根与子根各含归档 change 的临时仓库
+      当 在子包源码子目录运行 archive freeze 与 archive thaw --dest restored
+      那么 冷备与被解冻条目都只落在子根实例且根实例零新增
+

@@ -53,6 +53,38 @@ export function field(fixture: unknown, key: string): unknown {
   return undefined;
 }
 
+/** 子根实例在临时仓库内的相对路径(多根场景:根实例 + 一个子包实例)。 */
+export const SUB = 'packages/tui';
+
+export const subRootOf = (repo: TempRepo): string => join(repo.root, SUB);
+
+/**
+ * 在临时仓库内建立子根实例:`llmanspec/config.yaml`(可选 check_command)、
+ * `tuicap` capability(`@req:r5` 子规则)与 `tests/` 目录。
+ */
+export function seedSubRoot(repo: TempRepo, checkCommand?: string): void {
+  mkdirSync(join(subRootOf(repo), 'llmanspec', 'specs'), { recursive: true });
+  writeFileSync(
+    join(subRootOf(repo), 'llmanspec', 'config.yaml'),
+    checkCommand === undefined
+      ? 'schema: spec-driven\n'
+      : `schema: spec-driven\nspecs:\n  check_command: "${checkCommand}"\n`,
+  );
+  writeFileSync(
+    join(subRootOf(repo), 'llmanspec', 'specs', 'tuicap.feature'),
+    '# language: zh-CN\n# capability: tuicap\n# purpose: p\n# scope: tests/\n\n功能: tuicap\n\n  @req:r5\n  规则: 子规则\n    系统 MUST y\n',
+  );
+  mkdirSync(join(subRootOf(repo), 'tests'), { recursive: true });
+}
+
+/** 覆写临时仓库根实例的 config.yaml,钉住根侧 check_command。 */
+export function seedRootCheck(repo: TempRepo, checkCommand: string): void {
+  writeFileSync(
+    join(repo.root, 'llmanspec', 'config.yaml'),
+    `schema: spec-driven\nspecs:\n  check_command: "${checkCommand}"\n`,
+  );
+}
+
 /**
  * 在临时仓库创建 llmanspec/changes/<id>/ 草稿(proposal.md + 可选附加文件);
  * 给定 commit 消息则 `git add -A` 后以仓库级身份提交。proposal 缺省为最小

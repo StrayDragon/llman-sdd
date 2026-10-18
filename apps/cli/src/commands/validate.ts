@@ -1,22 +1,25 @@
-import { relative } from 'node:path';
+import { relative, resolve } from 'node:path';
 
 import {
   buildDuplicatesFor,
   checkGlobalChangeIdUniqueness,
+  collectChangeIdValues,
   collectChanges,
+  computeCrossRootCollisions,
   currentBranch,
   defaultBranch,
   discoverRoots,
   formatTotals,
   renderMachine,
-  resolveInstanceRoot,
   runHarnessForSpecs,
   specIdOf,
   STAGE_ORDER,
   validateCapability,
   validateChange,
   type ChangeIssue,
+  type CrossRootCollision,
   type HarnessGate,
+  type RootNamespaceValues,
 } from '@llman-sdd/core';
 import type { Command } from 'commander';
 
@@ -28,8 +31,8 @@ import {
   exitWith,
   loadCliConfig,
   loadRootSpecEntries,
+  reRootContext,
   resolveChangeIdOrExit,
-  resolveInstanceRootOrThrow,
   resolveOutMode,
   type CliContext,
 } from '../cli-shared.ts';
@@ -50,15 +53,17 @@ function compareItems(a: VItem, b: VItem): number {
   return a.id < b.id ? -1 : a.id > b.id ? 1 : a.type.localeCompare(b.type);
 }
 
+/**
+ * r115: `entries` is required — spec validation MUST run on the resolved
+ * instance's own registry, never on a silently ambient-cwd default.
+ */
 function specV1Items(
-  ctx: CliContext,
   opts: {
     harness?: HarnessGate;
     harnessOnlyIds?: string[];
   },
-  entries: ReturnType<typeof loadRootSpecEntries> = loadRootSpecEntries(undefined, ctx.io),
+  entries: ReturnType<typeof loadRootSpecEntries>,
 ): VItem[] {
-  void ctx;
   const duplicatesFor = buildDuplicatesFor(entries);
 
   const items: VItem[] = [];
@@ -178,6 +183,25 @@ function renderValidateText(items: VItem[]): void {
     }
   }
   console.log(formatTotals(passed, failed, items.length));
+}
+
+/**
+ * r91/r114 human form: the cross-root observation section, closing with the
+ * `--directory` remediation hint. Machine formats carry the data only (no
+ * hint line) — the hint is a human-presentation artifact.
+ */
+function renderCrossRootCollisions(collisions: readonly CrossRootCollision[]): void {
+  if (collisions.length === 0) {
+    console.log('Cross-root id collisions: none');
+  } else {
+    console.log('Cross-root id collisions (same id under multiple roots is legal):');
+    for (const collision of collisions) {
+      console.log(`  ${collision.namespace}/${collision.value}: ${collision.roots.join(', ')}`);
+    }
+  }
+  console.log(
+    'Use --directory <path> to target one instance root; collisions never affect the exit code.',
+  );
 }
 
 function gitToplevelOrCwd(ctx: CliContext): string {
@@ -336,35 +360,63 @@ export function registerValidate(program: Command, ctx: CliContext): void {
         if (item !== undefined) {
           throw new CliError('--all-roots validates every root; drop the <item> argument');
         }
-        const start = options.directory ?? gitToplevelOrCwd(ctx);
+        const start = resolve(options.directory ?? gitToplevelOrCwd(ctx));
         const roots = discoverRoots(start, ctx.io, { maxDepth });
         if (roots.length === 0) {
           throw new CliError(`no llmanspec roots discovered under: ${start}`);
         }
         const reports: RootReport[] = [];
+        const namespaceValues: RootNamespaceValues[] = [];
         let anyFail = false;
         for (const root of roots) {
+          // r91/r115: the discovered rootDir follows the start's form, and a
+          // relative one would make makeIo(rootDir) anchor twice (queries
+          // landing in <dir>/<dir>/llmanspec) so every root failed to resolve.
+          // Absolutize once, then label relative to the (absolute) start.
+          const rootDir = resolve(root.rootDir);
           const rootCtx: CliContext = {
             ...ctx,
-            root: root.rootDir,
-            io: makeIo(root.rootDir),
+            root: rootDir,
+            io: makeIo(rootDir),
           };
-          const items = specV1Items(rootCtx, {
-            harness: makeHarnessGate(rootCtx, options),
-          });
+          const entries = loadRootSpecEntries(rootDir, rootCtx.io);
+          const items = specV1Items(
+            {
+              harness: makeHarnessGate(rootCtx, options),
+            },
+            entries,
+          );
           const visible = keepInfo ? items : items.map(stripInfo);
           if (visible.some((i) => !i.valid)) anyFail = true;
+          const label = relative(start, rootDir) || '.';
           reports.push({
-            root: relative(start, root.rootDir) || '.',
+            root: label,
             items: visible,
             summary: summarizeItems(visible),
           });
+          // r91: the aggregate covers change-id granularity too — one set of
+          // ids per root for the cross-root observation (spec/capability ids,
+          // @req handles, change ids incl. archived dated entries).
+          namespaceValues.push({
+            root: label,
+            specIds: entries.map((entry) => specIdOf(entry)),
+            reqIds: entries
+              .flatMap((entry) => entry.doc.rules.map((rule) => rule.reqId))
+              .filter((id) => id !== ''),
+            changeIds: collectChangeIdValues(rootCtx.io, `${rootDir}/llmanspec/changes`, {
+              maxScanDepth: maxDepth,
+            }),
+          });
         }
+        // r91/r114: undefined for a lone root — the field MUST NOT be emitted
+        // at all there (no empty array, byte-identical single-root output).
+        const collisions = computeCrossRootCollisions(namespaceValues);
         if (outMode === 'human') {
           for (const report of reports) {
             console.log(`root ${report.root}`);
             renderValidateText(report.items);
           }
+          if (collisions !== undefined) renderCrossRootCollisions(collisions);
         } else {
           const totals = reports.reduce(
             (acc, r) => ({
@@ -374,23 +426,30 @@ export function registerValidate(program: Command, ctx: CliContext): void {
             }),
             { items: 0, passed: 0, failed: 0 },
           );
-          console.log(
-            renderMachine({ roots: reports, summary: { totals }, version: '1.0' }, outMode),
-          );
+          // Observation is data-only in machine form (r114: no hint line);
+          // collisions never feed the exit code.
+          const payload =
+            collisions === undefined
+              ? { roots: reports, summary: { totals }, version: '1.0' }
+              : {
+                  roots: reports,
+                  crossRootCollisions: collisions,
+                  summary: { totals, crossRootCollisions: collisions.length },
+                  version: '1.0',
+                };
+          console.log(renderMachine(payload, outMode));
         }
         if (anyFail) console.error('Error: validation failed');
         exitWith(anyFail ? 1 : 0);
         return;
       }
 
-      // ---- instance root resolution (T21, cli r108): resolve once into an
-      // effective context instead of process.chdir — downstream helpers take
-      // io/root from here. Byte-identical when cwd already sits at a root. ----
-      const effectiveRoot =
-        options.directory !== undefined
-          ? resolveInstanceRootOrThrow(options.directory)
-          : (resolveInstanceRoot(ctx.root, ctx.io) ?? ctx.root);
-      const eff: CliContext = { ...ctx, root: effectiveRoot };
+      // ---- instance root resolution (T21, cli r108/r109/r115): the shared
+      // re-root operator, same as every other command — io, git and root are
+      // all anchored at the resolved instance, so downstream discovery reads
+      // THAT root (a root swap alone would still discover from the launch
+      // cwd). Byte-identical when cwd already sits at the instance root. ----
+      const eff: CliContext = reRootContext(ctx, options.directory);
 
       const harness = makeHarnessGate(eff, options);
 
@@ -401,7 +460,6 @@ export function registerValidate(program: Command, ctx: CliContext): void {
           options.type === 'change' ? undefined : entries.find((e) => specIdOf(e) === item);
         if (specEntry !== undefined) {
           const items = specV1Items(
-            eff,
             {
               harness,
               harnessOnlyIds: [item],
@@ -496,9 +554,12 @@ export function registerValidate(program: Command, ctx: CliContext): void {
       let items: VItem[] = [];
       if (effectiveSpecs) {
         items = items.concat(
-          specV1Items(eff, {
-            harness,
-          }),
+          specV1Items(
+            {
+              harness,
+            },
+            loadRootSpecEntries(undefined, eff.io),
+          ),
         );
       }
       if (effectiveChanges) {

@@ -15,7 +15,24 @@ import { CLOSE_OUT_TASK_HINT, closeOutTaskLines, parseTaskCheckboxes } from '../
  * INFO, pattern gate and task gates. IO + git injected (pure).
  */
 import type { GitLike } from '../git/spawnGit.ts';
-import { DATED_PREFIX_RE } from '../util/datedId.ts';
+import { datedCardIdOf, datedIdOf } from '../util/datedId.ts';
+
+/**
+ * r87/r91 single archive-entry grammar: a dated directory `YYYY-MM-DD-<id>` or
+ * a flattened card `YYYY-MM-DD-<id>.yaml` yields its id; anything else is null.
+ * The uniqueness gate, the archived-membership probe and the per-root value
+ * collection MUST agree on this split (predecessor hand-rolled `slice(11)` /
+ * `.yaml` stripping in three places).
+ */
+function archivedEntryId(name: string): string | null {
+  // Card form first: `2026-02-02-card.yaml` must yield `card`, not `card.yaml`.
+  const card = datedCardIdOf(name, '.yaml');
+  if (card !== null) return card;
+  // Then the directory grammar on the card suffix stripped, so a card name
+  // without an id (`2026-02-02-.yaml`) stays unparsed instead of yielding
+  // `.yaml` (the predecessor form produced '' there and skipped it).
+  return datedIdOf(name.endsWith('.yaml') ? name.slice(0, -'.yaml'.length) : name);
+}
 
 export type ChangeIssueLevel = 'ERROR' | 'WARNING' | 'INFO';
 
@@ -99,11 +116,7 @@ function resolveChangeRef(
   const archive = `${changesRoot}/archive`;
   const entries = io.exists(archive) && io.isDirectory(archive) ? io.listDir(archive) : [];
   // `YYYY-MM-DD-` is 11 chars; the remainder must equal the id exactly.
-  const archived = entries.some((name) => {
-    if (!DATED_PREFIX_RE.test(name)) return false;
-    const base = name.endsWith('.yaml') ? name.slice(0, -'.yaml'.length) : name;
-    return base.slice(11) === id;
-  });
+  const archived = entries.some((name) => archivedEntryId(name) === id);
   return archived ? 'archived' : 'unknown';
 }
 
@@ -122,16 +135,38 @@ export function checkGlobalChangeIdUniqueness(io: ChangeFsIoLite, changesRoot: s
     counts.set(name, (counts.get(name) ?? 0) + 1);
   });
   for (const name of entries) {
-    if (!DATED_PREFIX_RE.test(name)) continue;
-    const base = name.endsWith('.yaml') ? name.slice(0, -'.yaml'.length) : name;
-    const id = base.slice(11);
-    if (id === '') continue;
+    const id = archivedEntryId(name);
+    if (id === null || id === '') continue;
     counts.set(id, (counts.get(id) ?? 0) + 1);
   }
   return [...counts]
     .filter(([, n]) => n > 1)
     .map(([id]) => id)
     .toSorted((a, b) => a.localeCompare(b));
+}
+
+/**
+ * r87/r91: the change-id domain of one instance root — active leaf dir names
+ * plus the ids split out of archived `<YYYY-MM-DD>-<id>` entries (dirs and
+ * flattened `.yaml` cards). De-duplicated and sorted (`checkGlobalChangeIdUniqueness`
+ * above stays the in-root counting gate); the cross-root observation consumes
+ * one list per root.
+ */
+export function collectChangeIdValues(
+  io: ChangeFsIoLite,
+  changesRoot: string,
+  opts: { maxScanDepth?: number } = {},
+): string[] {
+  const values = new Set<string>();
+  walkActiveChangeDirs(io, changesRoot, (_dir, name) => values.add(name), opts);
+  const archive = `${changesRoot}/archive`;
+  if (io.exists(archive) && io.isDirectory(archive)) {
+    for (const name of io.listDir(archive)) {
+      const id = archivedEntryId(name);
+      if (id !== null && id !== '') values.add(id);
+    }
+  }
+  return [...values].toSorted((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 }
 
 export type StageGate = (typeof STAGE_ORDER)[number];

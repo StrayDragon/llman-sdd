@@ -277,7 +277,11 @@
     `--directory <path>` 或进程当前工作目录为起点,自起点向上取最近有效实例,该契约与只读命令接入见 cli 域 @req:r109;仅发现单根时
     所有命令输出 MUST 与单根时代逐字节一致。validate --specs 双粒度共用同一算子:逐根(缺省 cwd 语义,--directory <path> 固定发现起点)
     与聚合(--all-roots 对每个发现根执行同一套结构校验与该根 config 的 check_command batch-once,结果按根分组,单根输出形状零漂移);
-    聚合退出码 MUST 为任一根红即红,缺省 MUST NOT 自动聚合。
+    聚合退出码 MUST 为任一根红即红,缺省 MUST NOT 自动聚合。聚合报告的观测覆盖面 MUST 含 change id 粒度(叶目录名与归档 dated id),
+    MUST NOT 仅限 specs 粒度(逐根结构校验仍为 specs 粒度,change 粒度经下述观测段呈现);聚合报告 MUST 携带跨根同号观测段 `crossRootCollisions[]`,每条为 {namespace: spec|req|change,
+    value, roots[]},确定性排序(先 namespace 后 value,roots 按根相对路径序),并在 summary 以 crossRootCollisions 字段给出计数;
+    human 形态 MUST 在该段尾附一行指向 `--directory` 的处置指引,machine 形态 MUST NOT 携带该行;观测段 MUST NOT 影响退出码。
+    仅发现单根时 MUST NOT 产出该字段(不是空数组),以守住单根逐字节一致铁律。
 
     场景: 聚合模式按根执行
       假如 一个含根与子根双 llmanspec 的临时仓库
@@ -288,6 +292,11 @@
       假如 一个子根 check_command 失败的临时仓库
       当 运行 validate --specs --all-roots --check
       那么 聚合退出码非零
+
+    场景: 嵌套目录下聚合逐根读各自注册表
+      假如 一个根与子根含不同 capability 的临时仓库
+      当 在子包子目录运行 validate --all-roots --json
+      那么 各根分组条目为各自实例根的注册表且无跨根撞号观测
 
   @req:r99
   规则: proposal title 必填门

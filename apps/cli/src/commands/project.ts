@@ -19,6 +19,7 @@ import type { Command } from 'commander';
 
 import {
   CliError,
+  addSpecDirOption,
   loadCliConfig,
   loadRootSpecEntries,
   type CliContext,
@@ -31,6 +32,7 @@ interface MigrateOptions {
   toVersion?: string;
   versionExpr?: string;
   dryRun?: boolean;
+  directory?: string;
 }
 
 /** Resolve the playbook range from --from-version/--to-version or the
@@ -83,14 +85,16 @@ function collectFeatureFiles(paths: string[]): string[] {
 export function registerProject(program: Command, ctx: CliContext): void {
   const project = program.command('project').description('Project management commands');
 
-  project
+  const dedupe = project
     .command('dedupe-req-ids')
     .description('Remap globally duplicated req ids (report with --dry-run)')
     .option('--dry-run', 'report the remap plan without writing')
-    .action((options: { dryRun?: boolean }) => {
+    .action((options: { dryRun?: boolean; directory?: string }) => {
       // dedupe registry covers requirement handles (`@req` on 规则: headers) only;
       // duplicates follow the occurrence model (同文件内共用或跨文件均算)
-      const entries = loadRootSpecEntries(undefined, ctx.io);
+      // r115: the instance root (--directory, else the nearest at or above cwd)
+      // scopes the registry AND the write plan — never the launch dir alone.
+      const entries = loadRootSpecEntries(options.directory, ctx.io);
       const { duplicates } = buildReqRegistry(entries);
       if (duplicates.length === 0) {
         console.log('No colliding req_id values in llmanspec/specs.');
@@ -98,9 +102,15 @@ export function registerProject(program: Command, ctx: CliContext): void {
       }
       const io = ctx.io;
       // r43: --dry-run is zero-side-effect — plan only, never write.
-      const plan = planDedupe(entries, io, resolveRootSpecsDir(undefined, ctx.io), duplicates, {
-        apply: !options.dryRun,
-      });
+      const plan = planDedupe(
+        entries,
+        io,
+        resolveRootSpecsDir(options.directory, ctx.io),
+        duplicates,
+        {
+          apply: !options.dryRun,
+        },
+      );
       // predecessor output: `{cap}: {from} → {to}` per remap (prefix in dry-run) + count line.
       for (const item of plan) {
         const cap = item.remapFile.replace(/^.*specs\//u, '').replace(/\.feature$/u, '');
@@ -109,8 +119,9 @@ export function registerProject(program: Command, ctx: CliContext): void {
       }
       console.log(`${plan.length} remapping(s)${options.dryRun ? ' (dry-run)' : ''}`);
     });
+  addSpecDirOption(dedupe);
 
-  project
+  const migrate = project
     .command('migrate')
     .description(
       'Migration hub: legacy collaboration notes, versioned agent playbooks, spec-header strip',
@@ -185,7 +196,7 @@ export function registerProject(program: Command, ctx: CliContext): void {
             'strip-legacy-headers takes no --kind/--version-expr/--from-version/--to-version',
           );
         }
-        const targets = collectFeatureFiles([resolveRootSpecsDir(undefined, ctx.io)]);
+        const targets = collectFeatureFiles([resolveRootSpecsDir(options.directory, ctx.io)]);
         let touched = 0;
         let removed = 0;
         for (const file of targets) {
@@ -224,4 +235,5 @@ export function registerProject(program: Command, ctx: CliContext): void {
       }
       console.log(note);
     });
+  addSpecDirOption(migrate);
 }

@@ -287,6 +287,9 @@ bdd.given('一个含三个带日期归档目录的临时仓库', (ctx) => {
     );
   }
   const root = mkdtempSync(join(tmpdir(), 'llman-sdd-freeze-'));
+  // r91 instance predicate: specs/ presence makes the tmp tree a valid instance
+  // root (r118's domain error applies only when no instance exists at all).
+  mkdirSync(join(root, 'llmanspec', 'specs'), { recursive: true });
   for (const dir of DATED_DIRS) {
     const full = join(root, 'llmanspec', 'changes', 'archive', dir);
     mkdirSync(full, { recursive: true });
@@ -366,6 +369,9 @@ bdd.given('一个含带日期归档目录的临时仓库', (ctx) => {
     );
   }
   const root = mkdtempSync(join(tmpdir(), 'llman-sdd-freeze-card-'));
+  // r91 instance predicate: specs/ presence makes the tmp tree a valid instance
+  // root (r118's domain error applies only when no instance exists at all).
+  mkdirSync(join(root, 'llmanspec', 'specs'), { recursive: true });
   const full = join(root, 'llmanspec', 'changes', 'archive', '2026-01-01-card-demo');
   mkdirSync(full, { recursive: true });
   writeFileSync(join(full, 'proposal.md'), `---\ndepends_on: [other]\n---\n\n# card demo\n`);
@@ -436,6 +442,9 @@ bdd.given(
       );
     }
     const root = mkdtempSync(join(tmpdir(), 'llman-sdd-freeze-title-'));
+    // r91 instance predicate: specs/ presence makes the tmp tree a valid instance
+    // root (r118's domain error applies only when no instance exists at all).
+    mkdirSync(join(root, 'llmanspec', 'specs'), { recursive: true });
     const full = join(root, 'llmanspec', 'changes', 'archive', '2026-01-01-title-demo');
     mkdirSync(full, { recursive: true });
     writeFileSync(
@@ -487,6 +496,9 @@ bdd.given('一个含平铺冻结卡与冷备的临时仓库', (ctx) => {
   }
   const root = mkdtempSync(join(tmpdir(), 'llman-sdd-thaw-card-'));
   // 先冻结出一个真实带卡冷备,再以该仓库作为 thaw 前置
+  // r91 instance predicate: specs/ presence makes the tmp tree a valid instance
+  // root (r118's domain error applies only when no instance exists at all).
+  mkdirSync(join(root, 'llmanspec', 'specs'), { recursive: true });
   const full = join(root, 'llmanspec', 'changes', 'archive', '2026-01-01-card-thaw');
   mkdirSync(full, { recursive: true });
   writeFileSync(join(full, 'proposal.md'), `---\ndepends_on: []\n---\n\n# thaw demo\n`);

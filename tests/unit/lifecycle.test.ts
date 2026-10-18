@@ -336,7 +336,7 @@ describe('harvestAcrossWorktrees skips absent worktrees silently (r35, issue #8)
   };
 
   test('prunable entry and absent llmanspec tree are skipped without warnings', () => {
-    const harvest = harvestAcrossWorktrees(git, io, '/repo/llmanspec');
+    const harvest = harvestAcrossWorktrees(git, io, 'llmanspec');
     expect(harvest.warnings).toEqual([]);
     expect(harvest.maxNumber).toBe(10);
     expect(harvest.nextNumber).toBe(11);
@@ -350,7 +350,7 @@ describe('harvestAcrossWorktrees skips absent worktrees silently (r35, issue #8)
         return io.listDir(p);
       },
     };
-    const harvest = harvestAcrossWorktrees(git, flakyIo, '/repo/llmanspec');
+    const harvest = harvestAcrossWorktrees(git, flakyIo, 'llmanspec');
     expect(harvest.warnings.some((w) => w.includes('cannot list /repo/llmanspec/changes'))).toBe(
       true,
     );

@@ -1,38 +1,22 @@
 // Multi-root acceptance steps (subproject-llmanspec-discovery r91-r94):
-// aggregate validate, single-ownership ERROR, sub-root init skills policy,
-// per-root req registry.
+// aggregate validate, single-ownership non-regression (scope-boundaries r117),
+// sub-root init skills policy, per-root req registry.
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { bdd } from '../runner.ts';
-import { CLI, makeTempRepo, type TempRepo } from './shared.ts';
-
-const SUB = 'packages/tui';
-const subRootOf = (repo: TempRepo): string => join(repo.root, SUB);
-
-function seedSubRoot(repo: TempRepo, checkCommand?: string): void {
-  mkdirSync(join(subRootOf(repo), 'llmanspec', 'specs'), { recursive: true });
-  writeFileSync(
-    join(subRootOf(repo), 'llmanspec', 'config.yaml'),
-    checkCommand === undefined
-      ? 'schema: spec-driven\n'
-      : `schema: spec-driven\nspecs:\n  check_command: "${checkCommand}"\n`,
-  );
-  writeFileSync(
-    join(subRootOf(repo), 'llmanspec', 'specs', 'tuicap.feature'),
-    '# language: zh-CN\n# capability: tuicap\n# purpose: p\n# scope: tests/\n\n功能: tuicap\n\n  @req:r5\n  规则: 子规则\n    系统 MUST y\n',
-  );
-  mkdirSync(join(subRootOf(repo), 'tests'), { recursive: true });
-}
-
-function seedRootCheck(repo: TempRepo, checkCommand: string): void {
-  writeFileSync(
-    join(repo.root, 'llmanspec', 'config.yaml'),
-    `schema: spec-driven\nspecs:\n  check_command: "${checkCommand}"\n`,
-  );
-}
+import {
+  CLI,
+  makeTempRepo,
+  runCli,
+  seedRootCheck,
+  seedSubRoot,
+  subRootOf,
+  SUB,
+  type TempRepo,
+} from './shared.ts';
 
 interface RunResult {
   code: number;
@@ -96,11 +80,16 @@ bdd.when('在双根仓库运行 validate --specs', (ctx) => {
   ctx.fixtures['聚合结果'] = { code: r.code, out: `${r.stdout}${r.stderr}` } satisfies RunResult;
 });
 
-bdd.thenStep('该 spec 报 single-ownership 错误且列出冲突路径与两侧根', (ctx) => {
+bdd.thenStep('越界 scope 只作报告制观察且 validate --specs 仍绿', (ctx) => {
   const r = ctx.fixtures['聚合结果'] as RunResult;
-  if (!r.out.includes('single-ownership')) throw new Error(`no ownership ERROR:\n${r.out}`);
-  if (!r.out.includes('packages/tui')) throw new Error(`crossing path missing:\n${r.out}`);
-  if (r.code === 0) throw new Error('single-ownership ERROR must fail validation');
+  // r117:路径单一归属自 0.8.0 起为报告制观察面而非错误门——命中另一个已存在的
+  // 实例目录 MUST NOT 报 ERROR、MUST NOT 使 validate 失败。
+  if (r.out.includes('single-ownership')) {
+    throw new Error(`single-ownership gate must not be revived:\n${r.out}`);
+  }
+  if (r.code !== 0) throw new Error(`crossing scope must stay green:\n${r.out}`);
+  // 非空断言:该 spec 确实被校验过,否则本场景会因空跑而恒绿。
+  if (!r.out.includes('violator')) throw new Error(`spec was not validated at all:\n${r.out}`);
 });
 
 bdd.given('一个 git 仓库的临时目录', (ctx) => {
@@ -274,4 +263,64 @@ bdd.thenStep('输出 r6 而非根部空缺号', (ctx) => {
   // sub-root max is r5 -> r6; the root registry only holds r1 (a smallest-free
   // scan of the wrong root would alias the retired r2-r4 gap).
   if (!r.out.includes('r6')) throw new Error(`expected sub-root r6, got:\n${r.out}`);
+});
+
+// ---------------------------------------------------------------------------
+// r109 — show 的 change 面在「无有效实例但含 changes」的工作区保持单根行为:
+// 该宽容面由同条 r109 的单根逐字节一致 MUST 推出(前代 show 直接按缺省实例
+// 目录读 change),仅显式 --directory 才 MUST 报域错误。list 无此豁免。
+// ---------------------------------------------------------------------------
+
+bdd.given('一个只有 changes 目录而无有效实例判据的临时仓库', (ctx) => {
+  const repo = makeTempRepo();
+  // 有效性判据 = config.yaml 或 specs/ 目录;两者都去掉 → 目录不是有效实例根
+  rmSync(join(repo.root, 'llmanspec', 'config.yaml'), { force: true });
+  rmSync(join(repo.root, 'llmanspec', 'specs'), { recursive: true, force: true });
+  mkdirSync(join(repo.root, 'llmanspec', 'changes', 'only'), { recursive: true });
+  writeFileSync(
+    join(repo.root, 'llmanspec', 'changes', 'only', 'proposal.md'),
+    '---\ndepends_on: []\ntitle: 单根遗留条目\n---\n\n## Why\nx\n\n## What Changes\n- y\n',
+  );
+  if (
+    existsSync(join(repo.root, 'llmanspec', 'config.yaml')) ||
+    existsSync(join(repo.root, 'llmanspec', 'specs'))
+  ) {
+    throw new Error('fixture 仍构成有效实例根');
+  }
+  ctx.fixtures['无实例含changes仓库'] = { repo };
+});
+
+bdd.when('在该仓库运行 show 该 change 并在同一目录以 --directory 显式限定', (ctx) => {
+  const { repo } = ctx.fixtures['无实例含changes仓库'] as { repo: TempRepo };
+  const picked = (args: string[]) => {
+    const r = runCli(args, repo.root, process.env);
+    return { code: r.status ?? 1, out: `${r.stdout ?? ''}${r.stderr ?? ''}` };
+  };
+  ctx.fixtures['无实例show结果'] = {
+    plain: picked(['show', 'only', '--output', 'human']),
+    scoped: picked(['show', 'only', '--directory', repo.root]),
+    listed: picked(['list']),
+  };
+});
+
+bdd.thenStep('缺省形态读出该 change 而显式 --directory 形态与 list 都报域错误', (ctx) => {
+  const r = ctx.fixtures['无实例show结果'] as {
+    plain: RunResult;
+    scoped: RunResult;
+    listed: RunResult;
+  };
+  if (r.plain.code !== 0) throw new Error(`缺省 show 未保持单根行为:\n${r.plain.out}`);
+  if (!r.plain.out.includes('单根遗留条目')) {
+    throw new Error(`缺省 show 未读出该 change:\n${r.plain.out}`);
+  }
+  for (const [name, ran] of [
+    ['show --directory', r.scoped],
+    ['list', r.listed],
+  ] as const) {
+    if (ran.code !== 1) throw new Error(`${name} 未按域错误退出(${ran.code}):\n${ran.out}`);
+    if (!ran.out.includes('no llmanspec root at or above')) {
+      throw new Error(`${name} 未报域错误:\n${ran.out}`);
+    }
+    if (ran.out.includes('ENOENT')) throw new Error(`${name} 泄漏了底层错误:\n${ran.out}`);
+  }
 });
