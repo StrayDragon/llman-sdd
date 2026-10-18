@@ -9,7 +9,7 @@
     name/path/stage/completedTasks/totalTasks/lastModified/idleDays/status;status 枚举 MUST 为
     no-tasks(无任务)、complete(全部完成)、in-progress(进行中);`--output human` MUST 以列布局呈现阶段、任务计数、相对时间与 idle
     天数;`list` 缺省(无输出 flag)MUST 输出 TOON(IR 与 `--json` 同载荷),并 MUST 支持
-    `--output <toon|json|compact-json|human>`。
+    `--output <toon|json|compact-json|human>`;元素 `title` MUST 与 `show` 同源同口径(见 r21)。
 
     场景: 输出结构合法
       假如 本仓库的真实 llmanspec 工作区
@@ -30,7 +30,8 @@
     id/path/title/stage/artifacts/readyToImplement/specsLanded/needsSpecsChange/attached/gateChecks/matchedViaPrefix;`show <spec>`
     MUST 直出头注释与 gherkin 原文;`graph --format mermaid` MUST 以 `flowchart TD` 开头,节点名 MUST 将 `-` 转为
     `_`,archived change MUST 标注 `✓ done` 与 archived class,依赖边 MUST 来自 frontmatter depends_on 且指向
-    archived 节点时同样保留,报告 MUST 以 classDef archived 行收尾。
+    archived 节点时同样保留,报告 MUST 以 classDef archived 行收尾。`show` 与 `list` 元素的 `title` MUST 取 proposal
+    frontmatter `title`(非空时优先),否则回退 proposal 正文 H1(与 review-freeze r24 冻结卡同口径)。
 
     场景: show 与 graph 输出契约
       假如 一个含活跃 change 与归档依赖的临时仓库
@@ -277,6 +278,8 @@
     `project migrate prompt --from-version <v> --to-version <v>` MUST 输出面向 agent 的英文迁移手册:按 `(from, to]` 左开右闭的数值比较聚合范围内全部已登记版本并升序输出,逐版本 `## <version>` 头,版本内逐条目标题、编号步骤与逐项自检清单,版本间以水平分割线分隔,同一范围的输出 MUST 逐字节确定;
     版本 MUST 为 `x.y.z` 三段数字,非法格式或 `from >= to` MUST 报错;范围合法但无登记条目 MUST 输出无登记迁移提示且退出码为 0;
     `--version-expr` 为废弃旗标:继续解析并等价映射为新旗标语义,MUST 向 stderr 输出弃用 WARNING 指引新旗标,与新旗标同给 MUST 报冲突错;
+    `--from-version`、`--to-version`、`--kind` 或 `--version-expr` 任一出现而无 `action` 时 MUST 报用法错误(退出码 2)并列出合法
+    `action`(prompt、strip-legacy-headers),MUST NOT 静默忽略该旗标;
     `project migrate strip-legacy-headers` MUST 扫描当前实例根 `llmanspec/specs/**` 全部 .feature,删除行首 `# scope:`、`# reviewed-through:` 或 `# capability:` 的注释行(全文范围,幂等:无匹配则零改动),`--dry-run` MUST 仅报告将改动的文件与行数而不写盘,执行结束 MUST 输出后续清单(重跑 `init --update`)与改动统计,剥除后产物 MUST 通过结构校验。
 
     场景: 迁移手册按版本范围聚合输出

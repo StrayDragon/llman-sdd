@@ -1,0 +1,1 @@
+context 不可用(含 `quality: "unavailable"`)→ 先 `llman-sdd index check`:stale/缺失则 `llman-sdd index rebuild`(默认 pageindex,免模型)后重试;fresh 仍不可用(`LLMAN_SDD_INDEX_CHAT_MODEL` 未设)→ 改用 `llman-sdd list --specs` + 直读 `.feature`——勿循环 rebuild。

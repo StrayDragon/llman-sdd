@@ -92,7 +92,6 @@ export {
 } from './spec/authoring.ts';
 export type {
   SpecEntry,
-  SpecIo,
   SpecVerdict,
   ValidationItem,
   ValidationLevel,
@@ -101,14 +100,9 @@ export type {
 export { validateAllSpecs, validateCapability } from './validation/validate.ts';
 export { buildDuplicatesFor, formatTotals } from './validation/validate.ts';
 export {
-  ESCAPE_TRANSITIONS_TAG,
-  FORCE_TRANSITIONS_TAG,
   TRANSITIONS_INTROSPECTION,
   isTransitionOutline,
-  parseTransitionExpr,
-  resolveTransitionDecision,
   type TransitionDecision,
-  validateTransitionScenario,
   type TransitionEdge,
 } from './validation/xstateTransitions.ts';
 export { splitVerb } from './config/changeId.ts';
@@ -192,7 +186,7 @@ export {
   archiveTaskGate,
   changeDiffInfo,
 } from './change/lifecycle.ts';
-export { normalizeLocale, localeFallbacks } from './templates/locale.ts';
+export { normalizeLocale, localeFallbacks, DEFAULT_LOCALE } from './locale.ts';
 export {
   MAX_UNIT_NESTING_DEPTH,
   renderTemplate,
@@ -202,7 +196,6 @@ export {
 export {
   ETHICS_KEYS,
   buildTemplateVars,
-  effectiveCheckCommand,
   enforceEthicsGovernance,
   loadLocaleResource,
   loadSkillTemplates,
@@ -227,6 +220,7 @@ export {
   type InitResult,
 } from './init/init.ts';
 export {
+  changeTitle,
   collectChanges,
   statusFor,
   stageFor,

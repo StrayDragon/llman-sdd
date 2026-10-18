@@ -8,11 +8,12 @@
  */
 import { join } from 'node:path';
 
+import { CHANGES_DIR, SPECS_DIR } from '../change/lifecycle.ts';
 import { loadConfigDetail } from '../config/load.ts';
 import type { SddConfig } from '../config/schema.ts';
 import { writeSddState } from '../context/sddState.ts';
+import { DEFAULT_LOCALE, localeFallbacks, normalizeLocale } from '../locale.ts';
 import { renderTemplate } from '../templates/engine.ts';
-import { localeFallbacks } from '../templates/locale.ts';
 import {
   buildTemplateVars,
   enforceEthicsGovernance,
@@ -21,14 +22,8 @@ import {
   skillCandidates,
   type TemplateIo,
 } from '../templates/skills.ts';
-import {
-  DEFAULT_CONFIG_EN,
-  DEFAULT_CONFIG_ZH_HANS,
-  LLMANSPEC_SCHEMA_URL,
-  prependSchemaHeader,
-} from './defaultConfig.ts';
-
-export { effectiveCheckCommand } from '../templates/skills.ts';
+import { type FsPort } from '../util/fsPort.ts';
+import { DEFAULT_CONFIGS, LLMANSPEC_SCHEMA_URL, prependSchemaHeader } from './defaultConfig.ts';
 
 const MARKER_START = '<!-- LLMANSPEC:START -->';
 const MARKER_END = '<!-- LLMANSPEC:END -->';
@@ -66,26 +61,23 @@ function separatorAfterEndMarker(suffix: string): string {
 export const TEMPLATES_ROOT = join(import.meta.dirname, '..', '..', 'templates');
 
 /** Repo-root-relative filesystem effects needed by the init flow. */
-export interface InitIo {
-  exists(path: string): boolean;
-  readText(path: string): string;
-  writeText(path: string, content: string): void;
-  mkdirp(path: string): void;
-  listDir(path: string): string[];
-  removeDir(path: string): void;
-}
+export type InitIo = Pick<
+  FsPort,
+  'exists' | 'readText' | 'writeText' | 'mkdirp' | 'listDir' | 'removeDir'
+>;
 
 function writeDefaultConfig(io: InitIo, locale: string): void {
-  const raw = locale === 'zh-Hans' ? DEFAULT_CONFIG_ZH_HANS : DEFAULT_CONFIG_EN;
+  const raw = DEFAULT_CONFIGS[normalizeLocale(locale)] ?? DEFAULT_CONFIGS[DEFAULT_LOCALE]!;
   io.mkdirp('llmanspec');
   io.writeText('llmanspec/config.yaml', prependSchemaHeader(raw, LLMANSPEC_SCHEMA_URL));
 }
 
 /**
  * Effective-locale precedence (init-generators r50): an explicit `locale` key
- * in the workspace config wins; a CLI option fills a missing key; the schema
- * default ('en', already baked into config.locale here) is the built-in floor.
- * Per-instance: callers resolve per workspace root, no cross-instance inheritance.
+ * in the workspace config wins; a CLI option fills a missing key; the built-in
+ * default (r18-normalized `zh-Hans`, already baked into config.locale here) is
+ * the floor. Per-instance: callers resolve per workspace root, no
+ * cross-instance inheritance.
  */
 export function resolveEffectiveLocale(input: {
   configLocale: string;
@@ -146,7 +138,13 @@ function writeManagedBlocks(
     ['llmanspec-agents-stub.md', 'llmanspec/AGENTS.md'],
   ] as const) {
     const stubRaw = loadLocaleResource(templates, TEMPLATES_ROOT, locales, stubPath);
-    if (stubRaw === null) continue;
+    if (stubRaw === null) {
+      // r19/r18: a missing built-in resource is a broken installation, not a
+      // no-op — silent skips shipped AGENTS.md-less workspaces before.
+      throw new Error(
+        `template resource missing: ${stubPath} (locales tried: ${locales.join(', ')})`,
+      );
+    }
     const existing = io.exists(agentsPath) ? io.readText(agentsPath) : '';
     const body = renderTemplate(stubRaw, new Map(), vars);
     io.writeText(agentsPath, updateFileWithMarkers(existing, body));
@@ -169,7 +167,7 @@ export function runInit(
   // 1) config: create with defaults if missing, then always load.
   const configPath = 'llmanspec/config.yaml';
   const configExisted = io.exists(configPath);
-  if (!configExisted) writeDefaultConfig(io, opts.locale ?? 'en');
+  if (!configExisted) writeDefaultConfig(io, opts.locale ?? DEFAULT_LOCALE);
   const config = withEffectiveLocale(
     loadConfigDetail(io.readText(configPath)),
     opts.locale,
@@ -182,11 +180,11 @@ export function runInit(
   writeSddState(io, opts.version);
 
   // 2) scaffold directories.
-  io.mkdirp('llmanspec/specs');
-  io.mkdirp('llmanspec/changes/archive');
+  io.mkdirp(SPECS_DIR);
+  io.mkdirp(`${CHANGES_DIR}/archive`);
   if (!io.exists('llmanspec/specs/.gitkeep')) io.writeText('llmanspec/specs/.gitkeep', '');
-  if (!io.exists('llmanspec/changes/archive/.gitkeep')) {
-    io.writeText('llmanspec/changes/archive/.gitkeep', '');
+  if (!io.exists(`${CHANGES_DIR}/archive/.gitkeep`)) {
+    io.writeText(`${CHANGES_DIR}/archive/.gitkeep`, '');
   }
 
   // 3) AGENTS.md managed blocks (root + llmanspec), preserving content.

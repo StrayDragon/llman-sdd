@@ -10,8 +10,9 @@
     `review` MUST 输出 signals 数组,元素字段 MUST 为 kind/capability/count/detail;kind MUST 覆盖 unbound(未绑定需求,即无 runnable
     嵌套场景的规则:0 场景或嵌套场景全部带 @skip/@experimental)、locked(恒 0)、
     validate(sweep FAIL 汇总;前代快照内部 sweep 的恒失败缺陷不复制);JSON MUST 含 summary{criticalCount,
-    warningCount},warningCount MUST 等于 unbound 信号计数,criticalCount MUST 等于 sweep FAIL
-    的 capability 数;退出码 MUST 仅在 criticalCount > 0 时非零;`--capability` MUST 限定单一
+    warningCount},warningCount MUST 等于 unbound 信号计数与在途 change 未勾任务警告数之和,criticalCount MUST 等于 sweep FAIL
+    的 capability 数;在途 change 的未勾任务 MUST 计为 warning,MUST NOT 计入 criticalCount(开发期 review 不得因未勾任务恒失败);
+    退出码 MUST 仅在 criticalCount > 0 时非零;`--capability` MUST 限定单一
     capability;`--export-html <path>` MUST 写出自包含 HTML 报告。
 
     场景: review 信号形状合法

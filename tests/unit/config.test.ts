@@ -13,10 +13,10 @@ import {
 const MINIMAL = `schema: spec-driven\n`;
 
 describe('loadConfig', () => {
-  test('minimal config: schema required, locale defaults to en', () => {
+  test('minimal config: schema required, locale defaults to the built-in zh-Hans', () => {
     const cfg = loadConfig(MINIMAL);
     expect(cfg.schema).toBe('spec-driven');
-    expect(cfg.locale).toBe('en');
+    expect(cfg.locale).toBe('zh-Hans');
   });
 
   test('localeExplicit reports whether the raw mapping carried the key (r50)', () => {

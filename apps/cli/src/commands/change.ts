@@ -30,15 +30,17 @@ import { Option, type Command } from 'commander';
 import {
   CliError,
   loadCliConfig,
-  loadSpecEntries,
-  newIo,
+  loadRootSpecEntries,
   resolveChangeIdOrExit,
+  type CliContext,
+  addReportOutputOptions,
+  emitReport,
+  resolveOutMode,
 } from '../cli-shared.ts';
 import { makeCliHarnessRunner } from '../harness.ts';
-import { makeCliGit } from '../io.ts';
 
-function runValidateSweep(): boolean {
-  const report = validateAllSpecs(loadSpecEntries(), newIo());
+function runValidateSweep(ctx: CliContext): boolean {
+  const report = validateAllSpecs(loadRootSpecEntries(undefined, ctx.io));
   return report.verdicts.some((v) => !v.ok);
 }
 
@@ -75,7 +77,7 @@ function warnBaseBranchDeviation(
 }
 
 /** r81: run or refuse the spec verification command before any merge or rename. */
-function enforceCloseOutHarness(id: string, noCheck: boolean): void {
+function enforceCloseOutHarness(ctx: CliContext, id: string, noCheck: boolean): void {
   const proposalPath = `llmanspec/changes/${id}/proposal.md`;
   const proposal = existsSync(proposalPath) ? readFileSync(proposalPath, 'utf8') : '';
   const needsSpecsChange = readNeedsSpecsChange(extractFrontmatter(proposal));
@@ -94,7 +96,7 @@ function enforceCloseOutHarness(id: string, noCheck: boolean): void {
     if (decision.warning !== undefined) console.error(`[WARNING] ${decision.warning}`);
     return;
   }
-  const result = makeCliHarnessRunner().run(decision.command, process.cwd());
+  const result = makeCliHarnessRunner().run(decision.command, ctx.root);
   if (result.spawnError !== undefined || result.exitCode !== 0) {
     const why = result.spawnError ?? `exit ${result.exitCode}`;
     throw new CliError(`close-out aborted: spec check failed (${why})`);
@@ -104,7 +106,7 @@ function enforceCloseOutHarness(id: string, noCheck: boolean): void {
 /** `--method squash|ff` guard shared by `change archive` / `change finalize`. */
 function assertMergeMethod(method: string | undefined): void {
   if (method !== undefined && method !== 'squash' && method !== 'ff') {
-    throw new CliError(`invalid --method: ${method}`);
+    throw new CliError(`invalid --method: ${method}`, 2);
   }
 }
 
@@ -151,7 +153,7 @@ function deriveNewId(description: string, verb: string | undefined): string {
   return slug;
 }
 
-export function registerChange(program: Command): void {
+export function registerChange(program: Command, ctx: CliContext): void {
   const change = program
     .command('change')
     .description('Change lifecycle: new / start / attach / next-id / diff / finalize');
@@ -179,12 +181,12 @@ export function registerChange(program: Command): void {
         if (options.from !== undefined) {
           const derived = deriveNewId(options.from, options.verb);
           console.log(`derived change id: ${derived}`);
-          const io = newIo();
+          const io = ctx.io;
           const result = newChange(io, { id: derived, force: options.force });
           console.log(`./${result.path}`);
           return;
         }
-        const io = newIo();
+        const io = ctx.io;
         const result = newChange(io, { id, force: options.force });
         console.log(`./${result.path}`);
       },
@@ -207,10 +209,10 @@ export function registerChange(program: Command): void {
       'create the branch in a dedicated worktree (sdd.worktree_root / sdd.worktree_naming config) instead of switching this checkout',
     )
     .action((id: string, options: { branchPrefix?: string; base?: string; worktree?: boolean }) => {
-      const resolved = resolveChangeIdOrExit(program, id);
-      const git = makeCliGit(process.cwd());
+      const resolved = resolveChangeIdOrExit(ctx, program, id);
+      const git = ctx.git;
       const config = loadCliConfig();
-      const result = startChange(git, newIo(), resolved.id, {
+      const result = startChange(git, ctx.io, resolved.id, {
         branchPrefix: options.branchPrefix ?? config?.sdd?.branch_prefix ?? 'sdd/',
         base: options.base,
         worktree: options.worktree,
@@ -234,9 +236,9 @@ export function registerChange(program: Command): void {
       'explicit fork-point branch to record (must be an existing local branch)',
     )
     .action((id: string, options: { force?: boolean; base?: string }) => {
-      const resolved = resolveChangeIdOrExit(program, id);
-      const git = makeCliGit(process.cwd());
-      const result = attachChange(git, newIo(), resolved.id, {
+      const resolved = resolveChangeIdOrExit(ctx, program, id);
+      const git = ctx.git;
+      const result = attachChange(git, ctx.io, resolved.id, {
         force: options.force,
         base: options.base,
       });
@@ -246,34 +248,43 @@ export function registerChange(program: Command): void {
       );
     });
 
-  change
+  const nextId = change
     .command('next-id')
-    .description('Preview the next free change id number (read-only)')
-    .option('--json', 'emit {maxNumber, nextNumber, warnings}')
-    .action((options: { json?: boolean }) => {
-      // r35: the scan covers this tree plus every linked git worktree's own
-      // llmanspec/ tree (degrades to the current tree when worktree list fails).
-      const harvest = harvestAcrossWorktrees(
-        makeCliGit(process.cwd()),
-        {
-          listDir: (p) => readdirSync(resolve(p)),
-          isDirectory: isDirectoryNoFollow,
-        },
-        'llmanspec',
-      );
-      if (options.json) {
-        console.log(JSON.stringify(harvest, null, 2));
-        return;
-      }
-      if (harvest.maxNumber === null) console.log('no numbered change dirs found in tree');
-      else console.log(`max number in tree: ${harvest.maxNumber}`);
-      console.log(`next free number: ${harvest.nextNumber}`);
-      for (const w of harvest.warnings) console.error(`warning: ${w}`);
-    });
+    .description('Preview the next free change id number (read-only)');
+  addReportOutputOptions(nextId, { outputHint: 'json (r35 harvest payload); toon default' });
+  nextId.action((options: { json?: boolean; output?: string; compactJson?: boolean }) => {
+    // r35: the scan covers this tree plus every linked git worktree's own
+    // llmanspec/ tree (degrades to the current tree when worktree list fails).
+    const harvest = harvestAcrossWorktrees(
+      ctx.git,
+      {
+        listDir: (p) => readdirSync(resolve(p)),
+        isDirectory: isDirectoryNoFollow,
+      },
+      'llmanspec',
+    );
+    // r35: the human face is exactly the two legacy lines (bare default and
+    // explicit `--output human`); machine modes render the harvest IR through
+    // the shared pipeline.
+    const human = (): string => {
+      const lines: string[] = [];
+      if (harvest.maxNumber === null) lines.push('no numbered change dirs found in tree');
+      else lines.push(`max number in tree: ${harvest.maxNumber}`);
+      lines.push(`next free number: ${harvest.nextNumber}`);
+      return lines.join('\n');
+    };
+    const bare =
+      options.output === undefined && options.json !== true && options.compactJson !== true;
+    if (bare) console.log(human());
+    else emitReport(harvest, options, human);
+    for (const w of harvest.warnings) console.error(`warning: ${w}`);
+  });
 
   change
     .command('archive')
-    .description('Independent seal-off: task gates + merge + archive rename + commit')
+    .description(
+      'Independent seal-off: task gates + merge + archive rename + commit (cold backup: `llman-sdd archive freeze`)',
+    )
     .argument('<id>')
     .option('--into <branch>', 'target branch to merge into')
     .option('--method <method>', 'merge method: squash | ff')
@@ -285,9 +296,9 @@ export function registerChange(program: Command): void {
         options: { into?: string; method?: string; dryRun?: boolean; force?: boolean },
       ) => {
         assertMergeMethod(options.method);
-        const resolved = resolveChangeIdOrExit(program, id);
+        const resolved = resolveChangeIdOrExit(ctx, program, id);
         id = resolved.id;
-        const io = newIo();
+        const io = ctx.io;
         if (options.dryRun) {
           const date = new Date().toISOString().slice(0, 10);
           console.log(
@@ -319,12 +330,12 @@ export function registerChange(program: Command): void {
             );
             throw new Error('archive blocked by unchecked tasks');
           }
-          if (!isCleanTree(makeCliGit(process.cwd()))) {
+          if (!isCleanTree(ctx.git)) {
             throw new CliError('`change archive` requires a clean working tree');
           }
         }
-        enforceCloseOutHarness(id, false);
-        const result = archiveChange(makeCliGit(process.cwd()), io, id, {
+        enforceCloseOutHarness(ctx, id, false);
+        const result = archiveChange(ctx.git, io, id, {
           into: options.into,
           method: options.method as 'squash' | 'ff' | undefined,
           force: options.force,
@@ -341,31 +352,39 @@ export function registerChange(program: Command): void {
       },
     );
 
-  change
+  const diffCmd = change
     .command('diff')
     .description('Print the bound branch diff vs base')
     .argument('<id>')
-    .option('--json', 'emit {change, branch, base, commitCount}')
-    .option('--export-patch <path>', 'write the diff to a file instead of stdout')
-    .action((id: string, options: { json?: boolean; exportPatch?: string }) => {
-      const resolved = resolveChangeIdOrExit(program, id);
+    .option('--export-patch <path>', 'write the diff to a file instead of stdout');
+  addReportOutputOptions(diffCmd, {
+    outputHint: 'json {change,branch,base,commitCount}; toon default',
+  });
+  diffCmd.action(
+    (
+      id: string,
+      options: { json?: boolean; output?: string; compactJson?: boolean; exportPatch?: string },
+    ) => {
+      const resolved = resolveChangeIdOrExit(ctx, program, id);
       id = resolved.id;
-      const git = makeCliGit(process.cwd());
-      if (options.json) {
-        const info = changeDiffInfo(git, newIo(), id);
-        console.log(JSON.stringify(info, null, 2));
-        return;
-      }
-      const diff = changeDiff(git, newIo(), id);
+      const git = ctx.git;
+      const diff = changeDiff(git, ctx.io, id);
       if (options.exportPatch !== undefined) {
         // writeText creates parent dirs — exporting into a fresh path like
-        // out/change.patch must not ENOENT.
-        newIo().writeText(options.exportPatch, diff);
+        // out/change.patch must not ENOENT. Export wins over any output mode.
+        ctx.io.writeText(options.exportPatch, diff);
         console.log(`wrote ${options.exportPatch}`);
         return;
       }
-      console.log(diff);
-    });
+      if (resolveOutMode(options.output, options.json, options.compactJson) !== 'human') {
+        emitReport(changeDiffInfo(git, ctx.io, id), options);
+        return;
+      }
+      // T37: an empty diff says so instead of printing nothing.
+      if (diff.trim() === '') console.log('no differences against the base (empty diff)');
+      else console.log(diff);
+    },
+  );
 
   change
     .command('finalize')
@@ -385,19 +404,19 @@ export function registerChange(program: Command): void {
       ) => {
         assertMergeMethod(options.method);
         if (options.check !== false) {
-          const failed = runValidateSweep();
+          const failed = runValidateSweep(ctx);
           if (failed) {
             throw new CliError(
               'finalize aborted: validation sweep failed (use --no-check to skip)',
             );
           }
         }
-        const resolved = resolveChangeIdOrExit(program, id);
+        const resolved = resolveChangeIdOrExit(ctx, program, id);
         id = resolved.id;
-        enforceCloseOutHarness(id, options.check === false);
+        enforceCloseOutHarness(ctx, id, options.check === false);
         const config = loadCliConfig();
         const method = options.method ?? config?.sdd?.merge_method ?? 'squash';
-        const result = finalizeChange(makeCliGit(process.cwd()), newIo(), id, {
+        const result = finalizeChange(ctx.git, ctx.io, id, {
           into: options.into,
           method: method as 'squash' | 'ff',
           today: new Date().toISOString().slice(0, 10),

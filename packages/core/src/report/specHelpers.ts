@@ -1,38 +1,29 @@
-import { assignSpecIds } from '../spec/assignSpecIds.ts';
-import { officialKeywords, officialKeywordsOrEn } from '../spec/keywords.ts';
-import { localeToGherkinLang, parseCapability } from '../spec/parser.ts';
-import { buildReqRegistry } from '../spec/reqRegistry.ts';
 /**
  * Spec authoring helpers (peripheral-commands capability, r22):
  * skeleton generation + global next req id. Pure, IO injected.
  */
-import { localeFallbacks } from '../templates/locale.ts';
+import { localeFallbacks } from '../locale.ts';
+import { assignSpecIds } from '../spec/assignSpecIds.ts';
+import { officialKeywords, officialKeywordsOrEn } from '../spec/keywords.ts';
+import { localeToGherkinLang, parseCapability } from '../spec/parser.ts';
+import { buildReqRegistry } from '../spec/reqRegistry.ts';
+import { type FsPort } from '../util/fsPort.ts';
+import { discoverFeatureFiles } from '../validation/discover.ts';
 import type { SpecEntry } from '../validation/validate.ts';
 
-export interface SpecHelperIo {
-  exists(path: string): boolean;
-  readText(path: string): string;
-  writeText(path: string, content: string): void;
-  mkdirp(path: string): void;
-  isDirectory(path: string): boolean;
-  listDir(path: string): string[];
-}
+export type SpecHelperIo = Pick<
+  FsPort,
+  'exists' | 'readText' | 'writeText' | 'mkdirp' | 'isDirectory' | 'listDir'
+>;
 
 function collectSpecEntries(io: SpecHelperIo, specsDir: string): SpecEntry[] {
-  const entries: SpecEntry[] = [];
-  const walk = (dir: string): void => {
-    if (!io.exists(dir)) return;
-    for (const name of io.listDir(dir)) {
-      const full = `${dir}/${name}`;
-      if (name.endsWith('.feature')) {
-        entries.push({ fileName: full, doc: parseCapability(io.readText(full), full) });
-      } else if (io.isDirectory(full)) {
-        walk(full);
-      }
-    }
-  };
-  walk(specsDir);
-  assignSpecIds(entries, specsDir);
+  // T24: shared discovery — identical ordering/norm as the hash walk.
+  const normDir = specsDir.replace(/\\/g, '/').replace(/\/$/u, '');
+  const entries = discoverFeatureFiles(normDir, io).map((path) => ({
+    fileName: path,
+    doc: parseCapability(io.readText(path), path),
+  }));
+  assignSpecIds(entries, normDir);
   return entries;
 }
 

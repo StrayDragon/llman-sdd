@@ -262,7 +262,8 @@ describe('r44/r45/r46 — change family flags', () => {
     const git = makeSpawnGit(root);
     const io = makeNodeIo(root);
     startChange(git, io, 'fam');
-    writeFileSync(join(root, 'feat.txt'), 'x\n');
+    mkdirSync(join(root, 'llmanspec', 'specs'), { recursive: true });
+    writeFileSync(join(root, 'llmanspec', 'specs', 'fam.feature'), 'x\n'); // T34: land specs
     run(['add', '-A']);
     run(['commit', '-qm', 'work']);
     const result = finalizeChange(git, io, 'fam', { today: '2026-09-24', noCommit: true });

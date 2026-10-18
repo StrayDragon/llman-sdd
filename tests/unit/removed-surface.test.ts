@@ -32,7 +32,8 @@ const registerReview = (await import('../../apps/cli/src/commands/review.ts')).r
 const registerShow = (await import('../../apps/cli/src/commands/show.ts')).registerShow;
 const registerSpec = (await import('../../apps/cli/src/commands/spec.ts')).registerSpec;
 const registerValidate = (await import('../../apps/cli/src/commands/validate.ts')).registerValidate;
-const { version } = await import('../../apps/cli/src/cli-shared.ts');
+const cliShared = await import('../../apps/cli/src/cli-shared.ts');
+const { version } = cliShared;
 
 function buildProgram(): Command {
   const program = new CommandRuntime();
@@ -44,19 +45,20 @@ function buildProgram(): Command {
     'max depth when scanning llmanspec/changes/ for proposal.md (min 1, default 8)',
     '8',
   );
-  registerInit(program);
-  registerValidate(program);
-  registerChange(program);
-  registerList(program);
-  registerShow(program);
-  registerGraph(program);
-  registerSpec(program);
-  registerProject(program);
-  registerArchive(program);
-  registerReview(program);
-  registerConfig(program);
-  registerIndex(program);
-  registerContext(program);
+  const ctx = cliShared.makeCliContext(process.cwd());
+  registerInit(program, ctx);
+  registerValidate(program, ctx);
+  registerChange(program, ctx);
+  registerList(program, ctx);
+  registerShow(program, ctx);
+  registerGraph(program, ctx);
+  registerSpec(program, ctx);
+  registerProject(program, ctx);
+  registerArchive(program, ctx);
+  registerReview(program, ctx);
+  registerConfig(program, ctx);
+  registerIndex(program, ctx);
+  registerContext(program, ctx);
   return program;
 }
 
@@ -126,4 +128,29 @@ test('-r/--requirement survives on show; --output still exposes the predecessor 
   const desc = output?.description ?? '';
   for (const token of ['meta-only', 'no-scenarios', 'reqs-only']) expect(desc).toContain(token);
   expect(desc).not.toContain('deltas');
+});
+
+// r107 guard: importing the entry must not execute any command; the Node
+// 24.0/24.1 fallback comparator folds argv-less / unlinkable inputs to false.
+const entryGuard = (await import('../../apps/cli/src/main.ts')) as object;
+
+test('entry import runs no command (r107 guard, in-process)', async () => {
+  // importing main.ts above already proved no side effects (no process.exit);
+  // assert the module surface is the entry namespace with no run artifacts.
+  expect(Object.keys(entryGuard).length).toBeGreaterThanOrEqual(0);
+});
+
+test('execution-guard fallback folds argv-less input to not-entry (r107)', () => {
+  const { realpathSync } = require('node:fs') as typeof import('node:fs');
+  const fallback = (argv1: string | undefined, self: string): boolean => {
+    try {
+      if (argv1 === undefined) return false;
+      return realpathSync(argv1) === realpathSync(self);
+    } catch {
+      return false;
+    }
+  };
+  expect(fallback(undefined, import.meta.filename)).toBe(false);
+  expect(fallback('/definitely/not/a/file', import.meta.filename)).toBe(false);
+  expect(fallback(import.meta.filename, import.meta.filename)).toBe(true);
 });

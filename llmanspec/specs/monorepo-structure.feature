@@ -35,7 +35,9 @@
     pid)与墙钟(无参 Date 构造、Date.now)的访问同属副作用,MUST 经注入或参数传入。纯度门禁 MUST 检出上述全部类别(无过渡白名单条目)。nunjucks 调用 MUST
     收敛在 templates/engine.ts,且 MUST 无 loader、autoescape:false;交互提示 MUST 收敛于 CLI 适配层(当前唯一交互为 `spec migrate-native` 确认,
     经 node:readline 实现),core 域逻辑 MUST NOT 发起终端交互。oxlint
-    ignorePatterns MUST 忽略生成物与 .agents/skills/。
+    ignorePatterns MUST 忽略生成物与 .agents/skills/。apps/cli/src 与 packages/*/src 同属双运行时面:代码 MUST 只用 `node:` 与 Web
+    标准 API,MUST NOT 使用 Bun 专属 API(Bun.$、Bun.file、Bun.Glob 等)与 `import.meta.dir`(目录需归一为 `import.meta.dirname`);
+    该断言 MUST 由只读扫描纳入 bun test 套件(随 qa 运行),违例 MUST 报出来源文件与命中片段。
 
     场景: core 纯域纪律合约对账通过
       假如 工作目录是仓库根
@@ -55,7 +57,7 @@
 
   @req:r67
   规则: 模板命令对账
-    模板 skills 与 units(zh-Hans 与 en 双 locale)中对 CLI 命令与旗标的字面引用 MUST 与 CLI 实际命令面对账:引用的命令路径 MUST
+    模板 skills 与 units(内置 zh-Hans)中对 CLI 命令与旗标的字面引用 MUST 与 CLI 实际命令面对账:引用的命令路径 MUST
     存在,引用的每个旗标 MUST 为该命令已注册旗标;对账 MUST 以自动门禁纳入 bun test 套件(随 qa 运行),违例 MUST 致门禁失败并逐条报出来源模板与违例原因。对账面为
     packages/core/templates/** 模板源头;渲染产物与 golden 基线为下游,模板字面对账不在下游重复设门(仓库自带产物新鲜度比对是独立门禁,合约在
     init-generators r80)。姊妹语义对齐门禁 tests/unit/template-guidance-parity.test.ts(值域/行为陈述,合约在

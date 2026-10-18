@@ -24,6 +24,11 @@ bdd.given('一个已 start 且任务全勾的临时仓库', (ctx) => {
   const id = 'demo-arch';
   seedChange(repo, id, { files: { 'tasks.md': '# Tasks\n- [x] done\n' }, commit: 'draft' });
   repo.run('bun', [CLI, 'change', 'start', id]);
+  // T34: archive shares the close-out gate — land a spec edit on the branch.
+  writeFileSync(
+    join(repo.root, 'llmanspec', 'specs', 'demo.feature'),
+    '# language: zh-CN\n# capability: demo\n# purpose: p\n# scope: llmanspec/\n\n功能: demo\n\n  @req:r9\n  规则: r9\n    系统 MUST x\n',
+  );
   writeFileSync(join(repo.root, 'feature.txt'), 'hello\n');
   repo.run('git', ['add', '-A']);
   repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'feat']);

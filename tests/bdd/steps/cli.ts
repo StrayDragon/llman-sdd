@@ -1,6 +1,13 @@
 // Domain step definitions: cli 能力 — 覆盖 r75(错误出口单一前缀/退出码)、
-// r76(报告命令输出旗标共享注册)、r77(全局旗标面,前代兼容旗标已删)。
+// r76(报告命令输出旗标共享注册)、r77(全局旗标面,前代兼容旗标已删)、
+// r107(入口可导入与执行守卫)、r108(上下文注入与 cwd 隔离)、r109(实例根发现)。
 // 断言针对 CLI 输出的真实形状(stderr 前缀、退出码、单行 JSON),不绕道内部 API。
+import { spawnSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+
 import { bdd } from '../runner.ts';
 import { CLI, REPO_ROOT, makeTempRepo, runCli as spawnCli, seedChange } from './shared.ts';
 
@@ -161,4 +168,145 @@ bdd.thenStep('输出恰为单行且可被 JSON.parse', (ctx) => {
       cause: error,
     });
   }
+});
+
+// ---------------------------------------------------------------------------
+// r75 补充 — 参数解析失败与裸调用退出码
+// ---------------------------------------------------------------------------
+
+bdd.when('运行 CLI 不带任何子命令与参数', (ctx) => {
+  recordResult(ctx, runCli([]));
+});
+
+bdd.when('运行 CLI 的 change 分组不带子命令', (ctx) => {
+  recordResult(ctx, runCli(['change']));
+});
+
+bdd.when('运行 show 不带 change id 参数', (ctx) => {
+  recordResult(ctx, runCli(['show']));
+});
+
+bdd.when('运行 list --compact-json --output human', (ctx) => {
+  recordResult(ctx, runCli(['list', '--compact-json', '--output', 'human']));
+});
+
+bdd.thenStep('stdout 含 "{text}"', (ctx, text: string) => {
+  const r = ctx.fixtures['cli结果'] as CliRun;
+  if (!r.stdout.includes(text)) {
+    throw new Error(`stdout must contain "${text}": ${JSON.stringify(r.stdout)}`);
+  }
+});
+
+bdd.thenStep('stderr 含 "{text}"', (ctx, text: string) => {
+  const r = ctx.fixtures['cli结果'] as CliRun;
+  if (!r.stderr.includes(text)) {
+    throw new Error(`stderr must contain "${text}": ${JSON.stringify(r.stderr)}`);
+  }
+});
+
+bdd.thenStep('stderr 含 "{text}" 且不含 "{absent}"', (ctx, text: string, absent: string) => {
+  const r = ctx.fixtures['cli结果'] as CliRun;
+  if (!r.stderr.includes(text)) {
+    throw new Error(`stderr must contain "${text}": ${JSON.stringify(r.stderr)}`);
+  }
+  if (r.stderr.includes(absent)) {
+    throw new Error(`stderr must not contain "${absent}": ${JSON.stringify(r.stderr)}`);
+  }
+});
+
+bdd.thenStep('stdout 不含 "{text}"', (ctx, text: string) => {
+  const r = ctx.fixtures['cli结果'] as CliRun;
+  if (r.stdout.includes(text)) {
+    throw new Error(`stdout must not contain "${text}": ${JSON.stringify(r.stdout)}`);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// r107 — 入口可导入与执行守卫
+// ---------------------------------------------------------------------------
+
+bdd.when('在子进程中 import CLI 入口模块', (ctx) => {
+  // 执行入口被 import 时不得执行任何命令(守卫只在自己是主模块时装配运行)。
+  const entry = pathToFileURL(CLI).href;
+  const script = `import(${JSON.stringify(entry)}).then(() => console.log('imported'))`;
+  const proc = spawnSync('bun', ['-e', script], { cwd: REPO_ROOT, encoding: 'utf8' });
+  recordResult(ctx, {
+    code: proc.status ?? 1,
+    stdout: proc.stdout ?? '',
+    stderr: proc.stderr ?? '',
+  });
+});
+
+// ---------------------------------------------------------------------------
+// r108/r109 — 上下文注入、实例根发现与 --directory
+// ---------------------------------------------------------------------------
+
+function workspaceRoot(ctx: { fixtures: Record<string, unknown> }): string {
+  return (ctx.fixtures['工作区'] as { root: string } | undefined)?.root ?? REPO_ROOT;
+}
+
+bdd.given('一个含活跃 change 与 specs 的临时仓库', (ctx) => {
+  const repo = makeTempRepo();
+  seedChange(repo, 'live-change', { commit: 'seed live change' });
+  ctx.fixtures['工作区'] = { root: repo.root };
+});
+
+bdd.when('分别在该仓库根与其子目录运行 list --json', (ctx) => {
+  const root = workspaceRoot(ctx);
+  const sub = join(root, 'nested');
+  mkdirSync(sub, { recursive: true });
+  ctx.fixtures['根发现对照'] = {
+    root: runCli(['list', '--json'], root),
+    sub: runCli(['list', '--json'], sub),
+  };
+});
+
+bdd.when('在该仓库的子目录运行 list --json', (ctx) => {
+  const root = workspaceRoot(ctx);
+  const sub = join(root, 'nested');
+  mkdirSync(sub, { recursive: true });
+  ctx.fixtures['根发现对照'] = {
+    root: runCli(['list', '--json'], root),
+    sub: runCli(['list', '--json'], sub),
+  };
+});
+
+bdd.when('在仓库外的临时目录以 --directory 指向该仓库运行 list --json', (ctx) => {
+  const root = workspaceRoot(ctx);
+  const outside = mkdtempSync(join(tmpdir(), 'llman-sdd-bdd-outside-'));
+  ctx.fixtures['根发现对照'] = {
+    root: runCli(['list', '--json'], root),
+    sub: runCli(['list', '--json', '--directory', root], outside),
+  };
+});
+
+bdd.thenStep('两次输出逐字节一致', (ctx) => {
+  const pair = ctx.fixtures['根发现对照'] as { root: CliRun; sub: CliRun };
+  if (pair.root.code !== 0 || pair.sub.code !== 0) {
+    throw new Error(
+      `list must succeed in both cwds: root=${pair.root.code} sub=${pair.sub.code} ${pair.sub.stderr}`,
+    );
+  }
+  if (pair.root.stdout !== pair.sub.stdout) {
+    throw new Error(
+      `list output differs by cwd:\nroot=${JSON.stringify(pair.root.stdout)}\nsub =${JSON.stringify(pair.sub.stdout)}`,
+    );
+  }
+});
+
+bdd.thenStep('输出含该 change 且与仓库根运行结果一致', (ctx) => {
+  const pair = ctx.fixtures['根发现对照'] as { root: CliRun; sub: CliRun };
+  if (!pair.sub.stdout.includes('live-change')) {
+    throw new Error(`expected live-change in output: ${JSON.stringify(pair.sub.stdout)}`);
+  }
+  if (pair.root.stdout !== pair.sub.stdout) {
+    throw new Error(
+      `output differs from repo-root run:\nroot=${JSON.stringify(pair.root.stdout)}\nsub =${JSON.stringify(pair.sub.stdout)}`,
+    );
+  }
+});
+
+bdd.when('在该目录运行 list', (ctx) => {
+  const { root } = ctx.fixtures['空目录工作区'] as { root: string };
+  recordResult(ctx, runCli(['list'], root));
 });

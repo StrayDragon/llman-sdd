@@ -3,6 +3,7 @@
  * readers, change-id resolution, output-mode helpers and misc constants.
  * Command modules depend one-way on this file; it must not import any of them.
  */
+import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -15,17 +16,36 @@ import {
   readSddState,
   resolveChangeId,
   resolveInstanceRoot,
+  renderMachine,
   semverLt,
   type TemplateIo,
 } from '@llman-sdd/core';
 import type { Command } from 'commander';
 
 import pkg from '../package.json' with { type: 'json' };
-import { makeIo } from './io.ts';
+import { makeCliGit, makeIo } from './io.ts';
 
 // Re-exported so leaf consumers (e.g. regression gates under tests/) can type
 // against the commander surface without resolving 'commander' themselves.
 export type { Command } from 'commander';
+
+/**
+ * T21 CliContext (cli r108): the per-run resolution injected into every
+ * registerXxx — terminal IO, git port, instance root and working directory.
+ * Constructed once by `makeCliContext` at assembly time; command bodies take
+ * io/git/root from here instead of reading process state ad hoc.
+ */
+export interface CliContext {
+  io: ReturnType<typeof makeIo>;
+  git: ReturnType<typeof makeCliGit>;
+  root: string;
+  cwd: string;
+}
+
+/** Build the run context for `cwd` (defaults to the launch directory). */
+export function makeCliContext(cwd: string = process.cwd()): CliContext {
+  return { io: makeIo(cwd), git: makeCliGit(cwd), root: cwd, cwd };
+}
 
 // Version SSOT is this package's package.json (inlined at compile time — a
 // single-file binary has no on-disk package.json to read); binary builds
@@ -45,22 +65,20 @@ const baseVersion = process.env.LLMAN_SDD_VERSION ?? pkg.version;
 let dirtySuffix: string | null | undefined;
 
 function computeDirtySuffix(): string {
-  try {
-    const probe = Bun.spawnSync(['git', 'status', '--porcelain'], {
-      cwd: import.meta.dir,
-      stdout: 'pipe',
-      stderr: 'ignore',
-    });
-    if (probe.exitCode !== 0) return '';
-    const lines = probe.stdout
-      .toString()
-      .split('\n')
-      .map((l) => l.trim())
-      .filter((l) => l !== '');
-    return lines.length > 0 ? `+dirty.${lines.length}` : '';
-  } catch {
-    return '';
-  }
+  // Dual-runtime surface: `node:child_process.spawnSync` (not `Bun.spawnSync`).
+  // It reports a missing git binary through `error` and a non-zero exit through
+  // `status` instead of throwing, so the degradation is explicit — a wide catch
+  // around this block would also swallow ReferenceError from the parsing below.
+  const probe = spawnSync('git', ['status', '--porcelain'], {
+    cwd: import.meta.dirname,
+    stdio: ['ignore', 'pipe', 'ignore'],
+  });
+  if (probe.error !== undefined || probe.status !== 0) return '';
+  const lines = (probe.stdout?.toString() ?? '')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l !== '');
+  return lines.length > 0 ? `+dirty.${lines.length}` : '';
 }
 
 export function versionDisplay(): string {
@@ -109,29 +127,30 @@ export function exitWith(code: number): void {
   process.exitCode = code;
 }
 
-/** Parse all capability specs under llmanspec/specs via core discovery. */
-export function loadSpecEntries(): ReturnType<typeof discoverSpecs> {
-  return discoverSpecs('llmanspec/specs', newIo());
-}
-
 /**
  * Per-root specs dir (r94): the nearest llmanspec/ instance at or above the
  * start dir (--directory override). Identity 'llmanspec/specs' when the cwd
  * is itself the instance root — legacy relative output paths stay
  * byte-identical there.
  */
-export function resolveRootSpecsDir(directory?: string): string {
+export function resolveRootSpecsDir(
+  directory?: string,
+  io: ReturnType<typeof makeIo> = newIo(),
+): string {
   const start = directory ?? process.cwd();
-  const root = resolveInstanceRoot(start, newIo());
+  const root = resolveInstanceRoot(start, io);
   if (root === null) {
-    throw new CliError(`no llman spec root at or above: ${start}`);
+    throw new CliError(`no llmanspec root at or above: ${start}`);
   }
-  return root === process.cwd() ? 'llmanspec/specs' : join(root, 'llmanspec', 'specs');
+  return root === start ? 'llmanspec/specs' : join(root, 'llmanspec', 'specs');
 }
 
 /** Spec entries of the resolved instance root (per-root registry, r94). */
-export function loadRootSpecEntries(directory?: string): ReturnType<typeof discoverSpecs> {
-  return discoverSpecs(resolveRootSpecsDir(directory), newIo());
+export function loadRootSpecEntries(
+  directory?: string,
+  io: ReturnType<typeof makeIo> = newIo(),
+): ReturnType<typeof discoverSpecs> {
+  return discoverSpecs(resolveRootSpecsDir(directory, io), io);
 }
 
 /** One-time legacy `bdd:` migration warning — printed to stderr by the first
@@ -187,12 +206,13 @@ export function noteVersionDriftOnce(root: string = process.cwd()): void {
   );
 }
 
-export function loadCliConfig(): ReturnType<typeof loadConfig> | null {
-  if (!existsSync('llmanspec/config.yaml')) return null;
-  const detail = loadConfigDetail(readFileSync('llmanspec/config.yaml', 'utf8'));
+export function loadCliConfig(root: string = process.cwd()): ReturnType<typeof loadConfig> | null {
+  const configPath = join(root, 'llmanspec', 'config.yaml');
+  if (!existsSync(configPath)) return null;
+  const detail = loadConfigDetail(readFileSync(configPath, 'utf8'));
   warnLegacyBdd(detail.legacyBddElevated);
   warnLegacyCheckTransitions(detail.legacyCheckTransitionsStripped);
-  noteVersionDriftOnce();
+  if (root === process.cwd()) noteVersionDriftOnce();
   return detail.config;
 }
 
@@ -211,11 +231,12 @@ export function cliMaxScanDepth(program: Command): number {
  * unified exit renders the single `Error: <message>` line and exit code 1).
  */
 export function resolveChangeIdOrExit(
+  ctx: CliContext,
   program: Command,
   input: string,
   opts: { suppressHint?: boolean } = {},
 ): { id: string; viaPrefix: boolean } {
-  const resolved = resolveChangeId(newIo(), process.cwd(), input, {
+  const resolved = resolveChangeId(ctx.io, ctx.root, input, {
     maxScanDepth: cliMaxScanDepth(program),
   });
   if (resolved.viaPrefix && opts.suppressHint !== true) {
@@ -240,7 +261,10 @@ export function addReportOutputOptions(cmd: Command, opts: { outputHint?: string
       opts.outputHint ?? 'report format: toon (default) | json | compact-json | human',
     )
     .option('--json', 'emit structured JSON (v1 compatibility alias)')
-    .option('--compact-json', 'emit single-line JSON (v1 compatibility alias)');
+    .option(
+      '--compact-json',
+      'single-line JSON alias; must pair with --json (not with --output toon|human)',
+    );
 }
 
 /**
@@ -275,11 +299,15 @@ export function assertCompactJsonPairing(options: {
   compactJson?: boolean;
   json?: boolean;
   output?: string;
-}): boolean {
-  if (options.compactJson === true && options.json !== true && options.output === undefined) {
-    throw new CliError('--compact-json requires --json', 2);
+}): void {
+  // r76: `--compact-json` is a pairing modifier of `--json`. Standalone use is
+  // rejected; combining with an explicit `--output toon|human` is ambiguous
+  // (two modes requested) and equally a usage error.
+  if (options.compactJson === true && options.json !== true) {
+    if (options.output === undefined || options.output === 'toon' || options.output === 'human') {
+      throw new CliError('--compact-json requires --json', 2);
+    }
   }
-  return true;
 }
 
 export const SKILL_DESCRIPTIONS: Record<string, string> = {
@@ -293,14 +321,86 @@ export const SKILL_DESCRIPTIONS: Record<string, string> = {
 export const skillDesc = (name: string): string => SKILL_DESCRIPTIONS[name] ?? '';
 
 export function resolveBackend(flag: string | undefined): 'pageindex' {
-  const chosen = flag ?? process.env.LLMAN_SDD_INDEX_BACKEND ?? 'pageindex';
+  // r57 normalization: trim, lowercase, `page-index` alias; blank values
+  // (unset flag / empty env) collapse to the pageindex default.
+  const raw = flag ?? process.env.LLMAN_SDD_INDEX_BACKEND ?? '';
+  const chosen = raw.trim() === '' ? 'pageindex' : raw.trim().toLowerCase();
   if (chosen === 'rag') {
     throw new Error(
       'Backend `rag` is no longer supported. Use the default pageindex backend instead:\nSet `LLMAN_SDD_INDEX_CHAT_MODEL` to a tool-calling chat model, then\nrun `llman-sdd index rebuild`.',
     );
   }
-  if (chosen !== 'pageindex') {
+  const normalized = chosen === 'page-index' ? 'pageindex' : chosen;
+  if (normalized !== 'pageindex') {
     throw new Error(`Unsupported backend: ${chosen}`);
   }
   return 'pageindex';
+}
+
+/**
+ * Tolerant specs-dir half of the root fork (show gates trailer): bare
+ * changes-only workspaces have no resolvable instance root; there the legacy
+ * relative identity is kept so discovery yields an empty set (predecessor
+ * behavior) instead of failing the change path.
+ */
+export function resolveRootSpecsDirTolerant(ctx: CliContext, directory?: string): string {
+  try {
+    const root = resolveCommandRoot(ctx, directory);
+    return root === ctx.root ? 'llmanspec/specs' : join(root, 'llmanspec', 'specs');
+  } catch {
+    return 'llmanspec/specs';
+  }
+}
+
+/** Domain-checked upward root search (r109 shared error text, never ENOENT). */
+export function resolveInstanceRootOrThrow(start: string): string {
+  const root = resolveInstanceRoot(start, newIo());
+  if (root === null) throw new CliError(`no llmanspec root at or above: ${start}`);
+  return root;
+}
+
+/**
+ * r108/r109: the single root-resolution operator. Start = `--directory` when
+ * given, else the launch root; resolves the nearest instance at or above it
+ * (the launch root itself when it already is one — single-root byte parity).
+ * Throws the shared domain error when no instance exists at or above start.
+ */
+export function resolveCommandRoot(ctx: CliContext, directory?: string): string {
+  const start = directory ?? ctx.root;
+  const root = resolveInstanceRoot(start, ctx.io);
+  if (root === null) throw new CliError(`no llmanspec root at or above: ${start}`);
+  return root;
+}
+
+/**
+ * r109: the shared `--directory <path>` instance-root override, one declared
+ * surface mounted on every command that resolves a root.
+ */
+export function addSpecDirOption(cmd: Command): void {
+  cmd.option(
+    '--directory <path>',
+    'instance root resolution start (default: nearest llmanspec/ at or above cwd)',
+  );
+}
+
+/**
+ * T18 emitReport (design 2.2): the single output pipeline for report commands
+ * — pairing guard, out-mode resolution, machine render, human fallback. The
+ * machine branch always `console.log`s the rendered payload; `humanFn` (when
+ * given) produces the human text instead. Byte-for-byte identical to the
+ * per-command logic it replaces.
+ */
+export function emitReport(
+  ir: unknown,
+  options: { output?: string; json?: boolean; compactJson?: boolean },
+  humanFn?: () => string,
+): void {
+  assertCompactJsonPairing(options);
+  const mode = resolveOutMode(options.output, options.json, options.compactJson);
+  if (mode === 'human') {
+    if (humanFn === undefined) throw new CliError('human renderer missing for human mode', 2);
+    console.log(humanFn());
+    return;
+  }
+  console.log(renderMachine(ir, mode));
 }

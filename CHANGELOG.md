@@ -2,6 +2,36 @@
 
 本项目遵循语义化版本（SemVer）。breaking 变更随大版本/次版本标注迁移说明。
 
+## 0.10.0 (2026-10-17)
+
+change `simplify-cli-core-and-skills`：模板树单线化为中文、收口门禁收紧、命令面退出码
+收敛，并给只读命令接入实例根发现。**Breaking（需迁移，五条破坏面）**：升级路径见
+`migrations/v0.9-v0.10/README.md`，agent 手册见
+`llman-sdd project migrate prompt --from-version 0.9.0 --to-version 0.10.0`。
+
+- `init-generators` / `config-schema`（破坏面一）：删除内置 en 模板树（29 个文件），
+  内置语言包只剩 `zh-Hans`；空值、`zh`/`en` 前缀与未知 locale 一律归一为 `zh-Hans`，
+  `locale` 缺省值由 `en` 改 `zh-Hans`，`spec skeleton` 骨架方言恒为 zh-CN。存量
+  `locale: en` 项目升级后渲染结果变为中文；模板资源缺失由静默跳过改为显式报错。
+- `change-lifecycle`（破坏面二）：`change finalize` / `change archive` 合并前新增收口门
+  （要求 `specsLanded || !needsSpecsChange`，`tasks.md` 存在时要求全勾），失败零写入；
+  合约未改的 change 不再能收口。
+- `cli`（破坏面三）：参数解析失败（缺必需参数、多余参数、非法枚举值、非法组合）统一
+  退出 2；五个纯父分组（`change`/`spec`/`project`/`archive`/`index`）缺必需子命令报用法
+  错误退出 2，`config` 保留默认 action；根裸调用等同 `--help`，帮助走 stdout、退出 0。
+- `validation` / `cli`（破坏面四）：`list`/`show`/`graph`/`review`/`config`/`index`/
+  `context` 接入实例根发现，`--directory` 对全部命令可用；未找到实例根报
+  `no llmanspec root at or above <path>`，不再静默返回空或泄漏 `ENOENT`。
+- `context-index`（破坏面五）：`--backend` 补 trim 与 lowercase、接受 `page-index` 别名、
+  空值与空 env 归 pageindex；`rag` 仍报弃用错。
+
+非破坏性：core 去重（`depends_on` 单点解析、active-change 遍历与 `.feature` 发现收敛、
+IO port 与常量收敛、破 `config`↔`templates` 模块环）；CLI 抽出 `createProgram` 工厂、
+注入 `CliContext`、`process.cwd()` 归零；`show`/`list` 回显 frontmatter `title`；`review`
+的在途 change 未勾任务由 critical 降为 warning；模板单一事实来源（ethics 单一来源、新增
+`index-fallback` 单元、合并 `git-native-flow`）。升级后在绑定分支运行 `init --update` 并
+提交 `.agents/skills/**`。
+
 ## 0.9.0 (2026-10-16)
 
 流转校验 tag 定界化与 init locale/更新语义统一。行为变更（非硬破坏）：流转校验缺省启用、

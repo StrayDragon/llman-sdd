@@ -26,7 +26,7 @@ metadata:
 7. 校验：`llman-sdd validate <id> --strict`。
 8. 用 `llman-sdd show <id> --output json` 确认 specs-landed 门绿（`specsLanded`/`needsSpecsChange`）后宜接 `llman-sdd-apply`（未提交前不得提示）。
 
-{{ unit("skills/git-native-flow-brief") }}
+{{ unit("skills/git-native-flow") }}
 {{ unit("skills/cli-footer") }}
 {{ unit("skills/validation-hints") }}
 

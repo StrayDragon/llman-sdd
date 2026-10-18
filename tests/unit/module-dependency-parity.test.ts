@@ -20,18 +20,20 @@ const SRC_DIR = join(REPO_ROOT, 'packages', 'core', 'src');
 
 /** Declared allowed module edges — SSOT for r72. Shrink on decoupling. */
 const ALLOWED: Readonly<Record<string, readonly string[]>> = {
-  archive: ['change'],
-  change: ['git'],
-  config: ['change', 'templates'],
-  context: ['spec', 'validation'],
-  init: ['config', 'context', 'templates'],
-  report: ['archive', 'change', 'git', 'render', 'spec', 'templates', 'validation'],
-  review: ['spec', 'validation'],
-  templates: ['config'],
-  validation: ['change', 'git', 'spec'],
+  archive: ['change', 'util'],
+  change: ['git', 'util'],
+  config: ['change', 'templates', 'root'],
+  context: ['spec', 'validation', 'util'],
+  init: ['change', 'config', 'context', 'root', 'templates', 'util'],
+  project: ['util'],
+  report: ['archive', 'change', 'git', 'render', 'root', 'spec', 'util', 'validation'],
+  review: ['report', 'spec', 'validation'],
+  util: [],
+  validation: ['change', 'git', 'spec', 'util'],
+  templates: ['config', 'root'],
   // leaves (git, spec, render, root) have no outgoing edges by declaration
   git: [],
-  spec: [],
+  spec: ['root', 'util'],
   render: [],
   root: [],
 };

@@ -38,9 +38,7 @@ const ISLAND_TABLE = `    场景大纲: island
 
 function reportOf(body: string): { failed: boolean; text: string } {
   const doc = parseCapability(specWith(body), 't.feature');
-  const report = validateAllSpecs([{ fileName: 'llmanspec/specs/t.feature', doc }], {
-    exists: () => true,
-  });
+  const report = validateAllSpecs([{ fileName: 'llmanspec/specs/t.feature', doc }]);
   return { failed: report.failed, text: report.lines.join('\n') };
 }
 

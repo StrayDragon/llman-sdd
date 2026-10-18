@@ -4,9 +4,10 @@
  * predecessor's tree.json so retrieval IDs stay comparable.
  */
 import { createHash } from 'node:crypto';
-import { join } from 'node:path';
 
 import { specIdOf } from '../spec/ir.ts';
+import { type FsPort } from '../util/fsPort.ts';
+import { discoverFeatureFiles } from '../validation/discover.ts';
 import type { SpecEntry } from '../validation/validate.ts';
 
 export const TREE_VERSION = 1;
@@ -96,27 +97,16 @@ export function buildTreeIndex(
   };
 }
 
-export interface HashIo {
-  exists(p: string): boolean;
-  isDirectory(p: string): boolean;
-  listDir(p: string): string[];
-  readText(p: string): string;
-}
+export type HashIo = Pick<FsPort, 'exists' | 'isDirectory' | 'listDir' | 'readText'>;
 
 /** sha256 over all .feature files, sorted by path (r26 freshness anchor). */
 export function computeSpecHash(specsDir: string, io: HashIo): string {
   const hash = createHash('sha256');
-  const walk = (dir: string): void => {
-    if (!io.exists(dir) || !io.isDirectory(dir)) return;
-    for (const name of io.listDir(dir).toSorted()) {
-      const full = join(dir, name);
-      if (io.isDirectory(full)) walk(full);
-      else if (name.endsWith('.feature')) {
-        hash.update(full);
-        hash.update(io.readText(full));
-      }
-    }
-  };
-  walk(specsDir);
+  // T24: shared discovery — the hashed path set/order is exactly the parser's,
+  // so editing specs cannot desynchronize freshness from parse coverage.
+  for (const full of discoverFeatureFiles(specsDir.replace(/\\/g, '/').replace(/\/$/u, ''), io)) {
+    hash.update(full);
+    hash.update(io.readText(full));
+  }
   return hash.digest('hex');
 }

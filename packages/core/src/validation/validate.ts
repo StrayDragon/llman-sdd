@@ -1,8 +1,9 @@
+import { SPECS_DIR } from '../change/lifecycle.ts';
 /**
  * Validation engine (validation capability): aggregates Phase-2 parse errors
  * plus the verdict-equivalent gates (r11/r12, ordered to match predecessor
  * `spec/validation.rs` observable issue order). Pure — filesystem access is
- * injected via SpecIo.
+ * pure.
  */
 import { assignSpecIds } from '../spec/assignSpecIds.ts';
 import type { CapabilityDoc } from '../spec/ir.ts';
@@ -26,10 +27,6 @@ export interface SpecEntry {
   specId?: string;
 }
 
-export interface SpecIo {
-  exists(path: string): boolean;
-}
-
 export interface SpecVerdict {
   fileName: string;
   capability: string;
@@ -50,7 +47,6 @@ const coveragePath = (cap: string): string => `${cap}/coverage`;
 export function validateCapability(
   entry: SpecEntry,
   duplicatesFor: (reqId: string) => boolean,
-  _io: SpecIo,
   opts: {
     duplicateSpecId?: boolean;
   } = {},
@@ -169,16 +165,15 @@ export function formatTotals(passed: number, failed: number, total: number): str
 
 export function validateAllSpecs(
   entries: readonly SpecEntry[],
-  io: SpecIo,
   opts: { specsDir?: string } = {},
 ): ValidationReport {
-  const specsDir = opts.specsDir ?? 'llmanspec/specs';
+  const specsDir = opts.specsDir ?? SPECS_DIR;
   const list: SpecEntry[] = entries.map((e) => ({ ...e }));
   const duplicateSpecIds = assignSpecIds(list, specsDir);
   const duplicatesFor = buildDuplicatesFor(list);
 
   const verdicts = list.map((e) =>
-    validateCapability(e, duplicatesFor, io, {
+    validateCapability(e, duplicatesFor, {
       duplicateSpecId: duplicateSpecIds.has(specIdOf(e)),
     }),
   );

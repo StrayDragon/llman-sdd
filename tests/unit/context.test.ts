@@ -7,10 +7,12 @@ import {
   loadTreeWithAutoRebuild,
   parseCapability,
   parseLock,
+  checkIndexFreshness,
   rebuildIndex,
   REBUILD_LOCK_REL,
   resolveChatConfig,
   runContextRetrieval,
+  TREE_JSON_REL,
   type HashIo,
   type IndexIo,
   type SpecEntry,
@@ -430,5 +432,63 @@ describe('rebuildIndex lock pid/clock injection (r3 side-effect seam)', () => {
       /already in progress/u,
     );
     expect(io.files.get(REBUILD_LOCK_REL)).toBe(`pid = 99\nstarted_at = "${startedAt}"\n`);
+  });
+});
+
+// T39 regression (simplify-cli-core-and-skills): the removed backend's legacy
+// on-disk layout `llmanspec/.context/rag/` MUST NOT satisfy pageindex
+// freshness — only `llmanspec/.context/pageindex/tree.json` counts.
+describe('checkIndexFreshness legacy rag layout (T39)', () => {
+  function memIndexIo(): IndexIo & { files: Map<string, string> } {
+    const files = new Map<string, string>();
+    return {
+      files,
+      exists: (p) => files.has(p),
+      isDirectory: () => false,
+      listDir: () => [],
+      readText: (p) => {
+        const v = files.get(p);
+        if (v === undefined) throw new Error(`missing ${p}`);
+        return v;
+      },
+      writeText: (p, c) => {
+        files.set(p, c);
+      },
+      remove: (p) => {
+        files.delete(p);
+      },
+      mkdirp: () => {},
+      processAlive: () => true,
+      currentPid: () => process.pid,
+      now: () => new Date(),
+    };
+    // hash side: checkIndexFreshness computes the spec hash via the same io
+  }
+
+  test('rag/ tree alone stays unfresh; pageindex/tree.json decides', () => {
+    const io = memIndexIo();
+    // legacy layout only: no pageindex/tree.json
+    io.files.set('llmanspec/.context/rag/tree.json', '{}');
+    let r = checkIndexFreshness(io, 'llmanspec/specs');
+    expect(r.fresh).toBe(false);
+    // even a byte-identical hash under rag/ must not flip freshness
+    io.files.set('llmanspec/.context/rag/tree.json', JSON.stringify({ spec_hash: 'x' }));
+    r = checkIndexFreshness(io, 'llmanspec/specs');
+    expect(r.fresh).toBe(false);
+    // the pageindex location with a matching hash is the sole fresh signal
+    const hashIo = {
+      ...io,
+      listDir: (p: string) => (p === 'llmanspec/specs' ? ['a.feature'] : []),
+      isDirectory: (p: string) => p === 'llmanspec/specs',
+      readText: (p: string) =>
+        p === 'llmanspec/specs/a.feature' ? SPEC_A : (io.files.get(p) as string),
+    } as unknown as IndexIo;
+    const current = computeSpecHash('llmanspec/specs', hashIo as never);
+    io.files.set(
+      TREE_JSON_REL,
+      JSON.stringify({ spec_hash: current, build_timestamp: 't', chat_model: '', docs: [] }),
+    );
+    r = checkIndexFreshness(io, 'llmanspec/specs');
+    expect(r.fresh).toBe(true);
   });
 });

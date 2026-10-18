@@ -67,7 +67,8 @@
   @req:r57
   规则: context/index backend 旗标
     `context` 与 `index rebuild` MUST 接受 `--backend pageindex`;`--backend rag` MUST 报错并提示该后端已移除;取值优先级
-    MUST 为 CLI 旗标 > env `LLMAN_SDD_INDEX_BACKEND` > 缺省 pageindex。
+    MUST 为 CLI 旗标 > env `LLMAN_SDD_INDEX_BACKEND` > 缺省 pageindex。取值 MUST 先归一:两侧空白 MUST 被裁剪、大小写 MUST
+    折叠为小写、`page-index` MUST 视为 `pageindex` 别名,空串与仅空白的取值(含 env 为空)MUST 归为缺省 pageindex。
 
     场景: backend 旗标口径
       当 运行 index rebuild --backend rag
@@ -80,6 +81,12 @@
       那么 报错含 rag 并提示迁移到 pageindex
       当 带 --backend pageindex 运行 index rebuild
       那么 CLI 旗标覆盖 env 且索引生成
+
+
+    场景: backend 取值归一
+      假如 一个含 specs 的临时仓库
+      当 以空白、大小写与别名变体运行 index rebuild --backend
+      那么 各变体均按 pageindex 生成索引
 
   @req:r62
   规则: context 检索前索引懒刷新

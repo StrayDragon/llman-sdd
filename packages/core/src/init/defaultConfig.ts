@@ -1,38 +1,12 @@
 /**
- * Default llmanspec/config.yaml templates, extracted verbatim from predecessor
- * (crates/llman-sdd/src/sdd/project/config.rs DEFAULT_CONFIG_EN/ZH_HANS).
+ * Default llmanspec/config.yaml body (init-generators r19/r50): one built-in
+ * locale (zh-Hans), ported from the predecessor (crates/llman-sdd/src/sdd/
+ * project/config.rs DEFAULT_CONFIG_ZH_HANS).
  */
+import { DEFAULT_LOCALE } from '../locale.ts';
+
 export const LLMANSPEC_SCHEMA_URL =
   'https://raw.githubusercontent.com/StrayDragon/llman/main/artifacts/schema/configs/en/llmanspec-config.schema.json';
-
-export const DEFAULT_CONFIG_EN = `schema: spec-driven
-locale: en
-
-# Optional extra skills (disabled by default, uncomment to enable).
-# On \`llman-sdd init --update\`, managed candidates are:
-#   default workflow skills + entries listed here (extra_skills extend).
-# Then \`.agents/skills/llman-sdd-*\` is scanned: anything not in that candidate
-# set is removed first, then candidates are written/updated. Only the
-# \`llman-sdd-\` prefix is touched (custom skills without that prefix are kept).
-# Deprecated shipped skills (e.g. removed from defaults) are cleaned this way.
-# extra_skills:
-#   - llman-sdd-continue
-#   - llman-sdd-ff
-#   - llman-sdd-validate
-#   - llman-sdd-arch-review
-#   - llman-sdd-wayfinder
-#   - llman-sdd-research
-
-# Spec verification (optional, uncomment to enable)
-# specs:
-#   framework: pytest-bdd
-#   # Filtered runners: include {feature_*} so validate --all/--specs runs per capability.
-#   # check_command: "pytest {feature_dir} -k {feature_name} -v"
-#   # Project-wide runners (no placeholders): validate --all/--specs runs the suite once (batch-once).
-#   # check_command: "cargo test --features bdd"
-#   # verify_prompt: |
-#   #   Map test failures to requirement IDs.
-`;
 
 export const DEFAULT_CONFIG_ZH_HANS = `schema: spec-driven
 locale: zh-Hans
@@ -67,3 +41,12 @@ export function prependSchemaHeader(content: string, schemaUrl: string): string 
   if (content === '') return `${header}\n`;
   return `${header}\n${content}`;
 }
+
+/**
+ * Built-in default config bodies by normalized locale. The lookup keeps the
+ * single-source shape of the locale chain (r18/r50): a locale is normalized
+ * first, then resolved; no exact-string comparison on the raw input.
+ */
+export const DEFAULT_CONFIGS: Readonly<Record<string, string>> = {
+  [DEFAULT_LOCALE]: DEFAULT_CONFIG_ZH_HANS,
+};

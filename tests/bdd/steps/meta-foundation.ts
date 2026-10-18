@@ -144,18 +144,18 @@ interface LocaleSample {
 }
 
 bdd.given('locale 输入集与双语资源桩', (ctx) => {
-  // 资源桩:units/skills/validation-hints 仅 en 存在,skills/propose 仅
-  // zh-Hans 存在——同一回退链下两个资源各自独立回退/首命中。
+  // 资源桩:移除 en 模板树后只剩 zh-Hans 语言包——同一回退链下两个资源各自
+  // 独立回退/首命中,且所有输入都归一为 zh-Hans。
   // (UNIT_FILES 键含子目录,如 units/skills/validation-hints.md。)
   const files = new Set([
-    'templates/en/units/skills/validation-hints.md',
+    'templates/zh-Hans/units/skills/validation-hints.md',
     'templates/zh-Hans/skills/llman-sdd-propose.md',
   ]);
   const io = {
     exists: (p: string): boolean => files.has(p),
     readText: (p: string): string => {
       if (!files.has(p)) throw new Error(`stub io missing: ${p}`);
-      return p.includes('units/') ? 'UNIT-FROM-EN' : 'SKILL-FROM-ZH-HANS';
+      return p.includes('units/') ? 'UNIT-FROM-ZH-HANS' : 'SKILL-FROM-ZH-HANS';
     },
   };
   ctx.fixtures['locale样例'] = { io };
@@ -198,14 +198,14 @@ bdd.when('计算 locale 归一化、回退链与资源回退', (ctx) => {
   };
 });
 
-bdd.thenStep('zh 与 en 变体按映射表归一化且空值回退 en', (ctx) => {
+bdd.thenStep('zh 与 en 前缀、空值与未知取值均归一为 zh-Hans', (ctx) => {
   const { sample } = ctx.fixtures['locale样例'] as { sample: LocaleSample };
   const expected: Record<string, string> = {
     'zh-Hans': 'zh-Hans',
     'zh-CN': 'zh-Hans',
     zh: 'zh-Hans',
-    en_US: 'en',
-    empty: 'en',
+    en_US: 'zh-Hans',
+    empty: 'zh-Hans',
   };
   for (const [input, want] of Object.entries(expected)) {
     if (sample.normalized[input] !== want) {
@@ -214,12 +214,12 @@ bdd.thenStep('zh 与 en 变体按映射表归一化且空值回退 en', (ctx) =>
   }
 });
 
-bdd.thenStep('回退链为去重的归一化值语言主部与 en 序列', (ctx) => {
+bdd.thenStep('回退链为去重的归一化值语言主部与 zh-Hans 序列', (ctx) => {
   const { sample } = ctx.fixtures['locale样例'] as { sample: LocaleSample };
   const expected: Record<string, string[]> = {
-    'zh-Hans': ['zh-Hans', 'zh', 'en'],
-    zh: ['zh-Hans', 'zh', 'en'],
-    en: ['en'],
+    'zh-Hans': ['zh-Hans', 'zh'],
+    zh: ['zh-Hans', 'zh'],
+    en: ['zh-Hans', 'zh'],
   };
   for (const [input, want] of Object.entries(expected)) {
     if (JSON.stringify(sample.chains[input]) !== JSON.stringify(want)) {
@@ -232,13 +232,13 @@ bdd.thenStep('回退链为去重的归一化值语言主部与 en 序列', (ctx)
 
 bdd.thenStep('资源按 unit 级独立回退且首个命中 locale 生效', (ctx) => {
   const { sample } = ctx.fixtures['locale样例'] as { sample: LocaleSample };
-  if (sample.unitResource !== 'UNIT-FROM-EN') {
-    throw new Error(`unit resource did not fall back to en: ${String(sample.unitResource)}`);
+  if (sample.unitResource !== 'UNIT-FROM-ZH-HANS') {
+    throw new Error(`unit resource did not resolve from zh-Hans: ${String(sample.unitResource)}`);
   }
   if (sample.skillResource !== 'SKILL-FROM-ZH-HANS') {
     throw new Error(`skill resource first-hit broken: ${String(sample.skillResource)}`);
   }
-  if (sample.registryHit !== 'UNIT-FROM-EN') {
+  if (sample.registryHit !== 'UNIT-FROM-ZH-HANS') {
     throw new Error(`unit registry fallback broken: ${String(sample.registryHit)}`);
   }
 });

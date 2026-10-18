@@ -17,6 +17,10 @@ import { CLI, makeTempRepo, type TempRepo, runCli } from './shared.ts';
 
 bdd.given('一个含多个 change 的临时工作区', (ctx) => {
   const root = mkdtempSync(join(tmpdir(), 'llman-list-'));
+  // r109: every command resolves through root discovery — the workspace must
+  // be a valid instance (config.yaml marks it, r91), not a bare changes tree.
+  mkdirSync(join(root, 'llmanspec'), { recursive: true });
+  writeFileSync(join(root, 'llmanspec', 'config.yaml'), 'schema: spec-driven\n');
   for (const name of ['beta-feat', 'alpha-feat']) {
     const dir = join(root, 'llmanspec', 'changes', name);
     mkdirSync(dir, { recursive: true });

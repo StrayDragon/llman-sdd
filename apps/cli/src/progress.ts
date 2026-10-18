@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 /**
  * Localized stage-progress notes (B1): genuinely long-running operations print
  * a short one-line stderr note in the project locale (zh → zh-Hans text,
@@ -6,8 +9,7 @@
  * progress on stderr); each key fires at most once per process; notes are only
  * emitted before the long op itself, never ahead of domain errors.
  */
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { DEFAULT_LOCALE, normalizeLocale } from '@llman-sdd/core';
 
 type Locale = 'zh' | 'en';
 
@@ -35,16 +37,22 @@ export function resolveNote(key: string, locale: Locale): string | undefined {
   return NOTES[key]?.[locale];
 }
 
-/** Detect the project locale from llmanspec/config.yaml (zh-* → zh, else en). */
+/**
+ * Detect the project locale from llmanspec/config.yaml. r18 normalizes every
+ * locale (including `en` and unknown values) to the built-in zh-Hans, so the
+ * Chinese note arm is always selected; the English arm stays as the i18n
+ * mechanism's other side, no longer reachable from config.
+ */
 export function detectLocale(cwd: string): Locale {
   try {
     const cfg = readFileSync(join(cwd, 'llmanspec', 'config.yaml'), 'utf8');
     const m = cfg.match(/^locale:\s*([A-Za-z-]+)/mu);
-    if (m?.[1]?.startsWith('zh') ?? false) return 'zh';
+    const normalized = m?.[1] === undefined ? DEFAULT_LOCALE : normalizeLocale(m[1]);
+    return normalized === DEFAULT_LOCALE ? 'zh' : 'en';
   } catch {
-    // No config at cwd — English fallback.
+    // No config at cwd — the built-in default locale.
   }
-  return 'en';
+  return 'zh';
 }
 
 const shown = new Set<string>();

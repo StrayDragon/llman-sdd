@@ -22,6 +22,8 @@
  * Pure string logic — all filesystem effects live in freeze.ts (FreezeIo).
  */
 
+import { datedCardIdOf } from '../util/datedId.ts';
+
 export const FROZEN_CARD_EXT = '.yaml';
 
 /** `2026-01-01-old` → `2026-01-01-old.yaml` */
@@ -31,8 +33,7 @@ export function frozenCardName(datedId: string): string {
 
 /** id for a card filename (`2026-01-01-old.yaml` → `old`); null when not a card. */
 export function frozenCardIdOf(name: string): string | null {
-  const m = name.match(/^\d{4}-\d{2}-\d{2}-(.+)\.yaml$/u);
-  return m?.[1] ?? null;
+  return datedCardIdOf(name, '.yaml');
 }
 
 export function isFrozenCard(name: string): boolean {

@@ -6,6 +6,8 @@
  */
 import { z } from 'zod';
 
+import { DEFAULT_LOCALE } from '../locale.ts';
+
 export const EXTRA_SKILLS = [
   'llman-sdd-continue',
   'llman-sdd-ff',
@@ -74,7 +76,7 @@ export const changeIdSchema = z.object({
 
 export const sddConfigSchema = z.object({
   schema: z.literal('spec-driven').describe('Schema identifier. Must be "spec-driven".'),
-  locale: z.string().default('en').describe('Locale used for SDD templates and skills.'),
+  locale: z.string().default(DEFAULT_LOCALE).describe('Locale used for SDD templates and skills.'),
   extra_skills: z
     .array(z.enum(EXTRA_SKILLS))
     .nullish()

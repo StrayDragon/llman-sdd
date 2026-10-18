@@ -56,7 +56,7 @@ describe('validateAllSpecs (native v2)', () => {
     const entries: SpecEntry[] = [
       { fileName: 'a.feature', doc: parseCapability(io.readText('a.feature'), 'a.feature') },
     ];
-    const report = validateAllSpecs(entries, io);
+    const report = validateAllSpecs(entries);
     expect(report.failed).toBe(false);
     expect(report.lines.at(-1)).toBe('Totals: 1 passed, 0 failed (1 items)');
     expect(report.lines[0]).toBe('OK spec/a');
@@ -66,14 +66,14 @@ describe('validateAllSpecs (native v2)', () => {
     const doc = parseCapability(
       native('t', `功能: t\n\n  @req:r1\n  规则: ok\n    系统 可以直接使用,无需变更\n`),
     );
-    const report = validateAllSpecs([{ fileName: 't.feature', doc }], io);
+    const report = validateAllSpecs([{ fileName: 't.feature', doc }]);
     expect(report.failed).toBe(false);
     expect(report.lines.join('\n')).not.toInclude('MUST/SHALL');
   });
 
   test('rule block without @req tag fails', () => {
     const doc = parseCapability(native('t', `功能: t\n\n  规则: ok\n    系统 MUST x\n`));
-    const report = validateAllSpecs([{ fileName: 't.feature', doc }], io);
+    const report = validateAllSpecs([{ fileName: 't.feature', doc }]);
     expect(report.lines.join('\n')).toInclude(
       'rule must carry an @req:<req_id> tag on the rule header',
     );
@@ -84,13 +84,13 @@ describe('validateAllSpecs (native v2)', () => {
       native('t', `功能: t\n\n  @req:r1 @human @executable\n  规则: ok\n    系统 MUST x\n`),
     );
     expect(doc.errors.map((e) => e.code)).not.toContain('tag:rule-exec-exclusive');
-    const report = validateAllSpecs([{ fileName: 't.feature', doc }], io);
+    const report = validateAllSpecs([{ fileName: 't.feature', doc }]);
     expect(report.failed).toBe(false);
   });
 
   test('bare rule (no nested scenario) is not guarded: validation stays valid', () => {
     const doc = parseCapability(native('t', `功能: t\n\n  @req:r1\n  规则: ok\n    系统 MUST x\n`));
-    const report = validateAllSpecs([{ fileName: 't.feature', doc }], io);
+    const report = validateAllSpecs([{ fileName: 't.feature', doc }]);
     expect(report.failed).toBe(false);
     expect(report.lines.join('\n')).not.toInclude('not guarded');
   });
@@ -102,7 +102,7 @@ describe('validateAllSpecs (native v2)', () => {
         `功能: t\n\n  @req:r1\n  规则: ok\n    系统 MUST x\n\n    场景: acc\n      假如 一个有效工作区\n      当 运行校验\n      那么 退出码为 0\n`,
       ),
     );
-    const report = validateAllSpecs([{ fileName: 't.feature', doc }], io);
+    const report = validateAllSpecs([{ fileName: 't.feature', doc }]);
     expect(report.failed).toBe(false);
     expect(report.lines.join('\n')).not.toInclude('has no matching rule');
     expect(report.lines.join('\n')).not.toInclude('orphan scenario');
@@ -115,7 +115,7 @@ describe('validateAllSpecs (native v2)', () => {
         `功能: t\n\n  场景: acc\n    假如 一个有效工作区\n    当 运行校验\n    那么 退出码为 0\n`,
       ),
     );
-    const report = validateAllSpecs([{ fileName: 't.feature', doc }], io);
+    const report = validateAllSpecs([{ fileName: 't.feature', doc }]);
     expect(report.lines.join('\n')).toInclude('spec must define at least one rule');
   });
 
@@ -123,7 +123,7 @@ describe('validateAllSpecs (native v2)', () => {
     const doc = parseCapability(
       `# language: zh-CN\n# capability: t\n# purpose: p\n# scope: nope/\n\n功能: t\n\n  @req:r1\n  规则: ok\n    系统 MUST x\n`,
     );
-    const report = validateAllSpecs([{ fileName: 't.feature', doc }], io);
+    const report = validateAllSpecs([{ fileName: 't.feature', doc }]);
     expect(report.lines.join('\n')).not.toInclude('valid_scope');
   });
 
@@ -135,7 +135,7 @@ describe('validateAllSpecs (native v2)', () => {
         `${cap}.feature`,
       ),
     });
-    const report = validateAllSpecs([mk('a'), mk('b')], io);
+    const report = validateAllSpecs([mk('a'), mk('b')]);
     expect(report.lines[0]).toBe('FAIL spec/a');
     expect(report.lines.filter((l) => l === 'FAIL spec/b')).toHaveLength(1);
     expect(report.lines.at(-1)).toBe('Totals: 0 passed, 2 failed (2 items)');
@@ -145,7 +145,7 @@ describe('validateAllSpecs (native v2)', () => {
     const doc = parseCapability(
       `# scope: llmanspec/\n\n功能: t\n\n  @req:r1\n  规则: ok\n    系统 MUST x\n`,
     );
-    const report = validateAllSpecs([{ fileName: 't.feature', doc }], io);
+    const report = validateAllSpecs([{ fileName: 't.feature', doc }]);
     expect(report.failed).toBe(true);
     const joined = report.lines.join('\n');
     expect(joined).toInclude('`# purpose:` header comment must not be empty');
@@ -153,7 +153,7 @@ describe('validateAllSpecs (native v2)', () => {
     const noPurpose = parseCapability(
       `# language: zh-CN\n# scope: llmanspec/\n\n功能: t\n\n  @req:r1\n  规则: ok\n    系统 MUST x\n`,
     );
-    const report2 = validateAllSpecs([{ fileName: 't.feature', doc: noPurpose }], io);
+    const report2 = validateAllSpecs([{ fileName: 't.feature', doc: noPurpose }]);
     const joined2 = report2.lines.join('\n');
     expect(joined2).toInclude('[ERROR] t/purpose: `# purpose:` header comment must not be empty');
   });
@@ -162,7 +162,7 @@ describe('validateAllSpecs (native v2)', () => {
     const doc = parseCapability(
       `# language: zh-CN\n# purpose: p\n\n功能: wrong\n\n  @req:r1\n  规则: ok\n    系统 MUST x\n`,
     );
-    const report = validateAllSpecs([{ fileName: 't.feature', doc }], io);
+    const report = validateAllSpecs([{ fileName: 't.feature', doc }]);
     expect(report.failed).toBe(true);
     expect(report.lines.join('\n')).toInclude('Feature title must match assigned spec id');
   });
@@ -179,7 +179,7 @@ describe('validateAllSpecs (native v2)', () => {
       { fileName: 'llmanspec/specs/dup.feature', doc },
       { fileName: 'llmanspec/specs/dup.feature', doc },
     ];
-    const report = validateAllSpecs(entries, io, { specsDir: 'llmanspec/specs' });
+    const report = validateAllSpecs(entries, { specsDir: 'llmanspec/specs' });
     expect(report.failed).toBe(true);
     const joined = report.lines.join('\n');
     expect(joined).toInclude('duplicate assigned spec id');
@@ -703,7 +703,7 @@ describe('feature-level top-level scenarios (orphan concept removed)', () => {
         p === 'llmanspec/specs' || p === 'llmanspec/specs/' ? ['orphan.feature'] : [],
       readText: (): string => spec,
     };
-    const report = validateAllSpecs(entries, specIo);
+    const report = validateAllSpecs(entries);
     const items = report.verdicts.flatMap((v) => v.items);
     const orphanWarn = items.find((i) => i.level === 'WARNING' && i.message.includes('orphan'));
     expect(orphanWarn).toBeUndefined();
@@ -737,7 +737,7 @@ describe('feature-level top-level scenarios (orphan concept removed)', () => {
         p === 'llmanspec/specs' || p === 'llmanspec/specs/' ? ['clean.feature'] : [],
       readText: (): string => spec,
     };
-    const report = validateAllSpecs(entries, specIo);
+    const report = validateAllSpecs(entries);
     const items = report.verdicts.flatMap((v) => v.items);
     expect(items.some((i) => i.level === 'WARNING' && i.message.includes('orphan scenario'))).toBe(
       false,

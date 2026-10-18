@@ -91,8 +91,8 @@ export function stripLegacyCheckTransitions(data: unknown): { data: unknown; str
  * Load + validate, returning the parsed config and whether a legacy `bdd:`
  * section was elevated. The CLI surfaces the migration warning from the flag.
  * `localeExplicit` reports whether the raw mapping carried a `locale` key at
- * all — the schema default ('en') erases that distinction, but init needs it
- * for the effective-locale precedence chain (init-generators r50).
+ * all — the schema default (r18-normalized `zh-Hans`) erases that distinction,
+ * but init needs it for the effective-locale precedence chain (init-generators r50).
  */
 export function loadConfigDetail(source: string): {
   config: SddConfig;

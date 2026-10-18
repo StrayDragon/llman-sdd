@@ -1,4 +1,5 @@
-import { readBinding } from './frontmatter.ts';
+import { type FsPort } from '../util/fsPort.ts';
+import { extractFrontmatter, readBinding, readFrontmatterTitle } from './frontmatter.ts';
 /**
  * Change collection + stage derivation (change domain, peripheral-commands
  * capability r20/r34 shapes; predecessor commands/list.rs port). Pure — IO injected.
@@ -8,20 +9,13 @@ import { readBinding } from './frontmatter.ts';
 import { CHANGES_DIR } from './lifecycle.ts';
 import { parseTaskCheckboxes } from './tasks.ts';
 
-export interface ChangeFsIo {
-  exists(path: string): boolean;
-  readText(path: string): string;
-  listDir(path: string): string[];
-  isDirectory(path: string): boolean;
-  mtimeMs(path: string): number;
-}
+export type ChangeFsIo = Pick<
+  FsPort,
+  'exists' | 'readText' | 'listDir' | 'isDirectory' | 'mtimeMs'
+>;
 
 /** Minimal structural io for the active-change walk (r58/r73 shared caliber). */
-export interface ChangeScanIo {
-  exists(path: string): boolean;
-  listDir(path: string): string[];
-  isDirectory(path: string): boolean;
-}
+export type ChangeScanIo = Pick<FsPort, 'exists' | 'listDir' | 'isDirectory'>;
 
 /**
  * r58/r73 shared walk: visits every active change dir (a dir directly holding
@@ -95,6 +89,15 @@ export function firstH1(md: string): string {
   return '';
 }
 
+/**
+ * r99 authoritative change title: frontmatter `title` when non-empty, the
+ * first H1 otherwise (legacy fallback, empty when neither). Single point for
+ * every title consumer — collect (list) and show must never drift.
+ */
+export function changeTitle(proposal: string): string {
+  return readFrontmatterTitle(extractFrontmatter(proposal)) || firstH1(proposal);
+}
+
 export function collectChanges(
   io: ChangeFsIo,
   root: string,
@@ -124,7 +127,7 @@ export function collectChanges(
     out.push({
       name,
       path: name,
-      title: firstH1(io.readText(proposal)),
+      title: changeTitle(io.readText(proposal)),
       stage: stageFor(hasDesign, hasTasks, hasBinding),
       hasBinding,
       completedTasks: completed,

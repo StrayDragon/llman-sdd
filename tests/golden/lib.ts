@@ -42,24 +42,17 @@ specs:
   check_command: "bun test tests/bdd"
 `;
 
-/** Same shape as CONFIG_YAML modulo locale — the en baseline exercises the same
- * conditional surface (bdd block) so en-only template drift is gated, not just zh. */
-export const CONFIG_YAML_EN = CONFIG_YAML.replace('locale: zh-Hans', 'locale: en');
-
 export interface RenderResult {
   tmpRoot: string;
   skillsDir: string;
   version: string;
 }
 
-/** Render skills with runInit into a fresh temp project. */
-export function renderSkills(locale: 'zh-Hans' | 'en' = 'zh-Hans'): RenderResult {
+/** Render skills with runInit into a fresh temp project (single built-in locale). */
+export function renderSkills(): RenderResult {
   const tmpRoot = mkdtempSync(join(tmpdir(), 'llman-sdd-golden-'));
   mkdirSync(join(tmpRoot, 'llmanspec'), { recursive: true });
-  writeFileSync(
-    join(tmpRoot, 'llmanspec', 'config.yaml'),
-    locale === 'en' ? CONFIG_YAML_EN : CONFIG_YAML,
-  );
+  writeFileSync(join(tmpRoot, 'llmanspec', 'config.yaml'), CONFIG_YAML);
   const version = '0.1.0';
   runInit(makeNodeIo(tmpRoot), templateIo, { update: true, version, skills: true });
   const skillsDir = join(tmpRoot, '.agents', 'skills');
@@ -136,8 +129,9 @@ export function diffRepoSkills(skillsDir: string = REPO_SKILLS_DIR): TreeDiff[] 
   );
 }
 
-/** Copy rendered skills into the committed baseline under <subdir>. Returns copied entries. */
-export function captureBaseline(skillsDir: string, version: string, subdir = 'skills'): string[] {
+/** Copy rendered skills into the committed baseline. Returns copied entries. */
+export function captureBaseline(skillsDir: string, version: string): string[] {
+  const subdir = 'skills';
   rmSync(join(BASELINE_DIR, subdir), { recursive: true, force: true });
   cpSync(skillsDir, join(BASELINE_DIR, subdir), { recursive: true });
   writeFileSync(join(BASELINE_DIR, 'VERSION'), `${version}\n`);

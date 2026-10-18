@@ -33,9 +33,12 @@ const NATIVE_RULE = (req: string, capability = 'sample') => `# language: zh-CN
 `;
 
 describe('localeToGherkinLang', () => {
-  test('zh-Hans maps to zh-CN, others pass through', () => {
+  test('every locale normalizes to zh-Hans and maps to zh-CN', () => {
     expect(localeToGherkinLang('zh-Hans')).toBe('zh-CN');
-    expect(localeToGherkinLang('en')).toBe('en');
+    expect(localeToGherkinLang('zh-CN')).toBe('zh-CN');
+    expect(localeToGherkinLang('en')).toBe('zh-CN');
+    expect(localeToGherkinLang('fr')).toBe('zh-CN');
+    expect(localeToGherkinLang('')).toBe('zh-CN');
   });
 });
 
@@ -662,23 +665,20 @@ Fonctionnalité: démo
 });
 
 describe('skeletonContent dialect vocabulary (r7/r88)', () => {
-  test('en locale skeleton uses official en keywords throughout (no zh mixing)', () => {
+  test('en locale input still yields the built-in zh-CN skeleton', () => {
     const content = skeletonContent('demo', 'r1', 'en');
-    expect(content.startsWith('# language: en\n')).toBe(true);
-    expect(content).toInclude('Feature: demo');
-    expect(content).toInclude('Rule: TODO-rule');
-    expect(content).toInclude('Scenario: TODO-acceptance');
-    expect(content).toInclude('Given TODO precondition');
-    expect(content).not.toInclude('假如');
-    expect(content).not.toInclude('规则');
+    expect(content.startsWith('# language: zh-CN\n')).toBe(true);
+    expect(content).toInclude('功能: demo');
+    expect(content).toInclude('规则: TODO-rule');
+    expect(content).toInclude('场景: TODO-acceptance');
+    expect(content).toInclude('假如 TODO 前置');
   });
 
-  test('fr locale skeleton passes the locale through with official fr keywords', () => {
+  test('fr locale input still yields the built-in zh-CN skeleton', () => {
     const content = skeletonContent('demo', 'r1', 'fr');
-    expect(content.startsWith('# language: fr\n')).toBe(true);
-    expect(content).toInclude('Fonctionnalité: demo');
-    expect(content).toInclude('Règle: TODO-rule');
-    expect(content).toInclude('Soit TODO precondition');
+    expect(content.startsWith('# language: zh-CN\n')).toBe(true);
+    expect(content).toInclude('功能: demo');
+    expect(content).toInclude('规则: TODO-rule');
     const { doc } = parseFeatureSource(content);
     expect(doc.feature?.name).toBe('demo');
   });

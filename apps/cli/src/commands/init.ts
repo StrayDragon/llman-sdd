@@ -10,7 +10,7 @@ import {
 } from '@llman-sdd/core';
 import type { Command } from 'commander';
 
-import { CliError, templateIo, version } from '../cli-shared.ts';
+import { CliError, templateIo, version, type CliContext } from '../cli-shared.ts';
 import { makeCliGit, makeIo } from '../io.ts';
 import { progressNote } from '../progress.ts';
 
@@ -24,7 +24,7 @@ function isRepoRootInstance(root: string): boolean {
   return toplevel === null || resolve(toplevel) === root;
 }
 
-export function registerInit(program: Command): void {
+export function registerInit(program: Command, _ctx: CliContext): void {
   program
     .command('init')
     .description('Initialize llmanspec in your project (--update to refresh existing)')
@@ -36,7 +36,7 @@ export function registerInit(program: Command): void {
     )
     .option(
       '--locale <locale>',
-      'locale for generated templates (explicit config.yaml locale wins; fills a missing key; built-in default en)',
+      'locale for generated templates (explicit config.yaml locale wins; fills a missing key; built-in default zh-Hans)',
     )
     .option('--lang <locale>', 'alias of --locale')
     .action(

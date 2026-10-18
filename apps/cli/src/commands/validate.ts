@@ -27,13 +27,14 @@ import {
   cliMaxScanDepth,
   exitWith,
   loadCliConfig,
-  loadSpecEntries,
-  newIo,
+  loadRootSpecEntries,
   resolveChangeIdOrExit,
+  resolveInstanceRootOrThrow,
   resolveOutMode,
+  type CliContext,
 } from '../cli-shared.ts';
 import { makeCliHarnessRunner } from '../harness.ts';
-import { makeCliGit } from '../io.ts';
+import { makeIo } from '../io.ts';
 
 interface VItem {
   id: string;
@@ -50,19 +51,20 @@ function compareItems(a: VItem, b: VItem): number {
 }
 
 function specV1Items(
+  ctx: CliContext,
   opts: {
     harness?: HarnessGate;
     harnessOnlyIds?: string[];
   },
-  entries: ReturnType<typeof loadSpecEntries> = loadSpecEntries(),
+  entries: ReturnType<typeof loadRootSpecEntries> = loadRootSpecEntries(undefined, ctx.io),
 ): VItem[] {
-  const io = newIo();
+  void ctx;
   const duplicatesFor = buildDuplicatesFor(entries);
 
   const items: VItem[] = [];
   for (const entry of entries) {
     const cap = specIdOf(entry);
-    const verdict = validateCapability(entry as never, duplicatesFor, io);
+    const verdict = validateCapability(entry as never, duplicatesFor);
     const issues: ChangeIssue[] = verdict.items.map((i) => ({
       level: i.level,
       path: i.id,
@@ -103,15 +105,18 @@ function specV1Items(
   return items;
 }
 
-function changeV1Items(names: string[], opts: { stage?: string; strict?: boolean }): VItem[] {
-  const io = newIo();
-  const git = makeCliGit(process.cwd());
-  const config = loadCliConfig();
+function changeV1Items(
+  ctx: CliContext,
+  names: string[],
+  opts: { stage?: string; strict?: boolean },
+): VItem[] {
+  const { io, root, git } = ctx;
+  const config = loadCliConfig(root);
   const items: VItem[] = [];
   for (const name of names) {
     const res = validateChange(
       io,
-      process.cwd(),
+      root,
       name,
       {
         strict_defer: config?.archive?.strict_defer ?? null,
@@ -132,7 +137,7 @@ function changeV1Items(names: string[], opts: { stage?: string; strict?: boolean
   // active change item when the active change is being validated; archive↔
   // archive / frozen-only collisions surface as synthetic items (no active
   // counterpart to carry the ERROR).
-  const duplicates = checkGlobalChangeIdUniqueness(io, `${process.cwd()}/llmanspec/changes`);
+  const duplicates = checkGlobalChangeIdUniqueness(io, `${root}/llmanspec/changes`);
   const byId = new Map(items.map((i) => [i.id, i]));
   for (const dup of duplicates) {
     const issue: ChangeIssue = {
@@ -175,9 +180,9 @@ function renderValidateText(items: VItem[]): void {
   console.log(formatTotals(passed, failed, items.length));
 }
 
-function gitToplevelOrCwd(): string {
-  const toplevel = makeCliGit(process.cwd()).runOpt(['rev-parse', '--show-toplevel']);
-  return toplevel ?? process.cwd();
+function gitToplevelOrCwd(ctx: CliContext): string {
+  const toplevel = ctx.git.runOpt(['rev-parse', '--show-toplevel']);
+  return toplevel ?? ctx.root;
 }
 
 interface RootReport {
@@ -225,8 +230,8 @@ const CHANGE_NEXT_STEPS = [
 ];
 
 /** r63: default-branch dirty live specs — workspace-level guard, once per run. */
-function warnDirtySpecsOnDefaultBranch(): void {
-  const git = makeCliGit(process.cwd());
+function warnDirtySpecsOnDefaultBranch(ctx: CliContext): void {
+  const { git } = ctx;
   const current = currentBranch(git);
   if (current === null || current !== defaultBranch(git)) return;
   const out = git.runOpt(['status', '--porcelain', '--', 'llmanspec/specs']) ?? '';
@@ -245,8 +250,8 @@ let harnessBannerShown = false;
  * logic never touches process.env. Commander binary state:
  * --check → check=true, absent → undefined.
  */
-function makeHarnessGate(options: { check?: boolean }): HarnessGate {
-  const runCommand = loadCliConfig()?.specs?.check_command ?? null;
+function makeHarnessGate(ctx: CliContext, options: { check?: boolean }): HarnessGate {
+  const runCommand = loadCliConfig(ctx.root)?.specs?.check_command ?? null;
   const configured = runCommand !== null && runCommand !== '';
   return {
     nested: process.env.LLMAN_SDD_HARNESS_ACTIVE === '1',
@@ -257,7 +262,7 @@ function makeHarnessGate(options: { check?: boolean }): HarnessGate {
     check: options.check === true ? 'on' : 'off',
     runner: configured ? makeCliHarnessRunner() : undefined,
     runCommand,
-    cwd: process.cwd(),
+    cwd: ctx.root,
     onBeforeFirstRun: (expanded: string): void => {
       if (harnessBannerShown) return;
       harnessBannerShown = true;
@@ -266,7 +271,7 @@ function makeHarnessGate(options: { check?: boolean }): HarnessGate {
   };
 }
 
-export function registerValidate(program: Command): void {
+export function registerValidate(program: Command, ctx: CliContext): void {
   const validate = program
     .command('validate')
     .description('Validate specs and changes (structural gates + stage/completion rules)')
@@ -307,22 +312,22 @@ export function registerValidate(program: Command): void {
         allRoots?: boolean;
       },
     ) => {
-      if (!assertCompactJsonPairing(options)) return;
+      assertCompactJsonPairing(options);
       const outMode = resolveOutMode(options.output, options.json, options.compactJson);
       // r32: INFO issues are presentation noise — dropped unless opted in.
       // Filtering never touches `valid`, summaries, or exit codes.
       const keepInfo = options.includeInfo === true;
       const stripInfo = <T extends { issues: { level: string }[] }>(it: T): T =>
         keepInfo ? it : { ...it, issues: it.issues.filter((x) => x.level !== 'INFO') };
-      warnDirtySpecsOnDefaultBranch();
+      warnDirtySpecsOnDefaultBranch(ctx);
       if (options.type !== undefined && options.type !== 'change' && options.type !== 'spec') {
-        throw new CliError(`invalid --type: ${options.type}`);
+        throw new CliError(`invalid --type: ${options.type}`, 2);
       }
       if (
         options.stage !== undefined &&
         !(STAGE_ORDER as readonly string[]).includes(options.stage)
       ) {
-        throw new CliError(`invalid --stage: ${options.stage}`);
+        throw new CliError(`invalid --stage: ${options.stage}`, 2);
       }
       const maxDepth = cliMaxScanDepth(program);
 
@@ -331,30 +336,29 @@ export function registerValidate(program: Command): void {
         if (item !== undefined) {
           throw new CliError('--all-roots validates every root; drop the <item> argument');
         }
-        const start = options.directory ?? gitToplevelOrCwd();
-        const roots = discoverRoots(start, newIo(), { maxDepth });
+        const start = options.directory ?? gitToplevelOrCwd(ctx);
+        const roots = discoverRoots(start, ctx.io, { maxDepth });
         if (roots.length === 0) {
           throw new CliError(`no llmanspec roots discovered under: ${start}`);
         }
-        const originalCwd = process.cwd();
         const reports: RootReport[] = [];
         let anyFail = false;
-        try {
-          for (const root of roots) {
-            process.chdir(root.rootDir);
-            const items = specV1Items({
-              harness: makeHarnessGate(options),
-            });
-            const visible = keepInfo ? items : items.map(stripInfo);
-            if (visible.some((i) => !i.valid)) anyFail = true;
-            reports.push({
-              root: relative(start, root.rootDir) || '.',
-              items: visible,
-              summary: summarizeItems(visible),
-            });
-          }
-        } finally {
-          process.chdir(originalCwd);
+        for (const root of roots) {
+          const rootCtx: CliContext = {
+            ...ctx,
+            root: root.rootDir,
+            io: makeIo(root.rootDir),
+          };
+          const items = specV1Items(rootCtx, {
+            harness: makeHarnessGate(rootCtx, options),
+          });
+          const visible = keepInfo ? items : items.map(stripInfo);
+          if (visible.some((i) => !i.valid)) anyFail = true;
+          reports.push({
+            root: relative(start, root.rootDir) || '.',
+            items: visible,
+            summary: summarizeItems(visible),
+          });
         }
         if (outMode === 'human') {
           for (const report of reports) {
@@ -379,29 +383,25 @@ export function registerValidate(program: Command): void {
         return;
       }
 
-      // ---- instance root resolution: --directory start, else nearest
-      // ancestor llmanspec/ ("cd into the subpackage and run", r94). A no-op
-      // when cwd already sits at a root (byte-identical legacy path). ----
-      if (options.directory !== undefined) {
-        const root = resolveInstanceRoot(options.directory, newIo());
-        if (root === null) {
-          throw new CliError(`no llmanspec root at or above: ${options.directory}`);
-        }
-        process.chdir(root);
-      } else {
-        const root = resolveInstanceRoot(process.cwd(), newIo());
-        if (root !== null && root !== process.cwd()) process.chdir(root);
-      }
+      // ---- instance root resolution (T21, cli r108): resolve once into an
+      // effective context instead of process.chdir — downstream helpers take
+      // io/root from here. Byte-identical when cwd already sits at a root. ----
+      const effectiveRoot =
+        options.directory !== undefined
+          ? resolveInstanceRootOrThrow(options.directory)
+          : (resolveInstanceRoot(ctx.root, ctx.io) ?? ctx.root);
+      const eff: CliContext = { ...ctx, root: effectiveRoot };
 
-      const harness = makeHarnessGate(options);
+      const harness = makeHarnessGate(eff, options);
 
       // ---- single item (auto-disambiguate: spec first, then change) ----
       if (item !== undefined) {
-        const entries = loadSpecEntries();
+        const entries = loadRootSpecEntries(undefined, eff.io);
         const specEntry =
           options.type === 'change' ? undefined : entries.find((e) => specIdOf(e) === item);
         if (specEntry !== undefined) {
           const items = specV1Items(
+            eff,
             {
               harness,
               harnessOnlyIds: [item],
@@ -432,9 +432,8 @@ export function registerValidate(program: Command): void {
           return;
         }
         // change single (r61: predecessor r112 prefix resolution on the change id)
-        const io = newIo();
-        const root = process.cwd();
-        const resolved = resolveChangeIdOrExit(program, item, {
+        const { io, root } = eff;
+        const resolved = resolveChangeIdOrExit(eff, program, item, {
           suppressHint: options.json === true,
         });
         const changeId = resolved.id;
@@ -443,13 +442,13 @@ export function registerValidate(program: Command): void {
           root,
           changeId,
           {
-            strict_defer: loadCliConfig()?.archive?.strict_defer ?? null,
-            change_id_pattern: loadCliConfig()?.change_id?.pattern ?? null,
+            strict_defer: loadCliConfig(eff.root)?.archive?.strict_defer ?? null,
+            change_id_pattern: loadCliConfig(eff.root)?.change_id?.pattern ?? null,
           },
           {
             stage: options.stage as never,
             strict: options.strict === true,
-            git: makeCliGit(process.cwd()),
+            git: eff.git,
           },
         );
         const infos = res.issues.filter((i) => i.level === 'INFO');
@@ -497,17 +496,17 @@ export function registerValidate(program: Command): void {
       let items: VItem[] = [];
       if (effectiveSpecs) {
         items = items.concat(
-          specV1Items({
+          specV1Items(eff, {
             harness,
           }),
         );
       }
       if (effectiveChanges) {
-        const names = collectChanges(newIo(), process.cwd(), new Date(), {
+        const names = collectChanges(eff.io, eff.root, new Date(), {
           maxScanDepth: maxDepth,
         }).map((c) => c.name);
         items = items.concat(
-          changeV1Items(names, { stage: options.stage, strict: options.strict }),
+          changeV1Items(eff, names, { stage: options.stage, strict: options.strict }),
         );
       }
       items.sort(compareItems);

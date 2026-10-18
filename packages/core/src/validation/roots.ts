@@ -1,3 +1,4 @@
+import { type FsPort } from '../util/fsPort.ts';
 /**
  * Instance-root discovery (subproject-llmanspec-discovery, r91-r92): the
  * unified-root axiom — every llman-sdd operation targets one llmanspec/
@@ -6,11 +7,7 @@
  * shape. Pure: filesystem access only through the injected IO.
  */
 
-export interface RootsIo {
-  exists(path: string): boolean;
-  isDirectory(path: string): boolean;
-  listDir(path: string): string[];
-}
+export type RootsIo = Pick<FsPort, 'exists' | 'isDirectory' | 'listDir'>;
 
 export interface RootEntry {
   /** Directory containing the llmanspec/ instance (the instance root). */

@@ -49,12 +49,14 @@ describe('locale chain', () => {
     expect(normalizeLocale('zh-Hans')).toBe('zh-Hans');
     expect(normalizeLocale('zh-CN')).toBe('zh-Hans');
     expect(normalizeLocale('zh')).toBe('zh-Hans');
-    expect(normalizeLocale('en_US')).toBe('en');
-    expect(normalizeLocale('')).toBe('en');
+    expect(normalizeLocale('en_US')).toBe('zh-Hans');
+    expect(normalizeLocale('fr')).toBe('zh-Hans');
+    expect(normalizeLocale('')).toBe('zh-Hans');
   });
-  test('fallback chain is normalized → language part → en, deduped', () => {
-    expect(localeFallbacks('zh-Hans')).toEqual(['zh-Hans', 'zh', 'en']);
-    expect(localeFallbacks('en')).toEqual(['en']);
+  test('fallback chain is normalized → language part → zh-Hans, deduped', () => {
+    expect(localeFallbacks('zh-Hans')).toEqual(['zh-Hans', 'zh']);
+    expect(localeFallbacks('en')).toEqual(['zh-Hans', 'zh']);
+    expect(localeFallbacks('fr')).toEqual(['zh-Hans', 'zh']);
   });
 });
 
@@ -66,14 +68,8 @@ describe('buildTemplateVars', () => {
     const vars = buildTemplateVars(cfg, '9.9.9');
     expect(vars['llman_version']).toBe('9.9.9');
     expect(vars['specs_enabled']).toBe('true');
-    expect(vars['specs_check_command']).toBe('bun test');
     expect(vars['extra_skill_arch_review']).toBe('true');
     expect(vars['extra_skill_continue']).toBeUndefined();
-  });
-  test('effectiveCheckCommand derives from framework', () => {
-    const cfg = loadConfig(`schema: spec-driven\nspecs:\n  framework: pytest-bdd\n`);
-    const vars = buildTemplateVars(cfg, '1');
-    expect(vars['specs_check_command']).toBe('pytest {feature_dir} -k {feature_name} -v');
   });
 });
 

@@ -33,7 +33,8 @@
 
   @req:r6
   规则: 校验失败报告与 artifact 漂移门
-    config 校验失败 MUST 报错且错误明细 MUST 截断至前 5 条;locale 缺省 MUST 为 "en"。schema
+    config 校验失败 MUST 报错且错误明细 MUST 截断至前 5 条;locale 缺省 MUST 为 "zh-Hans"(显式写 en 亦按 init-generators r18
+    归一为 zh-Hans)。schema
     artifact(artifacts/schema/configs/en/llmanspec-config.schema.json)MUST 可由 zod schema 确定性再生成,漂移 MUST
     被 gen-schema --check 以非零退出码拒绝。
 

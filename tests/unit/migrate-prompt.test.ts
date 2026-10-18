@@ -13,7 +13,7 @@ import {
 
 describe('per-version migration registry (r100 project migrate prompt)', () => {
   test('registry is keyed by release version with executable items', () => {
-    expect(knownMigrationVersions()).toEqual(['0.8.0', '0.9.0']);
+    expect(knownMigrationVersions()).toEqual(['0.8.0', '0.9.0', '0.10.0']);
     for (const doc of MIGRATIONS) {
       expect(isValidVersion(doc.version)).toBe(true);
       for (const item of doc.items) {
@@ -31,6 +31,9 @@ describe('per-version migration registry (r100 project migrate prompt)', () => {
     expect(resolveMigrations('0.8.2', '0.9.0').map((d) => d.version)).toEqual(['0.9.0']);
     // right-inclusive: to itself is included
     expect(resolveMigrations('0.7.5', '0.8.0').map((d) => d.version)).toEqual(['0.8.0']);
+    // 0.10.0 is reachable from 0.9.0 only (numeric ordering, left-open)
+    expect(resolveMigrations('0.9.0', '0.10.0').map((d) => d.version)).toEqual(['0.10.0']);
+    expect(resolveMigrations('0.9.0', '0.9.9')).toEqual([]);
     // empty range is legal, not an error
     expect(resolveMigrations('0.8.0', '0.8.2')).toEqual([]);
     // numeric, not lexicographic
@@ -59,11 +62,13 @@ describe('per-version migration registry (r100 project migrate prompt)', () => {
     expect(a).toContain('# Migration playbook: 0.7.5 -> 0.9.0');
     expect(a.indexOf('## 0.8.0')).toBeLessThan(a.indexOf('## 0.9.0'));
     expect(a.match(/^---$/gm)?.length).toBe(1); // divider between the two versions
-    expect(a.match(/^### /gm)?.length).toBe(MIGRATIONS.reduce((n, d) => n + d.items.length, 0));
+    // counts must track the rendered RANGE, not the whole registry (T16 added 0.10.0)
+    const range = resolveMigrations('0.7.5', '0.9.0');
+    expect(a.match(/^### /gm)?.length).toBe(range.reduce((n, d) => n + d.items.length, 0));
     expect(a.match(/^- \[ \] /gm)?.length).toBe(
-      MIGRATIONS.reduce((n, d) => n + d.items.reduce((k, i) => k + i.checks.length, 0), 0),
+      range.reduce((n, d) => n + d.items.reduce((k, i) => k + i.checks.length, 0), 0),
     );
-    for (const item of MIGRATIONS[1]!.items) expect(a).toContain(item.title);
+    for (const doc of range) for (const item of doc.items) expect(a).toContain(item.title);
   });
 
   test('empty range renders a friendly notice, not an error', () => {

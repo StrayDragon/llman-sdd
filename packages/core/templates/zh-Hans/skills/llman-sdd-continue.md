@@ -20,7 +20,7 @@ metadata:
    4) `llman-sdd change start <id>`（分支已存在用 `change attach <id>`）——绑定分支
    5) 在**绑定分支**编辑 `llmanspec/specs/<capability>.feature`（扁平，或目录主文件）并 commit——提交 specs（无合约变更设 `needs_specs_change: false`）
 4. 只创建**一个**缺失工件（或一次绑定分支上的 spec 编辑）。
-   - 不得写应用代码；不得**建 `changes/<id>/specs/`；不得**在 start/attach 前改 `llmanspec/specs/**`。
+   - 不得写应用代码；**不得**建 `changes/<id>/specs/`；**不得**在 start/attach 前改 `llmanspec/specs/**`。
 5. 工件已齐全时，按 `llman-sdd show <id> --output json` 宜接的下一步：
    - specs-landed 门未过 → 先提交 specs（或 `needs_specs_change: false`）；不得提示可进 apply
    - specs-landed 门已绿（即使实施中期 `readyToImplement=false`、tasks 未完）→ `llman-sdd-apply`

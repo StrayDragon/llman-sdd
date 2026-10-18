@@ -41,7 +41,7 @@ describe('buildReview', () => {
 
   test('fully bound spec: zero pending, exit 0', () => {
     const entries = [{ fileName: 'a.feature', doc: parseCapability(SPEC('a', 'r1'), 'a.feature') }];
-    const result = buildReview({ entries, boundChangeCount: 2 }, io);
+    const result = buildReview({ entries, boundChangeCount: 2 });
     expect(result.exitCode).toBe(0);
     expect(result.summary.criticalCount).toBe(0);
     const pendingA = result.signals.find((s) => s.kind === 'unbound' && s.capability === 'a');
@@ -57,7 +57,7 @@ describe('buildReview', () => {
       { fileName: 'loose.feature', doc: parseCapability(UNBOUND_SPEC, 'loose.feature') },
     ];
     // 顶层功能级示例(无规则句柄)不产生任何信号(unbound 信号已移除,孤儿场景不参与规则计量);无可运行场景的裸规则计 unbound。
-    const result = buildReview({ entries, boundChangeCount: 0 }, io);
+    const result = buildReview({ entries, boundChangeCount: 0 });
     const unbound = result.signals.find((s) => s.kind === 'unbound' && s.capability === 'loose');
     expect(unbound?.count).toBe(1);
     expect(result.summary.warningCount).toBe(1); // unbound 1
@@ -68,7 +68,7 @@ describe('buildReview', () => {
     const entries = [
       { fileName: 'broken.feature', doc: parseCapability(broken, 'broken.feature') },
     ];
-    const result = buildReview({ entries, boundChangeCount: 0 }, io);
+    const result = buildReview({ entries, boundChangeCount: 0 });
     expect(result.summary.criticalCount).toBeGreaterThan(0);
     expect(result.exitCode).toBe(1);
   });
@@ -78,7 +78,7 @@ describe('buildReview', () => {
     const entries = [
       { fileName: 'broken.feature', doc: parseCapability(broken, 'broken.feature') },
     ];
-    const result = buildReview({ entries, boundChangeCount: 0 }, io);
+    const result = buildReview({ entries, boundChangeCount: 0 });
     const validate = result.signals.find((s) => s.kind === 'validate');
     expect(validate?.detail).toInclude('llman-sdd validate --all');
     expect(validate?.detail).not.toInclude('unchecked');
@@ -86,18 +86,18 @@ describe('buildReview', () => {
 
   test('strict-only failure (unchecked tasks): detail names the change, no misleading sweep hint', () => {
     const entries = [{ fileName: 'a.feature', doc: parseCapability(SPEC('a', 'r1'), 'a.feature') }];
-    const result = buildReview(
-      {
-        entries,
-        boundChangeCount: 0,
-        activeChanges: [{ name: 'c1-do-stuff', completedTasks: 2, totalTasks: 5 }],
-      },
-      io,
-    );
-    expect(result.summary.criticalCount).toBe(1);
-    expect(result.exitCode).toBe(1);
+    const result = buildReview({
+      entries,
+      boundChangeCount: 0,
+      activeChanges: [{ name: 'c1-do-stuff', completedTasks: 2, totalTasks: 5 }],
+    });
+    // T35: unchecked tasks degrade to warningCount — critical stays 0 and the
+    // review exit code stays 0 (work-in-progress noise, not contract breakage).
+    expect(result.summary.criticalCount).toBe(0);
+    expect(result.summary.warningCount).toBe(1);
+    expect(result.exitCode).toBe(0);
     const validate = result.signals.find((s) => s.kind === 'validate');
-    expect(validate?.count).toBe(1);
+    expect(validate?.count).toBe(0);
     expect(validate?.detail).toInclude('c1-do-stuff (3 unchecked)');
     expect(validate?.detail).not.toInclude('validate --all failed');
   });
@@ -107,30 +107,31 @@ describe('buildReview', () => {
     const entries = [
       { fileName: 'broken.feature', doc: parseCapability(broken, 'broken.feature') },
     ];
-    const result = buildReview(
-      {
-        entries,
-        boundChangeCount: 0,
-        activeChanges: [{ name: 'c2-half-done', completedTasks: 0, totalTasks: 4 }],
-      },
-      io,
-    );
+    const result = buildReview({
+      entries,
+      boundChangeCount: 0,
+      activeChanges: [{ name: 'c2-half-done', completedTasks: 0, totalTasks: 4 }],
+    });
     const validate = result.signals.find((s) => s.kind === 'validate');
-    expect(validate?.count).toBe(2);
+    // T35: the sweep failure is critical; the unchecked tasks degrade to a
+    // warning while the detail still names both sources.
+    expect(validate?.count).toBe(1);
+    expect(result.summary.criticalCount).toBe(1);
+    expect(result.summary.warningCount).toBe(2); // 1 unbound + 1 task-degraded
     expect(validate?.detail).toInclude('validate --all failed');
     expect(validate?.detail).toInclude('c2-half-done (4 unchecked)');
   });
 
   test('locked detail uses the current command name', () => {
     const entries = [{ fileName: 'a.feature', doc: parseCapability(SPEC('a', 'r1'), 'a.feature') }];
-    const result = buildReview({ entries, boundChangeCount: 1 }, io);
+    const result = buildReview({ entries, boundChangeCount: 1 });
     const locked = result.signals.find((s) => s.kind === 'locked');
     expect(locked?.detail).toInclude('`llman-sdd change diff <id>`');
   });
 
   test('text lines follow the predecessor layout', () => {
     const entries = [{ fileName: 'a.feature', doc: parseCapability(SPEC('a', 'r1'), 'a.feature') }];
-    const result = buildReview({ entries, boundChangeCount: 0 }, io);
+    const result = buildReview({ entries, boundChangeCount: 0 });
     expect(result.lines[0]).toBe('Review: critical=0 warning=0');
     expect(result.lines).toContain('unbound: a (0)');
     expect(result.lines.some((l) => l.startsWith('locked: - ('))).toBe(true);
@@ -146,14 +147,11 @@ describe('buildReview --capability filter (r33)', () => {
   ];
 
   test('restricts per-capability signals to the chosen capability', () => {
-    const result = buildReview(
-      {
-        entries: twoCaps,
-        boundChangeCount: 0,
-        capability: 'a',
-      },
-      io,
-    );
+    const result = buildReview({
+      entries: twoCaps,
+      boundChangeCount: 0,
+      capability: 'a',
+    });
     const perCap = result.signals.filter((s) => s.kind !== 'locked' && s.kind !== 'validate');
     expect(perCap.length).toBeGreaterThan(0);
     expect(perCap.every((s) => s.capability === 'a')).toBe(true);
@@ -163,7 +161,7 @@ describe('buildReview --capability filter (r33)', () => {
   });
 
   test('no capability keeps full signals', () => {
-    const result = buildReview({ entries: twoCaps, boundChangeCount: 0 }, io);
+    const result = buildReview({ entries: twoCaps, boundChangeCount: 0 });
     const caps = new Set(
       result.signals
         .filter((s) => s.kind !== 'locked' && s.kind !== 'validate')

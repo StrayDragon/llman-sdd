@@ -13,9 +13,12 @@ import { expect, test } from 'bun:test';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { parseCapability } from '../../packages/core/src/spec/parser.ts';
+import { UNIT_FILES } from '../../packages/core/src/templates/skills.ts';
+
 const REPO_ROOT = join(import.meta.dirname, '..', '..');
 const TEMPLATES_DIR = join(REPO_ROOT, 'packages', 'core', 'templates');
-const LOCALES = ['en', 'zh-Hans'] as const;
+const LOCALES = ['zh-Hans'] as const;
 
 type Locale = (typeof LOCALES)[number];
 
@@ -94,9 +97,12 @@ const FORBIDDEN_PER_FILE: Readonly<Record<string, readonly { pattern: RegExp; re
 
 /** Markers that MUST appear in a specific template file (both locales). */
 const REQUIRED_PER_FILE: Readonly<Record<string, readonly string[]>> = {
-  'skills/llman-sdd-explore.md': ['LLMAN_SDD_INDEX_CHAT_MODEL'],
+  // context-unavailable fallback (index stale vs chat model unset) lives in the
+  // shared unit; the four call sites must keep referencing it (T11).
+  'units/skills/index-fallback.md': ['LLMAN_SDD_INDEX_CHAT_MODEL', 'index rebuild'],
+  'skills/llman-sdd-explore.md': ['unit("skills/index-fallback")'],
   'skills/llman-sdd-propose.md': [
-    'LLMAN_SDD_INDEX_CHAT_MODEL',
+    'unit("skills/index-fallback")',
     'spec next-req-id',
     'spec add-req',
     'spec add-scenario',
@@ -111,7 +117,7 @@ const REQUIRED_PER_FILE: Readonly<Record<string, readonly string[]>> = {
     'measured on the change branch|在 change 分支上测量',
   ],
   'skills/llman-sdd-apply.md': [
-    'LLMAN_SDD_INDEX_CHAT_MODEL',
+    'unit("skills/index-fallback")',
     'specs-landed gate|specs-landed 门',
     'completion signal|完成信号',
     // D9: 勾选节明确收口不是 task
@@ -136,7 +142,7 @@ const REQUIRED_PER_FILE: Readonly<Record<string, readonly string[]>> = {
     // opt-in harness 证据必须显式 --check(r70,2026-10 validate-harness-opt-in)
     '--check --strict|--check --strict',
   ],
-  'skills/llman-sdd-quick.md': ['LLMAN_SDD_INDEX_CHAT_MODEL'],
+  'skills/llman-sdd-quick.md': ['unit("skills/index-fallback")'],
   // manual-trigger-only skills back the claim with the frontmatter key
   'skills/llman-sdd-apply-cycle.md': [
     'disable-model-invocation: true',
@@ -151,10 +157,6 @@ const REQUIRED_PER_FILE: Readonly<Record<string, readonly string[]>> = {
     'completion signal|完成信号',
   ],
   'units/skills/git-native-flow.md': [
-    'specs-landed gate|specs-landed 门',
-    'completion signal|完成信号',
-  ],
-  'units/skills/git-native-flow-brief.md': [
     'specs-landed gate|specs-landed 门',
     'completion signal|完成信号',
   ],
@@ -177,9 +179,8 @@ const STRENGTH_WORDS_EN = /\bMUST(?:\s+NOT)?\b|\bSHALL\b|\bSHOULD(?:\s+NOT)?\b|\
 void STRENGTH_WORDS_ZH;
 void STRENGTH_WORDS_EN;
 /** zh 模板允许出现 MUST/SHALL 的引用语境(行级白名单,新例外随 change 登记并附理由)。 */
-const ZH_MUST_QUOTE_ALLOWLIST: readonly RegExp[] = [
-  /不强制 MUST\/SHALL/, // feature-contract:描述 spec 自由文本约定(谈论情态词本身)
-];
+// 允许谈论情态词本身的行(白名单随 change 收缩,当前无命中项;机制保留)
+const ZH_MUST_QUOTE_ALLOWLIST: readonly RegExp[] = [];
 // 「应用/对应/响应」等复合词中的单字应不算强度词:排除前字 用/对/响/反 与后接的常用复合
 const ZH_STRENGTH_VERBS =
   // 整词优先:不要求先于不要,防“不要求”被子串误读为表外词「不要」(r97 消歧)。
@@ -280,4 +281,114 @@ test('template guidance semantics match CLI value domains and behavior (r70)', (
 
   expect(checked.size).toBeGreaterThan(0);
   expect(violations).toEqual([]);
+});
+
+// ---------------------------------------------------------------------------
+// Template source hygiene (init-generators r70): bold markers must pair, every
+// `# language:` example block must parse with this repo's parser, and every
+// UNIT_FILES entry must be reachable through a `unit("<id>")` reference.
+// All three read the built-in `zh-Hans` template source; rendered products and
+// golden baselines are downstream.
+// ---------------------------------------------------------------------------
+
+/** Fenced code blocks (``` … ```) with 1-based start/end lines and body text. */
+function fencedBlocks(text: string): { startLine: number; endLine: number; body: string }[] {
+  const lines = text.split('\n');
+  const blocks: { startLine: number; endLine: number; body: string }[] = [];
+  let index = 0;
+  while (index < lines.length) {
+    if (!/^\s*```/u.test(lines[index]!)) {
+      index += 1;
+      continue;
+    }
+    const startLine = index + 1;
+    const body: string[] = [];
+    index += 1;
+    while (index < lines.length && !/^\s*```/u.test(lines[index]!)) {
+      body.push(lines[index]!);
+      index += 1;
+    }
+    const endLine = index < lines.length ? index + 1 : lines.length;
+    blocks.push({ startLine, endLine, body: body.join('\n') });
+    index += 1; // skip the closing fence
+  }
+  return blocks;
+}
+
+/**
+ * 1-based line numbers whose `**` count is odd. Fenced code blocks and inline
+ * code spans are removed first: both may legitimately carry single `**`
+ * markers (`llmanspec/specs/**`, glob examples).
+ */
+export function findUnbalancedBoldLines(text: string): number[] {
+  const fenced = new Set<number>();
+  for (const { startLine, endLine } of fencedBlocks(text)) {
+    for (let line = startLine; line <= endLine; line += 1) fenced.add(line);
+  }
+  const bad: number[] = [];
+  text.split('\n').forEach((rawLine, index) => {
+    const lineNumber = index + 1;
+    if (fenced.has(lineNumber)) return;
+    const stripped = rawLine.replaceAll(/`[^`]*`/gu, '');
+    if ((stripped.match(/\*\*/gu) ?? []).length % 2 !== 0) bad.push(lineNumber);
+  });
+  return bad;
+}
+
+/** `# language:` example blocks that this repo's spec parser rejects. */
+export function findUnparseableExamples(text: string): { line: number; message: string }[] {
+  const bad: { line: number; message: string }[] = [];
+  for (const { startLine, body } of fencedBlocks(text)) {
+    if (!/^\s*#\s*language:/u.test(body)) continue;
+    try {
+      parseCapability(body, `<template example @${startLine}>`);
+    } catch (error) {
+      bad.push({
+        line: startLine,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+  return bad;
+}
+
+/** Unit ids (path minus `.md`) that no template references through `unit("<id>")`. */
+export function findUnreferencedUnits(
+  unitFiles: readonly string[],
+  referenced: ReadonlySet<string>,
+): string[] {
+  return unitFiles.map((file) => file.replace(/\.md$/u, '')).filter((id) => !referenced.has(id));
+}
+
+const UNIT_REFERENCE = /unit\(\s*["']([^"']+)["']\s*\)/gu;
+
+test('template source hygiene: bold pairing, parseable examples, no orphan units (r70)', () => {
+  const violations: string[] = [];
+  const referenced = new Set<string>();
+
+  for (const rel of collectAllTemplateRels()) {
+    const text = readFileSync(templatePath('zh-Hans', rel), 'utf8');
+    for (const line of findUnbalancedBoldLines(text))
+      violations.push(`[zh-Hans/${rel}:${line}] unbalanced bold '**' marker`);
+    for (const { line, message } of findUnparseableExamples(text))
+      violations.push(`[zh-Hans/${rel}:${line}] unparseable '# language:' example → ${message}`);
+    for (const match of text.matchAll(UNIT_REFERENCE)) referenced.add(match[1]!);
+  }
+
+  for (const id of findUnreferencedUnits(UNIT_FILES, referenced))
+    violations.push(
+      `[packages/core/src/templates/skills.ts] UNIT_FILES entry '${id}' has no unit("${id}") reference`,
+    );
+
+  expect(violations).toEqual([]);
+});
+
+test('template source hygiene helpers report planted defects (r70)', () => {
+  expect(findUnbalancedBoldLines('fine **pair** here\nbroken **marker\n')).toEqual([2]);
+  expect(
+    findUnparseableExamples('```gherkin\n# language: zh-CN\nnot gherkin at all\n```\n').length,
+  ).toBe(1);
+  expect(findUnreferencedUnits(['skills/a.md', 'spec/b.md'], new Set(['skills/a']))).toEqual([
+    'spec/b',
+  ]);
 });

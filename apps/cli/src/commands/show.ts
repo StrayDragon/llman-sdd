@@ -8,18 +8,21 @@ import {
   renderMachine,
   showChangeJson,
   specIdOf,
+  discoverSpecs,
 } from '@llman-sdd/core';
 import type { Command } from 'commander';
 
 import {
   addReportOutputOptions,
+  addSpecDirOption,
   CliError,
   cliMaxScanDepth,
-  loadSpecEntries,
-  newIo,
+  loadRootSpecEntries,
+  resolveCommandRoot,
   resolveChangeIdOrExit,
+  resolveRootSpecsDirTolerant,
+  type CliContext,
 } from '../cli-shared.ts';
-import { makeCliGit } from '../io.ts';
 
 function hasSection(proposal: string, heading: string): boolean {
   return (
@@ -29,7 +32,7 @@ function hasSection(proposal: string, heading: string): boolean {
 }
 
 function renderSpecJson(
-  entries: ReturnType<typeof loadSpecEntries>,
+  entries: ReturnType<typeof loadRootSpecEntries>,
   item: string,
   opts: { metaOnly: boolean; noScenarios: boolean },
 ): Record<string, unknown> {
@@ -97,13 +100,14 @@ function renderSpecJson(
   };
 }
 
-export function registerShow(program: Command): void {
+export function registerShow(program: Command, ctx: CliContext): void {
   const show = program
     .command('show')
     .description('Show a change or spec')
     .argument('<item>')
     .option('--type <type>', 'force disambiguation: change | spec')
     .option('-r, --requirement <n>', 'spec only: show a specific requirement by 1-based index');
+  addSpecDirOption(show);
   addReportOutputOptions(show, {
     outputHint: 'json | compact-json | toon | human | {json,meta-only|no-scenarios|reqs-only}',
   });
@@ -116,6 +120,7 @@ export function registerShow(program: Command): void {
         requirement?: string;
         json?: boolean;
         compactJson?: boolean;
+        directory?: string;
       },
     ) => {
       // D4 shared surface: the registered --json/--compact-json aliases feed
@@ -175,9 +180,23 @@ export function registerShow(program: Command): void {
       // `.feature` 后缀的 fileName)命中;r25 spec id 精确匹配优先于 change 前缀,
       // 不做模糊解析。
       // Discover once per run — the spec lookup, summary and JSON render below
-      // all share these entries.
-      const entries = loadSpecEntries();
-      const specEntry = entries.find((e) => specIdOf(e) === item);
+      // all share these entries. Lazy: a bare changes-only workspace has no
+      // resolvable instance root for the specs half, and the change path below
+      // must not require one (r109 root discovery gates specs, not changes).
+      type SpecEntries = ReturnType<typeof loadRootSpecEntries>;
+      let entriesCache: SpecEntries | null = null;
+      const specEntries = (): SpecEntries =>
+        (entriesCache ??= loadRootSpecEntries(undefined, ctx.io));
+      // spec discovery is attempted but a root-less workspace must not fail
+      // here — the change path below is root-independent until the spec half.
+      let specEntry: SpecEntries[number] | undefined;
+      try {
+        const root = resolveCommandRoot(ctx, options.directory);
+        entriesCache ??= discoverSpecs(join(root, 'llmanspec', 'specs'), ctx.io);
+        specEntry = entriesCache?.find((e) => specIdOf(e) === item);
+      } catch {
+        specEntry = undefined;
+      }
       const isSpec =
         options.type === 'spec' ||
         existsSync(join('llmanspec', 'specs', `${item}.feature`)) ||
@@ -195,7 +214,7 @@ export function registerShow(program: Command): void {
         if (asJson) {
           console.log(
             renderMachine(
-              renderSpecJson(entries, item, {
+              renderSpecJson(specEntries(), item, {
                 metaOnly,
                 noScenarios: noScenarios || reqsOnly,
               }),
@@ -207,7 +226,7 @@ export function registerShow(program: Command): void {
         // text mode: predecessor ignores all output modifiers (meta-only/no-scenarios/-r)
         // and renders the full source + morphology.
         const raw = readFileSync(specPath, 'utf8').trimEnd();
-        const summary = collectSpecs(entries).find((x) => x.id === item);
+        const summary = collectSpecs(specEntries()).find((x) => x.id === item);
         const morphology = summary
           ? `\n\n## Morphology\nrequirements=${summary.requirementCount} bound=${summary.morphology.requirementBoundCount} unbound=${summary.morphology.requirementUnboundCount} acceptanceCount=${summary.morphology.acceptanceCount}`
           : '';
@@ -217,10 +236,13 @@ export function registerShow(program: Command): void {
 
       // ---- change ----
       // r61: predecessor r112 prefix chain — exact > unique prefix > multiple > not found.
-      const resolved = resolveChangeIdOrExit(program, item, { suppressHint: asJson });
+      const resolved = resolveChangeIdOrExit(ctx, program, item, { suppressHint: asJson });
       const changeId = resolved.id;
       const viaPrefix = resolved.viaPrefix;
-      const proposal = readFileSync(join('llmanspec', 'changes', changeId, 'proposal.md'), 'utf8');
+      const proposal = readFileSync(
+        join(ctx.root, 'llmanspec', 'changes', changeId, 'proposal.md'),
+        'utf8',
+      );
       if (asJson) {
         // predecessor parse_change gates: Why first, then What Changes (json only).
         if (!hasSection(proposal, 'Why')) {
@@ -231,10 +253,10 @@ export function registerShow(program: Command): void {
         }
         const result = showChangeJson(
           {
-            io: newIo(),
-            git: makeCliGit(process.cwd()),
-            root: process.cwd(),
-            specsDir: 'llmanspec/specs',
+            io: ctx.io,
+            git: ctx.git,
+            root: ctx.root,
+            specsDir: resolveRootSpecsDirTolerant(ctx, options.directory),
           },
           changeId,
           { matchedViaPrefix: viaPrefix },
@@ -243,7 +265,7 @@ export function registerShow(program: Command): void {
         return;
       }
       // text: Stage / path / content / Gates trailer (no section gates).
-      const changes = collectChanges(newIo(), process.cwd(), new Date(), {
+      const changes = collectChanges(ctx.io, ctx.root, new Date(), {
         maxScanDepth: cliMaxScanDepth(program),
       });
       const change = changes.find((c) => c.name === changeId);
@@ -253,10 +275,10 @@ export function registerShow(program: Command): void {
       if (!proposal.endsWith('\n')) console.log();
       const gates = showChangeJson(
         {
-          io: newIo(),
-          git: makeCliGit(process.cwd()),
-          root: process.cwd(),
-          specsDir: 'llmanspec/specs',
+          io: ctx.io,
+          git: ctx.git,
+          root: ctx.root,
+          specsDir: resolveRootSpecsDirTolerant(ctx),
         },
         changeId,
       ).gateChecks as { name: string; pass: boolean; hint: string }[];

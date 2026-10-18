@@ -129,7 +129,9 @@ describe('lifecycle full loop', () => {
     expect(proposal).toInclude('branch: sdd/add-demo-feature');
     expect(proposal).toInclude('base_branch: main');
 
-    io.writeText('feature.txt', 'hello\n');
+    // T34: the close-out gate demands landed specs — the feature commit edits
+    // the live spec tree (needs_specs_change defaults to true).
+    io.writeText('llmanspec/specs/demo.feature', '# language: zh-CN\n');
     git.run(['add', '-A']);
     git.run(['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-m', 'feat: hello']);
 
@@ -146,7 +148,9 @@ describe('lifecycle full loop', () => {
     const subjects = log.split('\n');
     expect(subjects[0]).toBe('archive(sdd): add-demo-feature');
     expect(subjects.length).toBe(3);
-    expect(readFileSync(join(root, 'feature.txt'), 'utf8')).toBe('hello\n');
+    expect(readFileSync(join(root, 'llmanspec', 'specs', 'demo.feature'), 'utf8')).toContain(
+      'zh-CN',
+    );
   });
 
   test('finalize ff keeps feature commits, then archives docs', () => {
@@ -159,7 +163,7 @@ describe('lifecycle full loop', () => {
       'docs(sdd): draft',
     );
     startChange(git, io, 'add-ff-demo');
-    commitFile(root, 'a.txt', 'A\n', 'feat: a');
+    commitFile(root, 'llmanspec/specs/a.feature', 'a\n', 'feat: a');
     commitFile(root, 'b.txt', 'B\n', 'feat: b');
 
     finalizeChange(git, io, 'add-ff-demo', { method: 'ff', today: '2026-09-14' });
@@ -177,6 +181,7 @@ describe('lifecycle full loop', () => {
       'docs(sdd): draft',
     );
     startChange(git, io, 'add-conflict');
+    io.writeText('llmanspec/specs/conflict.feature', 'x\n'); // T34: land specs first
     io.writeText('shared.txt', 'from feature\n');
     git.run(['add', '-A']);
     git.run(['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'feat: feature side']);
@@ -218,7 +223,7 @@ describe('lifecycle full loop', () => {
       'docs(sdd): draft',
     );
     startChange(git, io, 'add-inplace');
-    io.writeText('feature.txt', 'hello\n');
+    io.writeText('llmanspec/specs/inplace.feature', 'x\n'); // T34: land specs
     git.run(['add', '-A']);
     git.run(['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-m', 'feat: hello']);
 

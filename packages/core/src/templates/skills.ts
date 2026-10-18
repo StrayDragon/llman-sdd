@@ -1,10 +1,10 @@
 import type { SddConfig } from '../config/schema.ts';
-import { renderTemplate, type UnitRegistry } from './engine.ts';
 /**
  * Skills rendering + init orchestration (init-generators capability, r19).
  * Port of predecessor templates.rs / update_skills.rs / init.rs semantics.
  */
-import { localeFallbacks } from './locale.ts';
+import { localeFallbacks } from '../locale.ts';
+import { renderTemplate, type UnitRegistry } from './engine.ts';
 
 export const DEFAULT_SKILL_FILES: readonly string[] = [
   'llman-sdd-explore.md',
@@ -29,17 +29,16 @@ export const OPTIONAL_SKILL_FILES: readonly string[] = [
 ];
 
 export const UNIT_FILES: readonly string[] = [
+  'skills/index-fallback.md',
   'skills/validation-hints.md',
   'skills/human-readable-summary.md',
   'skills/git-native-flow.md',
-  'skills/git-native-flow-brief.md',
   'skills/stage-guard.md',
   'skills/ethics-governance.md',
   'skills/version-drift.md',
   'spec/feature-contract.md',
   'skills/structured-protocol.md',
   'skills/cli-footer.md',
-  'workflow/archive-freeze-guidance.md',
 ];
 
 export const ETHICS_KEYS: readonly string[] = [
@@ -50,30 +49,11 @@ export const ETHICS_KEYS: readonly string[] = [
   'ethics.escalation_policy',
 ];
 
-/** Framework-derived check_command (predecessor config.rs effective_run_command). */
-export function effectiveCheckCommand(specs: NonNullable<SddConfig['specs']>): string {
-  if (specs.check_command) return specs.check_command;
-  switch (specs.framework ?? '') {
-    case 'pytest-bdd':
-      return 'pytest {feature_dir} -k {feature_name} -v';
-    case 'rstest-bdd':
-      return 'cargo test --features bdd';
-    case 'cucumber-js':
-      return 'npx cucumber-js {feature_path}';
-    case 'behave':
-      return 'behave {feature_path}';
-    default:
-      return "echo 'No check_command configured. Set specs.check_command in config.yaml'";
-  }
-}
-
 /** All-string globals (predecessor BTreeMap<String, String> semantics). */
 export function buildTemplateVars(config: SddConfig, version: string): Record<string, string> {
   const vars: Record<string, string> = { llman_version: version };
   if (config.specs) {
     vars['specs_enabled'] = 'true';
-    vars['specs_framework'] = config.specs.framework ?? '';
-    vars['specs_check_command'] = effectiveCheckCommand(config.specs);
     if (config.specs.verify_prompt) vars['specs_verify_prompt'] = config.specs.verify_prompt;
   }
   const extras = new Set<string>(config.extra_skills ?? []);

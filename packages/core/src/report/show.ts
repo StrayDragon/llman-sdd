@@ -1,4 +1,4 @@
-import { countTasks, firstH1, stageFor, type ChangeFsIo } from '../change/collect.ts';
+import { changeTitle, countTasks, stageFor, type ChangeFsIo } from '../change/collect.ts';
 import {
   extractFrontmatter,
   readBinding,
@@ -69,7 +69,7 @@ export function showChangeJson(
   const needsSpecsChange = readNeedsSpecsChange(extractFrontmatter(proposal));
 
   const tasksDone = total > 0 && completed >= total;
-  const specReport = validateAllSpecs(discoverSpecs(deps.specsDir, io), io);
+  const specReport = validateAllSpecs(discoverSpecs(deps.specsDir, io));
   const validateOk = !specReport.failed && (total === 0 || tasksDone);
 
   const stageHint = !hasDesign
@@ -79,10 +79,13 @@ export function showChangeJson(
       : stage === 'planned'
         ? 'bind via `llman-sdd change start <id>` (planned → full)'
         : '';
-  const tasksHint =
-    total > 0 && completed < total
+  // T34: a missing tasks.md has nothing to check off — the hint says so
+  // instead of the legacy "complete or check off remaining tasks".
+  const tasksHint = hasTasks
+    ? total > 0 && completed < total
       ? `${total - completed} unchecked tasks`
-      : 'complete or check off remaining tasks';
+      : 'complete or check off remaining tasks'
+    : 'no tasks.md — seal-off needs no checked tasks';
 
   const gateChecks = [
     {
@@ -123,7 +126,7 @@ export function showChangeJson(
   return {
     id,
     path: id,
-    title: firstH1(proposal),
+    title: changeTitle(proposal),
     stage,
     artifacts,
     readyToImplement: gateChecks.every((g) => g.pass),

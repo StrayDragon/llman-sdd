@@ -1,10 +1,11 @@
 import { frozenCardIdOf, isFrozenCard } from '../../archive/frozenCard.ts';
+import { walkActiveChangeDirs } from '../../change/collect.ts';
 import { CHANGES_DIR } from '../../change/lifecycle.ts';
+import { datedIdOf } from '../../util/datedId.ts';
 import type { GraphFsIo, GraphNode, ScopeKind } from './types.ts';
 
 function extractArchivedId(name: string): string | null {
-  const m = name.match(/^\d{4}-\d{2}-\d{2}-(.+)$/u);
-  return m ? (m[1] ?? null) : null;
+  return datedIdOf(name);
 }
 
 /** Active nodes: dirs (recursively, depth-limited) with a proposal.md (r58). */
@@ -13,24 +14,17 @@ export function collectActiveNodes(
   root: string,
   maxScanDepth?: number,
 ): GraphNode[] {
+  // T23: the active-change traversal is the shared walk (change/collect) —
+  // graph nodes are just its (dir, name) pairs mapped to the node shape.
   const out: GraphNode[] = [];
-  const changesDir = `${root}/${CHANGES_DIR}`;
-  if (!io.exists(changesDir) || !io.isDirectory(changesDir)) return out;
-  const maxDepth = maxScanDepth ?? 8;
-  const visit = (dir: string, depth: number): void => {
-    if (depth > maxDepth) return;
-    for (const name of io.listDir(dir).toSorted()) {
-      if (name === 'archive' || name.startsWith('.')) continue;
-      const child = `${dir}/${name}`;
-      if (!io.isDirectory(child)) continue;
-      if (io.exists(`${child}/proposal.md`)) {
-        out.push({ id: name, archived: false, present: true });
-      } else if (depth < maxDepth) {
-        visit(child, depth + 1);
-      }
-    }
-  };
-  visit(changesDir, 1);
+  walkActiveChangeDirs(
+    io,
+    `${root}/${CHANGES_DIR}`,
+    (_dir, name) => {
+      out.push({ id: name, archived: false, present: true });
+    },
+    { maxScanDepth },
+  );
   return out;
 }
 

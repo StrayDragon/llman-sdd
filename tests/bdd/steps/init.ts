@@ -1,6 +1,5 @@
 // Domain step definitions: init-generators 能力 — 覆盖 r19/r66(渲染 vs
-// golden 基线、zh-Hans 与 en 双 locale 基线门、双 locale 分流判据、ethics
-// 治理门)与 r49/r50(init 子目录落点与 --lang 别名)。
+// golden 基线(单内置 zh-Hans)、伦理门)与 r49/r50(init 子目录落点与 --lang 别名)。
 import { spawnSync } from 'node:child_process';
 import {
   cpSync,
@@ -44,16 +43,6 @@ bdd.given('本仓库的等价 config(zh-Hans 与 bdd 配置)', (ctx) => {
   ctx.fixtures['init'] = { root };
 });
 
-bdd.given('本仓库的等价 config(en 与 bdd 配置)', (ctx) => {
-  const root = mkdtempSync(join(tmpdir(), 'llman-sdd-init-en-'));
-  mkdirSync(join(root, 'llmanspec'), { recursive: true });
-  writeFileSync(
-    join(root, 'llmanspec', 'config.yaml'),
-    'schema: spec-driven\nlocale: en\n\nspecs:\n  check_command: "bun test tests/bdd"\n',
-  );
-  ctx.fixtures['init'] = { root };
-});
-
 bdd.when('渲染 propose skill 与 validation-hints 单元', (ctx) => {
   const zhRoot = (ctx.fixtures['init'] as { root: string }).root;
   runInit(
@@ -61,47 +50,31 @@ bdd.when('渲染 propose skill 与 validation-hints 单元', (ctx) => {
     { exists: (p) => existsSync(p), readText: (p) => readFileSync(p, 'utf8') },
     { update: true, version: '0.1.0', skills: true },
   );
-  // en locale 渲染进独立临时目录,断言双 locale 同语义判据
-  const enRoot = mkdtempSync(join(tmpdir(), 'llman-sdd-init-en-'));
-  mkdirSync(join(enRoot, 'llmanspec'), { recursive: true });
-  writeFileSync(join(enRoot, 'llmanspec', 'config.yaml'), 'schema: spec-driven\nlocale: en\n');
-  runInit(
-    makeNodeIo(enRoot),
-    { exists: (p) => existsSync(p), readText: (p) => readFileSync(p, 'utf8') },
-    { update: true, version: '0.1.0', skills: true },
-  );
   ctx.fixtures['配对判据产物'] = {
     zh: readFileSync(join(zhRoot, '.agents', 'skills', 'llman-sdd-propose', 'SKILL.md'), 'utf8'),
-    en: readFileSync(join(enRoot, '.agents', 'skills', 'llman-sdd-propose', 'SKILL.md'), 'utf8'),
   };
 });
 
 bdd.thenStep('产物含「可执行场景优先」判据小节标识与使用示例', (ctx) => {
-  const r = ctx.fixtures['配对判据产物'] as { zh: string; en: string };
+  const r = ctx.fixtures['配对判据产物'] as { zh: string };
   if (!r.zh.includes('可执行场景优先判据')) {
     throw new Error('zh-Hans propose render lacks the executable-scenario-first triage section');
   }
 });
 
-bdd.thenStep('zh-Hans 与 en 产物均含该判据', (ctx) => {
-  const r = ctx.fixtures['配对判据产物'] as { zh: string; en: string };
+bdd.thenStep('zh-Hans 产物含该判据', (ctx) => {
+  const r = ctx.fixtures['配对判据产物'] as { zh: string };
   if (!r.zh.includes('必须 落成嵌套 `场景:`')) {
     throw new Error('zh-Hans render lacks the triage rule body');
   }
-  if (!r.en.includes('Executable-scenario-first triage')) {
-    throw new Error('en propose render lacks the executable-scenario-first triage section');
-  }
 });
 
-// r71: authoring helpers guidance must reach the rendered propose skill in
-// both locales (structured-adds-first, hand-edit as escape hatch).
-bdd.thenStep('zh-Hans 与 en 产物均含 authoring helpers 引导标识', (ctx) => {
-  const r = ctx.fixtures['配对判据产物'] as { zh: string; en: string };
+// r71: authoring helpers guidance must reach the rendered propose skill
+// (structured-adds-first, hand-edit as escape hatch).
+bdd.thenStep('zh-Hans 产物含 authoring helpers 引导标识', (ctx) => {
+  const r = ctx.fixtures['配对判据产物'] as { zh: string };
   if (!r.zh.includes('结构化新增首选') || !r.zh.includes('spec next-req-id')) {
     throw new Error('zh-Hans propose render lacks the authoring-helpers guidance');
-  }
-  if (!r.en.includes('Structured adds preferred') || !r.en.includes('spec next-req-id')) {
-    throw new Error('en propose render lacks the authoring-helpers guidance');
   }
 });
 
@@ -115,25 +88,19 @@ bdd.when('渲染全部 skills', (ctx) => {
 });
 
 // r19: rendered skills tree vs committed golden baseline, version-normalized.
-const assertMatchesGoldenBaseline = (producedSkillsDir: string, locale: 'zh-Hans' | 'en'): void => {
-  const subdir = locale === 'en' ? 'skills-en' : 'skills';
+const assertMatchesGoldenBaseline = (producedSkillsDir: string): void => {
   const diffs = diffTrees(
-    normalizeTree(join(BASELINE_DIR, subdir)),
+    normalizeTree(join(BASELINE_DIR, 'skills')),
     normalizeTree(producedSkillsDir),
   );
   if (diffs.length > 0) {
-    throw new Error(`golden baseline (${subdir}) mismatch:\n${formatTreeDiffs(diffs)}`);
+    throw new Error(`golden baseline (skills) mismatch:\n${formatTreeDiffs(diffs)}`);
   }
 };
 
 bdd.thenStep('与 golden 基线归一化版本号后 diff 为空', (ctx) => {
   const root = (ctx.fixtures['init'] as { root: string }).root;
-  assertMatchesGoldenBaseline(join(root, '.agents', 'skills'), 'zh-Hans');
-});
-
-bdd.thenStep('与 golden en 基线归一化版本号后 diff 为空', (ctx) => {
-  const root = (ctx.fixtures['init'] as { root: string }).root;
-  assertMatchesGoldenBaseline(join(root, '.agents', 'skills'), 'en');
+  assertMatchesGoldenBaseline(join(root, '.agents', 'skills'));
 });
 
 bdd.thenStep('每个 SKILL.md 通过 ethics 治理门', (ctx) => {
@@ -322,21 +289,6 @@ bdd.thenStep('根 AGENTS.md 托管块为 zh-Hans 渲染且 stderr 含缺键 WARN
   }
   if (!readFileSync(join(root, 'AGENTS.md'), 'utf8').includes('LLMAN 规范驱动开发')) {
     throw new Error('root managed block is not zh-Hans rendered');
-  }
-});
-
-bdd.thenStep('根 AGENTS.md 托管块为 en 渲染且 stderr 含缺键 WARNING', (ctx) => {
-  const { code, stderr, root } = ctx.fixtures['locale结果'] as {
-    code: number;
-    stderr: string;
-    root: string;
-  };
-  if (code !== 0) throw new Error(`update failed:\n${stderr}`);
-  if (!stderr.includes('WARNING') || !stderr.includes("'en'")) {
-    throw new Error(`missing fallback WARNING:\n${stderr}`);
-  }
-  if (!readFileSync(join(root, 'AGENTS.md'), 'utf8').includes('LLMAN Spec-Driven Development')) {
-    throw new Error('root managed block is not en rendered');
   }
 });
 

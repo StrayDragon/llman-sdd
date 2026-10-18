@@ -1,9 +1,5 @@
-export interface GraphFsIo {
-  exists(path: string): boolean;
-  readText(path: string): string;
-  listDir(path: string): string[];
-  isDirectory(path: string): boolean;
-}
+import { type FsPort } from '../../util/fsPort.ts';
+export type GraphFsIo = Pick<FsPort, 'exists' | 'readText' | 'listDir' | 'isDirectory'>;
 
 export interface GraphNode {
   id: string;

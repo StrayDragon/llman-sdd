@@ -20,23 +20,18 @@ import {
 let ok = true;
 const counts: string[] = [];
 
-// Both locales gate: baseline/skills (zh-Hans) and baseline/skills-en.
-for (const [locale, subdir] of [
-  ['zh-Hans', 'skills'],
-  ['en', 'skills-en'],
-] as const) {
-  const baselineTree = normalizeTree(join(BASELINE_DIR, subdir));
-  const fresh = renderSkills(locale);
-  try {
-    const diffs = diffTrees(baselineTree, normalizeTree(fresh.skillsDir));
-    if (diffs.length > 0) {
-      ok = false;
-      console.error(`[render-vs-baseline/${subdir}] drift:\n${formatTreeDiffs(diffs)}`);
-    }
-    counts.push(`${subdir}: ${baselineTree.size} files`);
-  } finally {
-    rmSync(fresh.tmpRoot, { recursive: true, force: true });
+// Single built-in locale (r18): baseline/skills is the only template product tree.
+const baselineTree = normalizeTree(join(BASELINE_DIR, 'skills'));
+const fresh = renderSkills();
+try {
+  const diffs = diffTrees(baselineTree, normalizeTree(fresh.skillsDir));
+  if (diffs.length > 0) {
+    ok = false;
+    console.error(`[render-vs-baseline/skills] drift:\n${formatTreeDiffs(diffs)}`);
   }
+  counts.push(`skills: ${baselineTree.size} files`);
+} finally {
+  rmSync(fresh.tmpRoot, { recursive: true, force: true });
 }
 
 assertRepoConfigMatchesGolden();

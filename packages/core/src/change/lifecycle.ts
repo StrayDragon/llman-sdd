@@ -12,7 +12,15 @@ import {
   worktreeList,
   type GitLike,
 } from '../git/spawnGit.ts';
-import { readBinding, writeBinding } from './frontmatter.ts';
+import { type FsPort } from '../util/fsPort.ts';
+import {
+  extractFrontmatter,
+  readBinding,
+  readNeedsSpecsChange,
+  specsLanded,
+  writeBinding,
+  type ChangeBinding,
+} from './frontmatter.ts';
 /**
  * Change lifecycle (change-lifecycle capability): new / start / attach /
  * finalize with the predecessor git-native contract (r14-r16). All effects flow
@@ -23,14 +31,7 @@ import { readBinding, writeBinding } from './frontmatter.ts';
 import { DRAFT_PROPOSAL_TEMPLATE, deriveChangeId } from './id.ts';
 import { CLOSE_OUT_TASK_HINT, closeOutTaskLines, parseTaskCheckboxes } from './tasks.ts';
 
-export interface FsIo {
-  exists(path: string): boolean;
-  readText(path: string): string;
-  /** writeText creates parent directories as needed. */
-  writeText(path: string, content: string): void;
-  rename(from: string, to: string): void;
-  listDir(path: string): string[];
-}
+export type FsIo = Pick<FsPort, 'exists' | 'readText' | 'writeText' | 'rename' | 'listDir'>;
 
 export class LifecycleError extends Error {}
 
@@ -45,6 +46,8 @@ const onDefaultBranch = (cmd: string, def: string): string =>
 const dirtyTree = (cmd: string): string => `\`${cmd}\` requires a clean working tree`;
 
 export const CHANGES_DIR = 'llmanspec/changes';
+/** Instance-relative live-specs dir (single SSOT with CHANGES_DIR). */
+export const SPECS_DIR = 'llmanspec/specs';
 const proposalPath = (id: string): string => `${CHANGES_DIR}/${id}/proposal.md`;
 
 /** `change new [id] --from DESC --force`: derive a legal id and write the draft shell. */
@@ -309,6 +312,53 @@ export function archiveTaskGate(tasksMd: string | null): ArchiveTaskGate {
   return { blocked: false, pendingLines: [] };
 }
 
+/**
+ * T34 close-out gate (decision D): seal-off requires the specs-landed verdict
+ * (`specsLanded || !needsSpecsChange`) plus every checked task when tasks.md
+ * exists. `reason === null` means pass; otherwise it is the human message.
+ * Zero-write: callers run this before any merge/rename/commit.
+ */
+export function closeOutGate(change: {
+  git: GitLike;
+  io: FsIo;
+  id: string;
+  binding: ChangeBinding | null;
+}): { ok: boolean; reason: string | null } {
+  const { git, io, id, binding } = change;
+  // task gate first: the unchecked list is the most actionable feedback and
+  // keeps the predecessor "blocked by unchecked tasks" surface primary.
+  const tasksPath = `${CHANGES_DIR}/${id}/tasks.md`;
+  const gate = archiveTaskGate(io.exists(tasksPath) ? io.readText(tasksPath) : null);
+  if (gate.blocked) {
+    const closeOutLines = closeOutTaskLines(gate.pendingLines);
+    return {
+      ok: false,
+      reason: [
+        `close-out blocked by unchecked tasks (${gate.pendingLines.length} pending)`,
+        ...gate.pendingLines,
+        ...(closeOutLines.length > 0
+          ? [
+              `task "${closeOutLines[0]?.replace(/^-\s+\[ \]\s*/u, '').trim() ?? ''}" looks like a close-out step; ${CLOSE_OUT_TASK_HINT}`,
+            ]
+          : []),
+      ].join('\n'),
+    };
+  }
+  const proposal = io.readText(`${CHANGES_DIR}/${id}/proposal.md`);
+  const needsSpecsChange = readNeedsSpecsChange(extractFrontmatter(proposal));
+  if (binding !== null) {
+    const landed = specsLanded(git, binding);
+    if (!landed && needsSpecsChange) {
+      return {
+        ok: false,
+        reason:
+          'close-out blocked: no changes under llmanspec/specs/ on the bound branch (or set needs_specs_change to false)',
+      };
+    }
+  }
+  return { ok: true, reason: null };
+}
+
 /** `change finalize`: merge (squash default) + archive rename + close-out commit. */
 export function finalizeChange(
   git: GitLike,
@@ -321,19 +371,23 @@ export function finalizeChange(
   if (binding === null) {
     throw new LifecycleError(`change \`${id}\` has no branch binding — run start/attach first`);
   }
-  // r40 task gate before any write (B23: finalize shares the archive task gate).
+  // T34 close-out gate before any write: specs-landed verdict + task gate.
+  const closeOut = closeOutGate({ git, io, id, binding });
+  if (!closeOut.ok) {
+    throw new LifecycleError(closeOut.reason as string);
+  }
+  // r40 unchecked-task detail lines (D9 close-out pseudo-task hint).
   const tasksPath = `${CHANGES_DIR}/${id}/tasks.md`;
   const gate = archiveTaskGate(io.exists(tasksPath) ? io.readText(tasksPath) : null);
   if (gate.blocked) {
-    // D9: point at a close-out pseudo-task with the single shared hint.
-    const closeOut = closeOutTaskLines(gate.pendingLines);
+    const closeOutLines = closeOutTaskLines(gate.pendingLines);
     throw new LifecycleError(
       [
         `finalize blocked by unchecked tasks (${gate.pendingLines.length} pending)`,
         ...gate.pendingLines,
-        ...(closeOut.length > 0
+        ...(closeOutLines.length > 0
           ? [
-              `task "${closeOut[0]?.replace(/^-\s+\[ \]\s*/u, '').trim() ?? ''}" looks like a close-out step; ${CLOSE_OUT_TASK_HINT}`,
+              `task "${closeOutLines[0]?.replace(/^-\s+\[ \]\s*/u, '').trim() ?? ''}" looks like a close-out step; ${CLOSE_OUT_TASK_HINT}`,
             ]
           : []),
       ].join('\n'),
@@ -471,6 +525,9 @@ export function archiveChange(
     throw new LifecycleError(`change \`${id}\` has no branch binding — run start/attach first`);
   }
   if (!opts.force) {
+    // T34: shared close-out verdict before any write (archive honors --force).
+    const closeOut = closeOutGate({ git, io, id, binding });
+    if (!closeOut.ok) throw new LifecycleError(closeOut.reason as string);
     const tasksPath = `${CHANGES_DIR}/${id}/tasks.md`;
     const gate = archiveTaskGate(io.exists(tasksPath) ? io.readText(tasksPath) : null);
     if (gate.blocked) {

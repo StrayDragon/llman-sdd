@@ -6,8 +6,8 @@
   @req:r7
   规则: 解析语言兜底链
     .feature 解析 MUST 以 en 匹配器起步(`# language:` 头自动生效),失败后 MUST 回退 zh-CN 匹配器再试,仍失败才报错。config locale
-    zh-Hans MUST 映射为 gherkin 语言代码 zh-CN,其余 locale 透传;`spec skeleton` 生成的 `# language:` 头 MUST
-    经该映射派生(不得另行硬编码)。
+    MUST 先按 init-generators r18 归一为内置默认 zh-Hans(未知取值同样归一),归一值 zh-Hans MUST 映射为 gherkin 语言代码
+    zh-CN;`spec skeleton` 生成的 `# language:` 头 MUST 经该映射派生(不得另行硬编码),故 `spec skeleton` 恒产出 zh-CN 方言骨架。
 
     场景: 语言兜底链与 locale 映射
       假如 一个无语言头使用中文关键字的 feature 内容
@@ -15,18 +15,15 @@
       那么 en 起步失败回退 zh-CN 解析成功
       而且 纯 en 内容以 en 匹配器起步成功
       而且 双匹配器均失败才报错
-      而且 locale zh-Hans 映射为 zh-CN 且其余透传
+      而且 locale 归一为 zh-Hans 后映射为 zh-CN
 
 
     场景: skeleton 语言头经映射派生
       假如 一个 locale 为 zh-Hans 的已初始化临时仓库
       当 运行 spec skeleton demo-cap
       那么 生成的 spec 首行为 "# language: zh-CN" 且规则体使用中文
-      当 在 locale 为 en 的已初始化临时仓库运行 spec skeleton demo-cap
-      那么 生成的 spec 首行为 "# language: en"
-      而且 en 骨架的规则与步骤关键字取自官方 en 词表(无中文关键字混入)
       当 在 locale 为 fr 的已初始化临时仓库运行 spec skeleton demo-cap
-      那么 生成的 spec 首行为 "# language: fr" 且关键字取自官方 fr 词表
+      那么 生成的 spec 首行为 "# language: zh-CN"（未知 locale 归一为 zh-Hans）
 
   @req:r8
   规则: 头注释契约
@@ -122,7 +119,7 @@
 
   @req:r88
   规则: 迁移输出方言一致并强制解析自检
-    `spec migrate-native` 的迁移产物 MUST 与源 feature 的解析方言一致(方言按统一口径判定:文件 `# language:` 头注释优先,无头内容经语言兜底链自动发现,仍不可判时兜底英文),规则/场景块关键字 MUST 取自该方言在官方 gherkin 词表(@cucumber/gherkin dialects)中的合法关键字,且 MUST 确定性选取:过滤 `* ` 星号步后优先首个本地文字(非 ASCII)同义词、否则取首个——zh-CN 源输出 `规则:`/`场景:`、en 源输出 `Rule:`/`Scenario:` 不得漂移;自动嵌套验收场景标题维持本地化(验收示例 / Acceptance example),preamble 原样保留。迁移完成前 MUST 以官方解析器对产物做解析自检,自检失败 MUST 返回错误而非产出内容(dry-run 同样受检),不得静默写入不可解析的文件。
+    `spec migrate-native` 的迁移产物 MUST 与源 feature 的解析方言一致(方言按统一口径判定:文件 `# language:` 头注释优先,无头内容经语言兜底链自动发现,仍不可判时兜底英文),规则/场景块关键字 MUST 取自该方言在官方 gherkin 词表(@cucumber/gherkin dialects)中的合法关键字,且 MUST 确定性选取:过滤 `* ` 星号步后优先首个本地文字(非 ASCII)同义词、否则取首个——zh-CN 源输出 `规则:`/`场景:`、en 源输出 `Rule:`/`Scenario:` 不得漂移;自动嵌套验收场景标题维持本地化(验收示例 / Acceptance example),preamble 原样保留。迁移完成前 MUST 以官方解析器对产物做解析自检,自检失败 MUST 返回错误而非产出内容(dry-run 同样受检),不得静默写入不可解析的文件。该方言判定 MUST 只取决于源 feature 内容与其 `# language:` 头,MUST NOT 受工作区 config locale 归一(init-generators r18)影响:en 源迁移产物 MUST 保持 en 关键字。
 
     场景: en 方言 legacy 迁移保持方言一致
       假如 一个 `# language: en` 的「描述与步骤同体」legacy feature 内容

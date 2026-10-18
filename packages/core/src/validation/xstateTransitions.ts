@@ -318,38 +318,6 @@ export function validateTransitionsForRule(cap: string, rule: RuleIR): Validatio
   return items;
 }
 
-/** Authoring self-check: transitions only (synthetic scenario). */
-export function validateTransitionTableSelfCheck(
-  transitions: readonly TransitionEdge[],
-  scenarioName = 'authoring-check',
-): void {
-  const sc: ScenarioIR = {
-    name: scenarioName,
-    tags: [],
-    runnable: true,
-    stepCount: 3,
-    steps: [
-      { kind: 'given', text: 'state <from>' },
-      { kind: 'when', text: 'event <event>' },
-      { kind: 'then', text: 'state <to>' },
-    ],
-    statement: '',
-    isOutline: true,
-    examples: [
-      {
-        name: '',
-        headers: ['from', 'event', 'to'],
-        rows: transitions.map((t) => [t.from, t.event, t.to]),
-      },
-    ],
-  };
-  const rule = { reqId: 'r0', title: '', description: '', scenarios: [], tags: [] } as RuleIR;
-  const issues = validateTransitionScenario('authoring', rule, sc);
-  if (issues.length > 0) {
-    throw new Error(issues[0]?.message ?? 'invalid transition table');
-  }
-}
-
 export function parseTransitionExpr(expr: string): TransitionEdge {
   const trimmed = expr.trim();
   const m = trimmed.match(/^([^:]+):([\w-]+)(?:\[([^\]]+)\])?->(.+)$/u);

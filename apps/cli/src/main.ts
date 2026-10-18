@@ -1,59 +1,20 @@
 #!/usr/bin/env bun
-import { Command } from 'commander';
+// Execution entry only (cli r107): assemble the command tree via the factory,
+// parse argv and render the unified error exits. Safe to import — nothing runs
+// unless this module is the main module (guard at the bottom).
+import { realpathSync } from 'node:fs';
 
-import { CliError, versionDisplay } from './cli-shared.ts';
-import { registerArchive } from './commands/archive.ts';
-import { registerChange } from './commands/change.ts';
-import { registerConfig } from './commands/config.ts';
-import { registerContext } from './commands/context.ts';
-import { registerGraph } from './commands/graph.ts';
-import { registerIndex } from './commands/index.ts';
-import { registerInit } from './commands/init.ts';
-import { registerList } from './commands/list.ts';
-import { registerProject } from './commands/project.ts';
-import { registerReview } from './commands/review.ts';
-import { registerShow } from './commands/show.ts';
-import { registerSpec } from './commands/spec.ts';
-import { registerValidate } from './commands/validate.ts';
-
-// Assembly order is load-bearing: commander children copy _exitCallback at
-// creation time, so exitOverride/configureOutput must run before any
-// `registerXxx` call, and the register calls below must keep the original
-// top-level command order (help text renders in registration order).
-const program = new Command();
-
-// Must run before subcommand registration (children copy _exitCallback at
-// creation time); exitOverride turns commander's process.exit into a throw.
-program.exitOverride();
-program.configureOutput({ outputError: () => {} });
-
-program.name('llman-sdd').description('Spec-driven development workflow').version(versionDisplay());
-program.option(
-  '--max-scan-depth <n>',
-  'max depth when scanning llmanspec/changes/ for proposal.md (min 1, default 8)',
-  '8',
-);
-
-registerInit(program);
-registerValidate(program);
-registerChange(program);
-registerList(program);
-registerShow(program);
-registerGraph(program);
-registerSpec(program);
-registerProject(program);
-registerArchive(program);
-registerReview(program);
-registerConfig(program);
-registerIndex(program);
-registerContext(program);
+import { CliError, makeCliContext } from './cli-shared.ts';
+import { createProgram } from './program.ts';
 
 function commandChain(argv: string[]): string {
-  let node: Command = program;
+  // Re-parse argv against a fresh tree for the unknown-command/option usage line.
+  const program = createProgram(makeCliContext());
+  let node = program;
   let chain = '';
   let rest = argv.slice(2);
   while (rest.length > 0) {
-    let child: Command | undefined;
+    let child;
     for (const cmd of node.commands) {
       if (cmd.name() === rest[0]) {
         child = cmd;
@@ -69,6 +30,9 @@ function commandChain(argv: string[]): string {
 }
 
 async function main(): Promise<void> {
+  // r108: run context resolved ONCE at assembly time — command bodies take
+  // io/git/root/cwd from here instead of reading process state ad hoc.
+  const program = createProgram(makeCliContext());
   try {
     await program.parseAsync(process.argv);
   } catch (error) {
@@ -86,6 +50,28 @@ async function main(): Promise<void> {
     // commander strips its own `error: ` short prefix — single `Error: ` + rc=2.
     const commanderMsg = String(comErr?.message ?? '');
     const stripCommanderPrefix = (text: string): string => text.replace(/^error:\s*/u, '');
+
+    // cli r75: every remaining commander parse failure is a usage error —
+    // missingArgument / excessArguments / invalidArgument / invalidOption …
+    // — rendered through the shared single-prefix exit with rc 2. Handler
+    // level enum validation throws CliError(…, 2) itself (intentional
+    // divergence from the predecessor's rc 1).
+    if (typeof comErr?.code === 'string' && comErr.code.startsWith('commander.')) {
+      // r75: an unknown token at root level surfaces as excessArguments (the
+      // root action owns the bare call) — render the unknown-command shape.
+      const rootExcess =
+        comErr.code === 'commander.excessArguments' &&
+        process.argv.length > 2 &&
+        !program.commands.some((c) => c.name() === process.argv[2]);
+      if (rootExcess) {
+        console.error(`Error: unknown command '${process.argv[2] as string}'`);
+        process.exitCode = 2;
+        return;
+      }
+      console.error(`Error: ${stripCommanderPrefix(commanderMsg)}`);
+      process.exitCode = 2;
+      return;
+    }
 
     if (comErr?.code === 'commander.unknownOption') {
       const raw = stripCommanderPrefix(commanderMsg);
@@ -122,4 +108,23 @@ async function main(): Promise<void> {
   }
 }
 
-await main();
+/**
+ * r107 execution guard with the Node 24.0/24.1 fallback: `import.meta.main`
+ * is undefined there (introduced in v24.2.0), so a bare check would silently
+ * skip every invocation. The fallback compares the realpath-normalized
+ * `process.argv[1]` against this module's path — argv may be missing and the
+ * realpath may fail, both fold to "not the entry".
+ */
+const isEntry =
+  import.meta.main ??
+  (() => {
+    try {
+      const invoked = process.argv[1];
+      if (invoked === undefined) return false;
+      return realpathSync(invoked) === realpathSync(import.meta.filename);
+    } catch {
+      return false;
+    }
+  })();
+
+if (isEntry) await main();

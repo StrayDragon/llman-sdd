@@ -10,6 +10,8 @@ import { join } from 'node:path';
 
 import { firstH1 } from '../change/collect.ts';
 import { extractFrontmatter, readFrontmatterTitle } from '../change/frontmatter.ts';
+import { DATED_PREFIX_RE } from '../util/datedId.ts';
+import { type FsPort } from '../util/fsPort.ts';
 import {
   FROZEN_CARD_EXT,
   composeFrozenCard,
@@ -22,22 +24,20 @@ import type { SevenZipPort } from './sevenzip.ts';
 export const FREEZE_ARCHIVE_NAME = 'freezed_changes.7z.archived';
 export const ARCHIVE_DIR_REL = 'llmanspec/changes/archive';
 
-export interface FreezeIo {
-  exists(path: string): boolean;
-  listDir(path: string): string[];
-  readText(path: string): string;
-  writeText(path: string, content: string): void;
-  isDirectory(path: string): boolean;
-  /** rm -rf */
-  removeDir(path: string): void;
-  /** Remove a single file. */
-  remove(path: string): void;
-  mkdirp(path: string): void;
-  /** Move a directory within the repo (same-device; adapter may copy). */
-  moveDir(from: string, to: string): void;
-}
+export type FreezeIo = Pick<
+  FsPort,
+  | 'exists'
+  | 'listDir'
+  | 'readText'
+  | 'writeText'
+  | 'isDirectory'
+  | 'removeDir'
+  | 'remove'
+  | 'mkdirp'
+  | 'moveDir'
+>;
 
-const DATED_RE = /^\d{4}-\d{2}-\d{2}-/u;
+const DATED_RE = DATED_PREFIX_RE;
 
 /**
  * r24: freeze candidates = date-prefixed entries that are directories with a

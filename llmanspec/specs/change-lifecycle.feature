@@ -241,7 +241,7 @@
     `change finalize` 与 `change archive` 的任务门被拒(存在未勾选任务)时,若未勾项中存在去掉 `T<n>[a-z]?:`
     编号前缀后以收口动词开头(`/^(收口|归档|finalize\b|archive\b)/` 只匹配开头)的标题,MUST 在报错末尾追加与 validation WARNING
     同一文案常量的提示(含 `finalize is a pipeline step`),指明该任务是流水线步骤应从 tasks.md 移除;提示文案 MUST 与 validate 域单一定义、
-    两处复用。
+    两处复用。tasks.md 存在时该任务门 MUST 要求全部任务已勾选,tasks.md 缺失 MUST NOT 阻断收口。
 
     场景: 任务门拒绝时点名收口伪任务
       假如 一个已完成 start 且 tasks.md 含未勾选任务「- [ ] T6: 收口——finalize」的临时仓库
@@ -286,7 +286,9 @@
     `change start` 分支前缀 MUST 依次取 CLI `--branch-prefix`、config `sdd.branch_prefix`、缺省
     `sdd/`;`change finalize` MUST 在合并前执行一次 specs 与 change 文档校验 sweep,失败 MUST 中止且不产生合并与改名,`--no-check`
     MUST 跳过该 sweep;合并方式 MUST 依次取 `--method`、config `sdd.merge_method`、缺省 squash;`--no-commit` MUST
-    完成改名但跳过自动提交并输出手工收尾指引。
+    完成改名但跳过自动提交并输出手工收尾指引。收口 MUST 另过收口门(与 `show` 的 `specs-landed`/`tasks-done` 判据同源复用):
+    MUST 要求 `specsLanded || !needsSpecsChange`,tasks.md 存在时 MUST 要求全部任务已勾选,MUST NOT 要求 design.md
+    存在;门不过时 MUST 中止且零写入。
 
     场景: finalize no-commit 收口
       假如 一个已完成 start 并在特性分支有新提交的临时仓库

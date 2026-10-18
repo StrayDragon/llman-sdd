@@ -47,7 +47,7 @@ bdd.when('运行 specs 校验', (ctx) => {
   const fixture = ctx.fixtures['缺陷目录'] as SpecsDirFixture | undefined;
   if (!fixture) throw new Error('no specs-dir fixture — did the 假如 step run?');
   const entries = discoverSpecs(fixture.specsDir, fixture.io);
-  const report = validateAllSpecs(entries, fixture.io);
+  const report = validateAllSpecs(entries);
   ctx.fixtures['校验结果'] = { failed: report.failed, lines: report.lines };
 });
 

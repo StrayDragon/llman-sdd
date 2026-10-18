@@ -6,6 +6,9 @@
  * handed to any agent verbatim — steps are executable commands, checks are
  * user-verifiable assertions. Pure: no IO, no clock.
  */
+import { compareSemver as compareVersions } from '../util/semver.ts';
+
+export { compareVersions };
 
 export interface MigrationItem {
   title: string;
@@ -88,6 +91,82 @@ export const MIGRATIONS: readonly MigrationDoc[] = [
       },
     ],
   },
+  {
+    version: '0.10.0',
+    items: [
+      {
+        title:
+          'Templates go zh-Hans single-track: the `en` tree is gone and unknown locales normalize to `zh-Hans`',
+        steps: [
+          'Optionally pin `locale: zh-Hans` in `llmanspec/config.yaml` — `en` and any unknown value now render Chinese.',
+          'Run `llman-sdd init --update` and commit the refreshed managed AGENTS blocks and `.agents/skills/**`.',
+          'Re-run `llman-sdd spec skeleton <name>` where a skeleton dialect matters — it now emits `# language: zh-CN`.',
+          'Run `llman-sdd validate --all --strict` — it must pass.',
+        ],
+        checks: [
+          'No English-rendered managed block or skill remains after `init --update`.',
+          '`llman-sdd spec skeleton <name>` emits `# language: zh-CN`.',
+          'A missing template resource makes `init` fail instead of silently skipping.',
+        ],
+      },
+      {
+        title:
+          'Close-out gate tightened: a change whose contract is unchanged can no longer be closed out',
+        steps: [
+          'For a change that touches the contract, land and commit your `llmanspec/specs/**` edits on the bound branch before closing out.',
+          'Set `needs_specs_change: false` in `proposal.md` frontmatter only when the change genuinely needs no contract edit.',
+          'Keep `tasks.md` fully checked whenever the file exists.',
+          'Run `llman-sdd change finalize <id>` (or `archive`) — the gate runs before any merge and writes nothing on failure.',
+        ],
+        checks: [
+          '`llman-sdd change finalize <id>` on a spec-unlanded change fails with zero writes.',
+          'A change that landed its specs, or declared `needs_specs_change: false`, still closes out cleanly.',
+        ],
+      },
+      {
+        title:
+          'Usage errors now exit 2 (bare parent groups, missing arguments, invalid enum values)',
+        steps: [
+          'Update scripts that keyed on exit code 1 for missing arguments or invalid enum values — those now exit 2.',
+          'Expect bare invocation of the five pure parent groups (`change`, `spec`, `project`, `archive`, `index`) to print a usage error and exit 2; `config` keeps its overview action.',
+          'Root bare invocation (`llman-sdd`) still exits 0, but help now goes to stdout.',
+          'Run `llman-sdd validate --all --strict` — it must pass.',
+        ],
+        checks: [
+          '`llman-sdd change` exits 2 and `llman-sdd` exits 0 with help on stdout.',
+          '`llman-sdd list --sort bogus` exits 2 (previously 1); domain errors still exit 1.',
+        ],
+      },
+      {
+        title:
+          'Read-only commands resolve the nearest instance root (`--directory` on every command)',
+        steps: [
+          'Note that `list`, `show`, `graph`, `review`, `config`, `index` and `context` now start from `--directory <path>` (default cwd) and walk up to the nearest instance root.',
+          'Re-check scripts that invoked read-only commands from a subdirectory — they no longer return empty results or leak `ENOENT`.',
+          'Use `--directory <path>` on any command to pin the root explicitly.',
+          'Run `llman-sdd validate --all --strict` — it must pass.',
+        ],
+        checks: [
+          'From a subdirectory, `llman-sdd list` and `llman-sdd config` match the repo-root output.',
+          'With no instance root above, the error is `no llmanspec root at or above <path>` (never `ENOENT`).',
+          'A single-root repo keeps byte-identical output.',
+        ],
+      },
+      {
+        title:
+          '`--backend` normalization: empty values, case and the `page-index` alias are accepted',
+        steps: [
+          'No action required — an empty `--backend`, an empty `LLMAN_SDD_INDEX_BACKEND`, `PAGEINDEX`, `page-index` and padded values now all select the pageindex backend.',
+          'Keep using `index rebuild --backend` / `context --backend` unchanged.',
+          'Run `llman-sdd validate --all --strict` — it must pass.',
+        ],
+        checks: [
+          '`llman-sdd index rebuild --backend page-index` and an empty `--backend` succeed (previously exit 1).',
+          'A legacy `rag/` directory never satisfies pageindex freshness.',
+        ],
+      },
+    ],
+  },
 ];
 
 const VERSION_RE = /^\d+\.\d+\.\d+$/u;
@@ -95,15 +174,6 @@ const EXPR_RE = /^\d+\.\d+\.\d+->\d+\.\d+\.\d+$/u;
 
 export function isValidVersion(version: string): boolean {
   return VERSION_RE.test(version);
-}
-
-/** Numeric `x.y.z` comparison; negative when a < b, 0 when equal. */
-export function compareVersions(a: string, b: string): number {
-  const [aMajor, aMinor, aPatch] = a.split('.').map(Number) as [number, number, number];
-  const [bMajor, bMinor, bPatch] = b.split('.').map(Number) as [number, number, number];
-  if (aMajor !== bMajor) return aMajor - bMajor;
-  if (aMinor !== bMinor) return aMinor - bMinor;
-  return aPatch - bPatch;
 }
 
 /** Versions `(from, to]` that carry registered migrations, ascending. */

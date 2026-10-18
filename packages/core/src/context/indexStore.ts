@@ -1,3 +1,4 @@
+import { type FsPort } from '../util/fsPort.ts';
 /**
  * Index orchestration (context-index capability, r26): rebuild writes the
  * pageindex tree under a create-new lock; check compares the stored spec_hash
@@ -12,20 +13,19 @@ export const TREE_JSON_REL = `${PAGEINDEX_DIR_REL}/tree.json`;
 export const REBUILD_LOCK_REL = `${PAGEINDEX_DIR_REL}/.rebuild.lock`;
 const LOCK_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 
-export interface IndexIo {
-  exists(path: string): boolean;
-  readText(path: string): string;
-  writeText(path: string, content: string): void;
-  remove(path: string): void;
-  isDirectory(path: string): boolean;
-  listDir(path: string): string[];
-  mkdirp(path: string): void;
-  processAlive(pid: number): boolean;
-  /** Current process id for the rebuild lock (side effect injected, r3). */
-  currentPid(): number;
-  /** Wall clock for lock timestamps / staleness (side effect injected, r3). */
-  now(): Date;
-}
+export type IndexIo = Pick<
+  FsPort,
+  | 'exists'
+  | 'readText'
+  | 'writeText'
+  | 'remove'
+  | 'isDirectory'
+  | 'listDir'
+  | 'mkdirp'
+  | 'processAlive'
+  | 'currentPid'
+  | 'now'
+>;
 
 export interface RebuildOpts {
   chatModel: string;

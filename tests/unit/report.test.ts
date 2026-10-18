@@ -202,8 +202,9 @@ describe('nextReqId', () => {
       readText: (path: string) => files[path] ?? '',
       writeText: () => {},
       mkdirp: () => {},
-      isDirectory: () => false,
-      listDir: () => names.map((p) => p.replace(/^llmanspec\/specs\//u, '')),
+      isDirectory: (p: string) => p === 'llmanspec/specs',
+      listDir: (p: string) =>
+        p === 'llmanspec/specs' ? names.map((x) => x.replace(/^llmanspec\/specs\//u, '')) : [],
     };
   };
   const featureWithRule = (capability: string, reqId: string) =>

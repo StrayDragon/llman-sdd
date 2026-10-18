@@ -165,7 +165,7 @@ describe('init effective-locale precedence (r50)', () => {
     writeFileSync(cfg, readFileSync(cfg, 'utf8').replace(/^locale:.*\n/mu, ''));
   };
 
-  test('resolveEffectiveLocale: explicit config key > option > schema floor', () => {
+  test('resolveEffectiveLocale: explicit config key > option > built-in floor', () => {
     expect(
       resolveEffectiveLocale({
         configLocale: 'zh-Hans',
@@ -175,12 +175,14 @@ describe('init effective-locale precedence (r50)', () => {
     ).toBe('zh-Hans');
     expect(
       resolveEffectiveLocale({
-        configLocale: 'en',
+        configLocale: 'zh-Hans',
         configLocaleExplicit: false,
         optionLocale: 'zh-Hans',
       }),
     ).toBe('zh-Hans');
-    expect(resolveEffectiveLocale({ configLocale: 'en', configLocaleExplicit: false })).toBe('en');
+    expect(resolveEffectiveLocale({ configLocale: 'zh-Hans', configLocaleExplicit: false })).toBe(
+      'zh-Hans',
+    );
   });
 
   test('update: explicit config locale wins over --locale, no warning', () => {
@@ -203,16 +205,14 @@ describe('init effective-locale precedence (r50)', () => {
     expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).toContain('LLMAN 规范驱动开发');
   });
 
-  test('update: missing key without option falls back to built-in en and warns', () => {
+  test('update: missing key without option falls back to the built-in zh-Hans and warns', () => {
     const root = seedZhWorkspace('llman-locfloor-');
     stripLocaleKey(root);
     const proc = runInit(root, ['--update']);
     expect(proc.status).toBe(0);
     expect(proc.stderr).toContain('WARNING');
-    expect(proc.stderr).toContain("'en'");
-    expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).toContain(
-      'LLMAN Spec-Driven Development',
-    );
+    expect(proc.stderr).toContain("'zh-Hans'");
+    expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).toContain('LLMAN 规范驱动开发');
   });
 });
 

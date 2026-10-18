@@ -29,13 +29,13 @@ test('detectLocale reads zh-Hans from config (zh-* → zh)', () => {
   }
 });
 
-test('detectLocale falls back to en without config or with en locale', () => {
+test('detectLocale selects the zh arm without config or with any config locale', () => {
   const root = mkdtempSync(join(tmpdir(), 'llman-sdd-progress-'));
   try {
-    expect(detectLocale(join(root, 'missing'))).toBe('en');
+    expect(detectLocale(join(root, 'missing'))).toBe('zh');
     mkdirSync(join(root, 'llmanspec'));
     writeFileSync(join(root, 'llmanspec', 'config.yaml'), 'schema: spec-driven\nlocale: en\n');
-    expect(detectLocale(root)).toBe('en');
+    expect(detectLocale(root)).toBe('zh');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

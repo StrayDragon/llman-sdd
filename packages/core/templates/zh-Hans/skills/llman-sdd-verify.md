@@ -27,7 +27,7 @@ flowchart LR
 - **CRITICAL 必须修复**：归档前清零。
 - **亲自复跑门禁**：必须 亲自重跑 `llman-sdd validate <id> --check --strict`（真实 harness 证据）与项目门禁，不得 采信实现者报告的门禁结论；复跑结果与报告不符 → CRITICAL。
 - **harness 证据必须 `--check`**：缺省 `validate` 不执行 harness，声称全量 harness 证据 必须 经显式 `--check`（缺省结构门的通过不是通过）；收口会执行已配置的 `specs.check_command`，收口前不必再跑一遍。
-- 不得问“要不得继续”**：跑完整验证流程，输出完整报告。
+- **不得问“是否继续”**：跑完整验证流程，输出完整报告。
 
 {{ unit("skills/stage-guard") }}
 
@@ -66,7 +66,7 @@ flowchart LR
 6. 输出简短报告：**CRITICAL**（归档前必须修复）/ **WARNING**（宜修复）/ **SUGGESTION**（可选优化）。
 7. **人审关卡**：报告无 CRITICAL 后、归档前宜跑 `llman-sdd review`：退出码零 → 宜接 `llman-sdd-archive`；非零 = CRITICAL → 用 `llman-sdd-apply` 修复后重跑 review；不得 带 CRITICAL 进入 finalize/archive。
 
-{{ unit("skills/git-native-flow-brief") }}
+{{ unit("skills/git-native-flow") }}
 {{ unit("skills/human-readable-summary") }}
 {{ unit("skills/cli-footer") }}
 

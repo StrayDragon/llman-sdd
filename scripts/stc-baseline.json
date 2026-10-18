@@ -21,15 +21,13 @@
     "packages/core/templates/zh-Hans/skills/llman-sdd-wayfinder.md": 6,
     "packages/core/templates/zh-Hans/units/skills/cli-footer.md": 2,
     "packages/core/templates/zh-Hans/units/skills/ethics-governance.md": 0,
-    "packages/core/templates/zh-Hans/units/skills/git-native-flow-brief.md": 2,
-    "packages/core/templates/zh-Hans/units/skills/git-native-flow.md": 4,
+    "packages/core/templates/zh-Hans/units/skills/git-native-flow.md": 0,
     "packages/core/templates/zh-Hans/units/skills/human-readable-summary.md": 6,
-    "packages/core/templates/zh-Hans/units/skills/review-stamp.md": 3,
+    "packages/core/templates/zh-Hans/units/skills/index-fallback.md": 0,
     "packages/core/templates/zh-Hans/units/skills/stage-guard.md": 0,
     "packages/core/templates/zh-Hans/units/skills/structured-protocol.md": 3,
     "packages/core/templates/zh-Hans/units/skills/validation-hints.md": 1,
     "packages/core/templates/zh-Hans/units/skills/version-drift.md": 1,
-    "packages/core/templates/zh-Hans/units/spec/feature-contract.md": 0,
-    "packages/core/templates/zh-Hans/units/workflow/archive-freeze-guidance.md": 1
+    "packages/core/templates/zh-Hans/units/spec/feature-contract.md": 0
   }
 }

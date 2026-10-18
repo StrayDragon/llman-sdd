@@ -46,16 +46,4 @@ export function readSddState(io: Pick<StateIo, 'exists' | 'readText'>): SddState
   }
 }
 
-const dot = (v: string): number => Math.trunc(Number(v)) || 0;
-
-/** Numeric semver-major.minor.patch compare; non-numeric segments compare 0. */
-export function semverLt(a: string, b: string): boolean {
-  const pa = a.split('.');
-  const pb = b.split('.');
-  for (let i = 0; i < 3; i++) {
-    const ai = dot(pa[i] ?? '0');
-    const bi = dot(pb[i] ?? '0');
-    if (ai !== bi) return ai < bi;
-  }
-  return false;
-}
+export { semverLt } from '../util/semver.ts';

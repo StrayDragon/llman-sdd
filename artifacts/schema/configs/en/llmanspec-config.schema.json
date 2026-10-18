@@ -10,7 +10,7 @@
       "description": "Schema identifier. Must be \"spec-driven\"."
     },
     "locale": {
-      "default": "en",
+      "default": "zh-Hans",
       "description": "Locale used for SDD templates and skills.",
       "type": "string"
     },

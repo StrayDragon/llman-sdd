@@ -147,3 +147,42 @@ bdd.thenStep('CLI 旗标覆盖 env 且索引生成', (ctx) => {
     throw new Error('tree.json missing after rebuild');
   }
 });
+
+// ---------------------------------------------------------------------------
+// r57 补强 — backend 取值归一(trim / 大小写折叠 / page-index 别名 / 空值兜底)
+// ---------------------------------------------------------------------------
+
+interface BackendVariantResult {
+  variant: string;
+  code: number;
+  out: string;
+}
+
+bdd.when('以空白、大小写与别名变体运行 index rebuild --backend', (ctx) => {
+  const repo = (ctx.fixtures['idx仓库'] as { repo: TempRepo }).repo;
+  const variants = ['', ' PAGEINDEX ', 'Page-Index'];
+  ctx.fixtures['backend变体'] = variants.map((variant) => {
+    const proc = runCli(['index', 'rebuild', '--backend', variant], repo.root, { ...process.env });
+    return {
+      variant,
+      code: proc.status ?? 1,
+      out: `${proc.stdout ?? ''}${proc.stderr ?? ''}`,
+    } satisfies BackendVariantResult;
+  });
+});
+
+bdd.thenStep('各变体均按 pageindex 生成索引', (ctx) => {
+  const results = ctx.fixtures['backend变体'] as BackendVariantResult[];
+  const failed = results.filter((r) => r.code !== 0);
+  if (failed.length > 0) {
+    throw new Error(
+      `backend variants must normalize to pageindex: ${failed
+        .map((r) => `${JSON.stringify(r.variant)}=>code ${r.code}: ${r.out.slice(0, 200)}`)
+        .join('; ')}`,
+    );
+  }
+  const repo = (ctx.fixtures['idx仓库'] as { repo: TempRepo }).repo;
+  if (!existsSync(join(repo.root, 'llmanspec', '.context', 'pageindex', 'tree.json'))) {
+    throw new Error('tree.json missing after normalized rebuild');
+  }
+});

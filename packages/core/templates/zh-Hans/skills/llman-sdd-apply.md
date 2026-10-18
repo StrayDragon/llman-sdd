@@ -7,11 +7,11 @@ metadata:
 
 # LLMAN SDD Apply
 
-按顺序在一轮内完成 `llmanspec/changes/<id>/tasks.md` 的所有任务：实现 → 补测试/验收 → 跑门禁 → 失败自修复重跑 → 全过后报告。除非明确 blocker，不得中途问“要不得继续”**。
+按顺序在一轮内完成 `llmanspec/changes/<id>/tasks.md` 的所有任务：实现 → 补测试/验收 → 跑门禁 → 失败自修复重跑 → 全过后报告。除非明确 blocker，**不得中途问“是否继续”**。
 
 ## Pipeline 位置
 
-{{ unit("skills/git-native-flow-brief") }}
+{{ unit("skills/git-native-flow") }}
 
 ```mermaid
 flowchart LR
@@ -52,7 +52,7 @@ flowchart LR
 - 确认在经 `llman-sdd change start <id>` 或 `change attach <id>` 绑定的非默认分支上（仅重绑用 `--force`）。分支上的 specs 即唯一事实来源——不得在 `changes/<id>/specs/` 下编写。
 {{ unit("skills/stage-guard") }}
 - 用 `llman-sdd context --task "<proposal 目标>" --paths "<specs scope>"` 获取匹配 `<paths>` 的 specs。
-  - context 不可用 → 先 `llman-sdd index check`：stale/缺失则 `llman-sdd index rebuild` 后重试；fresh 仍不可用（`LLMAN_SDD_INDEX_CHAT_MODEL` 未设）→ 改用 `llman-sdd list --specs` + 直读 `.feature`——勿循环 rebuild。
+  - {{ unit("skills/index-fallback") }}
 
 ### 2) 通读事实来源工件
 - `llmanspec/changes/<id>/proposal.md`、`design.md`（如有）、`tasks.md`
@@ -71,7 +71,7 @@ flowchart LR
 4. task 不明、遇 blocker、或 specs/design 与现实不一致 → STOP 报告，不自行假定。
 
 ### 5) 验证与自修复循环（每个 task 或每批 task 后跑一次）
-- 测试与静态门禁：执行本仓已声明的验证手段——以仓库文档与配置记载为准；已配置 `specs.check_command` 的项目，以 `llman-sdd config` 读得的命令为准。仓库未声明时，询问用户；不假定任何具体任务工具存在。
+- 测试与静态门禁：执行本仓已声明的验证手段——以仓库文档与配置记载为准；已配置 `specs.check_command` 的项目，以 `llmanspec/config.yaml` 的 `specs.check_command` 为准（`llman-sdd config` 只报 specs 开关，不输出该命令）。仓库未声明时，询问用户；不假定任何具体任务工具存在。
 - 分支上按需编辑 `llmanspec/specs/<capability>.feature`（扁平或目录主文件；统一原生分层：`@req:<id>` 挂 `规则:` 块头、嵌套 `场景:` 为可执行示例），spec 改动后跑 `llman-sdd validate --specs`；分支上可自由提交。
 - SDD 校验：`llman-sdd validate <id> --strict`
 
@@ -88,7 +88,7 @@ flowchart LR
 - 前后对比类判据（计数、基线）必须 在 change 分支上测量（相对现算 merge-base）；默认分支测得的值通常恒为基线，不构成证据。
 - 重构或批量替换类 task：必须 对比改动前后测试用例数；门禁全绿但用例数下降视为失败。
 
-**失败 → 自修复（不得问要不得继续）：**
+**失败 → 自修复（不得问是否继续）：**
 1. 解析失败原因（测试 / lint / 格式 / 校验）。
 2. 判定是否难定位 bug（原因不明 / 间歇 flake / 回归看不穿）：
    - **不是**（明确的 lint/格式/编译/校验错误）：最小修复（不扩范围），先重跑最小失败复现命令，再重跑全部门禁。

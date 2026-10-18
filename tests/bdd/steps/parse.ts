@@ -9,6 +9,7 @@ import {
   buildReqRegistry,
   localeToGherkinLang,
   migrateNativeSource,
+  normalizeLocale,
   officialKeywordsOrEn,
   parseCapability,
   parseFeatureSource,
@@ -279,12 +280,12 @@ bdd.thenStep('双匹配器均失败才报错', (ctx) => {
   }
 });
 
-bdd.thenStep('locale zh-Hans 映射为 zh-CN 且其余透传', (ctx) => {
-  if (localeToGherkinLang('zh-Hans') !== 'zh-CN') {
+bdd.thenStep('locale 归一为 zh-Hans 后映射为 zh-CN', (ctx) => {
+  if (localeToGherkinLang(normalizeLocale('zh-Hans')) !== 'zh-CN') {
     throw new Error(`zh-Hans must map to zh-CN, got ${localeToGherkinLang('zh-Hans')}`);
   }
-  if (localeToGherkinLang('en') !== 'en' || localeToGherkinLang('fr') !== 'fr') {
-    throw new Error('non zh-Hans locales must pass through unchanged');
+  if (localeToGherkinLang(normalizeLocale('fr')) !== 'zh-CN') {
+    throw new Error('unknown locale must normalize to zh-Hans and then map to zh-CN');
   }
 });
 
@@ -387,24 +388,12 @@ bdd.thenStep('生成的 spec 首行为 "# language: zh-CN" 且规则体使用中
   }
 });
 
-bdd.when('在 locale 为 en 的已初始化临时仓库运行 spec skeleton demo-cap', (ctx) => {
-  const repo = makeTempRepo();
-  const result = repo.run('bun', [CLI, 'spec', 'skeleton', 'demo-cap']);
-  const path = join(repo.root, 'llmanspec', 'specs', 'demo-cap.feature');
-  const content = existsSync(path) ? readFileSync(path, 'utf8') : null;
-  ctx.fixtures['skeleton结果'] = {
-    code: result.code,
-    out: `${result.stdout}${result.stderr}`,
-    content,
-  } satisfies SkeletonResult;
-});
-
-bdd.thenStep('生成的 spec 首行为 "# language: en"', (ctx) => {
+bdd.thenStep('生成的 spec 首行为 "# language: zh-CN"（未知 locale 归一为 zh-Hans）', (ctx) => {
   const r = ctx.fixtures['skeleton结果'] as SkeletonResult;
   if (r.code !== 0) throw new Error(`skeleton failed: ${r.out}`);
   const content = r.content ?? '';
-  if (!content.startsWith('# language: en\n')) {
-    throw new Error(`en skeleton must start with the en header:\n${content}`);
+  if (!content.startsWith('# language: zh-CN\n')) {
+    throw new Error(`unknown locale must normalize to zh-Hans skeleton:\n${content}`);
   }
 });
 
@@ -585,23 +574,6 @@ bdd.thenStep('迁移产物仍使用中文关键字且解析无错误', (ctx) => 
 // r7/r88 — official dialect vocabulary for skeleton + migration (acceptance)
 // ---------------------------------------------------------------------------
 
-bdd.thenStep('en 骨架的规则与步骤关键字取自官方 en 词表(无中文关键字混入)', (ctx) => {
-  const r = ctx.fixtures['skeleton结果'] as SkeletonResult;
-  if (r.code !== 0) throw new Error(`skeleton failed: ${r.out}`);
-  const content = r.content ?? '';
-  const kw = officialKeywordsOrEn('en');
-  for (const fragment of [`${kw.rule}:`, `${kw.scenario}:`, `${kw.given} TODO`]) {
-    if (!content.includes(fragment)) {
-      throw new Error(`en skeleton must use the official en keyword "${fragment}":\n${content}`);
-    }
-  }
-  for (const zh of ['规则:', '场景:', '假如', '当 TODO', '那么']) {
-    if (content.includes(zh)) {
-      throw new Error(`en skeleton must not mix zh-CN keywords (found "${zh}"):\n${content}`);
-    }
-  }
-});
-
 bdd.when('在 locale 为 fr 的已初始化临时仓库运行 spec skeleton demo-cap', (ctx) => {
   const repo = makeTempRepo();
   writeFileSync(join(repo.root, 'llmanspec', 'config.yaml'), 'schema: spec-driven\nlocale: fr\n');
@@ -613,26 +585,6 @@ bdd.when('在 locale 为 fr 的已初始化临时仓库运行 spec skeleton demo
     out: `${result.stdout}${result.stderr}`,
     content,
   } satisfies SkeletonResult;
-});
-
-bdd.thenStep('生成的 spec 首行为 "# language: fr" 且关键字取自官方 fr 词表', (ctx) => {
-  const r = ctx.fixtures['skeleton结果'] as SkeletonResult;
-  if (r.code !== 0) throw new Error(`skeleton failed: ${r.out}`);
-  const content = r.content ?? '';
-  if (!content.startsWith('# language: fr\n')) {
-    throw new Error(`fr skeleton must start with the fr header (locale passthrough):\n${content}`);
-  }
-  const kw = officialKeywordsOrEn('fr');
-  for (const fragment of [
-    `${kw.feature}: demo-cap`,
-    `${kw.rule}:`,
-    `${kw.scenario}:`,
-    `${kw.given} TODO`,
-  ]) {
-    if (!content.includes(fragment)) {
-      throw new Error(`fr skeleton must use the official fr keyword "${fragment}":\n${content}`);
-    }
-  }
 });
 
 const FR_LEGACY = `# language: fr
@@ -717,7 +669,7 @@ bdd.when('分配全部 spec id', (ctx) => {
 bdd.when('对 specId分配 运行 specs 校验', (ctx) => {
   const entries = ctx.fixtures['specId分配'] as SpecEntry[] | undefined;
   if (!entries) throw new Error('missing specId分配 fixture');
-  ctx.fixtures['specId校验'] = validateAllSpecs(entries, noopIo);
+  ctx.fixtures['specId校验'] = validateAllSpecs(entries);
 });
 
 bdd.thenStep('cli 与 auth 的 spec id 分别为 cli 与 auth', (ctx) => {

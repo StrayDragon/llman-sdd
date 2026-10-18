@@ -17,7 +17,7 @@ metadata:
 
 ## Pipeline 位置
 
-{{ unit("skills/git-native-flow-brief") }}
+{{ unit("skills/git-native-flow") }}
 
 ```mermaid
 flowchart LR
@@ -37,7 +37,7 @@ flowchart LR
 
 ## 动作清单
 1. 用 `llman-sdd context --task "<任务>" --paths "<文件>"` 定位匹配 `<paths>` 的 specs，通读其 `direct` 列出的 spec 全文（这些是必须理解的合约）。
-   - context 不可用 → 先 `llman-sdd index check`：stale/缺失则 `llman-sdd index rebuild`（默认 pageindex，免模型）后重试；fresh 仍不可用（`LLMAN_SDD_INDEX_CHAT_MODEL` 未设）→ 改用 `llman-sdd list --specs` + 直读 `.feature`——勿循环 rebuild。
+   - {{ unit("skills/index-fallback") }}
 2. 澄清目标与约束（问 1–3 个问题）。
 3. **逐问深挖分支（可选，用户显式触发才进入）**：触发词“深挖”“grill”“逐个问”“彻底理清”。进入后一问一答走清决策：
    - 一次只问一个问题，附你的推荐答案，等反馈再问下一个。

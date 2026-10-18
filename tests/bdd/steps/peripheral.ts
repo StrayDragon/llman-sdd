@@ -73,6 +73,8 @@ interface GraphDepsResult {
 
 bdd.given('一个含流式 depends_on 指向已归档 change 的临时工作区', (ctx) => {
   const root = mkdtempSync(join(tmpdir(), 'llman-graph-'));
+  mkdirSync(join(root, 'llmanspec'), { recursive: true });
+  writeFileSync(join(root, 'llmanspec', 'config.yaml'), 'schema: spec-driven\n');
   const changes = join(root, 'llmanspec', 'changes');
   mkdirSync(join(changes, 'archive', '2026-01-01-dep-old'), { recursive: true });
   writeFileSync(
@@ -110,6 +112,8 @@ bdd.thenStep('archived 节点被标注 done 且依赖边保留', (ctx) => {
 // 两种风格解析出的边集合一致;畸形条目按无依赖处理且不中断 graph 输出。
 bdd.given('一个含块式 depends_on 与畸形 frontmatter 的临时工作区', (ctx) => {
   const root = mkdtempSync(join(tmpdir(), 'llman-graph-block-'));
+  mkdirSync(join(root, 'llmanspec'), { recursive: true });
+  writeFileSync(join(root, 'llmanspec', 'config.yaml'), 'schema: spec-driven\n');
   const changes = join(root, 'llmanspec', 'changes');
   const mkChange = (id: string, proposal: string): void => {
     const dir = join(changes, id);
@@ -149,6 +153,10 @@ interface StageResult {
 
 bdd.given('一个只有 proposal 与 tasks 的 change 工作区', (ctx) => {
   const root = mkdtempSync(join(tmpdir(), 'llman-stage-'));
+  // r109 root discovery needs a valid instance marker (r91); the stage rule
+  // under test only reads the change dir.
+  mkdirSync(join(root, 'llmanspec'), { recursive: true });
+  writeFileSync(join(root, 'llmanspec', 'config.yaml'), 'schema: spec-driven\n');
   const dir = join(root, 'llmanspec', 'changes', 'tasks-only');
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, 'proposal.md'), '---\ndepends_on: []\n---\n\n## Why\nx\n');
@@ -184,6 +192,8 @@ bdd.thenStep('该 change 的 stage 为 draft', (ctx) => {
 
 bdd.given('一个含活跃与归档 change 的临时工作区', (ctx) => {
   const root = mkdtempSync(join(tmpdir(), 'llman-scope-'));
+  mkdirSync(join(root, 'llmanspec'), { recursive: true });
+  writeFileSync(join(root, 'llmanspec', 'config.yaml'), 'schema: spec-driven\n');
   const activeDir = join(root, 'llmanspec', 'changes', 'live-one');
   const archivedDir = join(root, 'llmanspec', 'changes', 'archive', '2026-01-01-done-one');
   mkdirSync(activeDir, { recursive: true });
@@ -209,6 +219,8 @@ bdd.thenStep('仅归档节点出现', (ctx) => {
 // 双格式:新卡为无围栏纯 YAML(r24 修订),存量卡为 --- 围栏格式(不迁移)。
 bdd.given('一个含纯 YAML 平铺冻结卡且卡内 depends_on 指向另一冻结卡的临时工作区', (ctx) => {
   const root = mkdtempSync(join(tmpdir(), 'llman-freeze-card-'));
+  mkdirSync(join(root, 'llmanspec'), { recursive: true });
+  writeFileSync(join(root, 'llmanspec', 'config.yaml'), 'schema: spec-driven\n');
   const changes = join(root, 'llmanspec', 'changes');
   mkdirSync(join(changes, 'archive'), { recursive: true });
   // 纯 YAML 卡(r24 修订格式):title + depends_on,无 --- 围栏
@@ -225,6 +237,8 @@ bdd.given('一个含纯 YAML 平铺冻结卡且卡内 depends_on 指向另一冻
 
 bdd.given('一个含 --- 围栏式存量冻结卡且卡内 depends_on 指向另一冻结卡的临时工作区', (ctx) => {
   const root = mkdtempSync(join(tmpdir(), 'llman-freeze-legacy-'));
+  mkdirSync(join(root, 'llmanspec'), { recursive: true });
+  writeFileSync(join(root, 'llmanspec', 'config.yaml'), 'schema: spec-driven\n');
   const changes = join(root, 'llmanspec', 'changes');
   mkdirSync(join(changes, 'archive'), { recursive: true });
   // 存量围栏卡(前代 freeze 产物,保留不迁移):frontmatter 原样
@@ -266,6 +280,8 @@ bdd.thenStep('围栏卡节点依赖边保留', (ctx) => {
 // depth 0 = 仅 scope;1(缺省) = 一层直接依赖;2 = 递归展开。
 bdd.given('一个含活跃 change A 依赖 change B、B 依赖 change C 的临时工作区', (ctx) => {
   const root = mkdtempSync(join(tmpdir(), 'llman-depth-'));
+  mkdirSync(join(root, 'llmanspec'), { recursive: true });
+  writeFileSync(join(root, 'llmanspec', 'config.yaml'), 'schema: spec-driven\n');
   const changes = join(root, 'llmanspec', 'changes');
   const aDir = join(changes, 'a-change');
   mkdirSync(aDir, { recursive: true });

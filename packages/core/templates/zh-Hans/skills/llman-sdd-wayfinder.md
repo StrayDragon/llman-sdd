@@ -71,7 +71,7 @@ disable-model-invocation: true
 ### 推进地图
 1. 加载地图（低分辨率视图，不用读每个 ticket 全文）。
 2. 选 ticket（用户指定或取可着手项第一个），先绑定分支（`change start` 或已有分支 `change attach`）占住它。规划文档可短暂在默认分支；ticket 要改 specs 时须在绑定分支提交。
-3. 解决它——按需深入（按 Notes 指名读 ticket 全文，调用 Notes 指定的 skill）；没把握时用逐问深挖。不得**在未绑定时改 `llmanspec/specs/**`。
+3. 解决它——按需深入（按 Notes 指名读 ticket 全文，调用 Notes 指定的 skill）；没把握时用逐问深挖。**不得**在未绑定时改 `llmanspec/specs/**`。
 4. 记录解决：答案写入该 ticket 的 proposal 并关闭它，在地图 Decisions-so-far 追加一行要点 + 指针。
 5. 新增 ticket（先建再接线）；答案让模糊点变清晰的，升级为 ticket 并移出尚未清晰区；答案揭示某 ticket 越过目的地的，归入范围外而非在路径上解决。
 

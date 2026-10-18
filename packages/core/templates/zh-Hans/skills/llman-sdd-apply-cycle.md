@@ -53,15 +53,17 @@ git branch -D <feature-branch>   # squash 后分支不再是 main 祖先，-d �
 push / PR 仅当用户明确要求。
 
 ## 硬约束
-- **不得问**“要不得继续”——除非 blocker，一路到底。
+- **不得问“是否继续”**——除非 blocker，一路到底。
 - **不得切换**其他 change，直到本 change 归档并提交。
 - **不得**写 `changes/<id>/specs/`；**不得默认 push/PR**。
 
-## Ethics Governance
-- `ethics.risk_level`: medium
-- `ethics.prohibited_actions`: 未绑定分支 / specs-landed 门未过就实施、未 `readyToImplement=true` 就归档、中途切换 change、写 `changes/<id>/specs/`、未校验就提交、默认 push/PR
-- `ethics.required_evidence`: `readyToImplement=true`、validate --strict 通过、tasks 全勾、finalize/archive 成功
-- `ethics.refusal_contract`: 自修复 8 轮仍失败 → 报告 blocker，不得强行归档
-- `ethics.escalation_policy`: 改动 SDD 工作流 spec/模板时，归档前暂停请用户确认
+{{ unit("skills/ethics-governance") }}
+
+### Ethics Governance 覆写
+本技能含 finalize 合并等不可逆动作,以下键覆写共享单元:
+
+- `ethics.risk_level`: medium。
+- `ethics.required_evidence`: 另须 `readyToImplement=true` 与 tasks 全勾。
+- `ethics.escalation_policy`: 归档前暂停并请用户确认。
 
 {{ unit("skills/cli-footer") }}

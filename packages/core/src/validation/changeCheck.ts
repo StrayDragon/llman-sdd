@@ -1,4 +1,5 @@
 import { stageFor, walkActiveChangeDirs } from '../change/collect.ts';
+import { readDepsStrict } from '../change/deps.ts';
 import {
   extractFrontmatter,
   readBinding,
@@ -6,6 +7,7 @@ import {
   readNeedsSpecsChange,
   specsLanded,
 } from '../change/frontmatter.ts';
+import { CHANGES_DIR } from '../change/lifecycle.ts';
 import { CLOSE_OUT_TASK_HINT, closeOutTaskLines, parseTaskCheckboxes } from '../change/tasks.ts';
 /**
  * Change-domain validation (predecessor `commands/validate.rs` change path parity):
@@ -13,6 +15,7 @@ import { CLOSE_OUT_TASK_HINT, closeOutTaskLines, parseTaskCheckboxes } from '../
  * INFO, pattern gate and task gates. IO + git injected (pure).
  */
 import type { GitLike } from '../git/spawnGit.ts';
+import { DATED_PREFIX_RE } from '../util/datedId.ts';
 
 export type ChangeIssueLevel = 'ERROR' | 'WARNING' | 'INFO';
 
@@ -53,6 +56,36 @@ export const STAGE_ORDER = ['draft', 'designed', 'planned', 'full'] as const;
  * `2026-01-01-the-other` must NOT satisfy id `other`). A missing
  * `archive/` dir reads as empty and never throws.
  */
+/**
+ * T29 shared change-id pattern gate: one compile+match+diagnostic pair for the
+ * structural issue list and the streaming push form (same wording, same
+ * 'change-id' anchor).
+ */
+function patternGate(
+  id: string,
+  pattern: string | null | undefined,
+): { level: 'ERROR'; path: 'change-id'; message: string }[] {
+  if (!pattern) return [];
+  const out: { level: 'ERROR'; path: 'change-id'; message: string }[] = [];
+  try {
+    const re = new RegExp(pattern, 'u');
+    if (!re.test(id)) {
+      out.push({
+        level: 'ERROR',
+        path: 'change-id',
+        message: `Change id '${id}' does not match change_id.pattern '${pattern}' (active changes only; archived changes are not re-checked).`,
+      });
+    }
+  } catch (error) {
+    out.push({
+      level: 'ERROR',
+      path: 'change-id',
+      message: `change_id.pattern is not a valid regular expression: ${(error as Error).message}`,
+    });
+  }
+  return out;
+}
+
 function resolveChangeRef(
   io: ChangeFsIoLite,
   changesRoot: string,
@@ -67,7 +100,7 @@ function resolveChangeRef(
   const entries = io.exists(archive) && io.isDirectory(archive) ? io.listDir(archive) : [];
   // `YYYY-MM-DD-` is 11 chars; the remainder must equal the id exactly.
   const archived = entries.some((name) => {
-    if (!/^\d{4}-\d{2}-\d{2}-/u.test(name)) return false;
+    if (!DATED_PREFIX_RE.test(name)) return false;
     const base = name.endsWith('.yaml') ? name.slice(0, -'.yaml'.length) : name;
     return base.slice(11) === id;
   });
@@ -89,7 +122,7 @@ export function checkGlobalChangeIdUniqueness(io: ChangeFsIoLite, changesRoot: s
     counts.set(name, (counts.get(name) ?? 0) + 1);
   });
   for (const name of entries) {
-    if (!/^\d{4}-\d{2}-\d{2}-/u.test(name)) continue;
+    if (!DATED_PREFIX_RE.test(name)) continue;
     const base = name.endsWith('.yaml') ? name.slice(0, -'.yaml'.length) : name;
     const id = base.slice(11);
     if (id === '') continue;
@@ -134,24 +167,7 @@ export function checkChangeDoc(
       message: 'change has no branch binding (not started/attached)',
     });
   }
-  if (config.change_id_pattern) {
-    try {
-      const re = new RegExp(config.change_id_pattern, 'u');
-      if (!re.test(input.name)) {
-        issues.push({
-          level: 'ERROR',
-          path: 'change-id',
-          message: `Change id '${input.name}' does not match change_id.pattern '${config.change_id_pattern}' (active changes only; archived changes are not re-checked).`,
-        });
-      }
-    } catch (error) {
-      issues.push({
-        level: 'ERROR',
-        path: 'change-id',
-        message: `change_id.pattern is not a valid regular expression: ${(error as Error).message}`,
-      });
-    }
-  }
+  issues.push(...patternGate(input.name, config.change_id_pattern));
   return { id: input.name, valid: issues.every((i) => i.level !== 'ERROR'), issues };
 }
 
@@ -185,8 +201,8 @@ export function validateChange(
     issues.push({ level, path, message });
   };
 
-  const dir = `${root}/llmanspec/changes/${id}/`;
-  const baseDir = `${root}/llmanspec/changes`;
+  const dir = `${root}/${CHANGES_DIR}/${id}/`;
+  const baseDir = `${root}/${CHANGES_DIR}`;
   const proposal = `${dir}proposal.md`;
   // Probed once here: shared by the stage inference below and the --stage
   // artifact gate at the end (predecessor issue order preserved).
@@ -199,13 +215,42 @@ export function validateChange(
     const fm = extractFrontmatter(text) ?? '';
     const fmLines = fm.split('\n').map((l) => l.trim());
 
-    for (const key of ['depends_on', 'blocks'] as const) {
-      const lineIdx = fmLines.findIndex((l) => l.startsWith(`${key}:`));
-      if (lineIdx === -1) continue;
-      const value = (fmLines[lineIdx] ?? '').slice(key.length + 1).trim();
+    // T22: depends_on rides the single reader (strict policy) — quoting, block
+    // /flow styles and numeric entries collapse into one parse. `blocks` keeps
+    // the structural line scan (no shared reader; list-of-strings only).
+    const deps = readDepsStrict(text);
+    if (deps.kind === 'malformed') {
+      push(
+        'ERROR',
+        'proposal.md/frontmatter.depends_on',
+        'proposal.md depends_on must be a list of change ID strings',
+      );
+    } else {
+      for (const item of deps.items) {
+        if (item === '') continue;
+        if (/^\d/u.test(item)) {
+          push(
+            'ERROR',
+            'proposal.md/frontmatter.depends_on',
+            'proposal.md depends_on must be a list of change ID strings',
+          );
+          continue;
+        }
+        if (resolveChangeRef(io, baseDir, item) === 'unknown') {
+          push(
+            'ERROR',
+            'proposal.md/frontmatter.depends_on',
+            `proposal.md depends_on references unknown change: ${item}`,
+          );
+        }
+      }
+    }
+    const blocksLineIdx = fmLines.findIndex((l) => l.startsWith('blocks:'));
+    if (blocksLineIdx !== -1) {
+      const value = (fmLines[blocksLineIdx] ?? '').slice('blocks:'.length).trim();
       let items: string[] = [];
       if (value === '') {
-        for (const l of fmLines.slice(lineIdx + 1)) {
+        for (const l of fmLines.slice(blocksLineIdx + 1)) {
           if (l.startsWith('- ')) items.push(l.slice(2).trim());
           else if (l === '') continue;
           else break;
@@ -214,31 +259,31 @@ export function validateChange(
         items = value
           .slice(1, -1)
           .split(',')
-          .map((s) => s.trim())
-          .filter((s) => s !== '');
+          .map((b) => b.trim())
+          .filter((b) => b !== '');
       } else {
         push(
           'ERROR',
-          `proposal.md/frontmatter.${key}`,
-          `proposal.md ${key} must be a list of change ID strings`,
+          'proposal.md/frontmatter.blocks',
+          'proposal.md blocks must be a list of change ID strings',
         );
-        continue;
+        items = [];
       }
       for (const item of items) {
         if (item === '') continue;
         if (/^\d/u.test(item)) {
           push(
             'ERROR',
-            `proposal.md/frontmatter.${key}`,
-            `proposal.md ${key} must be a list of change ID strings`,
+            'proposal.md/frontmatter.blocks',
+            'proposal.md blocks must be a list of change ID strings',
           );
           continue;
         }
         if (resolveChangeRef(io, baseDir, item) === 'unknown') {
           push(
             'ERROR',
-            `proposal.md/frontmatter.${key}`,
-            `proposal.md ${key} references unknown change: ${item}`,
+            'proposal.md/frontmatter.blocks',
+            `proposal.md blocks references unknown change: ${item}`,
           );
         }
       }
@@ -321,27 +366,10 @@ export function validateChange(
     }
   }
 
-  // pattern gate (predecessor change-id path). loadConfig compiles the pattern first
-  // on the CLI path; this branch defends direct core callers that build a
-  // ChangeCheckConfig without going through loadConfig.
-  if (config.change_id_pattern) {
-    try {
-      const re = new RegExp(config.change_id_pattern, 'u');
-      if (!re.test(id)) {
-        push(
-          'ERROR',
-          'change-id',
-          `Change id '${id}' does not match change_id.pattern '${config.change_id_pattern}' (active changes only; archived changes are not re-checked).`,
-        );
-      }
-    } catch (error) {
-      push(
-        'ERROR',
-        'change-id',
-        `change_id.pattern is not a valid regular expression: ${(error as Error).message}`,
-      );
-    }
-  }
+  // pattern gate (predecessor change-id path). loadConfig compiles the pattern
+  // first on the CLI path; this defends direct core callers that bypass it.
+  for (const issue of patternGate(id, config.change_id_pattern))
+    push(issue.level, issue.path, issue.message);
 
   // stage gate (predecessor --stage: artifact presence per gate).
   if (opts.stage !== undefined) {

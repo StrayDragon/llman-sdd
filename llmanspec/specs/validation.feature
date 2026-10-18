@@ -265,7 +265,12 @@
       而且 detached HEAD 与非绑定分支的报错分别含 "refuses a detached HEAD" 与 "must run on the bound branch"
   @req:r91
   规则: 根发现与 validate 双粒度
-    llman-sdd MUST 从 git 根(或 --directory <path> 指定起点)按约定自动发现全部有效 llmanspec 根(以 config.yaml 或 specs/ 判定,深度受 --max-scan-depth 约束,排除 node_modules/target/.git),git 根自身的 llmanspec 恒为第 0 号根;仅发现单根时所有命令输出 MUST 与单根时代逐字节一致。validate --specs 双粒度共用同一算子:逐根(缺省 cwd 语义,--directory <path> 固定发现起点)与聚合(--all-roots 对每个发现根执行同一套结构校验与该根 config 的 check_command batch-once,结果按根分组,单根输出形状零漂移);聚合退出码 MUST 为任一根红即红,缺省 MUST NOT 自动聚合。
+    多根枚举:llman-sdd MUST 从 git 根(或 `--directory <path>` 指定起点)按约定自动发现全部有效 llmanspec 根(以 config.yaml 或 specs/
+    判定,深度受 --max-scan-depth 约束,排除 node_modules/target/.git),git 根自身的 llmanspec 恒为第 0 号根。单根解析:各命令以
+    `--directory <path>` 或进程当前工作目录为起点,自起点向上取最近有效实例,该契约与只读命令接入见 cli 域 @req:r109;仅发现单根时
+    所有命令输出 MUST 与单根时代逐字节一致。validate --specs 双粒度共用同一算子:逐根(缺省 cwd 语义,--directory <path> 固定发现起点)
+    与聚合(--all-roots 对每个发现根执行同一套结构校验与该根 config 的 check_command batch-once,结果按根分组,单根输出形状零漂移);
+    聚合退出码 MUST 为任一根红即红,缺省 MUST NOT 自动聚合。
 
     场景: 聚合模式按根执行
       假如 一个含根与子根双 llmanspec 的临时仓库

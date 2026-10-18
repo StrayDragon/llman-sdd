@@ -12,16 +12,16 @@ import {
 } from '@llman-sdd/core';
 import type { Command } from 'commander';
 
-import { CliError } from '../cli-shared.ts';
-import { makeCliGit, makeIo } from '../io.ts';
+import type { CliContext } from '../cli-shared.ts';
+import { makeCliGit } from '../io.ts';
 import { progressNote } from '../progress.ts';
 
 /**
  * r24: warn (never block) when freeze/thaw runs outside the main checkout —
  * the worktree NOT holding the default branch. Probe failures skip silently.
  */
-function warnIfNotMainCheckout(root: string): void {
-  const warning = nonMainCheckoutWarning(probeMainCheckout(makeCliGit(root)));
+function warnIfNotMainCheckout(git: ReturnType<typeof makeCliGit>): void {
+  const warning = nonMainCheckoutWarning(probeMainCheckout(git));
   if (warning !== null) console.log(warning);
 }
 
@@ -40,11 +40,11 @@ function makeEmbeddedSevenZip(): Promise<SevenZipPort> {
   });
 }
 
-export function registerArchive(program: Command): void {
+export function registerArchive(program: Command, ctx: CliContext): void {
   const archive = program
     .command('archive')
     .description(
-      'Archive workflow commands (cold backup). Prefer `change finalize` to seal a change',
+      'Archive workflow commands (cold backup). Seal a change with `llman-sdd change finalize` first',
     );
 
   archive
@@ -61,28 +61,22 @@ export function registerArchive(program: Command): void {
         dryRun?: boolean;
         list?: boolean;
       }) => {
-        try {
-          const root = process.cwd();
-          warnIfNotMainCheckout(root);
-          const sz = await makeEmbeddedSevenZip();
-          const io = makeIo(root);
-          if (options.list) {
-            for (const line of await runList(io, sz, root)) console.log(line);
-            return;
-          }
-          // 7z 压缩可能耗时 — 进度提示防止看上去卡住(B1);dry-run/list 不走压缩
-          if (!options.dryRun) progressNote('freeze.pack', root);
-          const result = await runFreeze(io, sz, root, {
-            before: options.before,
-            keepRecent: Number(options.keepRecent),
-            dryRun: options.dryRun,
-          });
-          for (const line of result.lines) console.log(line);
-        } catch (error) {
-          // Emscripten aborts (e.g. wasm load failure) throw raw RuntimeErrors —
-          // keep the CLI surface one-line like thaw does.
-          throw new CliError((error as Error).message);
+        const root = ctx.root;
+        warnIfNotMainCheckout(ctx.git);
+        const sz = await makeEmbeddedSevenZip();
+        const io = ctx.io;
+        if (options.list) {
+          for (const line of await runList(io, sz, root)) console.log(line);
+          return;
         }
+        // 7z 压缩可能耗时 — 进度提示防止看上去卡住(B1);dry-run/list 不走压缩
+        if (!options.dryRun) progressNote('freeze.pack', root);
+        const result = await runFreeze(io, sz, root, {
+          before: options.before,
+          keepRecent: Number(options.keepRecent),
+          dryRun: options.dryRun,
+        });
+        for (const line of result.lines) console.log(line);
       },
     );
 
@@ -103,17 +97,13 @@ export function registerArchive(program: Command): void {
       if (options.dest !== undefined) {
         mkdirSync(resolve(options.dest), { recursive: true });
       }
-      const root = process.cwd();
-      warnIfNotMainCheckout(root);
+      const root = ctx.root;
+      warnIfNotMainCheckout(ctx.git);
       const sz = await makeEmbeddedSevenZip();
-      const io = makeIo(root);
-      try {
-        // 7z 解包可能耗时 — 进度提示防止看上去卡住(B1)
-        progressNote('thaw.unpack', root);
-        const result = await runThaw(io, sz, root, options.change, { dest: options.dest });
-        for (const line of result.lines) console.log(line);
-      } catch (error) {
-        throw new CliError((error as Error).message);
-      }
+      const io = ctx.io;
+      // 7z 解包可能耗时 — 进度提示防止看上去卡住(B1)
+      progressNote('thaw.unpack', root);
+      const result = await runThaw(io, sz, root, options.change, { dest: options.dest });
+      for (const line of result.lines) console.log(line);
     });
 }

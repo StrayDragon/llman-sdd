@@ -11,6 +11,7 @@
 import { AstBuilder, GherkinClassicTokenMatcher, Parser } from '@cucumber/gherkin';
 import type { GherkinDocument } from '@cucumber/messages';
 
+import { normalizeLocale } from '../locale.ts';
 import {
   type CapabilityDoc,
   type CapabilityHeader,
@@ -27,7 +28,8 @@ export class SpecParseError extends Error {}
 let nodeCounter = 0;
 
 export function localeToGherkinLang(locale: string): string {
-  return locale === 'zh-Hans' ? 'zh-CN' : locale;
+  const normalized = normalizeLocale(locale);
+  return normalized === 'zh-Hans' ? 'zh-CN' : normalized;
 }
 
 const makeIdGenerator = (): (() => string) => {

@@ -62,6 +62,12 @@ bdd.given('一个已完成 start 并在特性分支有新提交的临时仓库',
     commit: 'draft',
   });
   repo.run('bun', [CLI, 'change', 'start', id]);
+  // T34 close-out gate: the feature commit lands a spec edit (default
+  // needs_specs_change=true), exercising the full contract.
+  writeFileSync(
+    join(repo.root, 'llmanspec', 'specs', 'demo.feature'),
+    '# language: zh-CN\n# capability: demo\n# purpose: p\n# scope: llmanspec/\n\n功能: demo\n\n  @req:r9\n  规则: r9\n    系统 MUST x\n',
+  );
   writeFileSync(join(repo.root, 'feature.txt'), 'hello\n');
   repo.run('git', ['add', '-A']);
   repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'feat: hello']);
@@ -719,7 +725,12 @@ function makeHeldTargetRepo(dirtyHolder: boolean): HoldFixture {
   const holderPath = `${repo.root}-holder`;
   repo.run('git', ['worktree', 'add', holderPath, 'main']);
   if (dirtyHolder) writeFileSync(join(holderPath, 'uncommitted.txt'), 'dirty\n');
-  // Feature work on the bound branch inside the main checkout.
+  // Feature work on the bound branch inside the main checkout. T34: land a
+  // spec edit so the shared close-out gate passes.
+  writeFileSync(
+    join(repo.root, 'llmanspec', 'specs', 'hold.feature'),
+    '# language: zh-CN\n# capability: hold\n# purpose: p\n# scope: llmanspec/\n\n功能: hold\n\n  @req:r7\n  规则: r7\n    系统 MUST x\n',
+  );
   writeFileSync(join(repo.root, 'feature.txt'), 'hello\n');
   repo.run('git', ['add', '-A']);
   repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'feat: hello']);
@@ -987,6 +998,11 @@ bdd.given('一个目标分支与特性分支修改同一文件同一行的已 st
     commit: 'draft',
   });
   repo.run('bun', [CLI, 'change', 'start', id]);
+  // T34: land a spec edit so the close-out gate passes on this conflict path.
+  writeFileSync(
+    join(repo.root, 'llmanspec', 'specs', 'conflict.feature'),
+    '# language: zh-CN\n# capability: conflict\n# purpose: p\n# scope: llmanspec/\n\n功能: conflict\n\n  @req:r9\n  规则: r9\n    系统 MUST x\n',
+  );
   writeFileSync(join(repo.root, 'shared.txt'), 'feature\n');
   repo.run('git', ['add', '-A']);
   repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'feat side']);
@@ -1449,6 +1465,11 @@ bdd.given(
       commit: 'draft',
     });
     repo.run('bun', [CLI, 'change', 'start', id]);
+    // T34: land a spec edit on the branch so the close-out gate passes.
+    writeFileSync(
+      join(repo.root, 'llmanspec', 'specs', 'merge.feature'),
+      '# language: zh-CN\n# capability: merge\n# purpose: p\n# scope: llmanspec/\n\n功能: merge\n\n  @req:r9\n  规则: r9\n    系统 MUST x\n',
+    );
     for (const n of [1, 2]) {
       writeFileSync(join(repo.root, `feat${n}.txt`), `x${n}\n`);
       repo.run('git', ['add', '-A']);
@@ -1642,6 +1663,13 @@ function seedCloseOutHarness(
     commit: 'draft',
   });
   repo.run('bun', [CLI, 'change', 'start', id]);
+  if (opts.needsSpecsChange) {
+    // T34: needs_specs_change=true variants must land a spec edit post-bind.
+    writeFileSync(
+      join(repo.root, 'llmanspec', 'specs', 'harness.feature'),
+      '# language: zh-CN\n# capability: harness\n# purpose: p\n# scope: llmanspec/\n\n功能: harness\n\n  @req:r8\n  规则: r8\n    系统 MUST x\n',
+    );
+  }
   repo.run('git', ['add', '-A']);
   repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'bind']);
   ctx.fixtures['仓库'] = { root: repo.root, repo };

@@ -3,13 +3,13 @@ import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 
 import {
+  DEFAULT_LOCALE,
   addReq,
   addScenario,
   buildUnboundFeed,
   hasNativeRules,
   migrateNativeSource,
   nextReqId,
-  renderMachine,
   resolveReq,
   scaffoldSpec,
   TRANSITIONS_INTROSPECTION,
@@ -19,12 +19,13 @@ import type { Command } from 'commander';
 
 import {
   addReportOutputOptions,
+  addSpecDirOption,
   CliError,
   loadCliConfig,
   loadRootSpecEntries,
-  newIo,
-  resolveOutMode,
+  emitReport,
   resolveRootSpecsDir,
+  type CliContext,
 } from '../cli-shared.ts';
 
 /** Walk paths collecting .feature files (directories recurse). */
@@ -55,7 +56,7 @@ function confirmInteractive(question: string): Promise<boolean> {
   });
 }
 
-export function registerSpec(program: Command): void {
+export function registerSpec(program: Command, ctx: CliContext): void {
   const spec = program.command('spec').description('Spec authoring helpers');
 
   spec
@@ -68,31 +69,29 @@ export function registerSpec(program: Command): void {
       'instance root resolution start (default: nearest llmanspec/ at or above cwd)',
     )
     .action((capability: string, options: { force?: boolean; directory?: string }) => {
-      const locale = loadCliConfig()?.locale ?? 'en';
-      const specsDir = resolveRootSpecsDir(options.directory);
+      const locale = loadCliConfig()?.locale ?? DEFAULT_LOCALE;
+      const specsDir = resolveRootSpecsDir(options.directory, ctx.io);
       const path = join(specsDir, `${capability}.feature`);
       if (!options.force && existsSync(path)) {
         throw new CliError(`spec already exists: ${path} (use --force to overwrite)`);
       }
-      const written = scaffoldSpec(newIo(), specsDir, capability, locale, {
+      const written = scaffoldSpec(ctx.io, specsDir, capability, locale, {
         force: options.force,
       });
       console.log(`wrote ${written}`);
     });
 
-  spec
+  const nextReq = spec
     .command('next-req-id')
-    .description('Allocate the next global req id (max in use + 1, rN)')
-    .option('--json', 'emit {reqId}')
-    .option(
-      '--directory <path>',
-      'instance root resolution start (default: nearest llmanspec/ at or above cwd)',
-    )
-    .action((options: { json?: boolean; directory?: string }) => {
-      const reqId = nextReqId(newIo(), resolveRootSpecsDir(options.directory));
-      if (options.json) console.log(JSON.stringify({ reqId }, null, 2));
-      else console.log(reqId);
-    });
+    .description('Allocate the next global req id (max in use + 1, rN)');
+  addReportOutputOptions(nextReq, { outputHint: 'json {reqId}; toon default' });
+  addSpecDirOption(nextReq);
+  nextReq.action(
+    (options: { json?: boolean; output?: string; compactJson?: boolean; directory?: string }) => {
+      const reqId = nextReqId(ctx.io, resolveRootSpecsDir(options.directory, ctx.io));
+      emitReport({ reqId }, options, () => reqId);
+    },
+  );
 
   spec
     .command('add-req')
@@ -112,11 +111,11 @@ export function registerSpec(program: Command): void {
         reqId: string,
         options: { title: string; statement: string; directory?: string },
       ) => {
-        const io = newIo();
+        const io = ctx.io;
         const path = addReq(
           io,
-          resolveRootSpecsDir(options.directory),
-          loadRootSpecEntries(options.directory),
+          resolveRootSpecsDir(options.directory, ctx.io),
+          loadRootSpecEntries(options.directory, ctx.io),
           {
             capability,
             reqId,
@@ -148,11 +147,11 @@ export function registerSpec(program: Command): void {
         scenarioId: string,
         options: { given?: string; when: string; then: string; directory?: string },
       ) => {
-        const io = newIo();
+        const io = ctx.io;
         const path = addScenario(
           io,
-          resolveRootSpecsDir(options.directory),
-          loadRootSpecEntries(options.directory),
+          resolveRootSpecsDir(options.directory, ctx.io),
+          loadRootSpecEntries(options.directory, ctx.io),
           {
             capability,
             reqId,
@@ -173,8 +172,10 @@ export function registerSpec(program: Command): void {
     .option('--dry-run', 'print the migration plan without writing')
     .option('-y, --yes', 'proceed without per-file confirmation')
     .action(async (paths: string[], options: { dryRun?: boolean; yes?: boolean }) => {
-      const targets = collectFeatureFiles(paths.length > 0 ? paths : ['llmanspec/specs']);
-      const io = newIo();
+      const targets = collectFeatureFiles(
+        paths.length > 0 ? paths : [resolveRootSpecsDir(undefined, ctx.io)],
+      );
+      const io = ctx.io;
       let migrated = 0;
       let skipped = 0;
       for (const file of targets) {
@@ -216,7 +217,7 @@ export function registerSpec(program: Command): void {
       'instance root resolution start (default: nearest llmanspec/ at or above cwd)',
     )
     .action((reqId: string, options: { directory?: string }) => {
-      const resolved = resolveReq(loadRootSpecEntries(options.directory), reqId);
+      const resolved = resolveReq(loadRootSpecEntries(options.directory, ctx.io), reqId);
       if (resolved === null) {
         throw new CliError(`req id not found: ${reqId}`);
       }
@@ -257,18 +258,16 @@ export function registerSpec(program: Command): void {
         throw new CliError(`invalid --limit: ${raw} (non-negative integer)`, 2);
       }
       const limit = Number(raw);
-      const feed: UnboundFeed = buildUnboundFeed(loadRootSpecEntries(), limit);
-      const mode = resolveOutMode(options.output, options.json, options.compactJson);
-      if (mode !== 'human') {
-        console.log(renderMachine(feed, mode));
-        return;
-      }
-      console.log(`spec unbound: ${feed.returned} shown of ${feed.total} total`);
-      for (const r of feed.requirements) {
-        console.log(`  - [${r.reqId}] ${r.featurePath} :: ${r.title}`);
-        for (const line of r.statement.split('\n')) console.log(`      ${line}`);
-      }
-      if (feed.hint !== '') console.log(feed.hint);
+      const feed: UnboundFeed = buildUnboundFeed(loadRootSpecEntries(undefined, ctx.io), limit);
+      emitReport(feed, options, () => {
+        const lines = [`spec unbound: ${feed.returned} shown of ${feed.total} total`];
+        for (const r of feed.requirements) {
+          lines.push(`  - [${r.reqId}] ${r.featurePath} :: ${r.title}`);
+          for (const line of r.statement.split('\n')) lines.push(`      ${line}`);
+        }
+        if (feed.hint !== '') lines.push(feed.hint);
+        return lines.join('\n');
+      });
     },
   );
 }

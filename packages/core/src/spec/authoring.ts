@@ -5,6 +5,7 @@
  * stays untouched.
  */
 
+import { type FsPort } from '../util/fsPort.ts';
 import type { CapabilityDoc, RuleIR } from './ir.ts';
 import { specIdOf } from './ir.ts';
 import { BLOCK_KEYWORD_LINE_RE, officialKeywordsOrEn } from './keywords.ts';
@@ -18,11 +19,7 @@ export interface SpecEntryLike {
   doc: CapabilityDoc;
 }
 
-export interface WriteIo {
-  exists(path: string): boolean;
-  readText(path: string): string;
-  writeText(path: string, content: string): void;
-}
+export type WriteIo = Pick<FsPort, 'exists' | 'readText' | 'writeText'>;
 
 interface KeywordSet {
   rule: string;

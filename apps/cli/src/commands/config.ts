@@ -1,47 +1,57 @@
 import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
-import { renderConfigOverview, renderMachine, skillsJson } from '@llman-sdd/core';
+import { renderConfigOverview, skillsJson } from '@llman-sdd/core';
 import type { Command } from 'commander';
 
 import {
   addReportOutputOptions,
-  resolveOutMode,
+  addSpecDirOption,
+  emitReport,
+  resolveCommandRoot,
   skillDesc,
   warnLegacyBddOnce,
+  type CliContext,
 } from '../cli-shared.ts';
 
-export function registerConfig(program: Command): void {
-  const configCmd = program
-    .command('config')
-    .description('Project configuration commands (view/edit config.yaml)');
+export function registerConfig(program: Command, ctx: CliContext): void {
+  const configCmd = program.command('config');
 
-  configCmd.description('Print a read-only llmanspec/config.yaml overview').action(() => {
-    const source = readFileSync('llmanspec/config.yaml', 'utf8');
-    warnLegacyBddOnce(source);
-    console.log(renderConfigOverview(source).join('\n'));
-  });
+  configCmd
+    .description('Print a read-only llmanspec/config.yaml overview')
+    .option(
+      '--directory <path>',
+      'instance root resolution start (default: nearest llmanspec/ at or above cwd)',
+    )
+    .action((options: { directory?: string }) => {
+      const root = resolveCommandRoot(ctx, options.directory);
+      const source = readFileSync(join(root, 'llmanspec', 'config.yaml'), 'utf8');
+      warnLegacyBddOnce(source);
+      console.log(renderConfigOverview(source).join('\n'));
+    });
 
   const skills = configCmd.command('skills').description('Manage extra_skills (non-interactive)');
   addReportOutputOptions(skills);
-  skills.action((options: { json?: boolean; output?: string; compactJson?: boolean }) => {
-    const path = 'llmanspec/config.yaml';
-    const source = readFileSync(path, 'utf8');
-    warnLegacyBddOnce(source);
-    const info = skillsJson(source);
-    const mode = resolveOutMode(options.output, options.json, options.compactJson);
-    if (mode !== 'human') {
-      console.log(renderMachine(info, mode));
-      return;
-    }
-    const enabled = info.enabled;
-    const available = info.available;
-    console.log('Enabled optional skills:');
-    if (enabled.length === 0) console.log('  (none)');
-    else for (const s of enabled) console.log(`  [x] ${s}`);
-    console.log();
-    console.log('Available but not enabled:');
-    for (const s of available) {
-      if (!enabled.includes(s)) console.log(`  [ ] ${s} — ${skillDesc(s)}`);
-    }
-  });
+  addSpecDirOption(skills);
+  skills.action(
+    (options: { json?: boolean; output?: string; compactJson?: boolean; directory?: string }) => {
+      const root = resolveCommandRoot(ctx, options.directory);
+      const path = join(root, 'llmanspec', 'config.yaml');
+      const source = readFileSync(path, 'utf8');
+      warnLegacyBddOnce(source);
+      const info = skillsJson(source);
+      emitReport(info, options, () => {
+        const { enabled, available } = info;
+        const lines: string[] = ['Enabled optional skills:'];
+        if (enabled.length === 0) lines.push('  (none)');
+        else for (const s of enabled) lines.push(`  [x] ${s}`);
+        lines.push('');
+        lines.push('Available but not enabled:');
+        for (const s of available) {
+          if (!enabled.includes(s)) lines.push(`  [ ] ${s} — ${skillDesc(s)}`);
+        }
+        return lines.join('\n');
+      });
+    },
+  );
 }

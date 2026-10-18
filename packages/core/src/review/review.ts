@@ -1,9 +1,10 @@
-import { ruleHasRunnableScenario, specIdOf } from '../spec/ir.ts';
 /**
  * Review aggregation (review-freeze capability, r23): five-signal review over
  * spec IR + validate sweep. Port of predecessor sdd/review.rs observable contract.
  */
-import { validateAllSpecs, type SpecEntry, type SpecIo } from '../validation/validate.ts';
+import { collectUnboundRequirements } from '../report/unbound.ts';
+import { specIdOf } from '../spec/ir.ts';
+import { validateAllSpecs, type SpecEntry } from '../validation/validate.ts';
 
 export type ReviewKind = 'unbound' | 'locked' | 'validate';
 
@@ -31,7 +32,7 @@ export interface ReviewResult {
   exitCode: number;
 }
 
-export function buildReview(input: ReviewInput, io: SpecIo): ReviewResult {
+export function buildReview(input: ReviewInput): ReviewResult {
   const { entries, boundChangeCount } = input;
   const strictChangeFails = (input.activeChanges ?? []).filter(
     (c) => c.totalTasks > 0 && c.completedTasks < c.totalTasks,
@@ -41,41 +42,29 @@ export function buildReview(input: ReviewInput, io: SpecIo): ReviewResult {
     signals.push({ kind, capability, count, detail });
   };
 
-  const sweep = validateAllSpecs(entries, io);
+  const sweep = validateAllSpecs(entries);
   const sorted = [...entries].toSorted((a, b) => a.fileName.localeCompare(b.fileName));
 
+  // T29: unbound counting is the shared collector (report/unbound) keyed by
+  // capability — one definition of "rule without runnable scenario".
+  const unboundByCap = new Map<string, number>();
+  for (const u of collectUnboundRequirements(entries)) {
+    unboundByCap.set(u.capability, (unboundByCap.get(u.capability) ?? 0) + 1);
+  }
   for (const entry of sorted) {
     const cap = specIdOf(entry);
     // r33: per-capability signals honor the --capability filter; locked and
     // validate stay global regardless.
     if (input.capability !== undefined && cap !== input.capability) continue;
-    // Native model: rules are `规则:` blocks; a rule without any runnable
-    // nested scenario is unbound (not bound to real logic — 0 scenarios or
-    // all @skip/@experimental/stepless). Top-level scenarios outside any rule
-    // are plain feature-level examples with no special signal.
-    const unbound = entry.doc.rules.filter((r) => !ruleHasRunnableScenario(r)).length;
-
-    push('unbound', cap, unbound);
+    push('unbound', cap, unboundByCap.get(cap) ?? 0);
   }
 
   const failed = sweep.verdicts.filter((v) => !v.ok);
   const sweepFailedCount = failed.length;
-  // predecessor sweep = `validate --all --strict --no-check`: pending tasks escalate a
-  // change to FAIL, and that feeds the review critical count.
-  for (const c of strictChangeFails) {
-    failed.push({
-      fileName: c.name,
-      capability: c.name,
-      ok: false,
-      items: [
-        {
-          level: 'ERROR',
-          id: `${c.name}/tasks`,
-          message: `${c.totalTasks - c.completedTasks} unchecked tasks`,
-        },
-      ],
-    });
-  }
+  // T35: unchecked tasks are work-in-progress noise, not contract breakage —
+  // they degrade to a warningCount contribution instead of the critical count
+  // (locked/unbound signals stay untouched).
+  const taskWarnings = strictChangeFails.length;
   // predecessor parity: `count` is the removed locked-rule-confirmation concept (always
   // 0 now); the detail text carries the bound-change count separately.
   push(
@@ -102,9 +91,8 @@ export function buildReview(input: ReviewInput, io: SpecIo): ReviewResult {
     [sweepDetail, strictDetail].filter(Boolean).join('; ') || 'ok',
   );
 
-  const warningCount = signals
-    .filter((s) => s.kind === 'unbound')
-    .reduce((acc, s) => acc + s.count, 0);
+  const warningCount =
+    signals.filter((s) => s.kind === 'unbound').reduce((acc, s) => acc + s.count, 0) + taskWarnings;
   const criticalCount = failed.length;
 
   const lines: string[] = [`Review: critical=${criticalCount} warning=${warningCount}`];
