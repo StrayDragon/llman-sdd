@@ -1,5 +1,6 @@
 ---
-depends_on: []
+depends_on:
+  - unify-numeric-id-allocation
 title: 子项目 llmanspec 命名空间唯一性范围决策(多根下的 id 域与分配器勘察根)
 needs_specs_change: true
 ---
