@@ -363,7 +363,10 @@ export function registerValidate(program: Command, ctx: CliContext): void {
         const start = resolve(options.directory ?? gitToplevelOrCwd(ctx));
         const roots = discoverRoots(start, ctx.io, { maxDepth });
         if (roots.length === 0) {
-          throw new CliError(`no llmanspec roots discovered under: ${start}`);
+          // r91 aggregate anchor: discovery covers the start itself and
+          // everything below it — the r109 walk-up family message form, with
+          // the direction the aggregate operator actually searches.
+          throw new CliError(`no llmanspec root at or under: ${start}`);
         }
         const reports: RootReport[] = [];
         const namespaceValues: RootNamespaceValues[] = [];

@@ -158,7 +158,7 @@ test('execution-guard fallback folds argv-less input to not-entry (r107)', () =>
 // r109 (subproject-namespace-scope): 豁免之外的全部命令 MUST 声明并接受
 // `--directory`,且 MUST NOT 存在读取该选项却未声明的命令。这是该规则的表
 // 面半边;行为半边(根发现/归位)在 tests/bdd/steps/scope-boundaries.ts。
-test('every leaf command declares --directory except init and self * (r109)', () => {
+test('every leaf or hybrid command declares --directory except init and self * (r109)', () => {
   const program = buildProgram();
   const nodes = flatten(program);
   expect(nodes.length).toBeGreaterThan(0);
@@ -167,7 +167,14 @@ test('every leaf command declares --directory except init and self * (r109)', ()
   const violations: string[] = [];
   for (const node of nodes) {
     if (node.chain.length === 0) continue;
-    if (node.command.commands.length > 0) continue; // parent group: no own surface
+    // Pure parent groups (subcommands, no action handler of their own) carry
+    // no CLI surface. Hybrid nodes — e.g. `config`, which has subcommands AND
+    // its own action — DO carry a surface and MUST declare (commander keeps
+    // the handler on its private _actionHandler).
+    const hasOwnAction =
+      typeof (node.command as unknown as { _actionHandler?: unknown })._actionHandler ===
+      'function';
+    if (node.command.commands.length > 0 && !hasOwnAction) continue;
     if (exemptGroups.has(node.chain[0] ?? '')) continue;
     if (!registeredFlag(node.command, '--directory')) {
       violations.push(`[${node.chain.join(' ')}] declares no --directory`);

@@ -206,5 +206,6 @@ llman-sdd init <path>
   `no llmanspec root at or above`、退出码 1、该目录下无 `llmanspec/`。
 - 单根仓库下 `change new --dry-run` 在仓库根与任意子目录输出逐字节一致；真实落盘仍归位
   仓库根实例。
-- `llman-sdd validate --all --strict` 全绿（含 `--all-roots` 的跨根同号观测段：同号只报
-  INFO/WARNING、不阻断、不影响退出码）。
+- `llman-sdd validate --all --strict` 全绿（含 `--all-roots` 的跨根同号观测段：同号以独立
+  观测段呈现（人读「Cross-root id collisions」/机器 `crossRootCollisions` 字段）、无 issue
+  级别、不阻断、不影响退出码）。
