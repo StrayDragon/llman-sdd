@@ -2,6 +2,9 @@
 depends_on: []
 title: 新增 self completion 补全命令，支持生成与安装五类 shell 的补全脚本
 needs_specs_change: true
+branch: sdd/shell-completion
+base_branch: main
+base_sha: c793cb0bdafecea3b739bb29283d85c9c2ff834c
 ---
 
 ## Why

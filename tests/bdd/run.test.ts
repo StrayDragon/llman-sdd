@@ -24,6 +24,7 @@ import './steps/spec-unbound.ts';
 import './steps/migrate-scope.ts';
 import './steps/context.ts';
 import './steps/cli.ts';
+import './steps/self-completion.ts';
 import { runFeature, type TestContext } from './runner.ts';
 import './steps/meta-foundation.ts';
 

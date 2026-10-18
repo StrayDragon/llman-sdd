@@ -330,3 +330,17 @@ export {
   type TreeToolDeps,
 } from './context/retrieve.ts';
 export { maxUsedNumber, nextNumber } from './util/nextNumber.ts';
+export {
+  COMPLETION_BIN,
+  COMPLETION_MARKER_END,
+  COMPLETION_MARKER_START,
+  COMPLETION_SHELLS,
+  collectFlags,
+  completionBlock,
+  isCompletionShell,
+  renderCompletionScript,
+  resolveBashRc,
+  upsertCompletionBlock,
+  type CompletionCommandSpec,
+  type CompletionShell,
+} from './self/completion.ts';

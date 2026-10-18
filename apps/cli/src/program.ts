@@ -22,6 +22,7 @@ import { registerInit } from './commands/init.ts';
 import { registerList } from './commands/list.ts';
 import { registerProject } from './commands/project.ts';
 import { registerReview } from './commands/review.ts';
+import { registerSelf } from './commands/self.ts';
 import { registerShow } from './commands/show.ts';
 import { registerSpec } from './commands/spec.ts';
 import { registerValidate } from './commands/validate.ts';
@@ -62,11 +63,12 @@ export function createProgram(ctx: CliContext): Command {
   registerConfig(program, ctx);
   registerIndex(program, ctx);
   registerContext(program, ctx);
+  registerSelf(program, ctx);
 
   // cli r75: pure parent groups (no default action of their own) reject bare
   // calls as usage errors — commander's missing-action help on stderr, rc 2
   // via missingParameter/…; `config` keeps its default action (overview, rc 0).
-  for (const name of ['change', 'spec', 'project', 'archive', 'index']) {
+  for (const name of ['change', 'spec', 'project', 'archive', 'index', 'self']) {
     const group = program.commands.find((c) => c.name() === name);
     if (group === undefined) continue;
     group.action(() => {
