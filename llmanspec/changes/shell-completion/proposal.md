@@ -1,6 +1,6 @@
 ---
 depends_on: []
-title: 新增 shell 补全命令，支持生成与安装五类 shell 的补全脚本
+title: 新增 self completion 补全命令，支持生成与安装五类 shell 的补全脚本
 needs_specs_change: true
 ---
 
@@ -27,7 +27,7 @@ needs_specs_change: true
 
 ## What Changes
 
-- 新增补全命令，含生成与安装两条路径，覆盖五类 shell。
+- 新增 `self` 命令组（2026-10-18 用户定案：前代 parity 优先于根级扁平），其下 `self completion` 承载生成与安装两条路径，覆盖五类 shell。
 - 生成路径 MUST 从 commander 命令树推导补全内容，不另维护一份命令清单。
 - 安装路径 MUST 以 marker 块写入 rc/profile，重复安装 MUST 幂等。
 - 安装前 MUST 取得确认。非交互且未显式确认时 MUST 报错，MUST NOT 静默写入。
@@ -35,24 +35,15 @@ needs_specs_change: true
 - 补全内容 MUST 覆盖子命令与旗标两层，并随命令树变更自动跟进。
 - 补全内容 MUST 覆盖 `--directory` 与报告类旗标，与命令面收敛结果保持一致。
 
-## Open Questions
-
-- 入口形态：根级 `completion` 命令，还是恢复 `self` 组承载。后者会新增分组层级。
-- 生成器来源：自研还是引入库。引入库须评估体积与双运行时兼容。
-- 是否支持 elvish。前代支持，可用性待评估。
-- 交互确认形态。本仓交互提示收敛在 CLI 适配层，core 不发起终端交互。
-- `--install` 写用户 home，属破坏性动作。是否需要 `--uninstall` 与 `--dry-run` 配套。
-- 单二进制产物（`bun build --compile`）下是否仍按同一路径生成。
-
 ## Capabilities
 
-| capability | 变更 |
-|---|---|
-| `specs/cli` | 新增补全命令的 requirement：两条路径、marker 幂等、确认门 |
-| `specs/peripheral-commands` | 入口若归外围命令面，补一条命令面契约 |
+- 新建 `specs/completion.feature`（2026-10-18 用户定案：主题独立，不并入 peripheral-commands）。
 
-## Impact
+## Open Questions
 
-- 新增命令面，不改既有命令输出。
-- 若引入补全库，须评估依赖体积与双运行时兼容。
-- `--install` 会写用户 home 下的 rc 文件，须有确认门与幂等保证。
+无（入口形态 self 组、capability 归属、双 seam 均已定案）。
+
+## Non-Goals
+
+- 前代 `self schema` 子命令不在本 change 范围（draft 原始范围仅 completion；如需另案）。
+- 不做补全脚本的静态缓存/持久化（每次现算，与重扫描即真相精神一致）。
