@@ -2,6 +2,9 @@
 depends_on: []
 title: review 聚合审查的 spec id 推导路径形态无关化(绝对路径调用全红修复)
 needs_specs_change: true
+branch: sdd/fix-review-sweep-path
+base_branch: main
+base_sha: cd7dd90275b7735af491a11a78d70af3ba4ca079
 ---
 
 ## Why

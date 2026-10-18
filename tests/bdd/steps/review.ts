@@ -192,3 +192,54 @@ bdd.thenStep('thaw 未知名报错并列出可用条目', (ctx) => {
     throw new Error(`available entries must be listed:\n${out}`);
   }
 });
+
+// ---------------------------------------------------------------------------
+// fix-review-sweep-path — review sweep 与 validate --all 同判定(r23)
+// ---------------------------------------------------------------------------
+
+bdd.given('一个已初始化且 specs 合法的临时仓库', (ctx) => {
+  const repo = makeTempRepo();
+  ctx.fixtures['sweep一致仓库'] = { root: repo.root, repo };
+});
+
+bdd.when('运行 review --json 与 validate --all', (ctx) => {
+  const { repo } = ctx.fixtures['sweep一致仓库'] as { root: string; repo: TempRepo };
+  const review = repo.run('bun', [CLI, 'review', '--json']);
+  const validate = repo.run('bun', [CLI, 'validate', '--all']);
+  let validateSignalFails = -1;
+  try {
+    const parsed = JSON.parse(review.stdout ?? '{}') as {
+      signals: { kind: string; count: number }[];
+    };
+    validateSignalFails = parsed.signals.find((s) => s.kind === 'validate')?.count ?? -1;
+  } catch {
+    validateSignalFails = -1;
+  }
+  ctx.fixtures['sweep一致结果'] = {
+    reviewCode: review.code,
+    validateCode: validate.code,
+    validateSignalFails,
+    reviewOut: `${review.stdout ?? ''}${review.stderr ?? ''}`,
+  };
+});
+
+bdd.thenStep('review 退出码 0 且 validate 信号无 FAIL', (ctx) => {
+  const r = ctx.fixtures['sweep一致结果'] as {
+    reviewCode: number;
+    validateSignalFails: number;
+    reviewOut: string;
+  };
+  if (r.reviewCode !== 0) {
+    throw new Error(`review must exit 0 on a legal tree (sweep consistency):\n${r.reviewOut}`);
+  }
+  if (r.validateSignalFails !== 0) {
+    throw new Error(
+      `validate signal must report 0 sweep FAILs (consistent with validate --all), got ${r.validateSignalFails}`,
+    );
+  }
+});
+
+bdd.thenStep('validate --all 退出码 0', (ctx) => {
+  const r = ctx.fixtures['sweep一致结果'] as { validateCode: number };
+  if (r.validateCode !== 0) throw new Error('validate --all must exit 0 on the same tree');
+});

@@ -22,7 +22,9 @@
     共用或跨 capability——MUST 判 ERROR);不含任何 `规则:` 的 capability MUST 判 ERROR;顶层 `场景:`(Gherkin 功能级示例,无规则句柄)不告警、不参与规则统计;无 runnable
     嵌套场景的 `规则:`(0 场景或嵌套场景全部带 @skip/@experimental)MUST 输出聚合计数 INFO(按 capability 一条,不逐条爆炸,`--include-info` 可见);规则描述为自由文本
     (MUST/SHALL 词不强制);历史标签 `@human/@rule/@executable/@manual` 解析惰性、不再承载语义(旧文件经 `spec migrate-native`
-    迁移);全局重复 req_id(同文件内或跨文件,按携带该 id 的规则条数 > 1 判定)MUST 对每个涉事 capability 判 ERROR。
+    迁移);全局重复 req_id(同文件内或跨文件,按携带该 id 的规则条数 > 1 判定)MUST 对每个涉事 capability 判 ERROR;
+    spec id 的分配(前缀剥除)MUST 路径形态无关:同一 .feature 文件无论以绝对或相对路径装载,分配的 spec id 一致
+    (specs 树内相对位置命名),调用方以绝对路径装载时 MUST NOT 退化出全路径 id。
 
     场景: 种子缺陷被判 FAIL
       假如 一个含缺 @req 与重复 req_id 缺陷的 specs 目录
@@ -42,6 +44,11 @@
       当 运行 validate --specs --json
       那么 缺 purpose 头、功能标题与 spec id 不一致、缺 @req、重复 req_id 与零规则 capability 各 capability 均 valid 为 false 且各含对应 ERROR
       而且 退出码非零
+
+    场景: 绝对路径装载的 id 推导与标题匹配
+      假如 一个标题与基名一致的合法 specs 目录
+      当 以绝对根路径装载各 .feature 并运行 specs 校验
+      那么 各 capability 均 valid 为 true 且无 spec id 失配 ERROR
 
   @req:r63
   规则: validate 完整性 WARNING(已绑定 change)

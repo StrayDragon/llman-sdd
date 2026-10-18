@@ -15,7 +15,15 @@ export function featureRelPath(fileName: string, specsDir: string): string {
   const root = norm(specsDir);
   let rel = norm(fileName);
   const prefix = `${root}/`;
-  if (rel.startsWith(prefix)) rel = rel.slice(prefix.length);
+  if (rel.startsWith(prefix)) return rel.slice(prefix.length);
+  // Path-form independence (fix-review-sweep-path): callers may load entries
+  // with absolute file names while specsDir stays root-relative (the review
+  // sweep did exactly that). Locate the LAST whole-segment occurrence of the
+  // specs root inside the file name and keep the tail — the id must depend on
+  // the position inside the specs tree, never on the caller's path shape.
+  const needle = `/${root}/`;
+  const at = rel.lastIndexOf(needle);
+  if (at >= 0) return rel.slice(at + needle.length);
   return rel;
 }
 

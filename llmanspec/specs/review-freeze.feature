@@ -14,6 +14,10 @@
     的 capability 数;在途 change 的未勾任务 MUST 计为 warning,MUST NOT 计入 criticalCount(开发期 review 不得因未勾任务恒失败);
     退出码 MUST 仅在 criticalCount > 0 时非零;`--capability` MUST 限定单一
     capability;`--export-html <path>` MUST 写出自包含 HTML 报告。
+    `review` 的内部 sweep 与 `validate --all` MUST 对同一 specs 树判定一致
+    (同绿同红):两者对同一文件分配的 spec id MUST 相同,sweep 的 validate
+    信号 MUST NOT 因调用方装载路径形态(绝对/相对)不同而翻转——前代快照
+    内部 sweep 的恒失败缺陷以任意路径形态都不复制。
 
     场景: review 信号形状合法
       假如 本仓库的真实 llmanspec 工作区
@@ -21,6 +25,12 @@
       那么 signals 覆盖三种 kind
       而且 summary 含 criticalCount 与 warningCount
       而且 退出码与 criticalCount 一致
+
+    场景: review sweep 与 validate --all 同判定
+      假如 一个已初始化且 specs 合法的临时仓库
+      当 运行 review --json 与 validate --all
+      那么 review 退出码 0 且 validate 信号无 FAIL
+      而且 validate --all 退出码 0
 
 
     场景: review 兼容输出别名可用

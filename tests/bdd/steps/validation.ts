@@ -3,7 +3,17 @@
 // 过滤)、r11/r13/r63/r64/r65(executable 化 HIGH 批:报告聚合、--check
 // no-op、completeness/脏 specs WARNING、frontmatter 合法字段门、孤儿验收
 // WARNING,全部走 CLI 子进程)。
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { discoverSpecs, validateAllSpecs, type DiscoveryIo } from '@llman-sdd/core';
@@ -1531,3 +1541,44 @@ bdd.thenStep(
     }
   },
 );
+
+// ---------------------------------------------------------------------------
+// fix-review-sweep-path — spec id 推导路径形态无关(validation r12)
+// ---------------------------------------------------------------------------
+
+bdd.given('一个标题与基名一致的合法 specs 目录', (ctx) => {
+  const root = mkdtempSync(join(tmpdir(), 'llman-abs-specs-'));
+  const specsDir = join(root, 'llmanspec', 'specs');
+  mkdirSync(specsDir, { recursive: true });
+  writeFileSync(
+    join(specsDir, 'auth.feature'),
+    `# language: zh-CN\n# capability: auth\n# purpose: p\n# scope: llmanspec/\n\n功能: auth\n\n  @req:r90\n  规则: 合法规则\n    系统 MUST x\n`,
+  );
+  ctx.fixtures['合法目录'] = { root };
+});
+
+// 复刻 review sweep 的真实调用形态:绝对路径装载 + validateAllSpecs 缺省相对 specsDir。
+bdd.when('以绝对根路径装载各 .feature 并运行 specs 校验', (ctx) => {
+  const { root } = ctx.fixtures['合法目录'] as { root: string };
+  const specsDir = join(root, 'llmanspec', 'specs');
+  const io: DiscoveryIo = {
+    exists: (p) => existsSync(p),
+    isDirectory: (p) => statSync(p).isDirectory(),
+    listDir: (p) => readdirSync(p),
+    readText: (p) => readFileSync(p, 'utf8'),
+  };
+  const entries = discoverSpecs(specsDir, io);
+  const report = validateAllSpecs(entries);
+  ctx.fixtures['校验结果'] = { failed: report.failed, lines: report.lines };
+});
+
+bdd.thenStep('各 capability 均 valid 为 true 且无 spec id 失配 ERROR', (ctx) => {
+  const result = ctx.fixtures['校验结果'] as ValidateResult | undefined;
+  if (!result) throw new Error('no 校验结果 fixture');
+  const mismatch = result.lines.filter((l) => l.includes('must match assigned spec id'));
+  if (result.failed || mismatch.length !== 0) {
+    throw new Error(
+      `absolute-path sweep must be green with zero id-mismatch ERRORs:\n${result.lines.join('\n')}`,
+    );
+  }
+});
