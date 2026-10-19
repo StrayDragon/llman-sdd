@@ -133,3 +133,36 @@
       假如 一个含冻结归档的临时仓库
       当 运行 archive thaw --dest
       那么 条目完整落到指定目录
+  @req:r120
+  规则: freeze 内容过滤(gitignore 层叠)
+    freeze 内容过滤 MUST 在打包前对每个候选目录求值忽略链,仅将未被忽略的文件清单传入 7z,不再整目录吸入;
+    忽略判定 MUST 为 git 式层叠 .gitignore 求值:候选目录树内各层 .gitignore 由里向外、最深匹配层优先,链 MUST 自候选目录经实例根上溯至项目根(自实例根向上探测 .git 定位),无 .git 时 MUST 以实例根为最外层;
+    单层判定 MUST 遵循 gitignore 语义(目录尾斜杠、! 取反、/ 锚定、** 通配),被忽略目录 MUST 整棵剪枝,.git 目录 MUST 恒不入包;
+    `--ignore-file <path>`(可重复)MUST 接受 gitignore 格式文件且优先级最高(压过一切 .gitignore 层),文件不存在 MUST 报错中止;
+    某候选过滤后零文件时 freeze MUST 在任何写变更之前报错(不写卡、不删目录);无任何忽略源时 MUST 保持既有全量打包行为;人读输出宜含排除计数摘要且退出码语义不变。
+
+
+    场景: freeze 依据根 .gitignore 排除被忽略产物
+      假如 一个临时仓库,实例根本层含忽略 target/ 的 .gitignore,且某带日期归档目录内留有 research/poc/target/ 构建产物与 proposal/design 正文
+      当 在含忽略链的仓库运行 archive freeze --before 该日期
+      那么 冷备条目不含 target 下任何文件且含全部正文文件,平铺卡照常生成、原目录移除,输出含排除计数
+
+    场景: 嵌套 .gitignore 层叠且项目根规则上溯生效
+      假如 一个 git 仓库,其根 .gitignore 忽略 node_modules/,实例根位于子目录,某归档目录内含 research/poc/ 自带锚定忽略 /target 的 .gitignore 及 target 与 node_modules 产物
+      当 在实例根运行 archive freeze
+      那么 嵌套 target 与 node_modules 均不入包而正文文件入包
+
+    场景: ignore-file 用户补充忽略文件最高优先
+      假如 一个临时仓库,其 .gitignore 以 ! 回含 *.bin,另备一份忽略 *.bin 的 gitignore 格式文件
+      当 运行 archive freeze --ignore-file 该文件
+      那么 归档目录内的 .bin 文件不入包而其余正文入包
+
+    场景: ignore-file 指向不存在文件时报错且零变更
+      假如 一个带日期归档目录完好而所指忽略文件缺失的临时仓库
+      当 运行 archive freeze --ignore-file 不存在的路径
+      那么 报错退出且未写平铺卡、原目录保留
+
+    场景: 过滤后的冷备可自洽解冻
+      假如 一个已完成含排除过滤 freeze 的临时仓库
+      当 运行 archive thaw --change 该条目
+      那么 目录回置且内容为过滤后集合(正文在、被忽略产物不在)且平铺卡删除

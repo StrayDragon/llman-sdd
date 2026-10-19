@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -235,5 +235,86 @@ describe('freezeCandidates', () => {
     expect(
       freezeCandidates(mkIo(entries), archiveDir, { before: '2026-04-01', keepRecent: 2 }),
     ).toEqual(['2026-01-01-old']);
+  });
+});
+
+describe('freeze ignore filtering (r120) against the real adapter', () => {
+  const setup = (rootGitignore?: string): string => {
+    const root = mkdtempSync(join(tmpdir(), 'llman-sdd-freeze-filter-'));
+    if (rootGitignore !== undefined) writeFileSync(join(root, '.gitignore'), rootGitignore);
+    const c = join(root, 'llmanspec', 'changes', 'archive', '2026-01-01-demo');
+    mkdirSync(join(c, 'research', 'poc', 'target', 'debug'), { recursive: true });
+    writeFileSync(join(c, 'proposal.md'), '# Demo\n');
+    writeFileSync(join(c, 'research', 'keep.md'), 'k\n');
+    writeFileSync(join(c, 'research', 'poc', 'target', 'debug', 'a.so'), 'bin');
+    return root;
+  };
+
+  test('freeze filters ignored files, reports the count, thaws the filtered set', async () => {
+    const root = setup('target/\n');
+    const io = makeNodeIo(root);
+    const sz = await makeWasmSevenZip(deps());
+
+    const freeze = await runFreeze(io, sz, root, { before: '2027-01-01' });
+    expect(freeze.candidates).toEqual(['2026-01-01-demo']);
+    expect(freeze.lines.join('\n')).toMatch(/Excluded 1 ignored file\(s\) via gitignore chain/);
+
+    const archiveAbs = join(root, 'llmanspec', 'changes', 'archive', 'freezed_changes.7z.archived');
+    const entries = await sz.listEntries(archiveAbs);
+    expect(entries).toContain('2026-01-01-demo/proposal.md');
+    expect(entries).toContain('2026-01-01-demo/research/keep.md');
+    expect(entries.some((e) => e.includes('/target/'))).toBe(false);
+    expect(existsSync(join(root, 'llmanspec', 'changes', 'archive', '2026-01-01-demo'))).toBe(
+      false,
+    );
+    expect(existsSync(join(root, 'llmanspec', 'changes', 'archive', '2026-01-01-demo.yaml'))).toBe(
+      true,
+    );
+
+    await runThaw(io, sz, root, ['2026-01-01-demo']);
+    const back = join(root, 'llmanspec', 'changes', 'archive', '2026-01-01-demo');
+    expect(existsSync(join(back, 'proposal.md'))).toBe(true);
+    expect(existsSync(join(back, 'research', 'keep.md'))).toBe(true);
+    expect(existsSync(join(back, 'research', 'poc'))).toBe(false);
+    expect(existsSync(join(root, 'llmanspec', 'changes', 'archive', '2026-01-01-demo.yaml'))).toBe(
+      false,
+    );
+  });
+
+  test('no ignore sources keeps the legacy full pack', async () => {
+    const root = setup();
+    const sz = await makeWasmSevenZip(deps());
+    const freeze = await runFreeze(makeNodeIo(root), sz, root, { before: '2027-01-01' });
+    expect(freeze.lines.join('\n')).not.toMatch(/Excluded/);
+    const entries = await sz.listEntries(
+      join(root, 'llmanspec', 'changes', 'archive', 'freezed_changes.7z.archived'),
+    );
+    expect(entries.some((e) => e.includes('/target/'))).toBe(true);
+  });
+
+  test('zero packable files aborts before any mutation', async () => {
+    const root = setup('**\n');
+    const sz = await makeWasmSevenZip(deps());
+    await expect(runFreeze(makeNodeIo(root), sz, root, { before: '2027-01-01' })).rejects.toThrow(
+      /no packable files after ignore filtering/,
+    );
+    const archiveDir = join(root, 'llmanspec', 'changes', 'archive');
+    expect(existsSync(join(archiveDir, '2026-01-01-demo'))).toBe(true);
+    expect(existsSync(join(archiveDir, '2026-01-01-demo.yaml'))).toBe(false);
+    expect(existsSync(join(archiveDir, 'freezed_changes.7z.archived'))).toBe(false);
+  });
+
+  test('nonexistent ignore file aborts before any mutation', async () => {
+    const root = setup('target/\n');
+    const sz = await makeWasmSevenZip(deps());
+    await expect(
+      runFreeze(makeNodeIo(root), sz, root, {
+        before: '2027-01-01',
+        ignoreFiles: [join(root, 'nope.gitignore')],
+      }),
+    ).rejects.toThrow(/ignore file not found/);
+    const archiveDir = join(root, 'llmanspec', 'changes', 'archive');
+    expect(existsSync(join(archiveDir, '2026-01-01-demo'))).toBe(true);
+    expect(existsSync(join(archiveDir, '2026-01-01-demo.yaml'))).toBe(false);
   });
 });

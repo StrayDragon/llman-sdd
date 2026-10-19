@@ -25,7 +25,8 @@ llman-sdd:spec 驱动开发(SDD)工作流(TypeScript + Bun),完全接替 Rust ll
 - 依赖映射:commander(CLI)/ nunjucks(模板)/
   @cucumber/gherkin(spec 解析,官方 i18n 已含 zh-CN「规则」)/
   @toon-format/toon(机器输出 TOON 编码,纯函数 encoder,add-render-layer 引入)/
-  zod(zod v4 内建 toJSONSchema)+ yaml(配置契约与注释保留)/ 7z-wasm(冻结冷备)
+  zod(zod v4 内建 toJSONSchema)+ yaml(配置契约与注释保留)/ 7z-wasm(冻结冷备)/
+  ignore(gitignore 语义层叠匹配,freeze 内容过滤)
 - 测试:bun:test(含 `bun build --compile` 产物冒烟)+ @cucumber/gherkin + 自研
   Gherkin→bun:test runner(`tests/bdd/`,见工程规则 BDD 条)——BDD 选型已终局
 

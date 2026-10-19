@@ -28,6 +28,7 @@ import './steps/cli.ts';
 import './steps/self-completion.ts';
 import { runFeature, type TestContext } from './runner.ts';
 import './steps/meta-foundation.ts';
+import './steps/freeze-filter.ts';
 
 const FEATURES_DIR = join(import.meta.dirname, 'features');
 // Capability specs (nested 场景: scenarios drive the real core APIs).

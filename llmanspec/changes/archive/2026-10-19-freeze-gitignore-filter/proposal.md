@@ -1,6 +1,9 @@
 ---
 depends_on: []
 title: freeze 打包依据 gitignore 忽略链过滤归档内容
+branch: sdd/freeze-gitignore-filter
+base_branch: main
+base_sha: 9badcb55fd9a7f02deb1e6344a472a4aa7860082
 ---
 
 ## Why

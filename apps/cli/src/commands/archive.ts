@@ -53,7 +53,16 @@ export function registerArchive(program: Command, ctx: CliContext): void {
     .option('--before <date>', 'freeze entries older than this date (YYYY-MM-DD)')
     .option('--keep-recent <n>', 'keep N most recent candidates unfrozen', '0')
     .option('--dry-run', 'list candidates without freezing')
-    .option('--list', 'list entries already in the cold-backup archive');
+    .option('--list', 'list entries already in the cold-backup archive')
+    .option(
+      '--ignore-file <path>',
+      'extra gitignore-format file excluding archive entries (repeatable)',
+      (v: string, prev: string[]) => {
+        prev.push(v);
+        return prev;
+      },
+      [] as string[],
+    );
   addSpecDirOption(freeze);
   freeze.action(
     async (options: {
@@ -61,6 +70,7 @@ export function registerArchive(program: Command, ctx: CliContext): void {
       keepRecent: string;
       dryRun?: boolean;
       list?: boolean;
+      ignoreFile: string[];
       directory?: string;
     }) => {
       // r118: the cold-backup reads and writes stay inside the resolved
@@ -80,6 +90,8 @@ export function registerArchive(program: Command, ctx: CliContext): void {
         before: options.before,
         keepRecent: Number(options.keepRecent),
         dryRun: options.dryRun,
+        // r116 exemption: user-supplied paths keep their cwd-literal meaning.
+        ignoreFiles: options.ignoreFile.map((p) => resolve(p)),
       });
       for (const line of result.lines) console.log(line);
     },

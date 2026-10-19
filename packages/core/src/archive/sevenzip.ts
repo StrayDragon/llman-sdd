@@ -82,10 +82,15 @@ function mount(mod: EmscriptenModule, seq: number, hostDir: string): string {
   return mountpoint;
 }
 
-/** 7z `l` listing: header/footer dashed rules around fixed-ish columns; our
- * entry names are space-free, so the name is column 6+. */
+/** 7z `l` listing: header/footer dashed rules around fixed-ish columns.
+ * Column offsets come from the header row, NOT whitespace splitting — solid
+ * blocks leave the Compressed cell empty for every file after the block
+ * head, which collapses the column count and silently dropped those rows
+ * (surfaced by r120's explicit file lists; our entry names are space-free). */
 function parseListNames(lines: string[]): string[] {
   const names: string[] = [];
+  let nameCol = -1;
+  let attrCol = -1;
   let inTable = false;
   let rulesSeen = 0;
   for (const line of lines) {
@@ -95,14 +100,18 @@ function parseListNames(lines: string[]): string[] {
       if (rulesSeen === 3) break;
       continue;
     }
-    if (inTable) {
-      const parts = line.trim().split(/\s+/u);
-      if (parts.length >= 6) {
-        const attr = parts[2] ?? '';
-        const name = parts.slice(5).join(' ');
-        if (name !== '' && !attr.includes('D')) names.push(name);
+    if (!inTable) {
+      if (/\bDate\s+Time\s+Attr\b/u.test(line)) {
+        nameCol = line.lastIndexOf('Name');
+        attrCol = line.lastIndexOf('Attr');
       }
+      continue;
     }
+    if (nameCol < 0 || attrCol < 0 || line.trim() === '') continue;
+    // Attr cells are fixed-width 5 chars (e.g. `....A`, `D....`).
+    const attr = line.slice(attrCol, attrCol + 5);
+    const name = line.slice(nameCol).trim();
+    if (name !== '' && !attr.includes('D')) names.push(name);
   }
   return names;
 }

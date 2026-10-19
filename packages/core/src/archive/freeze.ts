@@ -19,6 +19,7 @@ import {
   frozenCardName,
   isFrozenCard,
 } from './frozenCard.ts';
+import { collectFilteredEntries } from './ignoreChain.ts';
 import type { SevenZipPort } from './sevenzip.ts';
 
 export const FREEZE_ARCHIVE_NAME = 'freezed_changes.7z.archived';
@@ -65,6 +66,9 @@ export interface FreezeOpts {
   before?: string;
   keepRecent?: number;
   dryRun?: boolean;
+  /** r120: absolute paths of extra gitignore-format files (highest
+   * precedence in the layered evaluation; nonexistent file is an error). */
+  ignoreFiles?: string[];
 }
 
 export interface FreezeRunResult {
@@ -96,6 +100,24 @@ export async function runFreeze(
   // Card = authoritative record that bodies are in the cold backup. Write
   // cards first; on `7z add` failure roll them back and keep the original dirs.
   const archiveAbs = join(rootAbs, ARCHIVE_DIR_REL, FREEZE_ARCHIVE_NAME);
+  const archiveBase = join(rootAbs, ARCHIVE_DIR_REL);
+
+  // r120: layered gitignore filtering runs before any mutation — user-file
+  // existence errors and the zero-files guard must leave the tree untouched.
+  const packed: string[] = [];
+  let excludedTotal = 0;
+  for (const c of candidates) {
+    const { files, excluded } = collectFilteredEntries(io, {
+      rootAbs,
+      candidateAbs: join(archiveBase, c),
+      userIgnoreFiles: opts.ignoreFiles ?? [],
+    });
+    if (files.length === 0) {
+      throw new Error(`candidate has no packable files after ignore filtering: ${c}`);
+    }
+    excludedTotal += excluded;
+    packed.push(...files.map((f) => `${c}/${f}`));
+  }
 
   const cards: Array<{ datedId: string; source: string }> = [];
   for (const c of candidates) {
@@ -116,7 +138,7 @@ export async function runFreeze(
     io.writeText(`${ARCHIVE_DIR_REL}/${frozenCardName(card.datedId)}`, card.source);
   }
   try {
-    await sz.add(archiveAbs, join(rootAbs, ARCHIVE_DIR_REL), candidates);
+    await sz.add(archiveAbs, archiveBase, packed);
   } catch (error) {
     for (const card of cards) io.remove(`${ARCHIVE_DIR_REL}/${frozenCardName(card.datedId)}`);
     throw error;
@@ -124,12 +146,13 @@ export async function runFreeze(
   for (const c of candidates) {
     io.removeDir(`${ARCHIVE_DIR_REL}/${c}`);
   }
-  return {
-    candidates,
-    lines: [
-      `Froze ${candidates.length} archived changes into ./${ARCHIVE_DIR_REL}/${FREEZE_ARCHIVE_NAME}`,
-    ],
-  };
+  const lines = [
+    `Froze ${candidates.length} archived changes into ./${ARCHIVE_DIR_REL}/${FREEZE_ARCHIVE_NAME}`,
+  ];
+  if (excludedTotal > 0) {
+    lines.push(`Excluded ${excludedTotal} ignored file(s) via gitignore chain`);
+  }
+  return { candidates, lines };
 }
 
 /**

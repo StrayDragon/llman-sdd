@@ -289,6 +289,14 @@ export {
   isFrozenCard,
 } from './archive/frozenCard.ts';
 export {
+  IgnoreChainError,
+  collectFilteredEntries,
+  discoverIgnoreRoot,
+  type CollectFilteredOpts,
+  type FilteredCandidate,
+  type IgnoreChainIo,
+} from './archive/ignoreChain.ts';
+export {
   buildReview,
   renderReviewHtml,
   type ReviewInput,
