@@ -2,10 +2,12 @@
 
 本项目遵循语义化版本（SemVer）。breaking 变更随大版本/次版本标注迁移说明。
 
-## 0.10.0 (2026-10-17)
+## 0.10.0 (2026-10-19)
 
 change `simplify-cli-core-and-skills`：模板树单线化为中文、收口门禁收紧、命令面退出码
-收敛，并给只读命令接入实例根发现。**Breaking（需迁移，五条破坏面）**：升级路径见
+收敛，并给只读命令接入实例根发现；随后多根模型三部曲（`subproject-namespace-scope` /
+`specs-landed-per-root` / `start-worktree-per-root`）把实例根语义贯通到观测、收口与分支
+创建。**Breaking（需迁移，五条破坏面）**：升级路径见
 `migrations/v0.9-v0.10/README.md`，agent 手册见
 `llman-sdd project migrate prompt --from-version 0.9.0 --to-version 0.10.0`。
 
@@ -24,6 +26,26 @@ change `simplify-cli-core-and-skills`：模板树单线化为中文、收口门�
   `no llmanspec root at or above <path>`，不再静默返回空或泄漏 `ENOENT`。
 - `context-index`（破坏面五）：`--backend` 补 trim 与 lowercase、接受 `page-index` 别名、
   空值与空 env 归 pageindex；`rag` 仍报弃用错。
+
+多根模型（subproject namespace，三部曲）：
+
+- `scope-boundaries`（新增 capability，r113–r117）：一个操作单元 = 一个 `llmanspec/`
+  目录（`config.yaml` 或 `specs/` 判定有效实例）；逐根唯一性域；跨根同号可观测不阻断
+  （`validate --all-roots` 聚合观测段，人读尾附 `--directory` 指引，退出码中立）；根
+  限定仅经 `--directory`，`#`/`:` 复合标识符一律按 not found 拒绝；写面默认限当前实例
+  根（`init --update` 与显式路径参数豁免）。
+- `cli` r109 / `change-lifecycle` r118（迁移 4/6 破坏面延伸）：`--directory` 真正生效于
+  `validate`/`show` 双输出面与聚合，相对写法（含相对祖先与单段名）与绝对等价；写入命令
+  （`change`/`archive`）归位最近实例根，无实例目录报域错误、不再就地新建 `llmanspec/`；
+  `show <id>` 缺省面保持前代 changes 宽容行为；worktree 缺实例目录时编号清点静默跳过。
+- `change-lifecycle` r119 + r68：specs-landed 收口门按 change 所属实例根判定（实例相对
+  前缀、严格本实例、仿冒路径不计数；show 红态 hint 统一含实例前缀）；`change start
+--worktree` 在子根实例上绑定落新 worktree 的同一子根实例；worktree 内 finalize 的归档
+  重定向携带实例偏移（`ioAt` 全部调用点闭合）。
+- 杂项：`validate --all-roots` 零根域错误统一消息族（`no llmanspec root at or under:
+<path>`）；六处链式内联 `--directory` 声明收敛共享 helper（选项序零漂移）；归档条目
+  id 文法边缘（`YYYY-MM-DD-.yaml`）不再误解析；`harvestIo` 吞错收窄恢复
+  `cannot list` 告警通道。
 
 非破坏性：core 去重（`depends_on` 单点解析、active-change 遍历与 `.feature` 发现收敛、
 IO port 与常量收敛、破 `config`↔`templates` 模块环）；CLI 抽出 `createProgram` 工厂、
