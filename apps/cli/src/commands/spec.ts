@@ -60,29 +60,26 @@ function confirmInteractive(question: string): Promise<boolean> {
 export function registerSpec(program: Command, ctx: CliContext): void {
   const spec = program.command('spec').description('Spec authoring helpers');
 
-  spec
+  const skeleton = spec
     .command('skeleton')
     .description('Generate a single-track spec skeleton for a capability')
     .argument('<capability>')
-    .option('--force', 'overwrite an existing spec file')
-    .option(
-      '--directory <path>',
-      'instance root resolution start (default: nearest llmanspec/ at or above cwd)',
-    )
-    .action((capability: string, options: { force?: boolean; directory?: string }) => {
-      // r109/r115: locale 属命中实例根的配置,`--directory` 指向子根时不得读启动根
-      const locale =
-        loadCliConfig(resolveCommandRoot(ctx, options.directory))?.locale ?? DEFAULT_LOCALE;
-      const specsDir = resolveRootSpecsDir(options.directory, ctx.io);
-      const path = join(specsDir, `${capability}.feature`);
-      if (!options.force && existsSync(path)) {
-        throw new CliError(`spec already exists: ${path} (use --force to overwrite)`);
-      }
-      const written = scaffoldSpec(ctx.io, specsDir, capability, locale, {
-        force: options.force,
-      });
-      console.log(`wrote ${written}`);
+    .option('--force', 'overwrite an existing spec file');
+  addSpecDirOption(skeleton);
+  skeleton.action((capability: string, options: { force?: boolean; directory?: string }) => {
+    // r109/r115: locale 属命中实例根的配置,`--directory` 指向子根时不得读启动根
+    const locale =
+      loadCliConfig(resolveCommandRoot(ctx, options.directory))?.locale ?? DEFAULT_LOCALE;
+    const specsDir = resolveRootSpecsDir(options.directory, ctx.io);
+    const path = join(specsDir, `${capability}.feature`);
+    if (!options.force && existsSync(path)) {
+      throw new CliError(`spec already exists: ${path} (use --force to overwrite)`);
+    }
+    const written = scaffoldSpec(ctx.io, specsDir, capability, locale, {
+      force: options.force,
     });
+    console.log(`wrote ${written}`);
+  });
 
   const nextReq = spec
     .command('next-req-id')
@@ -96,41 +93,41 @@ export function registerSpec(program: Command, ctx: CliContext): void {
     },
   );
 
-  spec
+  const addReqCmd = spec
     .command('add-req')
     .alias('add-requirement')
     .description('Append a 规则: block (with @req handle) to a capability spec')
     .argument('<capability>')
     .argument('<req_id>')
     .requiredOption('--title <title>', 'rule title')
-    .requiredOption('--statement <statement>', 'rule statement (free text; multiple lines via \\n)')
-    .option(
-      '--directory <path>',
-      'instance root resolution start (default: nearest llmanspec/ at or above cwd)',
-    )
-    .action(
-      (
-        capability: string,
-        reqId: string,
-        options: { title: string; statement: string; directory?: string },
-      ) => {
-        const io = ctx.io;
-        const path = addReq(
-          io,
-          resolveRootSpecsDir(options.directory, ctx.io),
-          loadRootSpecEntries(options.directory, ctx.io),
-          {
-            capability,
-            reqId,
-            title: options.title,
-            statement: options.statement,
-          },
-        );
-        console.log(path);
-      },
+    .requiredOption(
+      '--statement <statement>',
+      'rule statement (free text; multiple lines via \\n)',
     );
+  addSpecDirOption(addReqCmd);
+  addReqCmd.action(
+    (
+      capability: string,
+      reqId: string,
+      options: { title: string; statement: string; directory?: string },
+    ) => {
+      const io = ctx.io;
+      const path = addReq(
+        io,
+        resolveRootSpecsDir(options.directory, ctx.io),
+        loadRootSpecEntries(options.directory, ctx.io),
+        {
+          capability,
+          reqId,
+          title: options.title,
+          statement: options.statement,
+        },
+      );
+      console.log(path);
+    },
+  );
 
-  spec
+  const addScenarioCmd = spec
     .command('add-scenario')
     .description('Insert a nested 场景: under the named rule in a spec')
     .argument('<capability>')
@@ -138,35 +135,32 @@ export function registerSpec(program: Command, ctx: CliContext): void {
     .argument('<scenario_id>')
     .option('--given <given>', 'Given step (optional)')
     .requiredOption('--when <when>', 'When step')
-    .requiredOption('--then <then>', 'Then step')
-    .option(
-      '--directory <path>',
-      'instance root resolution start (default: nearest llmanspec/ at or above cwd)',
-    )
-    .action(
-      (
-        capability: string,
-        reqId: string,
-        scenarioId: string,
-        options: { given?: string; when: string; then: string; directory?: string },
-      ) => {
-        const io = ctx.io;
-        const path = addScenario(
-          io,
-          resolveRootSpecsDir(options.directory, ctx.io),
-          loadRootSpecEntries(options.directory, ctx.io),
-          {
-            capability,
-            reqId,
-            scenarioId,
-            given: options.given,
-            when: options.when,
-            thenText: options.then,
-          },
-        );
-        console.log(path);
-      },
-    );
+    .requiredOption('--then <then>', 'Then step');
+  addSpecDirOption(addScenarioCmd);
+  addScenarioCmd.action(
+    (
+      capability: string,
+      reqId: string,
+      scenarioId: string,
+      options: { given?: string; when: string; then: string; directory?: string },
+    ) => {
+      const io = ctx.io;
+      const path = addScenario(
+        io,
+        resolveRootSpecsDir(options.directory, ctx.io),
+        loadRootSpecEntries(options.directory, ctx.io),
+        {
+          capability,
+          reqId,
+          scenarioId,
+          given: options.given,
+          when: options.when,
+          thenText: options.then,
+        },
+      );
+      console.log(path);
+    },
+  );
 
   const migrateNative = spec
     .command('migrate-native')
@@ -215,26 +209,23 @@ export function registerSpec(program: Command, ctx: CliContext): void {
     },
   );
 
-  spec
+  const resolveReqCmd = spec
     .command('resolve-req')
     .description('Resolve an rN to its capability and statement')
-    .argument('<req_id>')
-    .option(
-      '--directory <path>',
-      'instance root resolution start (default: nearest llmanspec/ at or above cwd)',
-    )
-    .action((reqId: string, options: { directory?: string }) => {
-      const resolved = resolveReq(loadRootSpecEntries(options.directory, ctx.io), reqId);
-      if (resolved === null) {
-        throw new CliError(`req id not found: ${reqId}`);
-      }
-      console.log(`reqId: ${resolved.reqId}`);
-      console.log(`capability: ${resolved.capability}`);
-      console.log(`title: ${resolved.title}`);
-      console.log(`statement: ${resolved.statement.replaceAll('\n', ' ')}`);
-      console.log('harness:');
-      for (const h of resolved.harness) console.log(`  - ${h}`);
-    });
+    .argument('<req_id>');
+  addSpecDirOption(resolveReqCmd);
+  resolveReqCmd.action((reqId: string, options: { directory?: string }) => {
+    const resolved = resolveReq(loadRootSpecEntries(options.directory, ctx.io), reqId);
+    if (resolved === null) {
+      throw new CliError(`req id not found: ${reqId}`);
+    }
+    console.log(`reqId: ${resolved.reqId}`);
+    console.log(`capability: ${resolved.capability}`);
+    console.log(`title: ${resolved.title}`);
+    console.log(`statement: ${resolved.statement.replaceAll('\n', ' ')}`);
+    console.log('harness:');
+    for (const h of resolved.harness) console.log(`  - ${h}`);
+  });
 
   const transitions = spec
     .command('transitions')

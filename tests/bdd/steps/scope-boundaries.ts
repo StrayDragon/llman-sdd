@@ -81,6 +81,11 @@ bdd.thenStep(
         throw new Error(`machine 缺撞号明细 ${ns}/${value}: ${JSON.stringify(got)}`);
       }
     }
+    // r114 渲染顺序:先 namespace 后 value(成员断言升级为顺序单调——乱序渲染
+    // 不再能凭 includes 混过)
+    if (got.join('|') !== expected.map(([ns, value]) => `${ns}/${value}`).join('|')) {
+      throw new Error(`machine 撞号明细渲染顺序漂移: ${JSON.stringify(got)}`);
+    }
     if (parsed.summary?.crossRootCollisions !== 3) throw new Error('summary 缺撞号计数');
     // toon 同数据:明细与计数都在
     for (const need of [
@@ -1126,5 +1131,276 @@ bdd.thenStep('退出码为 0 且输出不含 ENOENT', (ctx) => {
   if (r.code !== 0) throw new Error(`缺实例 worktree 使编号清点失败: ${r.out}`);
   if (r.out.includes('ENOENT') || r.out.includes('no such file')) {
     throw new Error(`编号清点泄漏底层 IO 错误: ${r.out}`);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// r119 — specs-landed 判据按 change 所属实例根:子根 change 落地子根 specs 即过
+// 收口门;只动根实例 specs 不过门(严格本实例)。
+// ---------------------------------------------------------------------------
+
+const seedSubRootChangeDocs = (repo: TempRepo, id: string): void => {
+  const dir = join(subRootOf(repo), 'llmanspec', 'changes', id);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(
+    join(dir, 'proposal.md'),
+    `---\ndepends_on: []\ntitle: 子根规格落地条目\n---\n\n## Why\nx\n\n## What Changes\n- y\n`,
+  );
+  writeFileSync(join(dir, 'design.md'), '# d\n');
+  writeFileSync(join(dir, 'tasks.md'), '- [x] 落地\n');
+};
+
+const LAND_RULE = '\n  @req:r6\n  规则: 落地规则\n    系统 MUST z\n';
+
+bdd.given('一个根与子根双实例且子根 change 已绑定分支并提交子根 specs 的临时仓库', (ctx) => {
+  const repo = makeTempRepo();
+  seedSubRoot(repo);
+  seedSubRootChangeDocs(repo, 'subland');
+  const committed = repo.run('git', ['add', '-A']);
+  if (committed.code !== 0) throw new Error(committed.stderr);
+  repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'seed']);
+  const started = runCli(['change', 'start', 'subland'], subRootOf(repo), process.env);
+  if (started.status !== 0) {
+    throw new Error(`change start failed: ${started.stdout ?? ''}${started.stderr ?? ''}`);
+  }
+  // 落地子根 specs:追加合法规则块(tuicap 现有 r5 → 新块 r6)
+  writeFileSync(
+    join(subRootOf(repo), 'llmanspec', 'specs', 'tuicap.feature'),
+    readFileSync(join(subRootOf(repo), 'llmanspec', 'specs', 'tuicap.feature'), 'utf8') + LAND_RULE,
+  );
+  repo.run('git', ['add', '-A']);
+  repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'land specs']);
+  ctx.fixtures['子根落地仓库'] = { repo };
+});
+
+bdd.when('在子根实例上运行 show 该 change 与 change finalize 该 change', (ctx) => {
+  const { repo } = ctx.fixtures['子根落地仓库'] as { repo: TempRepo };
+  const showed = runCli(['show', 'subland', '--output', 'json'], subRootOf(repo), process.env);
+  const finalized = runCli(['change', 'finalize', 'subland'], subRootOf(repo), process.env);
+  ctx.fixtures['子根收口结果'] = {
+    showOut: showed.stdout ?? '',
+    showCode: showed.status ?? 1,
+    finOut: `${finalized.stdout ?? ''}${finalized.stderr ?? ''}`,
+    finCode: finalized.status ?? 1,
+  };
+});
+
+bdd.thenStep('show 的 specs-landed 门为通过且 finalize 收口不再被 specs 落地门拦截', (ctx) => {
+  const r = ctx.fixtures['子根收口结果'] as {
+    showOut: string;
+    showCode: number;
+    finOut: string;
+    finCode: number;
+  };
+  if (r.showCode !== 0) throw new Error(`show 失败: ${r.showOut}`);
+  const parsed = JSON.parse(r.showOut) as { gateChecks: Array<{ name: string; pass: boolean }> };
+  const gate = parsed.gateChecks.find((g) => g.name === 'specs-landed');
+  if (gate?.pass !== true) {
+    throw new Error(`子根 specs 落地未过门(仍按根字面量判定?): ${JSON.stringify(gate)}`);
+  }
+  if (r.finCode !== 0) throw new Error(`finalize 失败: ${r.finOut}`);
+  if (r.finOut.includes('close-out blocked')) {
+    throw new Error(`finalize 被 specs 落地门拦截:\n${r.finOut}`);
+  }
+});
+
+bdd.given('一个根与子根双实例且子根 change 已绑定分支但只提交了根实例 specs 的临时仓库', (ctx) => {
+  const repo = makeTempRepo();
+  seedSubRoot(repo);
+  seedSubRootChangeDocs(repo, 'subland');
+  const committed = repo.run('git', ['add', '-A']);
+  if (committed.code !== 0) throw new Error(committed.stderr);
+  repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'seed']);
+  const started = runCli(['change', 'start', 'subland'], subRootOf(repo), process.env);
+  if (started.status !== 0) {
+    throw new Error(`change start failed: ${started.stdout ?? ''}${started.stderr ?? ''}`);
+  }
+  // 只动根实例 specs(sample 现有 r1 → 新块 r2):不满足子根前缀,门必须仍红
+  writeFileSync(
+    join(repo.root, 'llmanspec', 'specs', 'sample.feature'),
+    readFileSync(join(repo.root, 'llmanspec', 'specs', 'sample.feature'), 'utf8') +
+      '\n  @req:r2\n  规则: 另一规则\n    系统 MUST w\n',
+  );
+  repo.run('git', ['add', '-A']);
+  repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'root specs']);
+  ctx.fixtures['子根未落地仓库'] = { repo };
+});
+
+bdd.when('在子根实例上运行 show 该 change', (ctx) => {
+  const { repo } = ctx.fixtures['子根未落地仓库'] as { repo: TempRepo };
+  const showed = runCli(['show', 'subland', '--output', 'json'], subRootOf(repo), process.env);
+  ctx.fixtures['子根未落地结果'] = {
+    showOut: showed.stdout ?? '',
+    showCode: showed.status ?? 1,
+  };
+});
+
+bdd.thenStep('show 的 specs-landed 门为不通过且提示落在本实例 llmanspec/specs', (ctx) => {
+  const r = ctx.fixtures['子根未落地结果'] as { showOut: string; showCode: number };
+  if (r.showCode !== 0) throw new Error(`show 失败: ${r.showOut}`);
+  const parsed = JSON.parse(r.showOut) as {
+    gateChecks: Array<{ name: string; pass: boolean; hint: string }>;
+  };
+  const gate = parsed.gateChecks.find((g) => g.name === 'specs-landed');
+  if (gate?.pass !== false) {
+    throw new Error(`只动根实例 specs 却过了子根落地门(前缀未生效?): ${JSON.stringify(gate)}`);
+  }
+  if (!gate.hint.includes('packages/tui/llmanspec/specs/')) {
+    throw new Error(`提示未指向本实例 specs 目录: ${gate.hint}`);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// cli r109 — 缺实例链接 worktree 中 archive freeze 报域错误且可显式重定向。
+// ---------------------------------------------------------------------------
+
+bdd.given('一个根实例含归档条目且挂有缺 llmanspec 链接 worktree 的临时仓库', (ctx) => {
+  const repo = makeTempRepo();
+  const archDir = join(repo.root, 'llmanspec', 'changes', 'archive', '2026-01-01-old');
+  mkdirSync(archDir, { recursive: true });
+  writeFileSync(
+    join(archDir, 'proposal.md'),
+    '---\ndepends_on: []\ntitle: 旧条目\n---\n\n## Why\nx\n\n## What Changes\n- y\n',
+  );
+  const committed = repo.run('git', ['add', '-A']);
+  if (committed.code !== 0) throw new Error(committed.stderr);
+  repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'archived']);
+  const side = join(repo.root, '..', `${basename(repo.root)}-side`);
+  const added = repo.run('git', ['worktree', 'add', '-b', 'side/no-inst', side]);
+  if (added.code !== 0) throw new Error(`worktree add failed: ${added.stderr}`);
+  rmSync(join(side, 'llmanspec'), { recursive: true, force: true });
+  ctx.fixtures['缺实例 worktree 归档仓库'] = { repo, side };
+});
+
+bdd.when(
+  '在该 worktree 内运行 archive freeze --dry-run 并再以 --directory 指向主检出运行一次',
+  (ctx) => {
+    const { repo, side } = ctx.fixtures['缺实例 worktree 归档仓库'] as {
+      repo: TempRepo;
+      side: string;
+    };
+    const plain = runCli(['archive', 'freeze', '--dry-run'], side, process.env);
+    const redirected = runCli(
+      ['archive', 'freeze', '--dry-run', '--directory', repo.root],
+      side,
+      process.env,
+    );
+    ctx.fixtures['缺实例 freeze 结果'] = {
+      plainCode: plain.status ?? 1,
+      plainOut: `${plain.stdout ?? ''}${plain.stderr ?? ''}`,
+      redirCode: redirected.status ?? 1,
+      redirOut: `${redirected.stdout ?? ''}${redirected.stderr ?? ''}`,
+    };
+  },
+);
+
+bdd.thenStep('缺省调用报域错误退出 1,显式重定向可用且输出非主检出 WARNING', (ctx) => {
+  const r = ctx.fixtures['缺实例 freeze 结果'] as {
+    plainCode: number;
+    plainOut: string;
+    redirCode: number;
+    redirOut: string;
+  };
+  if (r.plainCode !== 1) throw new Error(`缺省调用未按域错误退出(${r.plainCode}): ${r.plainOut}`);
+  if (!r.plainOut.includes('no llmanspec root at or above')) {
+    throw new Error(`缺省调用未报域错误: ${r.plainOut}`);
+  }
+  if (r.plainOut.includes('ENOENT')) throw new Error(`缺省调用泄漏底层错误: ${r.plainOut}`);
+  if (r.redirCode !== 0) throw new Error(`显式重定向失败: ${r.redirOut}`);
+  if (!r.redirOut.includes('non-main checkout')) {
+    throw new Error(`重定向输出缺非主检出 WARNING: ${r.redirOut}`);
+  }
+  if (!r.redirOut.includes('2026-01-01-old')) {
+    throw new Error(`重定向未列出归档条目: ${r.redirOut}`);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// r118/W1 — 子根 change 分支由链接 worktree 持有时,finalize 的归档改名必须
+// 重定向到主检出的同一子根实例(ioAt 重定向携带实例偏移;旧实现以持有者
+// toplevel 直接拼接根相对路径,子根 rename 落到主检出根实例而 ENOENT)。
+// ---------------------------------------------------------------------------
+
+bdd.given(
+  '一个根与子根双实例且子根 change 分支由链接 worktree 持有并已在该 worktree 落地子根 specs 的临时仓库',
+  (ctx) => {
+    const repo = makeTempRepo();
+    seedSubRoot(repo);
+    seedSubRootChangeDocs(repo, 'subland');
+    const committed = repo.run('git', ['add', '-A']);
+    if (committed.code !== 0) throw new Error(committed.stderr);
+    repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'seed']);
+    const wt = join(repo.root, '..', `${basename(repo.root)}-wt`);
+    const added = repo.run('git', ['worktree', 'add', '-b', 'sdd/subland', wt]);
+    if (added.code !== 0) throw new Error(`worktree add failed: ${added.stderr}`);
+    // 绑定写在分支上(该 worktree 持有分支);base_sha 仅审计,取分叉点
+    const sha = repo.run('git', ['rev-parse', '--short', 'HEAD']).stdout.trim();
+    writeFileSync(
+      join(wt, SUB, 'llmanspec', 'changes', 'subland', 'proposal.md'),
+      `---\ndepends_on: []\ntitle: 子根规格落地条目\nbranch: sdd/subland\nbase_branch: main\nbase_sha: ${sha}\n---\n\n## Why\nx\n\n## What Changes\n- y\n`,
+    );
+    const bound = repo.run('git', [
+      '-C',
+      wt,
+      '-c',
+      'user.email=t@t',
+      '-c',
+      'user.name=t',
+      'commit',
+      '-aqm',
+      'bind',
+    ]);
+    if (bound.code !== 0) throw new Error(bound.stderr);
+    // 在该 worktree 落地子根 specs(分支的 specs diff 即来自这里)
+    writeFileSync(
+      join(wt, SUB, 'llmanspec', 'specs', 'tuicap.feature'),
+      readFileSync(join(wt, SUB, 'llmanspec', 'specs', 'tuicap.feature'), 'utf8') + LAND_RULE,
+    );
+    const landed = repo.run('git', [
+      '-C',
+      wt,
+      '-c',
+      'user.email=t@t',
+      '-c',
+      'user.name=t',
+      'commit',
+      '-aqm',
+      'land specs',
+    ]);
+    if (landed.code !== 0) throw new Error(landed.stderr);
+    ctx.fixtures['worktree 子根收口仓库'] = { repo, wt };
+  },
+);
+
+bdd.when('在该 worktree 的子包目录运行 change finalize 该 change', (ctx) => {
+  const { repo, wt } = ctx.fixtures['worktree 子根收口仓库'] as {
+    repo: TempRepo;
+    wt: string;
+  };
+  const fin = runCli(['change', 'finalize', 'subland'], join(wt, SUB), process.env);
+  ctx.fixtures['worktree 子根收口结果'] = {
+    code: fin.status ?? 1,
+    out: `${fin.stdout ?? ''}${fin.stderr ?? ''}`,
+    repo,
+    wt,
+  };
+});
+
+bdd.thenStep('退出码为 0 且归档目录落在主检出的子根实例而不再报 ENOENT', (ctx) => {
+  const r = ctx.fixtures['worktree 子根收口结果'] as {
+    code: number;
+    out: string;
+    repo: TempRepo;
+    wt: string;
+  };
+  if (r.code !== 0) throw new Error(`finalize 失败:\n${r.out}`);
+  if (r.out.includes('ENOENT')) throw new Error(`归档改名泄漏 ENOENT:\n${r.out}`);
+  const archiveRoot = join(r.repo.root, SUB, 'llmanspec', 'changes', 'archive');
+  const names = readdirSync(archiveRoot);
+  if (!names.some((n) => n.endsWith('-subland'))) {
+    throw new Error(`主检出子根实例缺归档目录: ${names.join(',')}`);
+  }
+  if (existsSync(join(r.repo.root, SUB, 'llmanspec', 'changes', 'subland'))) {
+    throw new Error('主检出子根实例的原 change 目录未被改名');
   }
 });

@@ -17,18 +17,14 @@ import {
 export function registerConfig(program: Command, ctx: CliContext): void {
   const configCmd = program.command('config');
 
-  configCmd
-    .description('Print a read-only llmanspec/config.yaml overview')
-    .option(
-      '--directory <path>',
-      'instance root resolution start (default: nearest llmanspec/ at or above cwd)',
-    )
-    .action((options: { directory?: string }) => {
-      const root = resolveCommandRoot(ctx, options.directory);
-      const source = readFileSync(join(root, 'llmanspec', 'config.yaml'), 'utf8');
-      warnLegacyBddOnce(source);
-      console.log(renderConfigOverview(source).join('\n'));
-    });
+  configCmd.description('Print a read-only llmanspec/config.yaml overview');
+  addSpecDirOption(configCmd);
+  configCmd.action((options: { directory?: string }) => {
+    const root = resolveCommandRoot(ctx, options.directory);
+    const source = readFileSync(join(root, 'llmanspec', 'config.yaml'), 'utf8');
+    warnLegacyBddOnce(source);
+    console.log(renderConfigOverview(source).join('\n'));
+  });
 
   const skills = configCmd.command('skills').description('Manage extra_skills (non-interactive)');
   addReportOutputOptions(skills);

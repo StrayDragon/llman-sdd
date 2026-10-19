@@ -5,7 +5,7 @@
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
-import { isAbsolute, join, resolve } from 'node:path';
+import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 import {
   discoverSpecs,
@@ -418,6 +418,19 @@ export function addSpecDirOption(cmd: Command): void {
     '--directory <path>',
     'instance root resolution start (default: nearest llmanspec/ at or above cwd)',
   );
+}
+
+/**
+ * r119: the specs-landed prefix for ctx's instance root — the same
+ * git-toplevel-relative derivation as the r118 number harvest
+ * (`harvestForRoot`), so the close-out gate and the harvest can never
+ * disagree about which `llmanspec/` tree a change belongs to. Forward slashes
+ * always: git diff --name-only emits them on every platform.
+ */
+export function specsPrefixFor(ctx: CliContext): string {
+  const top = ctx.git.runOpt(['rev-parse', '--show-toplevel']) ?? ctx.root;
+  const rel = relative(top, resolve(ctx.root)).split(sep).join('/');
+  return rel === '' ? 'llmanspec/specs/' : `${rel}/llmanspec/specs/`;
 }
 
 /**

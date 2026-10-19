@@ -1438,20 +1438,6 @@ bdd.given('一个已完成 start 并在特性分支有新提交且 live specs �
   ctx.fixtures['change'] = { id };
 });
 
-bdd.thenStep('报错含 "{text}" 且目标分支无新提交', (ctx, text) => {
-  const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
-  const r = ctx.fixtures['finalize结果'] as CliResult;
-  if (r.exitCode === 0)
-    throw new Error(`finalize should have failed: ${r.stdout}${r.stderr ?? ''}`);
-  if (!`${r.stdout}${r.stderr ?? ''}`.includes(text)) {
-    throw new Error(`output must contain "${text}": ${r.stdout}${r.stderr ?? ''}`);
-  }
-  const subjects = repo.run('git', ['log', '--format=%s', 'main']).stdout.trim().split('\n');
-  if ((subjects[0] ?? '').startsWith('archive(sdd):')) {
-    throw new Error(`zero-write violated: ${subjects[0]}`);
-  }
-});
-
 bdd.when('运行 change finalize --no-check', (ctx) => {
   const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
   const id = (ctx.fixtures['change'] as { id: string }).id;

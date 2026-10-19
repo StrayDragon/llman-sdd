@@ -32,6 +32,8 @@ import {
   loadCliConfig,
   loadRootSpecEntries,
   reRootContext,
+  addSpecDirOption,
+  specsPrefixFor,
   resolveChangeIdOrExit,
   resolveOutMode,
   type CliContext,
@@ -127,7 +129,13 @@ function changeV1Items(
         strict_defer: config?.archive?.strict_defer ?? null,
         change_id_pattern: config?.change_id?.pattern ?? null,
       },
-      { stage: opts.stage as never, strict: opts.strict === true, git },
+      {
+        stage: opts.stage as never,
+        strict: opts.strict === true,
+        git,
+        // r119: specs-landing judged under this instance's prefix.
+        specsPrefix: specsPrefixFor(ctx),
+      },
     );
     items.push({
       id: name,
@@ -305,11 +313,9 @@ export function registerValidate(program: Command, ctx: CliContext): void {
     .option('--specs', 'restrict scope to specs')
     .option('--type <type>', 'force disambiguation: change | spec')
     .option('--stage <stage>', 'change stage gate: draft | designed | planned | full')
-    .option('--strict', 'warnings also make the exit code non-zero')
-    .option(
-      '--directory <path>',
-      'instance root resolution start (default: nearest llmanspec/ at or above cwd)',
-    )
+    .option('--strict', 'warnings also make the exit code non-zero');
+  addSpecDirOption(validate);
+  validate
     .option(
       '--all-roots',
       'aggregate: validate every discovered llmanspec root (specs scope, any root red → non-zero exit)',
@@ -510,6 +516,8 @@ export function registerValidate(program: Command, ctx: CliContext): void {
             stage: options.stage as never,
             strict: options.strict === true,
             git: eff.git,
+            // r119: specs-landing judged under this instance's prefix.
+            specsPrefix: specsPrefixFor(eff),
           },
         );
         const infos = res.issues.filter((i) => i.level === 'INFO');

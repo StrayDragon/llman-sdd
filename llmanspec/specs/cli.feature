@@ -148,3 +148,8 @@
       假如 一个只有 changes 目录而无有效实例判据的临时仓库
       当 在该仓库运行 show 该 change 并在同一目录以 --directory 显式限定
       那么 缺省形态读出该 change 而显式 --directory 形态与 list 都报域错误
+
+    场景: 缺实例链接 worktree 中 archive freeze 报域错误且可显式重定向
+      假如 一个根实例含归档条目且挂有缺 llmanspec 链接 worktree 的临时仓库
+      当 在该 worktree 内运行 archive freeze --dry-run 并再以 --directory 指向主检出运行一次
+      那么 缺省调用报域错误退出 1,显式重定向可用且输出非主检出 WARNING

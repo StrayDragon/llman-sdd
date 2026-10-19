@@ -17,6 +17,7 @@ import {
   extractFrontmatter,
   readBinding,
   readNeedsSpecsChange,
+  DEFAULT_SPECS_PREFIX,
   specsLanded,
   writeBinding,
   type ChangeBinding,
@@ -323,8 +324,11 @@ export function closeOutGate(change: {
   io: FsIo;
   id: string;
   binding: ChangeBinding | null;
+  /** r119: instance-relative specs prefix of the change's own root. */
+  specsPrefix?: string;
 }): { ok: boolean; reason: string | null } {
   const { git, io, id, binding } = change;
+  const specsPrefix = change.specsPrefix ?? DEFAULT_SPECS_PREFIX;
   // task gate first: the unchecked list is the most actionable feedback and
   // keeps the predecessor "blocked by unchecked tasks" surface primary.
   const tasksPath = `${CHANGES_DIR}/${id}/tasks.md`;
@@ -347,12 +351,11 @@ export function closeOutGate(change: {
   const proposal = io.readText(`${CHANGES_DIR}/${id}/proposal.md`);
   const needsSpecsChange = readNeedsSpecsChange(extractFrontmatter(proposal));
   if (binding !== null) {
-    const landed = specsLanded(git, binding);
+    const landed = specsLanded(git, binding, specsPrefix);
     if (!landed && needsSpecsChange) {
       return {
         ok: false,
-        reason:
-          'close-out blocked: no changes under llmanspec/specs/ on the bound branch (or set needs_specs_change to false)',
+        reason: `close-out blocked: no changes under ${specsPrefix} on the bound branch (or set needs_specs_change to false)`,
       };
     }
   }
@@ -364,7 +367,14 @@ export function finalizeChange(
   git: GitLike,
   io: FsIo,
   id: string,
-  opts: { into?: string; method?: 'squash' | 'ff'; today: string; noCommit?: boolean },
+  opts: {
+    into?: string;
+    method?: 'squash' | 'ff';
+    today: string;
+    noCommit?: boolean;
+    /** r119: instance-relative specs prefix of the change's own root. */
+    specsPrefix?: string;
+  },
 ): FinalizeResult {
   const path = proposalPath(id);
   const binding = readBinding(io.readText(path));
@@ -372,7 +382,7 @@ export function finalizeChange(
     throw new LifecycleError(`change \`${id}\` has no branch binding — run start/attach first`);
   }
   // T34 close-out gate before any write: specs-landed verdict + task gate.
-  const closeOut = closeOutGate({ git, io, id, binding });
+  const closeOut = closeOutGate({ git, io, id, binding, specsPrefix: opts.specsPrefix });
   if (!closeOut.ok) {
     throw new LifecycleError(closeOut.reason as string);
   }
@@ -401,7 +411,17 @@ export function finalizeChange(
   }
   const method = opts.method ?? 'squash';
   const target = opts.into ?? binding.baseBranch ?? defaultBranch(git);
-  return mergeRenameCommit(git, io, id, binding.branch, target, method, opts.today, opts.noCommit);
+  return mergeRenameCommit(
+    git,
+    io,
+    id,
+    binding.branch,
+    target,
+    method,
+    opts.today,
+    opts.noCommit,
+    instanceDirRelFrom(opts.specsPrefix),
+  );
 }
 
 /** r69: GitLike view bound to another worktree via `git -C <path>` prefixing. */
@@ -424,6 +444,16 @@ function ioAt(io: FsIo, root: string): FsIo {
   };
 }
 
+/**
+ * r119: instance dir relative to the git toplevel, derived from the specs
+ * prefix ('llmanspec/specs/' → '', 'packages/tui/llmanspec/specs/' →
+ * 'packages/tui') — the inverse of the CLI's `specsPrefixFor` derivation, so
+ * the close-out redirect and the gate can never disagree.
+ */
+function instanceDirRelFrom(specsPrefix: string | undefined): string {
+  return (specsPrefix ?? DEFAULT_SPECS_PREFIX).replace(/llmanspec\/specs\/$/u, '');
+}
+
 /** r69: worktree path currently holding <branch> checked out, or null. */
 function holderOfWorktree(git: GitLike, branch: string): string | null {
   for (const entry of worktreeList(git)) {
@@ -442,6 +472,8 @@ function mergeRenameCommit(
   method: 'squash' | 'ff',
   today: string,
   noCommit?: boolean,
+  /** r119: instance dir relative to the git toplevel ('' at the repo root). */
+  instanceDirRel = '',
 ): FinalizeResult {
   const warnings: string[] = [];
   // r69: when the target branch is checked out in another worktree, `git
@@ -465,7 +497,11 @@ function mergeRenameCommit(
       );
     }
     execGit = gitAt(git, holder);
-    execIo = ioAt(io, holder);
+    // r119/W1: the io is anchored at the INSTANCE root; redirecting onto the
+    // holding worktree must re-attach the instance offset relative to its
+    // toplevel, or a sub-root rename would target <holder>/llmanspec (the
+    // repo-root instance) and fail ENOENT mid-close-out (merge already run).
+    execIo = ioAt(io, instanceDirRel === '' ? holder : `${holder}/${instanceDirRel}`);
     executedIn = holder;
   }
   // r96: in-place close-out — merging a branch into itself is always a no-op
@@ -517,6 +553,8 @@ export function archiveChange(
     /** CLI already enforced a clean tree before the acceptance command ran. */
     skipCleanTree?: boolean;
     today: string;
+    /** r119: instance-relative specs prefix of the change's own root. */
+    specsPrefix?: string;
   },
 ): FinalizeResult {
   const path = proposalPath(id);
@@ -526,7 +564,7 @@ export function archiveChange(
   }
   if (!opts.force) {
     // T34: shared close-out verdict before any write (archive honors --force).
-    const closeOut = closeOutGate({ git, io, id, binding });
+    const closeOut = closeOutGate({ git, io, id, binding, specsPrefix: opts.specsPrefix });
     if (!closeOut.ok) throw new LifecycleError(closeOut.reason as string);
     const tasksPath = `${CHANGES_DIR}/${id}/tasks.md`;
     const gate = archiveTaskGate(io.exists(tasksPath) ? io.readText(tasksPath) : null);
@@ -564,7 +602,17 @@ export function archiveChange(
   }
   const method = opts.method ?? 'squash';
   const target = opts.into ?? binding?.baseBranch ?? defaultBranch(git);
-  return mergeRenameCommit(git, io, id, binding?.branch as string, target, method, opts.today);
+  return mergeRenameCommit(
+    git,
+    io,
+    id,
+    binding?.branch as string,
+    target,
+    method,
+    opts.today,
+    undefined,
+    instanceDirRelFrom(opts.specsPrefix),
+  );
 }
 
 /** `change diff <id>`: full diff of the bound branch vs base. */

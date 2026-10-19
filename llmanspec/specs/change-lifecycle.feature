@@ -585,3 +585,28 @@
       当 在子包源码子目录运行 archive freeze 与 archive thaw --dest restored
       那么 冷备与被解冻条目都只落在子根实例且根实例零新增
 
+    场景: 子根 change 在持有其分支的链接 worktree 内 finalize 归档成功
+      假如 一个根与子根双实例且子根 change 分支由链接 worktree 持有并已在该 worktree 落地子根 specs 的临时仓库
+      当 在该 worktree 的子包目录运行 change finalize 该 change
+      那么 退出码为 0 且归档目录落在主检出的子根实例而不再报 ENOENT
+
+  @req:r119
+  规则: specs-landed 判据按 change 所属实例根
+    收口门(`specsLanded || !needs_specs_change`,r45)中 `specsLanded` 的判据 MUST 按 change 被解析出的实例根
+    判定:以 `relative(git toplevel, 实例根)` 为实例前缀,`git diff --name-only <base>...<branch>`(diff 范围现算
+    merge-base,既有算法不变)的行命中该前缀下 `llmanspec/specs/` 即为 landed;根实例前缀退化为字面量
+    `llmanspec/specs/`(判定语义与 validate/finalize 的消息文本在单根与根实例逐字节不变;show 红态 hint 统一含实例前缀,根实例为字面量 `llmanspec/specs/`)。仿冒路径(如 `docs/llmanspec/specs/x` 或
+    `<前缀>/docs/llmanspec/specs/x`)MUST NOT 计为命中;分支只改动其他实例根的 specs 时 MUST NOT 计为命中
+    (严格本实例,与 scope-boundaries r116 写面约束同精神)。`show` 的 specs-landed 门、`validate` 的收口
+    校验与 `change finalize` 的收口门 MUST 共用该判据。
+
+    场景: 子根 change 落地子根 specs 即过收口门
+      假如 一个根与子根双实例且子根 change 已绑定分支并提交子根 specs 的临时仓库
+      当 在子根实例上运行 show 该 change 与 change finalize 该 change
+      那么 show 的 specs-landed 门为通过且 finalize 收口不再被 specs 落地门拦截
+
+    场景: 子根 change 只动根实例 specs 不过收口门
+      假如 一个根与子根双实例且子根 change 已绑定分支但只提交了根实例 specs 的临时仓库
+      当 在子根实例上运行 show 该 change
+      那么 show 的 specs-landed 门为不通过且提示落在本实例 llmanspec/specs
+

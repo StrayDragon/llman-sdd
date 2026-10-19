@@ -3,6 +3,7 @@ import {
   extractFrontmatter,
   readBinding,
   readNeedsSpecsChange,
+  DEFAULT_SPECS_PREFIX,
   specsLanded as specsLandedOf,
 } from '../change/frontmatter.ts';
 import { CHANGES_DIR } from '../change/lifecycle.ts';
@@ -25,6 +26,8 @@ export interface ShowDeps {
   git: GitLike;
   root: string;
   specsDir: string;
+  /** r119: instance-relative specs prefix of this root (specs-landed gate). */
+  specsPrefix?: string;
 }
 
 export function showChangeJson(
@@ -62,9 +65,11 @@ export function showChangeJson(
   const onBoundBranch = binding !== null && current === binding.branch;
 
   // specs landing: bound changes must have touched llmanspec/specs/ since base
+  // (r119: judged under THIS instance's prefix, not the repo-root literal)
+  const specsPrefix = deps.specsPrefix ?? DEFAULT_SPECS_PREFIX;
   let landedOnBranch = false;
   if (binding !== null) {
-    landedOnBranch = specsLandedOf(git, binding);
+    landedOnBranch = specsLandedOf(git, binding, specsPrefix);
   }
   const needsSpecsChange = readNeedsSpecsChange(extractFrontmatter(proposal));
 
@@ -109,7 +114,7 @@ export function showChangeJson(
       hint:
         landedOnBranch || !needsSpecsChange
           ? ''
-          : 'edit live specs on the bound branch and commit (or set needs_specs_change to false)',
+          : `edit live specs under ${specsPrefix} on the bound branch and commit (or set needs_specs_change to false)`,
     },
     {
       name: 'tasks-done',

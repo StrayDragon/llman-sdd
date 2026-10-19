@@ -32,6 +32,7 @@ import {
   loadCliConfig,
   loadRootSpecEntries,
   reRootContext,
+  specsPrefixFor,
   resolveChangeIdOrExit,
   type CliContext,
   addReportOutputOptions,
@@ -408,6 +409,8 @@ export function registerChange(program: Command, ctx: CliContext): void {
         force: options.force,
         skipCleanTree: true,
         today: new Date().toISOString().slice(0, 10),
+        // r119: judge specs-landing under the change's own instance root.
+        specsPrefix: specsPrefixFor(rctx),
       });
       // node:path.basename — platform-aware (win32 backslashes would defeat
       // a hand-rolled lastIndexOf('/')).
@@ -504,6 +507,8 @@ export function registerChange(program: Command, ctx: CliContext): void {
         method: method as 'squash' | 'ff',
         today: new Date().toISOString().slice(0, 10),
         noCommit: options.commit === false,
+        // r119: judge specs-landing under the change's own instance root.
+        specsPrefix: specsPrefixFor(rctx),
       });
       for (const w of result.warnings) console.error(`[WARNING] ${w}`);
       if (options.commit === false) {

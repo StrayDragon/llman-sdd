@@ -65,14 +65,26 @@ export function readNeedsSpecsChange(frontmatter: string | null): boolean {
 }
 
 /**
- * r73: live specs landed on the bound branch — per-line prefix match on
- * `diff --name-only <base_branch>...<branch>` (a path like
- * `docs/llmanspec/specs/x` must not count as landed).
+ * r119: live specs landed on the bound branch — per-line prefix match on
+ * `diff --name-only <base_branch>...<branch>`. The prefix is the change's
+ * instance-relative specs dir (`llmanspec/specs/` for the repo-root instance,
+ * `packages/tui/llmanspec/specs/` for a sub-project one); a path like
+ * `docs/llmanspec/specs/x` must not count as landed. Edits to ANOTHER
+ * instance's specs never match this instance's prefix (strictly own-instance,
+ * mirroring the r116 write constraint).
  */
-export function specsLanded(git: GitLike, binding: ChangeBinding): boolean {
+/** r119: the repo-root instance's specs prefix — the default every caller
+ * degrades to (single-root byte parity). One constant, five call sites. */
+export const DEFAULT_SPECS_PREFIX = 'llmanspec/specs/';
+
+export function specsLanded(
+  git: GitLike,
+  binding: ChangeBinding,
+  specsPrefix = DEFAULT_SPECS_PREFIX,
+): boolean {
   const touched =
     git.runOpt(['diff', '--name-only', `${binding.baseBranch}...${binding.branch}`]) ?? '';
-  return touched.split('\n').some((line) => line.startsWith('llmanspec/specs/'));
+  return touched.split('\n').some((line) => line.startsWith(specsPrefix));
 }
 
 export function readBinding(proposal: string): ChangeBinding | null {

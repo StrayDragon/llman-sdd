@@ -5,6 +5,7 @@ import {
   readBinding,
   readFrontmatterTitle,
   readNeedsSpecsChange,
+  DEFAULT_SPECS_PREFIX,
   specsLanded,
 } from '../change/frontmatter.ts';
 import { CHANGES_DIR } from '../change/lifecycle.ts';
@@ -229,7 +230,7 @@ export function validateChange(
   root: string,
   id: string,
   config: ChangeValidationConfig,
-  opts: { stage?: StageGate; strict?: boolean; git?: GitLike } = {},
+  opts: { stage?: StageGate; strict?: boolean; git?: GitLike; specsPrefix?: string } = {},
 ): ChangeCheckResult {
   const issues: ChangeIssue[] = [];
   const push = (level: ChangeIssueLevel, path: string, message: string): void => {
@@ -390,12 +391,14 @@ export function validateChange(
     // r63: Full-but-not-ready WARNING with skill guidance (predecessor r1 surface).
     if (opts.git !== undefined && binding !== null && stage === 'full') {
       const needs = readNeedsSpecsChange(fm);
-      const landed = specsLanded(opts.git, binding);
+      // r119: judged under the change's own instance prefix.
+      const specsPrefix = opts.specsPrefix ?? DEFAULT_SPECS_PREFIX;
+      const landed = specsLanded(opts.git, binding, specsPrefix);
       if (!landed && needs) {
         push(
           'WARNING',
           'proposal.md',
-          `specs not landed: change bound to \`${binding.branch}\` but no changes under \`llmanspec/specs/\` on its bound branch. Edit live specs there and commit (or set \`needs_specs_change\` to false in the frontmatter if this change has no live contract edits). Skill: llman-sdd-propose — do NOT re-run change start when already attached; start llman-sdd-apply once the specs-landed gate passes (see \`llman-sdd show <id>\` gateChecks).`,
+          `specs not landed: change bound to \`${binding.branch}\` but no changes under \`${specsPrefix}\` on its bound branch. Edit live specs there and commit (or set \`needs_specs_change\` to false in the frontmatter if this change has no live contract edits). Skill: llman-sdd-propose — do NOT re-run change start when already attached; start llman-sdd-apply once the specs-landed gate passes (see \`llman-sdd show <id>\` gateChecks).`,
         );
       }
     }

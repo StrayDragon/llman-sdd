@@ -186,6 +186,10 @@ LLMAN_SDD_INDEX_BACKEND='PAGEINDEX' llman-sdd context --task '<task>'
   下，此后归位最近实例根。
 - 无有效实例的目录下 `change new`/`archive freeze` 等由「就地新建 `llmanspec/`」改为
   域错误退出 1。
+- 子根实例上 change 的 specs 落地收口门按**该子根实例**的 `llmanspec/specs/` 前缀判定
+  （change-lifecycle r119）：此前按仓库根字面量误判，子根 change 编辑子根 specs 也会被
+  `change finalize` 拦下、只能靠 `needs_specs_change: false` 绕行；升级后提交子根
+  `llmanspec/specs/**` 即过门，只动其他实例的 specs 仍不计数（严格本实例）。
 
 ### 升级步骤
 

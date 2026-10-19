@@ -26,6 +26,7 @@ const registerContext = (await import('../../apps/cli/src/commands/context.ts'))
 const registerGraph = (await import('../../apps/cli/src/commands/graph.ts')).registerGraph;
 const registerIndex = (await import('../../apps/cli/src/commands/index.ts')).registerIndex;
 const registerInit = (await import('../../apps/cli/src/commands/init.ts')).registerInit;
+const registerSelf = (await import('../../apps/cli/src/commands/self.ts')).registerSelf;
 const registerList = (await import('../../apps/cli/src/commands/list.ts')).registerList;
 const registerProject = (await import('../../apps/cli/src/commands/project.ts')).registerProject;
 const registerReview = (await import('../../apps/cli/src/commands/review.ts')).registerReview;
@@ -47,6 +48,7 @@ function buildProgram(): Command {
   );
   const ctx = cliShared.makeCliContext(process.cwd());
   registerInit(program, ctx);
+  registerSelf(program, ctx); // r109 gate: keeps the `self` exemption branch live
   registerValidate(program, ctx);
   registerChange(program, ctx);
   registerList(program, ctx);

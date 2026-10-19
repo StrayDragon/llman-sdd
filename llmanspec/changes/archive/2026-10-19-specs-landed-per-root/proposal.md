@@ -1,6 +1,9 @@
 ---
 depends_on: []
 title: 多根模型下收口门按 change 所属实例根判定 specs 落地
+branch: sdd/specs-landed-per-root
+base_branch: main
+base_sha: bbe6a312dc889e3fece9cee006a53e4fe826ed0b
 ---
 
 ## Why
@@ -42,7 +45,8 @@ change 编辑 `packages/tui/llmanspec/specs/**` 会被 `change finalize` 误拦
 
 ## Impact
 
-- 行为变化仅多根场景:子根 change 收口门从误拦转为按实例前缀正确判定;单根/根实例行为
-  逐字节不变(前缀退化为现行字面量)。无破坏面迁移需求(v0.10 未发布,迁移 6 为在册文档,
+- 行为变化仅多根场景:子根 change 收口门从误拦转为按实例前缀正确判定;单根/根实例的判定语义与
+  validate/finalize 消息逐字节不变(前缀退化为现行字面量);show 红态 hint 统一含实例前缀(根实例为字面量),
+  属随统一模板有意改进的单处文本面变化。无破坏面迁移需求(v0.10 未发布,迁移 6 为在册文档,
   原地补述)。
 - 六笔记债全数清偿;已核实的事实依据与探针记录见 tasks 各条。

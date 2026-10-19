@@ -19,6 +19,7 @@ import {
   cliMaxScanDepth,
   loadRootSpecEntries,
   reRootContext,
+  specsPrefixFor,
   resolveCommandRoot,
   resolveChangeIdOrExit,
   resolveRootSpecsDirTolerant,
@@ -266,6 +267,8 @@ export function registerShow(program: Command, ctx: CliContext): void {
         git: rctx.git,
         root: rctx.root,
         specsDir: resolveRootSpecsDirTolerant(rctx),
+        // r119: the specs-landed gate judges under this instance's prefix.
+        specsPrefix: specsPrefixFor(rctx),
       };
       if (asJson) {
         // predecessor parse_change gates: Why first, then What Changes (json only).

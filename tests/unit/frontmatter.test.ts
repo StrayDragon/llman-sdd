@@ -120,6 +120,59 @@ describe('T1: single splitter + readNeedsSpecsChange + specsLanded (r73/D2)', ()
     expect(specsLanded(git, { branch: 'sdd/x', baseBranch: 'main', baseSha: 'abc' })).toBe(true);
   });
 
+  // r119: the prefix is the change's own instance-relative specs dir.
+  test('specsLanded (r119): sub-root prefix matches its own llmanspec/specs line', () => {
+    const git: GitLike = {
+      run: (): string => '',
+      runOpt: (): string | null =>
+        'packages/tui/llmanspec/specs/tuicap.feature\npackages/tui/src/a.ts\n',
+    };
+    expect(
+      specsLanded(
+        git,
+        { branch: 'sdd/x', baseBranch: 'main', baseSha: 'abc' },
+        'packages/tui/llmanspec/specs/',
+      ),
+    ).toBe(true);
+  });
+
+  test('specsLanded (r119): root-literal line does not satisfy a sub-root prefix', () => {
+    const git: GitLike = {
+      run: (): string => '',
+      runOpt: (): string | null => 'llmanspec/specs/x.feature\nsrc/a.ts\n',
+    };
+    expect(
+      specsLanded(
+        git,
+        { branch: 'sdd/x', baseBranch: 'main', baseSha: 'abc' },
+        'packages/tui/llmanspec/specs/',
+      ),
+    ).toBe(false);
+  });
+
+  test('specsLanded (r119): sub-root lookalike under docs/ does not count', () => {
+    const git: GitLike = {
+      run: (): string => '',
+      runOpt: (): string | null => 'packages/tui/docs/llmanspec/specs/x.feature\n',
+    };
+    expect(
+      specsLanded(
+        git,
+        { branch: 'sdd/x', baseBranch: 'main', baseSha: 'abc' },
+        'packages/tui/llmanspec/specs/',
+      ),
+    ).toBe(false);
+  });
+
+  test('specsLanded (r119): omitted prefix degrades to the root literal (byte-parity default)', () => {
+    const git: GitLike = {
+      run: (): string => '',
+      runOpt: (): string | null => 'llmanspec/specs/x.feature\n',
+    };
+    const binding = { branch: 'sdd/x', baseBranch: 'main', baseSha: 'abc' };
+    expect(specsLanded(git, binding)).toBe(specsLanded(git, binding, 'llmanspec/specs/'));
+  });
+
   test('writeBinding round-trip closes the block with \\n---\\n', () => {
     const eofClosed = '---\nbranch: sdd/old\nbase_branch: main\nbase_sha: abc\n---';
     const written = writeBinding(eofClosed, {
