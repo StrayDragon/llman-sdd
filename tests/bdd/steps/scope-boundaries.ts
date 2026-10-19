@@ -1404,3 +1404,69 @@ bdd.thenStep('退出码为 0 且归档目录落在主检出的子根实例而不
     throw new Error('主检出子根实例的原 change 目录未被改名');
   }
 });
+
+// ---------------------------------------------------------------------------
+// r68 — 子根实例上 start --worktree:绑定 MUST 写入新 worktree 的同一子根实例
+// (ioAt 重定向携带实例偏移;旧实现拼在 worktree toplevel 下而必败回滚)。
+// ---------------------------------------------------------------------------
+
+bdd.given('一个根与子根双实例且子根含未绑定 change 的临时仓库', (ctx) => {
+  const repo = makeTempRepo();
+  seedSubRoot(repo);
+  seedSubRootChangeDocs(repo, 'sw');
+  const committed = repo.run('git', ['add', '-A']);
+  if (committed.code !== 0) throw new Error(committed.stderr);
+  repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'seed']);
+  ctx.fixtures['子根待 start 仓库'] = { repo };
+});
+
+bdd.when('在子包源码子目录运行 change start 该 change --worktree', (ctx) => {
+  const { repo } = ctx.fixtures['子根待 start 仓库'] as { repo: TempRepo };
+  const started = runCli(
+    ['change', 'start', 'sw', '--worktree'],
+    join(subRootOf(repo), 'tests'),
+    process.env,
+  );
+  const wt = join(repo.root, '..', `${basename(repo.root)}-sdd-sw`);
+  ctx.fixtures['子根 worktree start 结果'] = {
+    code: started.status ?? 1,
+    out: `${started.stdout ?? ''}${started.stderr ?? ''}`,
+    repo,
+    wt,
+  };
+});
+
+bdd.thenStep('绑定写入新 worktree 的子根实例 proposal 且发起检出逐字节不变', (ctx) => {
+  const r = ctx.fixtures['子根 worktree start 结果'] as {
+    code: number;
+    out: string;
+    repo: TempRepo;
+    wt: string;
+  };
+  if (r.code !== 0) throw new Error(`start --worktree 失败:\n${r.out}`);
+  const wtProposal = join(r.wt, SUB, 'llmanspec', 'changes', 'sw', 'proposal.md');
+  if (!existsSync(wtProposal)) {
+    throw new Error(`新 worktree 的子根实例缺 proposal: ${wtProposal}`);
+  }
+  const bound = readFileSync(wtProposal, 'utf8');
+  if (!bound.includes('branch: sdd/sw') || !bound.includes('base_branch:')) {
+    throw new Error(`worktree 子根 proposal 未写入绑定:\n${bound}`);
+  }
+  // 发起检出逐字节不变:子根 proposal 仍无绑定,工作树干净
+  const srcProposal = readFileSync(
+    join(subRootOf(r.repo), 'llmanspec', 'changes', 'sw', 'proposal.md'),
+    'utf8',
+  );
+  if (srcProposal.includes('branch:')) {
+    throw new Error(`发起检出的 proposal 被写入:\n${srcProposal}`);
+  }
+  const status = r.repo.run('git', ['status', '--porcelain']);
+  if (status.stdout.trim() !== '') {
+    throw new Error(`发起检出工作树不干净:\n${status.stdout}`);
+  }
+  // 分支确实建在新 worktree,发起检出保持默认分支
+  const hereBranch = r.repo.run('git', ['branch', '--show-current']).stdout.trim();
+  if (hereBranch !== 'main') throw new Error(`发起检出被切换到 ${hereBranch}`);
+  const wtBranch = r.repo.run('git', ['-C', r.wt, 'branch', '--show-current']).stdout.trim();
+  if (wtBranch !== 'sdd/sw') throw new Error(`worktree 未检出 sdd/sw: ${wtBranch}`);
+});

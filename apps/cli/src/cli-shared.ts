@@ -18,6 +18,7 @@ import {
   resolveInstanceRoot,
   renderMachine,
   semverLt,
+  specsPrefixOfInstance,
   type TemplateIo,
 } from '@llman-sdd/core';
 import type { Command } from 'commander';
@@ -427,10 +428,13 @@ export function addSpecDirOption(cmd: Command): void {
  * disagree about which `llmanspec/` tree a change belongs to. Forward slashes
  * always: git diff --name-only emits them on every platform.
  */
-export function specsPrefixFor(ctx: CliContext): string {
+export function instanceDirRelFor(ctx: CliContext): string {
   const top = ctx.git.runOpt(['rev-parse', '--show-toplevel']) ?? ctx.root;
-  const rel = relative(top, resolve(ctx.root)).split(sep).join('/');
-  return rel === '' ? 'llmanspec/specs/' : `${rel}/llmanspec/specs/`;
+  return relative(top, resolve(ctx.root)).split(sep).join('/');
+}
+
+export function specsPrefixFor(ctx: CliContext): string {
+  return specsPrefixOfInstance(instanceDirRelFor(ctx));
 }
 
 /**

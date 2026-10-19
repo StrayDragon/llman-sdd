@@ -148,6 +148,7 @@ export {
   extractFrontmatter,
   readFrontmatterTitle,
   readNeedsSpecsChange,
+  specsPrefixOfInstance,
 } from './change/frontmatter.ts';
 export {
   GitError,

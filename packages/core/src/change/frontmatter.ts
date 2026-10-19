@@ -77,6 +77,25 @@ export function readNeedsSpecsChange(frontmatter: string | null): boolean {
  * degrades to (single-root byte parity). One constant, five call sites. */
 export const DEFAULT_SPECS_PREFIX = 'llmanspec/specs/';
 
+/**
+ * r119: instance dir relative to the git toplevel, derived from a specs
+ * prefix ('llmanspec/specs/' → '', 'packages/tui/llmanspec/specs/' →
+ * 'packages/tui') — the inverse of `specsPrefixOfInstance`. One module owns
+ * both directions so the close-out gate and the io redirects can never
+ * disagree about which `llmanspec/` tree a change belongs to.
+ */
+export function instanceDirRelOf(specsPrefix: string): string {
+  // `\/?` eats the separator too, so the round-trip
+  // instanceDirRelOf(specsPrefixOfInstance(rel)) === rel holds exactly
+  // ('a/b/llmanspec/specs/' → 'a/b', not 'a/b/').
+  return specsPrefix.replace(/\/?llmanspec\/specs\/$/u, '');
+}
+
+/** r119: the specs prefix of an instance dir rel ('' → 'llmanspec/specs/'). */
+export function specsPrefixOfInstance(instanceDirRel: string): string {
+  return instanceDirRel === '' ? DEFAULT_SPECS_PREFIX : `${instanceDirRel}/llmanspec/specs/`;
+}
+
 export function specsLanded(
   git: GitLike,
   binding: ChangeBinding,

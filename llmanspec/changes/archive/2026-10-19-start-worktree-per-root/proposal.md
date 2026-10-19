@@ -1,6 +1,9 @@
 ---
 depends_on: []
 title: 子根实例上 start --worktree 的绑定落点携带实例偏移
+branch: sdd/start-worktree-per-root
+base_branch: main
+base_sha: 18f8262a81f03ae75270d173637bcd977602b6b3
 ---
 
 ## Why

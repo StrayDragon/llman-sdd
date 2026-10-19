@@ -164,6 +164,14 @@ describe('T1: single splitter + readNeedsSpecsChange + specsLanded (r73/D2)', ()
     ).toBe(false);
   });
 
+  test('specs prefix primitives round-trip exactly (r119, W-2 pin)', async () => {
+    const m = await import('../../packages/core/src/change/frontmatter.ts');
+    for (const rel of ['', 'packages/tui', 'a/b']) {
+      expect(m.instanceDirRelOf(m.specsPrefixOfInstance(rel))).toBe(rel);
+    }
+    expect(m.specsPrefixOfInstance('')).toBe(m.DEFAULT_SPECS_PREFIX);
+  });
+
   test('specsLanded (r119): omitted prefix degrades to the root literal (byte-parity default)', () => {
     const git: GitLike = {
       run: (): string => '',

@@ -394,6 +394,11 @@
       而且 发起检出工作树干净且 proposal 未变
 
 
+    场景: 子根实例上 start --worktree 绑定落在该 worktree 的子根实例
+      假如 一个根与子根双实例且子根含未绑定 change 的临时仓库
+      当 在子包源码子目录运行 change start 该 change --worktree
+      那么 绑定写入新 worktree 的子根实例 proposal 且发起检出逐字节不变
+
     场景: start --worktree 目标路径已存在零写入
       假如 一个已提交的临时 git 仓库切到 feature/src 分支且含 change "demo-wt2" 的 proposal
       当 预先创建其 worktree 目标目录后运行 change start --worktree

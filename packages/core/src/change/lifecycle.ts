@@ -15,6 +15,7 @@ import {
 import { type FsPort } from '../util/fsPort.ts';
 import {
   extractFrontmatter,
+  instanceDirRelOf,
   readBinding,
   readNeedsSpecsChange,
   DEFAULT_SPECS_PREFIX,
@@ -174,6 +175,8 @@ export function startChange(
     worktreeRoot?: string;
     /** Config sdd.worktree_naming. */
     worktreeNaming?: 'id' | 'hash';
+    /** r119: instance dir relative to the git toplevel ('' at the repo root). */
+    instanceDirRel?: string;
   } = {},
 ): StartResult {
   const path = proposalPath(id);
@@ -224,12 +227,18 @@ export function startChange(
     // checkout stays byte-identical (zero writes through the original io).
     // The clean-tree gate guaranteed the proposal is committed at HEAD, so it
     // is present in the fresh worktree; a missing one rolls everything back.
-    const wtIo = ioAt(io, worktreePath);
+    // r119: the io is anchored at the INSTANCE root; redirecting into the new
+    // worktree must re-attach that offset relative to its toplevel (a sub-root
+    // change's proposal lives at <wt>/<rel>/llmanspec/changes/<id>), same
+    // shape as the mergeRenameCommit holder redirect.
+    const instanceDirRel = opts.instanceDirRel ?? '';
+    const wtRoot = instanceDirRel === '' ? worktreePath : `${worktreePath}/${instanceDirRel}`;
+    const wtIo = ioAt(io, wtRoot);
     if (!wtIo.exists(path)) {
       git.run(['worktree', 'remove', '--force', worktreePath]);
       git.run(['branch', '-D', branch]);
       throw new LifecycleError(
-        `proposal not found in the new worktree: ${worktreePath}/${path} — commit the change docs before \`change start --worktree\``,
+        `proposal not found in the new worktree: ${wtRoot}/${path} — commit the change docs before \`change start --worktree\``,
       );
     }
     const baseSha = mergeBase(gitAt(git, worktreePath), 'HEAD', baseBranch);
@@ -420,7 +429,7 @@ export function finalizeChange(
     method,
     opts.today,
     opts.noCommit,
-    instanceDirRelFrom(opts.specsPrefix),
+    instanceDirRelOf(opts.specsPrefix ?? DEFAULT_SPECS_PREFIX),
   );
 }
 
@@ -442,16 +451,6 @@ function ioAt(io: FsIo, root: string): FsIo {
     rename: (from, to) => io.rename(at(from), at(to)),
     listDir: (p) => io.listDir(at(p)),
   };
-}
-
-/**
- * r119: instance dir relative to the git toplevel, derived from the specs
- * prefix ('llmanspec/specs/' → '', 'packages/tui/llmanspec/specs/' →
- * 'packages/tui') — the inverse of the CLI's `specsPrefixFor` derivation, so
- * the close-out redirect and the gate can never disagree.
- */
-function instanceDirRelFrom(specsPrefix: string | undefined): string {
-  return (specsPrefix ?? DEFAULT_SPECS_PREFIX).replace(/llmanspec\/specs\/$/u, '');
 }
 
 /** r69: worktree path currently holding <branch> checked out, or null. */
@@ -611,7 +610,7 @@ export function archiveChange(
     method,
     opts.today,
     undefined,
-    instanceDirRelFrom(opts.specsPrefix),
+    instanceDirRelOf(opts.specsPrefix ?? DEFAULT_SPECS_PREFIX),
   );
 }
 

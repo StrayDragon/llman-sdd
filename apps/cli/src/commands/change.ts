@@ -32,6 +32,7 @@ import {
   loadCliConfig,
   loadRootSpecEntries,
   reRootContext,
+  instanceDirRelFor,
   specsPrefixFor,
   resolveChangeIdOrExit,
   type CliContext,
@@ -277,6 +278,9 @@ export function registerChange(program: Command, ctx: CliContext): void {
         worktree: options.worktree,
         worktreeRoot: config?.sdd?.worktree_root ?? undefined,
         worktreeNaming: config?.sdd?.worktree_naming ?? undefined,
+        // r119: the worktree redirect keeps the instance offset (sub-root
+        // start --worktree binds the SAME instance inside the new worktree).
+        instanceDirRel: instanceDirRelFor(rctx),
       });
       warnBaseBranchDeviation(git, result);
       console.log(
