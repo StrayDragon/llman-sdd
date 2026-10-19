@@ -1175,8 +1175,10 @@ bdd.given('一个根与子根双实例且子根 change 已绑定分支并提交�
 
 bdd.when('在子根实例上运行 show 该 change 与 change finalize 该 change', (ctx) => {
   const { repo } = ctx.fixtures['子根落地仓库'] as { repo: TempRepo };
-  const showed = runCli(['show', 'subland', '--output', 'json'], subRootOf(repo), process.env);
-  const finalized = runCli(['change', 'finalize', 'subland'], subRootOf(repo), process.env);
+  // 剥离 harness 嵌套守卫(同 worktree 收口用例):finalize 收口 harness 决策读父环境。
+  const { LLMAN_SDD_HARNESS_ACTIVE: _guard, ...env } = process.env;
+  const showed = runCli(['show', 'subland', '--output', 'json'], subRootOf(repo), env);
+  const finalized = runCli(['change', 'finalize', 'subland'], subRootOf(repo), env);
   ctx.fixtures['子根收口结果'] = {
     showOut: showed.stdout ?? '',
     showCode: showed.status ?? 1,
@@ -1351,6 +1353,19 @@ bdd.given(
       'bind',
     ]);
     if (bound.code !== 0) throw new Error(bound.stderr);
+    // CI 慢盘偶发根因护栏:绑定 commit 必须已落对象库再起 CLI 子进程,否则
+    // finalize 读到旧 blob(无 branch 键)而误报 no branch binding。
+    const boundHead = repo.run('git', ['-C', wt, 'rev-parse', 'HEAD']);
+    if (boundHead.code !== 0 || boundHead.stdout.trim() === '') {
+      throw new Error(`bind commit not persisted: ${boundHead.stderr}`);
+    }
+    const boundProposal = readFileSync(
+      join(wt, SUB, 'llmanspec', 'changes', 'subland', 'proposal.md'),
+      'utf8',
+    );
+    if (!boundProposal.includes('branch: sdd/subland')) {
+      throw new Error('bound proposal lost the branch frontmatter before finalize');
+    }
     // 在该 worktree 落地子根 specs(分支的 specs diff 即来自这里)
     writeFileSync(
       join(wt, SUB, 'llmanspec', 'specs', 'tuicap.feature'),
@@ -1377,7 +1392,10 @@ bdd.when('在该 worktree 的子包目录运行 change finalize 该 change', (ct
     repo: TempRepo;
     wt: string;
   };
-  const fin = runCli(['change', 'finalize', 'subland'], join(wt, SUB), process.env);
+  // 剥离 harness 嵌套守卫(同本文件空目录用例与 makeTempRepo 的 run):finalize
+  // 的收口 harness 决策读父环境,套件作为 harness 跑时必须按全新顶层上下文起 CLI。
+  const { LLMAN_SDD_HARNESS_ACTIVE: _guard, ...env } = process.env;
+  const fin = runCli(['change', 'finalize', 'subland'], join(wt, SUB), env);
   ctx.fixtures['worktree 子根收口结果'] = {
     code: fin.status ?? 1,
     out: `${fin.stdout ?? ''}${fin.stderr ?? ''}`,
