@@ -2,6 +2,25 @@
 
 本项目遵循语义化版本（SemVer）。breaking 变更随大版本/次版本标注迁移说明。
 
+## 0.10.1 (2026-10-19)
+
+change `freeze-gitignore-filter`（closes [#9](https://github.com/StrayDragon/llman-sdd/issues/9)）：
+`archive freeze` 不再整目录无过滤吸入冷备——打包前按 git 式层叠 `.gitignore` 求值，
+只把未被忽略的文件清单传入 7z，change 目录内遗留的构建产物（`target/`、
+`node_modules/` 等）不再膨胀归档体积（实测案例：68 MB 冷备 → 约 1.5 MB 正文体量）。
+
+- `review-freeze` r120（新条款）：忽略链 = 用户 `--ignore-file`（新增可重复旗标，
+  gitignore 格式，最高优先，不存在即报错）→ 候选目录树内嵌套 `.gitignore`（最深
+  优先，`/` 锚定按所在层求值）→ 祖先链上溯项目根（自实例根探测 `.git`，无 git 根
+  回退实例根）；判定遵循 gitignore 语义（目录尾斜杠、`!` 取反、`**`），被忽略目录
+  整棵剪枝，`.git` 恒不入包。
+- 防护与可观测：候选过滤后零文件时在任何写变更之前报错（不写卡、不删目录）；
+  人读输出追加 `Excluded N ignored file(s) via gitignore chain` 摘要行；无任何忽略
+  源时保持既有全量打包行为，thaw/`--list` 合同不变。
+- 连带修复：`7z l` 列表解析在 solid 压缩块内 Compressed 列为空时按空白切分会整行
+  丢行（潜伏缺陷），改为按表头列位切片，多文件清单归档条目完整可列。
+- 依赖：`packages/core` 新增 `ignore`（gitignore 语义匹配，纯函数）。
+
 ## 0.10.0 (2026-10-19)
 
 change `simplify-cli-core-and-skills`：模板树单线化为中文、收口门禁收紧、命令面退出码
