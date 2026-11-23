@@ -13,9 +13,16 @@
 
 # 项目速览
 
-llman-sdd:spec 驱动开发(SDD)工作流 CLI(Bun + TypeScript monorepo)。上方托管块由 `llman-sdd init --update` 刷新,勿手改;本节及以下为项目自述,可自由维护。
+llman-sdd:spec 驱动开发(SDD)工作流 CLI(Bun + TypeScript monorepo)。上方托管块由 `llman-sdd init --update` 刷新,勿手改;本节及以下为项目自述。
 
-- 目录:`packages/core`(纯域逻辑,副作用经接口注入)/ `apps/cli`(commander 入口)/ `tests`(unit·bdd·golden·integration)/ `llmanspec/`(规范·change·规则)
-- 项目规则与技术选型定案:`llmanspec/AGENTS.md`(必读)
-- 常用命令:门禁 `just qa`(全集,等价 CI;默认静默,`just QA_VERBOSE=2 qa` 全量排障);单门 just 入口按 `qa-` 前缀,`check`/`test` 为合约钉名与通用名,集合以 `qa` recipe 实际聚合为准,此处不枚举。其他:`just smoke-context`(真实 LLM 冒烟)/ `bun run build`(单二进制)
-- QA 门禁与 capture 契约:`README.md`;过程性结论不落独立文档,强约束一律收敛至 `llmanspec/AGENTS.md`
+| 目录 | 职责 |
+| --- | --- |
+| `packages/core/` | 纯域逻辑,副作用经接口注入 |
+| `apps/cli/` | commander 入口 |
+| `tests/` | unit / bdd / golden / integration |
+| `scripts/` | 仓库级门禁与生成脚本;首行模块注释即用途 |
+| `llmanspec/` | 规范、change、项目规则 |
+
+- 项目规则、技术选型、文风:`llmanspec/AGENTS.md`
+- 门禁入口:`just qa`(等价 CI,默认静默;`just QA_VERBOSE=2 qa` 排障)。单门 `qa-` 前缀;其余 recipe 以 justfile 注释为准
+- 过程性结论不落独立文档;强约束收敛至 `llmanspec/AGENTS.md`

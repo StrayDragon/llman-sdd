@@ -10,119 +10,170 @@
 
 ## 项目定位
 
-llman-sdd:spec 驱动开发(SDD)工作流(TypeScript + Bun),完全接替 Rust llman 中的 sdd 子系统。
-本仓库以 llman-sdd 自托管 SDD 流水线，并自举（dogfooding：用本工具开发本工具自身）——本仓库的行为合约由本工具自身管理。
+llman-sdd:spec 驱动开发工作流(TypeScript + Bun),完全接替 Rust llman 中的 sdd 子系统。本仓库自托管 SDD 流水线并自举——行为合约由本工具自身管理。
 
-- 前代契约参考(只读):`../llman.old-rs-impl-sdd/crates/llman-sdd`
-- 本工具行为契约:`llmanspec/specs/*.feature`(随各 change 在特性分支上落地)
-- 活跃 change 以 `llman-sdd list` 为准
+| 权威 | 位置 |
+| --- | --- |
+| 本工具行为合约 | `llmanspec/specs/` |
+| 前代契约参考(只读) | `../llman.old-rs-impl-sdd/` |
+| 活跃 change | `llman-sdd list` |
 
-## 技术栈(已定案)
+## AGENTS.md 文风
 
-- 运行时 Bun(`.bun-version` 钉版)+ TypeScript(仅 typecheck,不参与构建);**双运行时兼容:Node >= 24**(`.node-version` 钉版 + engines 声明)——运行时代码(packages/*、apps/* 的 src)只准用 `node:` / Web 标准API,禁用 Bun 专属 API(Bun.$、Bun.file、Bun.Glob 等);Bun 专属 API 仅允许出现在构建/测试脚本(scripts、build-binary、tests/)
-- Monorepo:Bun workspaces;`packages/core` 纯域逻辑 / `apps/cli` 命令入口;`apps/web` 预留(打包器已定案 **rsbuild**,内置 rspack 引擎;启动 web 交互功能时以独立 change 引入,CLI 与二进制分发不经过打包器——Bun 直跑 TS + `bun build --compile`)
-- 工具链:oxlint + oxfmt(oxc 双件套)、tsc --noEmit、prek(git hooks)、justfile(任务编排);oxfmt 忽略 `llmanspec/` 与 `AGENTS.md`(SDD 托管文件,格式归 llman 管,避免 `init --update` 回打漂移)
-- 依赖映射:commander(CLI)/ nunjucks(模板)/
-  @cucumber/gherkin(spec 解析,官方 i18n 已含 zh-CN「规则」)/
-  @toon-format/toon(机器输出 TOON 编码,纯函数 encoder,add-render-layer 引入)/
-  zod(zod v4 内建 toJSONSchema)+ yaml(配置契约与注释保留)/ 7z-wasm(冻结冷备)/
-  ignore(gitignore 语义层叠匹配,freeze 内容过滤)
-- 测试:bun:test(含 `bun build --compile` 产物冒烟)+ @cucumber/gherkin + 自研
-  Gherkin→bun:test runner(`tests/bdd/`,见工程规则 BDD 条)——BDD 选型已终局
+编写与更新本文件(及根 `AGENTS.md` 自述段)时遵守下表。目标是让约束可执行、少过期。
 
-## 范围决策(定案,勿反复)
+| 原则 | 做法 |
+| --- | --- |
+| 加粗克制 | 只有真的需要高度注意的才加粗 |
+| 表格优先 | 并列对比、字段、选型用表 |
+| 图优先 | 流程、层次、生命周期用 mermaid |
+| 有重心 | 每节只守一类约束;细节下钻到目录或 CLI,不在此展开 |
+| 数字即基线 | 不写可复现的过程数字;门禁基线与运行时下限除外 |
+| 引目录 | 引目录,不引易漂移的具体文件 |
+| 少回归 | 不写会随重构过期的接线细节 |
+| 不锁哈希 | 不写锁定哈希、提交 SHA 等难维护锚点 |
+| 用词平常 | 不用 emoji 与生僻符号 |
+| 只写现在 | 写当前形态;不写已删除、已移除、已移动 |
+| 不列脚本 | 脚本首行模块注释即描述;此处只写目录组织规律 |
 
-- 保留:archive freeze/thaw(核心功能;`.7z` 格式必须与前代冻结产物双向兼容)
-- `project migrate`:保留子命令入口;迁移手册注册表按版本组织,`prompt` 以 `--from-version/--to-version` 范围查询聚合输出(peripheral-commands r100);前代(Rust llman ≤ 0.0.x)的迁移实现体不移植
-- 移除:`project import`(OpenSpec 互导)、`change checkpoint`/`change delta` 及其兼容桩、rust-i18n;已移除的命令与选项彻底删除,不保留报错 stub(调用得到 CLI 的 unknown command/option 错误)
-- worktree:前代的并行 change 机制不移植;本仓支持单 change 单 worktree——`change start --worktree`(r68)与 finalize/archive 的目标 worktree 感知(r69)
-- ink 是 TUI 战略方向(前代不引入):交互提示收敛在 CLI 适配层(当前 `spec migrate-native` 确认经 node:readline 实现),core 域逻辑不发起终端交互;未来若引入 @inquirer/prompts 向导或 ink TUI,二者禁止同进程混用,届时在 CLI 适配层另建交互端口
-- 测试/构建选型终局,rust 生态工具不迁移:rstest 仅适用 Rust 栈,本仓库以
-  bun:test + Gherkin runner 承担同等角色;rsbuild/rspack 属 web 阶段(见技术栈
-  Monorepo 条),现阶段 CLI/测试链路零打包器——后续需求直接引用本条,勿重新调研。
-  撞名注意:config 的 `bdd.framework: rstest-bdd` 指 Rust rstest crate 生态;
-  Rstack 的 JS 测试框架写作 Rstest(`@rstest/core`),同名不同物,讨论时消歧
+## 技术栈
 
-- 输出对齐口径(2026-09 定案,toon-default-output 修订):与前代对齐收窄为**兼容别名面**——`--json`/`--compact-json` 的输出结构与退出码保持前代字节一致;报告型命令(review/validate/list/show/config skills/index check)的**缺省输出自 0.4.0 起为 TOON**(`--output <toon|json|compact-json|human>`,human 为前代人读形态唯一入口),主动 divergence;其余人读文案细节(init 输出行、list 时间戳精度、start/finalize 文案、skeleton 头注释 locale 文案)不做逐字节对齐
-- 不移植(定案维持):`project import` 与 migrate 实现体维持移除;`show --output` 修饰符(meta-only/no-scenarios/reqs-only)以 peripheral-commands r53 为准
-- 锁定哈希门禁(前代 spec-format r135 / sdd-workflow r130)不移植:改/删 `规则:` 块的报告制 WARNING 由 git 分支对比 + `review`/`change diff` 浮现,不经 validate/finalize 报告通道;review 的 `locked` 信号恒 0 系有意(2026-09 定案,close-v1-parity-gaps 核验转正)
-- `llmanspec/AGENTS.md` 托管块:本工具 init 写入 LLMANSPEC:START/END 标记(前代不写),属有意改进,保留
-- 原生 Gherkin 分层为**唯一规范样式**(2026-09-27 定案,native-gherkin-format / drop-orphan-concept):需求 = `规则:` 块(`@req:<id>` 句柄挂块头 + 自由文本描述,无 MUST 词强制);可执行示例 = 块内嵌套 `场景:`(假如/当/那么);无嵌套场景的 `规则:` 为裸规则(聚合计数 + review pending 计量,交 specs-compact 压降);顶层 `场景:` 为功能级示例(Gherkin 原生允许,无句柄、不告警、不参与规则统计——孤儿概念已废除)。历史标签 `@executable`/`@rule`/`@human`/`@manual` 惰性;旧文件用 `spec migrate-native` 迁移。
-- `spec add-req` 追加原生 `规则:` 块(校验 req 全局唯一,描述自由文本、不校验语义词);`spec add-scenario` 向规则块插入嵌套 `场景:`。勿退回标签轨。
+后续需求直接引用本表,勿重新调研。
+
+| 层 | 选型 | 约束 |
+| --- | --- | --- |
+| 运行时 | Bun(`.bun-version`) + Node(`.node-version` / engines) | **运行时代码只准 `node:` / Web 标准 API**;Bun 专属 API 仅允许出现在构建/测试脚本。Node 下限以 engines 为准(`>= 24`) |
+| 语言 | TypeScript | 仅 typecheck,不参与构建 |
+| 布局 | Bun workspaces | `packages/core` 纯域逻辑;`apps/cli` 命令入口 |
+| 分发 | Bun 直跑 TS + `bun build --compile` | CLI 与二进制不经过打包器 |
+| Web | 未落地;若引入,打包器为 rsbuild | 以独立 change 引入 |
+| 工具链 | oxlint + oxfmt、tsc --noEmit、prek、just | oxfmt 忽略 `llmanspec/` 与 `AGENTS.md`(格式归 llman 管) |
+| 测试 | bun:test + `tests/bdd/` Gherkin runner | BDD 选型已终局 |
+
+| 包 | 用途 |
+| --- | --- |
+| commander | CLI |
+| nunjucks | 模板 |
+| @cucumber/gherkin | spec 解析(官方 i18n 含 zh-CN「规则」) |
+| @toon-format/toon | 机器输出 TOON 编码 |
+| zod | 配置契约(v4 内建 toJSONSchema) |
+| yaml | 配置读写与注释保留 |
+| 7z-wasm | 冻结冷备 |
+| ignore | gitignore 语义层叠,freeze 内容过滤 |
+
+## 范围
+
+后续需求直接引用本节,勿重新调研。命令面以 CLI `--help` 为准,勿凭前代记忆补表面。
+
+| 面 | 当前约定 |
+| --- | --- |
+| 冷备 | `archive freeze/thaw` 为核心能力;`.7z` 须与前代冻结产物双向兼容 |
+| 迁移 | `project migrate` 保留入口;手册按版本组织;`prompt` 以版本范围查询聚合输出 |
+| worktree | 单 change 单 worktree;`change start --worktree` 与 finalize/archive 感知目标 worktree |
+| 交互 | 只在 CLI 适配层;core 不发起终端交互。ink 是 TUI 战略方向;向导库与 ink 禁止同进程混用 |
+| JSON 别名 | `--json` / `--compact-json` 的结构与退出码对齐前代 |
+| 缺省输出 | 报告型命令缺省 TOON;`--output` 切 `toon` / `json` / `compact-json` / `human`。`human` 是前代人读形态入口;其余人读细节不做逐字节对齐 |
+| `规则:` 改动 | git 分支对比 + `review` / `change diff` 审视;不经 validate/finalize 锁定通道 |
+| 托管块 | init 写入 LLMANSPEC 标记,保留 |
+| 修饰符 | `show --output` 等以 `llmanspec/specs/` 为准 |
+
+原生 Gherkin 是唯一规范样式:
+
+```mermaid
+flowchart TB
+  cap["能力 .feature"]
+  cap --> rule["规则: 需求 @req:id"]
+  cap --> top["顶层 场景: 功能级示例"]
+  rule --> nested["嵌套 场景: 可执行示例"]
+  rule --> bare["无嵌套: 裸规则"]
+```
+
+- 需求 = `规则:` 块(`@req:<id>` 挂块头 + 自由文本,无 MUST 词强制)
+- 可执行示例 = 块内嵌套 `场景:`(假如/当/那么)
+- 裸规则计入聚合与 review pending,交 specs-compact 压降
+- 顶层 `场景:` 无句柄、不告警、不参与规则统计
+- `spec add-req` 追加 `规则:` 块(req 全局唯一);`spec add-scenario` 向规则块插入嵌套 `场景:`
+- 非原生形态用 `spec migrate-native` 转入;既有非标准标签不参与判定
 
 ## Change Proposal Frontmatter SSOT
 
-`changes/` 任意深度含 proposal.md 的目录都是 change(叶子目录名 = change id,扫描深度缺省 8,`--max-scan-depth` 可调)。frontmatter YAML 是变更元信息的唯一权威;生命周期阶段(stage/readyToImplement)由 CLI 从磁盘工件 + git 绑定实时推断,绝不写入 frontmatter;正文 MUST NOT 复读 frontmatter 字段,正文 H1 宜为人类可读标题而非 change id 的复读(freeze 取 title 时 frontmatter `title` 非空优先,H1 回退)。
-
-### 合法字段集(validation r64 强制)
+`changes/` 下任意深度含 `proposal.md` 的目录都是 change(叶子目录名 = change id;扫描深度由 `--max-scan-depth` 约束)。frontmatter YAML 是变更元信息的唯一权威;生命周期阶段由 CLI 从磁盘工件 + git 绑定实时推断,绝不写入 frontmatter。正文不得复读 frontmatter 字段;H1 宜为人类可读标题,不复读 change id(freeze 取 title:frontmatter `title` 非空优先,H1 回退)。
 
 | 字段 | 必填 | 谁写入 | 说明 |
-|---|---|---|---|
-| `depends_on` | 是(CLI 骨架默认 `[]`) | agent | 依赖 change id 列表,流式/块式均可(graph 解析) |
-| `title` | 是(CLI 骨架默认 `TODO` 占位,r99) | agent | 一句话概念式人类可读标题,不得复读 change id;缺失/空串 → validate ERROR;freeze 平铺卡 title 的优先来源 |
+| --- | --- | --- | --- |
+| `depends_on` | 是(骨架默认 `[]`) | agent | 依赖 change id 列表,流式/块式均可 |
+| `title` | 是(骨架默认 `TODO` 占位) | agent | 一句话概念式标题,不得复读 change id;缺失或空串 → validate ERROR;freeze 平铺卡 title 的优先来源 |
 | `blocks` | 否 | agent | 反向依赖声明(当前仅校验列表格式) |
-| `branch` | 否 | CLI(change start/attach) | 绑定特性分支 |
-| `base_branch` | 否 | CLI(change start;attach 按 `--base` > `branch.<name>.base`/本地 upstream 推导 > 默认分支) | finalize/archive 合并目标解析,缺键回退本地默认分支(解析序:init.defaultBranch → main → master → origin/HEAD → origin/*);不参与 diff 范围计算(现算 merge-base) |
-| `base_sha` | 否 | CLI(change start) | 审计用基点,仅审计不参与范围计算 |
-| `needs_specs_change` | 否(缺省 true) | agent | false 跳过 specs landing 检查(无 live 合约编辑的 change) |
+| `branch` | 否 | CLI(`change start` / `attach`) | 绑定特性分支 |
+| `base_branch` | 否 | CLI | finalize/archive 合并目标;缺键回退本地默认分支。不参与 diff 范围(现算 merge-base) |
+| `base_sha` | 否 | CLI(`change start`) | 审计用基点,仅审计不参与范围计算 |
+| `needs_specs_change` | 否(缺省 true) | agent | false 跳过 specs landing 检查 |
 
-合法集外字段(如 `status`/`priority`/`author`)→ validate 报 ERROR,错误消息列出字段名与合法集;`title` 必填:缺失或空串 → ERROR(r99);`changes/archive/` 下的 proposal 免检。
+`base_branch` 解析序:`--base` → `branch.<name>.base` / 本地 upstream → 默认分支(init.defaultBranch → main → master → origin/HEAD → origin/*)。
 
-### 已废弃/移除字段
-
-- `stage` 不是 frontmatter 字段:实时推断 draft/designed/planned/full(绑定参与升级)。
-- `checkpointed`/`checkpoint_sha`/`skip_specs_landing`/`rules_edit_acked`/`rules_touched`/`agent_acked` 已随 checkpoint/锁定确认机制移除——出现即 ERROR,无兼容读取。
-- 锁定 `规则:` 块改动为报告制(见范围决策);改动经 git 分支对比与 `review`/`change diff` 审视。
+合法集外字段 → validate ERROR,错误消息列出字段名与合法集。`changes/archive/` 下的 proposal 免检。
 
 ## 工程规则
 
-- `packages/core` 保持纯域逻辑:文件系统 / git / 终端副作用一律经接口注入,便于 golden 对照测试
-- nunjucks 调用收敛在 templates/engine.ts,且无 loader、`autoescape: false`,trim/尾换行语义对齐 minijinja
-- 验收基线:行为合约 SSOT 为 `llmanspec/specs/*.feature`;skills 生成物与
-  自有快照基线(tests/golden/baseline)在相同 config(locale/bdd)下归一化 diff 为空
-- BDD:Gherkin→bun:test runner(`tests/bdd/`,源自 crystalith 移植);
-  带步骤的 `场景:`(含 `规则:` 内嵌套)必须可被 `bun test tests/bdd` 执行
+- `packages/core` 保持纯域逻辑:文件系统 / git / 终端副作用一律经接口注入
+- nunjucks 调用收敛在 `packages/core/src/templates/`,且无 loader、`autoescape: false`,trim/尾换行语义对齐 minijinja
+- 验收基线:行为合约 SSOT 为 `llmanspec/specs/`;skills 生成物与 `tests/golden/` 在相同 config 下归一化 diff 为空
+- BDD:带步骤的 `场景:`(含 `规则:` 内嵌套)必须可被 `bun test tests/bdd` 执行
 - specs 写法:zh-CN Gherkin 关键字(功能/场景/规则),与 `locale: zh-Hans` 一致
-- 门禁 verbosity:`just qa` 默认 L0 静默(只用工具原生安静开关:`bun test
-  --only-failures` / `oxlint --quiet` / `bun run --silent`,每步一行
-  `[check]`/`[pass]` 摘要);`just QA_VERBOSE=2 qa` 全量输出排障。禁止
-  grep/sed 过滤管道作门禁主路径;输出噪音先修根因(如泄漏的 logger、
-  失效的 disable 注释);任何档位失败详情与 exit code 必须完整
-- tasks.md 只列实现与验证任务:收口(`change finalize`/`change archive`)是流水线步骤,
-  不得列为任务——两者的任务门要求全部任务已勾,收口任务必然自相矛盾(勾选即虚报、
-  不勾则收口被拒,且实施期 `validate --strict` 永红)。归档 change 中的此类写法是
-  已知错误先例,勿沿用
-- 门禁证据口径(2026-10 validate-harness-opt-in):`validate` 缺省只做结构/状态门、不声明 harness 证据;全量 harness 证据 MUST 经显式
-  `validate --check` 或 `change finalize`/`archive` 预合并验收取得——报告声称 harness 合格时 MUST 已用 `--check`;harness 失败不得以
-  「自指/固有属性」定性后绕过——先查根因(先例:临时仓库子进程继承 `LLMAN_SDD_HARNESS_ACTIVE` 嵌套守卫导致场景全跳过,属环境泄漏而非设计属性)
-- 验证阶梯(opt-in 纪律):实施期常规验证按成本逐级扩大——L1 `bun test tests/unit/<相关>`(<1s 直接导入)→ L2 `bun test tests/bdd -t "<模式>"`(定向
-  行为复现)→ L3 `llman-sdd validate --check`(显式全量 harness)→ L4 `change finalize`(强制全量,验收兜底);避免无需全量时每轮 validate 白付 20s 级成本
-- 测试子进程与临时目录:起 CLI 用 `tests/helpers/spawn.ts` 的 `runCli`;需以全新顶层
-  上下文运行(如在临时仓库跑 validate harness)时用 `makeTempRepo().run`,它剥离嵌套守卫。
-  临时目录一律 `mkdtempSync(join(tmpdir(), …))`,禁止硬编码 `/tmp`——`bunfig.toml`
-  preload 把 `TMPDIR` 指向每次运行的沙箱并统一回收(先例:未回收目录耗尽 tmpfs inode 致 ENOSPC)
-- 前后对比类验收(如 STALE 计数)的基线必须在 change 分支上相对 merge-base 测量;
-  在默认分支上测得的 0 恒真,不构成证据
-- 改动 `packages/core/templates/**` 或 CLI 命令/旗标面的 change,须在绑定分支运行
-  `init --update` 并提交刷新后的 `.agents/skills`——本仓库自举 agent 直接读取它们,
-  过期 skill 会教授已删除的表面
-- agent 执行纪律:编辑与验证不得放在同一批并行工具调用中(验证可能读到旧文件,产生
-  假失败/假通过);验证须在编辑落盘后串行执行
+- 门禁 verbosity:`just qa` 默认静默(工具原生安静开关 + 每步一行摘要);`just QA_VERBOSE=2 qa` 全量排障。禁止 grep/sed 过滤管道作门禁主路径;输出噪音先修根因。任何档位失败详情与 exit code 必须完整
+- **tasks.md 只列实现与验证任务**:收口(`change finalize` / `change archive`)是流水线步骤,不得列为任务——收口任务会让实施期 `validate --strict` 永红
+- 门禁证据:`validate` 缺省只做结构/状态门。全量 harness 证据须经显式 `validate --check` 或 `change finalize` / `archive` 预合并验收。报告声称 harness 合格时必须已用 `--check`;harness 失败不得以「自指/固有属性」定性后绕过。临时仓库子进程须剥离嵌套守卫(`LLMAN_SDD_HARNESS_ACTIVE`)
+- 验证按成本逐级扩大,避免无需全量时每轮白跑 finalize 级验收:
+
+```mermaid
+flowchart LR
+  L1["L1 定向单测"] --> L2["L2 定向 BDD"]
+  L2 --> L3["L3 validate --check"]
+  L3 --> L4["L4 change finalize"]
+```
+
+- 测试子进程与临时目录:起 CLI 与全新顶层上下文走 `tests/helpers/`。临时目录一律 `mkdtempSync(join(tmpdir(), …))`,禁止硬编码 `/tmp`
+- 前后对比类验收的基线必须在 change 分支上相对 merge-base 测量;在默认分支上测得的空差不构成证据
+- 改动 `packages/core/templates/` 或 CLI 命令/旗标面的 change,须在绑定分支运行 `init --update` 并提交刷新后的 `.agents/skills/`
+- **编辑与验证不得放在同一批并行工具调用中**;验证须在编辑落盘后串行执行
+
+## 仓库组织
+
+脚本与 recipe 的用途写在各自首行注释里,本文件不枚举清单。
+
+| 目录 | 形态 |
+| --- | --- |
+| `packages/core/` | 纯域逻辑 |
+| `apps/cli/` | commander 入口;交互只在此层 |
+| `apps/cli/scripts/` | CLI 二进制构建 |
+| `tests/` | `unit/` 直接导入、`bdd/` Gherkin runner、`golden/` 快照、`integration/` 产物、`helpers/` 夹具 |
+| `scripts/` | 仓库级门禁与生成脚本,常与同目录 json 基线成对 |
+| `eval/` | 外部影响面剧本,不进 `just qa` |
+| `llmanspec/` | `specs/` 行为合约、`changes/` 提案、本文件为项目规则 |
+| `packages/core/templates/` | skill 模板 |
+| justfile | 门禁入口 `just qa`;单门 `qa-` 前缀;`check` / `test` 为合约钉名 |
+
+棘轮类基线(只许随 change 下调)落在 `scripts/` 的 json,不把数字抄进本文件。
 
 ## 语言约定
 
-- change 文档(proposal/design/tasks)用中文;代码、标识符、CLI 输出文案用英文
-  (唯一例外:长操作阶段进度提示(`apps/cli/src/progress.ts`)随项目 config locale
-  提供 zh/en 短提示,防"看上去卡住",一律走 stderr)
+- change 文档(proposal/design/tasks)用中文;代码、标识符、CLI 输出文案用英文。例外:长操作阶段进度提示随项目 config locale 提供 zh/en 短提示,走 stderr,实现在 `apps/cli/`
 - commit message:conventional type 前缀(英文)+ 中文描述,如 `feat(sdd): 新增校验引擎`
 
-## 并行开发(worktrunk)规约
+## 并行开发
 
-工具:worktrunk(`wt`)。心智模型:**一个 change 分支 = 一个 worktree = 一个独立 agent 工作区**;项目配置在 `.config/wt.toml`(post-start 自动 `bun install`)。
+工具:worktrunk(`wt`)。项目配置在 `.config/`。心智模型:一个 change 分支 = 一个 worktree = 一个独立 agent 工作区。
 
-- 生命周期:main worktree 保持 main → `llman-sdd change start <id>`(干净树建 `sdd/<id>` 绑定)→ `wt switch sdd/<id>` 落 worktree → 在 change worktree 内完成 Specs landing / 实施 / 门禁 → 在 change worktree 内执行 `llman-sdd change finalize <id>`(squash 合并 + SSOT 改名 + 归档提交;目标分支由 main worktree 持有且干净时,finalize 在该 main worktree 内完成合并与收口,r69)→ `wt remove`
-- 收口一律 `change finalize`,不用 `wt merge`(finalize 负责 specs SSOT 改名与 archive 提交;其合并步骤对目标被 worktree 持有有显式降级)
-- 并行约束:同批并行 change 的 `llmanspec/specs/**` 文件必须两两不相交;触碰同一代码文件(如 main.ts)的改动不得并行——规划时按文件相交性分组
-- 门禁:worktree 内 `just qa`(check + test + skills 模板渲染门 + pending + schema 全集);合并顺序由 main worktree 串行执行(先到先 finalize,后来者 rebase)
-- 多 agent 拉起:`wt switch sdd/<id> -x <agent-cli> -- '<任务提示>'`;监控 `wt list` / `wt step for-each`
+```mermaid
+flowchart LR
+  main["main worktree 保持默认分支"] --> start["change start"]
+  start --> sw["wt switch"]
+  sw --> impl["Specs / 实施 / 门禁"]
+  impl --> fin["change finalize"]
+  fin --> rm["wt remove"]
+```
 
+- 收口一律 `change finalize`,不用 `wt merge`(finalize 负责 specs SSOT 改名与 archive 提交)
+- 同批并行 change 的 `llmanspec/specs/` 必须两两不相交;触碰同一代码文件的改动不得并行
+- worktree 内 `just qa`;合并顺序由 main worktree 串行执行
+- 多 agent 拉起:`wt switch sdd/<id> -x <agent-cli>`;监控 `wt list` / `wt step for-each`
