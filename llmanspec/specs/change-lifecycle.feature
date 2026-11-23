@@ -614,4 +614,3 @@
       假如 一个根与子根双实例且子根 change 已绑定分支但只提交了根实例 specs 的临时仓库
       当 在子根实例上运行 show 该 change
       那么 show 的 specs-landed 门为不通过且提示落在本实例 llmanspec/specs
-

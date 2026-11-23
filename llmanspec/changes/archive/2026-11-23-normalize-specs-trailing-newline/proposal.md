@@ -2,6 +2,9 @@
 depends_on: []
 title: 规格文件补齐行尾换行
 needs_specs_change: false
+branch: sdd/normalize-specs-trailing-newline
+base_branch: main
+base_sha: 43b98c9e2d3134648b0b161364604e55cc00f86d
 ---
 
 ## Why
