@@ -106,7 +106,7 @@ const REQUIRED_PER_FILE: Readonly<Record<string, readonly string[]>> = {
     'spec next-req-id',
     'spec add-req',
     'spec add-scenario',
-    'spec skeleton',
+    'spec new',
     'spec resolve-req',
     'specs-landed gate|specs-landed 门',
     'completion signal|完成信号',

@@ -41,4 +41,4 @@ cat >> llmanspec/specs/tip-output.feature <<'FEAT'
 FEAT
 git add llmanspec
 git commit -m "feat(sdd): land zero-amount spec"
-$LLMAN change finalize "$id"
+$LLMAN change archive "$id"

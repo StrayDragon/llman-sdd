@@ -19,11 +19,11 @@ disable-model-invocation: true
 
 ## Constraints
 - 未经明确替代不得删除规范性行为；宜保持 requirement 标题稳定；每个保留 requirement 至少一个有效 scenario。
-- **改 `llmanspec/specs/**` 须走 change**：先绑定分支（`change start` / `attach`），在绑定分支上编辑提交；**不得**在默认分支直接压缩改写。
+- **改 `llmanspec/specs/**` 须走 change**：先绑定分支（`change start`），在绑定分支上编辑提交；**不得**在默认分支直接压缩改写。
 
 ## Workflow
 1. 盘点 specs（`llman-sdd list --specs`）。
-2. 归档历史较大时先 freeze：预览 `llman-sdd archive freeze --dry-run`；执行 `llman-sdd archive freeze --before <YYYY-MM-DD> --keep-recent <N>`。
+2. 归档历史较大时先 freeze：预览 `llman-sdd freeze --dry-run`；执行 `llman-sdd freeze --before <YYYY-MM-DD> --keep-recent <N>`。
 3. 识别跨 capability 重叠（跨 specs 重复 req id：`llman-sdd project dedupe-req-ids --dry-run` 报告重映射计划）。
 4. 产出压缩计划（canonical requirements + keep/merge/remove 决策 + 迁移说明）。
 5. 执行并验证（`llman-sdd validate --specs --strict`）。

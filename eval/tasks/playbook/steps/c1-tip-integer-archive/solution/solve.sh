@@ -39,7 +39,7 @@ if [ -n "$(git status --porcelain)" ]; then
   exit 1
 fi
 $LLMAN change start "$id"
-$LLMAN spec skeleton tip-output --force
+$LLMAN spec new tip-output --force
 cat > llmanspec/specs/tip-output.feature <<'FEAT'
 # language: zh-CN
 # capability: tip-output
@@ -57,4 +57,4 @@ cat > llmanspec/specs/tip-output.feature <<'FEAT'
 FEAT
 git add llmanspec src
 git commit -m "feat(sdd): land tip-output specs"
-$LLMAN change finalize "$id"
+$LLMAN change archive "$id"

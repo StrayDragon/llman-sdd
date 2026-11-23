@@ -59,12 +59,12 @@ flowchart LR
    - 确认 change 已绑定分支且当前在该分支上。
    - `llman-sdd validate --specs`：Gherkin + `@req`/双写门禁；全量 harness 仅经 `--check` 显式执行（缺省跳过），失败映射为对应 spec 条目的 ERROR。
    - 可选只读审查：`llman-sdd change diff <id>`（或 `--export-patch <path>`）——仅审查/导出，绝不当作 apply 步骤。
-   - verify 通过后下一步 `llman-sdd-archive`（不得在此 inline finalize）。
+   - verify 通过后下一步 `llman-sdd-archive`（不得在此直接跑 `change archive`）。
 {% if specs_verify_prompt %}
    - 额外要求: {{ specs_verify_prompt }}
 {% endif %}
 6. 输出简短报告：**CRITICAL**（归档前必须修复）/ **WARNING**（宜修复）/ **SUGGESTION**（可选优化）。
-7. **人审关卡**：报告无 CRITICAL 后、归档前宜跑 `llman-sdd review`：退出码零 → 宜接 `llman-sdd-archive`；非零 = CRITICAL → 用 `llman-sdd-apply` 修复后重跑 review；不得 带 CRITICAL 进入 finalize/archive。
+7. **人审关卡**：报告无 CRITICAL 后、归档前宜跑 `llman-sdd review`：退出码零 → 宜接 `llman-sdd-archive`；非零 = CRITICAL → 用 `llman-sdd-apply` 修复后重跑 review；不得带 CRITICAL 进入 `change archive`。
 
 {{ unit("skills/git-native-flow") }}
 {{ unit("skills/human-readable-summary") }}

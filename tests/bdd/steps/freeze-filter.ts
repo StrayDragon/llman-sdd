@@ -84,10 +84,9 @@ bdd.given(
   },
 );
 
-bdd.when('在含忽略链的仓库运行 archive freeze --before 该日期', (ctx) => {
+bdd.when('在含忽略链的仓库运行 freeze --before 该日期', (ctx) => {
   const repo = ctx.fixtures['r120根过滤仓库'] as FilterRepo;
   ctx.fixtures['r120根过滤结果'] = cli(repo.cwd, [
-    'archive',
     'freeze',
     '--before',
     '2027-01-01',
@@ -142,9 +141,9 @@ bdd.given(
   },
 );
 
-bdd.when('在实例根运行 archive freeze', (ctx) => {
+bdd.when('在实例根运行 freeze', (ctx) => {
   const repo = ctx.fixtures['r120层叠仓库'] as FilterRepo;
-  ctx.fixtures['r120层叠结果'] = cli(repo.cwd, ['archive', 'freeze']) satisfies CliOut;
+  ctx.fixtures['r120层叠结果'] = cli(repo.cwd, ['freeze']) satisfies CliOut;
 });
 
 bdd.thenStep('嵌套 target 与 node_modules 均不入包而正文文件入包', async (ctx) => {
@@ -186,10 +185,9 @@ bdd.given(
   },
 );
 
-bdd.when('运行 archive freeze --ignore-file 该文件', (ctx) => {
+bdd.when('运行 freeze --ignore-file 该文件', (ctx) => {
   const repo = ctx.fixtures['r120用户文件仓库'] as FilterRepo & { extras: string };
   ctx.fixtures['r120用户文件结果'] = cli(repo.cwd, [
-    'archive',
     'freeze',
     '--ignore-file',
     repo.extras,
@@ -227,10 +225,9 @@ bdd.given('一个带日期归档目录完好而所指忽略文件缺失的临时
   } satisfies FilterRepo & { missing: string };
 });
 
-bdd.when('运行 archive freeze --ignore-file 不存在的路径', (ctx) => {
+bdd.when('运行 freeze --ignore-file 不存在的路径', (ctx) => {
   const repo = ctx.fixtures['r120缺失文件仓库'] as FilterRepo & { missing: string };
   ctx.fixtures['r120缺失文件结果'] = cli(repo.cwd, [
-    'archive',
     'freeze',
     '--ignore-file',
     repo.missing,
@@ -263,7 +260,7 @@ bdd.given('一个已完成含排除过滤 freeze 的临时仓库', (ctx) => {
   write(root, `llmanspec/changes/archive/${dated}/proposal.md`, '# p\n');
   write(root, `llmanspec/changes/archive/${dated}/research/keep.md`, 'k\n');
   write(root, `llmanspec/changes/archive/${dated}/research/poc/target/debug/a.so`, 'so');
-  const frozen = cli(root, ['archive', 'freeze']);
+  const frozen = cli(root, ['freeze']);
   if (frozen.code !== 0) {
     throw new Error(`freeze setup failed: ${frozen.stdout}${frozen.stderr}`);
   }
@@ -279,14 +276,9 @@ bdd.given('一个已完成含排除过滤 freeze 的临时仓库', (ctx) => {
   ctx.fixtures['r120解冻仓库'] = { cwd: root, root, dated, legacyName } satisfies FilterRepo;
 });
 
-bdd.when('运行 archive thaw --change 该条目', (ctx) => {
+bdd.when('运行 thaw --change 该条目', (ctx) => {
   const repo = ctx.fixtures['r120解冻仓库'] as FilterRepo;
-  ctx.fixtures['r120解冻结果'] = cli(repo.cwd, [
-    'archive',
-    'thaw',
-    '--change',
-    repo.dated,
-  ]) satisfies CliOut;
+  ctx.fixtures['r120解冻结果'] = cli(repo.cwd, ['thaw', '--change', repo.dated]) satisfies CliOut;
 });
 
 bdd.thenStep('目录回置且内容为过滤后集合(正文在、被忽略产物不在)且平铺卡删除', (ctx) => {

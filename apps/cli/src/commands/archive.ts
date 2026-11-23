@@ -41,13 +41,7 @@ function makeEmbeddedSevenZip(): Promise<SevenZipPort> {
 }
 
 export function registerArchive(program: Command, ctx: CliContext): void {
-  const archive = program
-    .command('archive')
-    .description(
-      'Archive workflow commands (cold backup). Seal a change with `llman-sdd change finalize` first',
-    );
-
-  const freeze = archive
+  const freeze = program
     .command('freeze')
     .description('Freeze dated archived changes into a single 7z cold backup')
     .option('--before <date>', 'freeze entries older than this date (YYYY-MM-DD)')
@@ -97,7 +91,7 @@ export function registerArchive(program: Command, ctx: CliContext): void {
     },
   );
 
-  const thaw = archive
+  const thaw = program
     .command('thaw')
     .description('Restore archived change directories from the cold-backup archive')
     .requiredOption(

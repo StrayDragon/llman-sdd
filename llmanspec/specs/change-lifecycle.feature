@@ -5,8 +5,7 @@
 
   @req:r14
   规则: 分支绑定门
-    `change start` MUST 要求干净工作树且当前在默认分支,创建 `<branch_prefix><id>` 分支(默认前缀 sdd/)并把
-    branch/base_branch/base_sha 三键以注释保留方式写入 proposal.md frontmatter;不满足门条件 MUST 报错且不产生任何变更。
+    `change start` MUST 要求干净工作树。当前在默认分支时创建 `<branch_prefix><id>` 分支(默认前缀 sdd/)并绑定;当前在其他本地分支且尚未绑定时绑定当前分支,不得另建 `sdd/<id>`。已绑定且未给 `--force` MUST 拒绝。branch/base_branch/base_sha 三键以注释保留方式写入 proposal.md frontmatter;不满足门条件 MUST 报错且不产生任何变更。
 
     场景: start 全链路
       假如 一个已提交的临时 git 仓库含 change "demo-add-feature" 的 proposal
@@ -23,21 +22,21 @@
       而且 proposal 内容未变
 
 
-    场景: start 在非默认分支被拒
+    场景: start 在非默认分支绑定当前分支
       假如 一个已提交的临时 git 仓库切到非默认分支且含已提交 change 的 proposal
       当 在非默认分支对其运行 change start
-      那么 start 报错提示改用 attach 且未创建分支
+      那么 绑定写入当前分支且未创建 sdd 分支
 
   @req:r15
   规则: finalize 合并与归档收口
-    `change finalize` MUST 以 squash(默认)或 ff 把特性分支合并到目标分支(into > base_branch > 默认分支),将 `changes/<id>`
+    `change archive` MUST 以 squash(默认)或 ff 把特性分支合并到目标分支(into > base_branch > 默认分支),将 `changes/<id>`
     重命名为 `changes/archive/<YYYY-MM-DD>-<id>`,并以单条提交 `archive(sdd): <id>` 收口;finalize MUST 校验当前分支 ==
     binding.branch,不满足 MUST 在任何写入前报错退出(非默认分支由绑定语义保证,前代 r94 语义);合并冲突时 MUST best-effort:输出 WARNING
     与手工命令提示,仍完成归档改名与提交。
 
     场景: squash 收口
       假如 一个已完成 start 并在特性分支有新提交的临时仓库
-      当 对其运行 change finalize
+      当 对其运行 change archive
       那么 目标分支获得单条 archive(sdd) 提交
       而且 changes 目录下只剩 archive 改名产物
       而且 特性分支上的变更内容出现在目标分支
@@ -45,14 +44,14 @@
 
     场景: finalize 非绑定分支零写入
       假如 一个已完成 start 并在特性分支有新提交的临时仓库
-      当 切到另一分支后运行 change finalize
+      当 切到另一分支后运行 change archive
       那么 报错含 "must run on the bound branch" 且目标分支无新提交
       而且 change 目录未被改名
 
 
     场景: finalize 合并冲突 best-effort
       假如 一个目标分支与特性分支修改同一文件同一行的已 start 临时仓库
-      当 对其运行 change finalize
+      当 对其运行 change archive
       那么 输出含合并冲突 WARNING 与手工命令提示
       而且 目标分支获得 archive 提交
       而且 changes 目录下只剩 archive 改名产物
@@ -85,23 +84,22 @@
       那么 base_branch 记录为 master
 
   @req:r31
-  规则: attach 默认分支门
-    `change attach` MUST 拒绝在默认分支上执行(报错且不写任何绑定),错误信息 MUST 含默认分支名与建议动作(创建/切换 feature 分支或改用
-    `change start`);detached HEAD MUST 同样报错;绑定门与 `change start` 的分支门语义保持一致。
+  规则: start 按检出分流
+    在默认分支上 `change start` MUST 创建并绑定 `sdd/<id>`,不得把 change 绑到默认分支本身。在其他本地分支上 MUST 绑定当前分支。detached HEAD MUST 报错且不写绑定。
 
-    场景: attach 默认分支被拒
+    场景: 默认分支创建 sdd 分支
       假如 一个已提交的临时 git 仓库含 change "demo-attach" 的 proposal
-      当 在默认分支上对其运行 change attach
-      那么 attach 报错且不写绑定
-      当 切到特性分支再运行 change attach
+      当 在默认分支上对其运行 change start
+      那么 默认分支上 start 创建 sdd 分支
+
+    场景: 特性分支绑定当前分支
+      假如 一个已提交的临时 git 仓库切到 feat/attach 分支且含 change "demo-bind" 的 proposal
+      当 对其运行 change start
       那么 attach 绑定写入当前分支
 
-
-    场景: attach 报错文案与 detached HEAD
+    场景: detached HEAD 被拒
       假如 一个已提交的临时 git 仓库含 change "demo-attach2" 的 proposal
-      当 在默认分支上对其运行 change attach
-      那么 报错含默认分支名 "main" 与建议动作 "change start"
-      当 在 detached HEAD 上对其运行 change attach
+      当 在 detached HEAD 上对其运行 change start
       那么 报错含 "refuses a detached HEAD" 且不写绑定
 
   @req:r34
@@ -199,9 +197,7 @@
 
   @req:r39
   规则: change archive 独立收口
-    `change archive <id>` MUST 独立于 finalize 完成合并与改名收口,合并语义与 finalize 一致(into > base_branch >
-    默认分支;method > config sdd.merge_method > squash;合并失败 best-effort 不回滚);MUST 要求绑定存在、当前在绑定分支、
-    非默认分支且工作树干净,任一不满足 MUST 报错且零副作用;`--into`/`--method` MUST 与 finalize 同义;`--dry-run` MUST 仅输出改名计划。
+    `change archive` 是唯一收口,吸收原 finalize 的合并前校验、`--no-check`、`--no-commit`、harness 嵌套检查与目标 worktree 内执行。合并语义为 into > base_branch > 默认分支;method > config sdd.merge_method > squash;合并失败 best-effort 不回滚。MUST 要求绑定存在、当前在绑定分支、非默认分支且工作树干净,任一不满足 MUST 报错且零副作用。`--dry-run` MUST 仅输出改名计划。`change finalize` MUST NOT 存在。
 
     场景: archive 独立收口
       假如 一个已 start 且任务全勾的临时仓库
@@ -227,25 +223,25 @@
   @req:r40
   规则: change archive 任务门禁
     `change archive` MUST 在 tasks.md 存在未勾选任务时报错并列出全部未勾项(无条件阻断,strict_defer 不参与本门,其升级语义属 validate
-    域);任务门判定 MUST 只有一处实现(core),CLI 仅负责呈现;hidden `--force` MUST 跳过全部任务门禁与 git 门禁。
+    域);任务门判定 MUST 只有一处实现(core),CLI 仅负责呈现。`--force` MUST NOT 存在于该命令(未知选项,退出码 2),不得借它跳过任务门或 git 门。
 
     场景: archive 任务门禁
       假如 一个带未勾任务的已绑定 change 仓库
       当 运行 change archive
       那么 报错列出未勾任务且不产生归档
       当 运行 change archive --force
-      那么 目标分支获得 archive(sdd) 提交且目录改名
+      那么 退出码为 2 且不产生归档
 
   @req:r79
-  规则: finalize/archive 任务门收口伪任务点名
-    `change finalize` 与 `change archive` 的任务门被拒(存在未勾选任务)时,若未勾项中存在去掉 `T<n>[a-z]?:`
+  规则: change archive 任务门收口伪任务点名
+    `change archive` 的任务门被拒(存在未勾选任务)时,若未勾项中存在去掉 `T<n>[a-z]?:`
     编号前缀后以收口动词开头(`/^(收口|归档|finalize\b|archive\b)/` 只匹配开头)的标题,MUST 在报错末尾追加与 validation WARNING
     同一文案常量的提示(含 `finalize is a pipeline step`),指明该任务是流水线步骤应从 tasks.md 移除;提示文案 MUST 与 validate 域单一定义、
     两处复用。tasks.md 存在时该任务门 MUST 要求全部任务已勾选,tasks.md 缺失 MUST NOT 阻断收口。
 
     场景: 任务门拒绝时点名收口伪任务
       假如 一个已完成 start 且 tasks.md 含未勾选任务「- [ ] T6: 收口——finalize」的临时仓库
-      当 对其运行 change finalize
+      当 对其运行 change archive
       那么 报错列出未勾任务且含 "finalize is a pipeline step"
       而且 目标分支无新提交且 change 目录未被改名
 
@@ -253,14 +249,14 @@
   规则: change new/attach 兼容 flag
     `change new` MUST 支持 `--force`(覆盖已存在 proposal,前代文案
     `change proposal already exists: ... (pass --force to overwrite)`)与 `--verb <V>`(前代语义:显式覆盖
-    verb,无显式时按描述自动识别 add/update/remove/refactor/fix 动词前缀,subject 为剥离该动词前缀后的描述主体);`change attach` MUST
+    verb,无显式时按描述自动识别 add/update/remove/refactor/fix 动词前缀,subject 为剥离该动词前缀后的描述主体);`change start` MUST
     支持 `--force`(已绑定 change 重绑到当前分支)与 `--base <branch>`(显式记录 fork 源分支,该分支 MUST 存在且 MUST NOT 等于当前分支)。
 
     场景: attach 重绑与显式 base
       假如 一个已 attach 的 feature 分支仓库
-      当 无 force 再次运行 change attach
+      当 无 force 再次运行 change start
       那么 报错提示已绑定
-      当 带 --force --base main 运行 change attach
+      当 带 --force --base main 运行 change start
       那么 重绑成功且 base_branch 记录为 main
 
 
@@ -276,15 +272,15 @@
 
     场景: attach 显式 base 校验
       假如 一个已切到特性分支且已提交 change 的临时仓库(无绑定)
-      当 对其运行 change attach --base ghost
+      当 对其运行 change start --base ghost
       那么 attach 报错含 "does not exist" 且不写绑定
-      当 对其运行 change attach --base topic/base
+      当 对其运行 change start --base topic/base
       那么 attach 报错含 "--base must differ" 且不写绑定
 
   @req:r45
   规则: start 前缀与 finalize 校验/收口的取值序
     `change start` 分支前缀 MUST 依次取 CLI `--branch-prefix`、config `sdd.branch_prefix`、缺省
-    `sdd/`;`change finalize` MUST 在合并前执行一次 specs 与 change 文档校验 sweep,失败 MUST 中止且不产生合并与改名,`--no-check`
+    `sdd/`;`change archive` MUST 在合并前执行一次 specs 与 change 文档校验 sweep,失败 MUST 中止且不产生合并与改名,`--no-check`
     MUST 跳过该 sweep;合并方式 MUST 依次取 `--method`、config `sdd.merge_method`、缺省 squash;`--no-commit` MUST
     完成改名但跳过自动提交并输出手工收尾指引。收口 MUST 另过收口门(与 `show` 的 `specs-landed`/`tasks-done` 判据同源复用):
     MUST 要求 `specsLanded || !needsSpecsChange`,tasks.md 存在时 MUST 要求全部任务已勾选,MUST NOT 要求 design.md
@@ -292,7 +288,7 @@
 
     场景: finalize no-commit 收口
       假如 一个已完成 start 并在特性分支有新提交的临时仓库
-      当 运行 change finalize --no-commit
+      当 运行 change archive --no-commit
       那么 目录改名完成且工作区留有未提交改动
 
 
@@ -306,18 +302,18 @@
 
     场景: finalize 预合并校验 sweep
       假如 一个已完成 start 并在特性分支有新提交且 live specs 含种子缺陷的临时仓库
-      当 对其运行 change finalize
+      当 对其运行 change archive
       那么 报错含 "validation sweep failed" 且目标分支无新提交
       而且 change 目录未被改名
-      当 运行 change finalize --no-check
+      当 运行 change archive --no-check
       那么 目标分支获得单条 archive(sdd) 提交
 
 
     场景: 合并方式取值序
       假如 一个已完成 start 并在特性分支有两个新提交且 config sdd.merge_method 为 "ff" 的临时仓库
-      当 对其运行 change finalize
+      当 对其运行 change archive
       那么 目标分支包含特性分支的两个原始提交
-      当 以 --method bogus 运行 change finalize
+      当 以 --method bogus 运行 change archive
       那么 报错含 "invalid --method"
 
   @req:r46
@@ -406,15 +402,15 @@
       而且 git worktree 条目数不变
 
 
-    场景: start --base 记录显式分叉源
+    场景: start 在当前分支上用 --base 记录分叉源
       假如 一个已提交的临时 git 仓库切到 feature/src 分支且含 change "demo-fork" 的 proposal
-      当 对其运行 change start --base feature/src
-      那么 分支 sdd/demo-fork 被创建且被检出
-      而且 frontmatter base_branch 记录 feature/src
+      当 对其运行 change start --base main
+      那么 当前分支保持 feature/src
+      而且 frontmatter base_branch 记录 main
 
   @req:r69
   规则: finalize/archive worktree 感知目标执行
-    `change finalize` 与 `change archive` MUST 在合并前以 `git worktree list --porcelain` 检测目标分支的持有
+    `change archive` MUST 在合并前以 `git worktree list --porcelain` 检测目标分支的持有
     worktree:目标被其他 worktree 持有且该 worktree 工作树干净时,MUST 以该 worktree 为执行根完成合并、归档改名与收口提交,输出 MUST 含
     `executed in target worktree <path>` 执行位置行;持有且工作树脏时 MUST 报错(错误信息 MUST 含该 worktree 路径与处置指引:清理该
     worktree 或手动执行合并)且零写入;目标由当前 worktree 自己持有或未被任何 worktree 持有时 MUST 保持现行行为;`--into` 优先序(into >
@@ -422,7 +418,7 @@
 
     场景: finalize 目标被干净 worktree 持有时原地执行
       假如 一个目标分支被其他干净 worktree 持有且已完成 start 并有特性提交的临时仓库
-      当 对其运行 change finalize
+      当 对其运行 change archive
       那么 目标分支获得 archive 提交
       而且 输出含 "executed in target worktree"
       而且 持有 worktree 内完成归档改名与内容合并
@@ -430,19 +426,19 @@
 
     场景: finalize 目标被脏 worktree 持有时零写入报错
       假如 一个目标分支被其他脏 worktree 持有且已完成 start 并有特性提交的临时仓库
-      当 对其运行 change finalize
+      当 对其运行 change archive
       那么 报错含持有 worktree 路径且目标分支无新提交
 
 
     场景: 目标未被其他 worktree 持有时保持现行行为
       假如 一个已完成 start 并在特性分支有新提交的临时仓库
-      当 对其运行 change finalize
+      当 对其运行 change archive
       那么 输出不含 "executed in target worktree"
       而且 目标分支获得单条 archive(sdd) 提交
 
   @req:r81
   规则: 收口合并前执行 spec 验证命令
-    在 change 的 `needs_specs_change` 不为 false 时,`change finalize` 与 `change archive` 在任何合并或改名之前 MUST 处理验证命令
+    在 change 的 `needs_specs_change` 不为 false 时,`change archive` 在任何合并或改名之前 MUST 处理验证命令
     `specs.check_command`(含经旧 `bdd.check_command` 兼容提升的等价配置):已配置(非空)时 MUST 在项目根执行该命令(与 validate 同一条),
     无论活规格是否含可执行场景;退出码非 0 或无法启动 MUST 以退出码 1 中止,输出含 `spec check failed`,且 MUST 不产生合并与改名。
     未配置 `specs.check_command` 时 MUST 跳过执行并输出 WARNING 引导配置(非阻断,正常收口)。环境变量 `LLMAN_SDD_HARNESS_ACTIVE=1`
@@ -452,21 +448,21 @@
 
     场景: finalize 在合并前跑通验收命令
       假如 一个已完成 start、活规格含可执行场景且 check_command 写标记文件并成功的临时仓库
-      当 对其运行 change finalize
+      当 对其运行 change archive
       那么 标记文件恰有 1 行
       而且 目标分支获得单条 archive(sdd) 提交
 
 
     场景: 验收命令失败则不合并不改名
       假如 一个已完成 start、活规格含可执行场景且 check_command 以退出码 1 失败的临时仓库
-      当 对其运行 change finalize
+      当 对其运行 change archive
       那么 报错含 "spec check failed" 且目标分支无新提交
       而且 change 目录未被改名
 
 
     场景: 未配置验证命令时跳过并引导收口
       假如 一个已完成 start、活规格含可执行场景且未配置 check_command 的临时仓库
-      当 对其运行 change finalize
+      当 对其运行 change archive
       那么 标准错误含 "specs.check_command"
       而且 标准错误不含 "spec check skipped: --no-check"
       而且 目标分支获得单条 archive(sdd) 提交
@@ -474,20 +470,20 @@
 
     场景: 声明不改规格时不要求验收命令
       假如 一个已完成 start、needs_specs_change 为 false、活规格含可执行场景且未配置 check_command 的临时仓库
-      当 对其运行 change finalize
+      当 对其运行 change archive
       那么 目标分支获得单条 archive(sdd) 提交
 
 
     场景: no-check 写明跳过验收并仍可收口
       假如 一个已完成 start、活规格含可执行场景且 check_command 以退出码 1 失败的临时仓库
-      当 运行 change finalize --no-check
+      当 运行 change archive --no-check
       那么 标准错误含 "spec check skipped: --no-check"
       而且 目标分支获得单条 archive(sdd) 提交
 
 
     场景: 嵌套跳过不得当成通过
       假如 一个已完成 start、活规格含可执行场景且 check_command 写标记文件并成功的临时仓库
-      当 在设置 LLMAN_SDD_HARNESS_ACTIVE=1 的环境下运行 change finalize
+      当 在设置 LLMAN_SDD_HARNESS_ACTIVE=1 的环境下运行 change archive
       那么 报错含 "nested invocation" 且目标分支无新提交
       而且 标记文件不存在
 
@@ -499,53 +495,54 @@
       而且 目标分支获得单条 archive(sdd) 提交
   @req:r95
   规则: attach 分叉源运行时推导与偏离警告
-    change attach 缺省记录的 base_branch MUST 按运行时信号推导,优先序 MUST 为 --base 显式 > git config branch.<当前分支>.base(值 MUST 为存在的本地分支,非法值作废该信号)> 本地 upstream(branch.<当前分支>.remote = ".",@{upstream} 解析为 refs/heads/* 且不等于绑定分支)> 默认分支解析;信号皆不可推导时 MUST 回退默认分支并 MUST NOT 输出偏离警告。推导结果不等于默认分支时 CLI MUST 向标准错误输出 WARNING,内容 MUST 含解析到的分支、信号来源与 --base 覆盖提示,非交互模式同样输出。change start 以 --base 或 --worktree 记录非默认分叉源时 MUST 输出同一警告(r68 记录语义不变)。--base(start/attach 同语义)MUST 仅接受本地分支:refs/remotes/* 形态 MUST 报错并提示改用本地分支名。
+    change start 缺省记录的 base_branch MUST 按运行时信号推导,优先序 MUST 为 --base 显式 > git config branch.<当前分支>.base(值 MUST 为存在的本地分支,非法值作废该信号)> 本地 upstream(branch.<当前分支>.remote = ".",@{upstream} 解析为 refs/heads/* 且不等于绑定分支)> 默认分支解析;信号皆不可推导时 MUST 回退默认分支并 MUST NOT 输出偏离警告。推导结果不等于默认分支时 CLI MUST 向标准错误输出 WARNING,内容 MUST 含解析到的分支、信号来源与 --base 覆盖提示,非交互模式同样输出。change start 以 --base 或 --worktree 记录非默认分叉源时 MUST 输出同一警告(r68 记录语义不变)。--base(start/attach 同语义)MUST 仅接受本地分支:refs/remotes/* 形态 MUST 报错并提示改用本地分支名。
 
     场景: attach 按 branch.<name>.base 推导
       假如 一个已提交的临时 git 仓库切到 topic 分支且含 change "demo-cfg" 的 proposal
       假如 topic 分支配置 branch.<name>.base 为 feature/src
-      当 对其运行 change attach
+      当 对其运行 change start
       那么 attach 后 frontmatter base_branch 记录 feature/src
       而且 标准错误含偏离 WARNING 且来源为 branch.<name>.base
 
     场景: attach 按本地 upstream 推导
       假如 一个已提交的临时 git 仓库切到 topic 分支且含 change "demo-up" 的 proposal
       假如 topic 分支以 set-upstream-to 跟踪本地分支 feature/src
-      当 对其运行 change attach
+      当 对其运行 change start
       那么 attach 后 frontmatter base_branch 记录 feature/src
       而且 标准错误含偏离 WARNING 且来源为 local upstream
 
     场景: attach 无信号回退默认且不告警
       假如 一个已提交的临时 git 仓库切到 topic 分支且含 change "demo-plain" 的 proposal
-      当 对其运行 change attach
+      当 对其运行 change start
       那么 attach 后 frontmatter base_branch 记录 main
       而且 标准错误不含偏离 WARNING
 
     场景: remote-tracking upstream 不作为分叉源
       假如 一个已提交的临时 git 仓库切到 topic 分支且含 change "demo-rt" 的 proposal
       假如 topic 分支的 upstream 为 remote-tracking 引用 origin/topic
-      当 对其运行 change attach
+      当 对其运行 change start
       那么 attach 后 frontmatter base_branch 记录 main
       而且 标准错误不含偏离 WARNING
 
     场景: --base 仅接受本地分支
       假如 一个已切到特性分支且已提交 change 的临时仓库(无绑定)
-      当 对其运行 change attach --base origin/main
+      当 对其运行 change start --base origin/main
       那么 attach 报错含 "must name a local branch" 且不写绑定
 
     场景: start --base 记录非默认分叉源时输出偏离警告
-      假如 一个已提交的临时 git 仓库切到 feature/src 分支且含 change "demo-warn" 的 proposal
+      假如 一个已提交的临时 git 仓库切到 topic 分支且含 change "demo-warn" 的 proposal
+      假如 topic 之外存在本地分支 feature/src
       当 对其运行 change start --base feature/src
       那么 frontmatter base_branch 记录 feature/src
       而且 标准错误含偏离 WARNING 且来源为 --base
 
   @req:r96
   规则: finalize/archive 就地收口
-    change finalize 与 change archive 解析出的合并目标等于绑定分支本身时 MUST 就地收口:跳过 switch 与合并(自合并恒为 no-op),经 warnings 通道输出含就地收口声明的提示行,归档改名与收口提交行为 MUST 与常规目标完全一致;r69 的目标优先序(into > base_branch > 默认分支)与合并语义 MUST 不变。
+    change archive 与 change archive 解析出的合并目标等于绑定分支本身时 MUST 就地收口:跳过 switch 与合并(自合并恒为 no-op),经 warnings 通道输出含就地收口声明的提示行,归档改名与收口提交行为 MUST 与常规目标完全一致;r69 的目标优先序(into > base_branch > 默认分支)与合并语义 MUST 不变。
 
     场景: 就地收口跳过合并
       假如 一个已完成 start 并在特性分支有新提交的临时仓库
-      当 对其运行 change finalize --into sdd/demo-add-feature
+      当 对其运行 change archive --into sdd/demo-add-feature
       那么 输出含就地收口提示且特性分支获得单条 archive(sdd) 提交
       而且 changes 目录下只剩 archive 改名产物
 
@@ -580,19 +577,19 @@
       那么 两次 change new 派生输出逐字节一致
       而且 在子目录真实落盘的 change 归位仓库根的 llmanspec
 
-    场景: 子包源码子目录下 archive freeze 归位子根归档目录
+    场景: 子包源码子目录下 freeze 归位子根归档目录
       假如 一个根与子根各含归档 change 的临时仓库
-      当 在子包源码子目录运行 archive freeze --dry-run
+      当 在子包源码子目录运行 freeze --dry-run
       那么 只列出子根实例的归档目录名
 
-    场景: 子包源码子目录下 archive freeze/thaw 归位子根实例
+    场景: 子包源码子目录下 freeze/thaw 归位子根实例
       假如 一个根与子根各含归档 change 的临时仓库
-      当 在子包源码子目录运行 archive freeze 与 archive thaw --dest restored
+      当 在子包源码子目录运行 freeze 与 thaw --dest restored
       那么 冷备与被解冻条目都只落在子根实例且根实例零新增
 
     场景: 子根 change 在持有其分支的链接 worktree 内 finalize 归档成功
       假如 一个根与子根双实例且子根 change 分支由链接 worktree 持有并已在该 worktree 落地子根 specs 的临时仓库
-      当 在该 worktree 的子包目录运行 change finalize 该 change
+      当 在该 worktree 的子包目录运行 change archive 该 change
       那么 退出码为 0 且归档目录落在主检出的子根实例而不再报 ENOENT
 
   @req:r119
@@ -603,11 +600,11 @@
     `llmanspec/specs/`(判定语义与 validate/finalize 的消息文本在单根与根实例逐字节不变;show 红态 hint 统一含实例前缀,根实例为字面量 `llmanspec/specs/`)。仿冒路径(如 `docs/llmanspec/specs/x` 或
     `<前缀>/docs/llmanspec/specs/x`)MUST NOT 计为命中;分支只改动其他实例根的 specs 时 MUST NOT 计为命中
     (严格本实例,与 scope-boundaries r116 写面约束同精神)。`show` 的 specs-landed 门、`validate` 的收口
-    校验与 `change finalize` 的收口门 MUST 共用该判据。
+    校验与 `change archive` 的收口门 MUST 共用该判据。
 
     场景: 子根 change 落地子根 specs 即过收口门
       假如 一个根与子根双实例且子根 change 已绑定分支并提交子根 specs 的临时仓库
-      当 在子根实例上运行 show 该 change 与 change finalize 该 change
+      当 在子根实例上运行 show 该 change 与 change archive 该 change
       那么 show 的 specs-landed 门为通过且 finalize 收口不再被 specs 落地门拦截
 
     场景: 子根 change 只动根实例 specs 不过收口门

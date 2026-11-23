@@ -2,6 +2,9 @@
 depends_on:
   - refresh-skill-discovery
 title: 收口并入 change archive，冷备改为 freeze
+branch: sdd/unify-command-surface
+base_branch: main
+base_sha: 8dbe60cfb393982747e4c25e367cfbe2ff92d001
 ---
 
 # 收口并入 change archive，冷备改为 freeze

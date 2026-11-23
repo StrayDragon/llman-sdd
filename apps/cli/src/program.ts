@@ -68,7 +68,7 @@ export function createProgram(ctx: CliContext): Command {
   // cli r75: pure parent groups (no default action of their own) reject bare
   // calls as usage errors — commander's missing-action help on stderr, rc 2
   // via missingParameter/…; `config` keeps its default action (overview, rc 0).
-  for (const name of ['change', 'spec', 'project', 'archive', 'index', 'self']) {
+  for (const name of ['change', 'spec', 'project', 'index', 'self']) {
     const group = program.commands.find((c) => c.name() === name);
     if (group === undefined) continue;
     group.action(() => {

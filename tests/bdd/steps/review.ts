@@ -59,11 +59,11 @@ bdd.given('一个含已归档目录的临时仓库', (ctx) => {
 
 bdd.when('运行 freeze 后再 thaw 回置该目录', (ctx) => {
   const repo = (ctx.fixtures['冻结仓库'] as { repo: TempRepo }).repo;
-  const freeze = repo.run('bun', [CLI, 'archive', 'freeze', '--before', '2026-02-01']);
+  const freeze = repo.run('bun', [CLI, 'freeze', '--before', '2026-02-01']);
   if (freeze.code !== 0) {
     throw new Error(`freeze failed:\n${freeze.stdout}`);
   }
-  const thaw = repo.run('bun', [CLI, 'archive', 'thaw', '--change', '2026-01-01-old-demo']);
+  const thaw = repo.run('bun', [CLI, 'thaw', '--change', '2026-01-01-old-demo']);
   ctx.fixtures['thaw结果'] = {
     exitCode: thaw.code,
     stdout: thaw.stdout,
@@ -166,14 +166,14 @@ bdd.given('一个含冻结归档条目与冷备的临时仓库', (ctx) => {
   writeFileSync(join(archiveDir, '2026-01-01-old-demo', 'proposal.md'), '# frozen demo\n');
   repo.run('git', ['add', '-A']);
   repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'archive dir']);
-  const freeze = repo.run('bun', [CLI, 'archive', 'freeze', '--before', '2026-02-01']);
+  const freeze = repo.run('bun', [CLI, 'freeze', '--before', '2026-02-01']);
   if (freeze.code !== 0) throw new Error(`freeze setup failed:\n${freeze.stdout}`);
   ctx.fixtures['冻结仓库'] = { root: repo.root, repo };
 });
 
-bdd.when('运行 archive thaw --change "{name}"', (ctx, name: string) => {
+bdd.when('运行 thaw --change "{name}"', (ctx, name: string) => {
   const repo = (ctx.fixtures['冻结仓库'] as { repo: TempRepo }).repo;
-  const thaw = repo.run('bun', [CLI, 'archive', 'thaw', '--change', name]);
+  const thaw = repo.run('bun', [CLI, 'thaw', '--change', name]);
   ctx.fixtures['thaw结果'] = {
     exitCode: thaw.code,
     stdout: thaw.stdout,

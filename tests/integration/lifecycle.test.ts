@@ -200,17 +200,17 @@ describe('lifecycle full loop', () => {
     expect(log.split('\n')[0]).toBe('archive(sdd): add-conflict');
   });
 
-  test('start gates: dirty tree and non-default branch rejected', () => {
-    const { root, git, io } = mkRepo();
+  test('start gates: dirty tree rejected, other branch binds the checkout', () => {
+    const { git, io } = mkRepo();
     newChange(io, { id: 'add-gated' });
     io.writeText('dirty.txt', 'x');
     expect(() => startChange(git, io, 'add-gated')).toThrow(LifecycleError);
     git.run(['add', '-A']);
     git.run(['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'dirty committed']);
 
-    // now on main but let's move to a non-default branch
     git.run(['switch', '-c', 'other']);
-    expect(() => startChange(git, io, 'add-gated')).toThrow(/default branch/);
+    const bound = startChange(git, io, 'add-gated');
+    expect(bound.branch).toBe('other');
   });
 
   test('finalize in-place (--into the bound branch) skips the merge and archives on the branch (r96)', () => {
@@ -243,7 +243,7 @@ describe('lifecycle full loop', () => {
     expect(io.exists('llmanspec/changes/add-inplace')).toBe(false);
   });
 
-  test('archive --force in-place from a foreign branch lands the close-out on the bound branch (r96)', () => {
+  test('archive from a foreign branch writes nothing', () => {
     const { root, git, io } = mkRepo();
     newChange(io, { id: 'force-inplace' });
     commitFile(
@@ -257,16 +257,12 @@ describe('lifecycle full loop', () => {
     git.run(['add', '-A']);
     git.run(['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'feat: x']);
     git.run(['switch', '-qc', 'unrelated']);
-    const result = archiveChange(git, io, 'force-inplace', {
-      force: true,
-      into: 'sdd/force-inplace',
-      today: '2026-10-08',
-    });
-    expect(result.warnings.join('\n')).toContain('in-place close-out');
-    expect(git.run(['branch', '--show-current'])).toBe('sdd/force-inplace');
-    expect(git.run(['log', '--format=%s', '-1', 'sdd/force-inplace'])).toBe(
-      'archive(sdd): force-inplace',
-    );
+    expect(() =>
+      archiveChange(git, io, 'force-inplace', {
+        into: 'sdd/force-inplace',
+        today: '2026-10-08',
+      }),
+    ).toThrow(/bound branch/u);
   });
 });
 

@@ -68,7 +68,7 @@
 
   @req:r116
   规则: 写入目标默认限当前实例根
-    写入或改写文件的命令,其默认目标 MUST 限于当前解析出的实例根之内,其他实例根的文件 MUST NOT 被隐式改写。两处显式豁免:`init` 及其 `--update` 按发现算子刷新其他实例根的托管块(既有多根写先例);用户显式传入的路径参数(如 `spec migrate-native <paths...>`)按参数原义处理。
+    写入或改写文件的命令,其默认目标 MUST 限于当前解析出的实例根之内,其他实例根的文件 MUST NOT 被隐式改写。两处显式豁免:`init` 及其 `--update` 按发现算子刷新其他实例根的托管块(既有多根写先例);用户显式传入的路径参数按参数原义处理。`spec migrate-native` MUST NOT 存在。
 
     场景: spec 写面只改写命中实例根
       假如 一个含根与子根双 llmanspec 的临时仓库
@@ -78,12 +78,12 @@
 
     场景: change 写面只改写命中实例根
       假如 一个根实例含既有 change 且子根已 start 的临时仓库
-      当 在子包源码子目录运行 change new 与 change finalize
+      当 在子包源码子目录运行 change new 与 change archive
       那么 子根产物归位子根且根实例 llmanspec 树逐字节未变
 
     场景: archive 写面只改写命中实例根
       假如 一个根与子根各含归档 change 的临时仓库
-      当 在子包源码子目录运行 archive freeze
+      当 在子包源码子目录运行 freeze
       那么 子根归档被冻结且根实例 llmanspec 树逐字节未变
 
     场景: init --update 跨根刷新托管块属显式豁免
@@ -95,7 +95,7 @@
       假如 一个含根与子根双 llmanspec 的临时仓库
       而且 根实例 specs 含 legacy 标签式 spec 文件
       当 在子包源码子目录运行 spec migrate-native 指向根实例文件
-      那么 该根实例文件按显式路径被迁移且子根实例零写入
+      那么 命令不存在且两实例均零写入
 
   @req:r117
   规则: 路径单一归属门不回归

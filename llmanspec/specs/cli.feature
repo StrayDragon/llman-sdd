@@ -10,7 +10,7 @@
     MUST 保持退出码 0;错误渲染逻辑 MUST 收敛在主入口统一出口,各命令 MUST NOT 自行散落 `process.exitCode = 1` 写退出码点。
     参数解析失败 MUST 一律以退出码 2 退出,口径覆盖缺必需参数、多余参数、非法枚举值与非法旗标组合(前代对 handler 级校验如 `--format`
     以退出码 1 退出,本仓统一为 2,属有意 divergence)。不带子命令的根裸调用(含只给根级选项的情形)MUST 等同 `--help`:帮助文本写
-    stdout 且退出码 0;五个纯父分组 `change`/`spec`/`project`/`archive`/`index` 缺必需子命令 MUST 报用法错误到 stderr 且退出码 2;
+    stdout 且退出码 0;五个纯父分组 `change`/`spec`/`project`/`index`/`self` 缺必需子命令 MUST 报用法错误到 stderr 且退出码 2;
     `config` MUST 保留其默认 action(裸调用输出概览且退出码 0)。
 
     场景: 未知命令单一前缀与退出码
@@ -149,7 +149,7 @@
       当 在该仓库运行 show 该 change 并在同一目录以 --directory 显式限定
       那么 缺省形态读出该 change 而显式 --directory 形态与 list 都报域错误
 
-    场景: 缺实例链接 worktree 中 archive freeze 报域错误且可显式重定向
+    场景: 缺实例链接 worktree 中 freeze 报域错误且可显式重定向
       假如 一个根实例含归档条目且挂有缺 llmanspec 链接 worktree 的临时仓库
-      当 在该 worktree 内运行 archive freeze --dry-run 并再以 --directory 指向主检出运行一次
+      当 在该 worktree 内运行 freeze --dry-run 并再以 --directory 指向主检出运行一次
       那么 缺省调用报域错误退出 1,显式重定向可用且输出非主检出 WARNING

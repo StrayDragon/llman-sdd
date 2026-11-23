@@ -21,8 +21,7 @@
     缺或空 `# purpose:` 头注释 MUST 判 ERROR;分配后的 spec id 与 `功能:` 标题不一致 MUST 判 ERROR;分配完成后重复的 spec id MUST 判 ERROR;每条 `规则:` MUST 携带全局唯一的 @req:<id> 句柄(缺失或重复——同一文件内多条规则
     共用或跨 capability——MUST 判 ERROR);不含任何 `规则:` 的 capability MUST 判 ERROR;顶层 `场景:`(Gherkin 功能级示例,无规则句柄)不告警、不参与规则统计;无 runnable
     嵌套场景的 `规则:`(0 场景或嵌套场景全部带 @skip/@experimental)MUST 输出聚合计数 INFO(按 capability 一条,不逐条爆炸,`--include-info` 可见);规则描述为自由文本
-    (MUST/SHALL 词不强制);历史标签 `@human/@rule/@executable/@manual` 解析惰性、不再承载语义(旧文件经 `spec migrate-native`
-    迁移);全局重复 req_id(同文件内或跨文件,按携带该 id 的规则条数 > 1 判定)MUST 对每个涉事 capability 判 ERROR;
+    (MUST/SHALL 词不强制);历史标签 `@human/@rule/@executable/@manual` 解析惰性、不再承载语义,且不再提供迁移命令。全局重复 req_id(同文件内或跨文件,按携带该 id 的规则条数 > 1 判定)MUST 对每个涉事 capability 判 ERROR;
     spec id 的分配(前缀剥除)MUST 路径形态无关:同一 .feature 文件无论以绝对或相对路径装载,分配的 spec id 一致
     (specs 树内相对位置命名),调用方以绝对路径装载时 MUST NOT 退化出全路径 id。
 

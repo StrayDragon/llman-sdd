@@ -1,21 +1,15 @@
-import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-
 import {
   ARCHIVE_DIR_REL,
   DEFAULT_LOCALE,
   buildReqRegistry,
   compareVersions,
   isValidVersion,
-  migrateNoteFor,
   migrateOverviewFor,
   migrationOverviewLines,
   migrationPrompt,
   knownMigrationVersions,
-  parseVersionExpr,
   planDedupe,
   planUnfenceLegacyCards,
-  stripLegacyHeaderLines,
   unfenceLegacyCards,
 } from '@llman-sdd/core';
 import type { Command } from 'commander';
@@ -31,59 +25,20 @@ import {
 } from '../cli-shared.ts';
 
 interface MigrateOptions {
-  kind?: string;
   fromVersion?: string;
   toVersion?: string;
-  versionExpr?: string;
   dryRun?: boolean;
   directory?: string;
 }
 
-/** Resolve the playbook range from --from-version/--to-version or the
- * deprecated --version-expr (r100): conflict → ERROR, missing half → ERROR,
- * malformed version → ERROR, from >= to → ERROR. Returns null when no
- * selector was given at all (caller prints usage). */
-function resolvePromptRange(options: MigrateOptions): {
-  from: string;
-  to: string;
-  viaExpr: boolean;
-} | null {
+/** Resolve the playbook range from --from-version/--to-version. */
+function resolvePromptRange(options: MigrateOptions): { from: string; to: string } | null {
   const hasNew = options.fromVersion !== undefined || options.toVersion !== undefined;
-  if (options.versionExpr !== undefined && hasNew) {
-    throw new CliError(
-      '--version-expr is deprecated and conflicts with --from-version/--to-version; pass only the new flags',
-      2,
-    );
-  }
-  if (options.versionExpr !== undefined) {
-    const parsed = parseVersionExpr(options.versionExpr);
-    if (parsed === null) {
-      throw new CliError(
-        `invalid --version-expr: ${options.versionExpr} (expected '<from>-><to>', e.g. '0.7.5->0.8.0')`,
-        2,
-      );
-    }
-    return { ...parsed, viaExpr: true };
-  }
   if (!hasNew) return null;
   if (options.fromVersion === undefined || options.toVersion === undefined) {
     throw new CliError('--from-version and --to-version must be given together (x.y.z)', 2);
   }
-  return { from: options.fromVersion, to: options.toVersion, viaExpr: false };
-}
-
-function collectFeatureFiles(paths: string[]): string[] {
-  const out: string[] = [];
-  const walk = (p: string): void => {
-    const st = statSync(p);
-    if (st.isDirectory()) {
-      for (const e of readdirSync(p)) walk(join(p, e));
-    } else if (p.endsWith('.feature')) out.push(p);
-  };
-  for (const p of paths) {
-    if (existsSync(p)) walk(p);
-  }
-  return out;
+  return { from: options.fromVersion, to: options.toVersion };
 }
 
 export function registerProject(program: Command, ctx: CliContext): void {
@@ -127,27 +82,15 @@ export function registerProject(program: Command, ctx: CliContext): void {
 
   const migrate = project
     .command('migrate')
-    .description(
-      'Migration hub: legacy collaboration notes, versioned agent playbooks, spec-header strip, frozen-card unfence',
-    )
-    .argument('[action]', 'prompt | strip-legacy-headers | frozen-cards-unfence')
-    .option('--kind <kind>', 'legacy collaboration notes: toon2features | specs-flatten')
+    .description('Migration hub: versioned agent playbooks and frozen-card unfence')
+    .argument('[action]', 'prompt | frozen-cards-unfence')
     .option('--from-version <version>', 'migration playbook range start, exclusive (x.y.z)')
     .option('--to-version <version>', 'migration playbook range end, inclusive (x.y.z)')
-    .option(
-      '--version-expr <expr>',
-      "deprecated — use --from-version/--to-version instead (e.g. '0.7.5->0.8.0')",
-    )
-    .option('--dry-run', 'strip-legacy-headers/frozen-cards-unfence: report without writing')
+    .option('--dry-run', 'frozen-cards-unfence: report without writing')
     .action((action: string | undefined, options: MigrateOptions) => {
-      // T36: version-range flags without an action are a usage error (rc 2),
-      // not a silent no-op — the error names the action that consumes them.
-      // `--kind` alone stays the legacy no-action form (overview / kind note).
       if (
         action === undefined &&
-        (options.versionExpr !== undefined ||
-          options.fromVersion !== undefined ||
-          options.toVersion !== undefined)
+        (options.fromVersion !== undefined || options.toVersion !== undefined)
       ) {
         throw new CliError(
           'project migrate range flags require the prompt action (llman-sdd project migrate prompt)',
@@ -181,59 +124,13 @@ export function registerProject(program: Command, ctx: CliContext): void {
             2,
           );
         }
-        if (range.viaExpr) {
-          console.error(
-            '[WARNING] --version-expr is deprecated; use --from-version/--to-version instead.',
-          );
-        }
         console.log(migrationPrompt(range.from, range.to));
         return;
       }
-      if (action === 'strip-legacy-headers') {
-        if (
-          options.kind !== undefined ||
-          options.versionExpr !== undefined ||
-          options.fromVersion !== undefined ||
-          options.toVersion !== undefined
-        ) {
-          throw new CliError(
-            'strip-legacy-headers takes no --kind/--version-expr/--from-version/--to-version',
-          );
-        }
-        const targets = collectFeatureFiles([resolveRootSpecsDir(options.directory, ctx.io)]);
-        let touched = 0;
-        let removed = 0;
-        for (const file of targets) {
-          const source = readFileSync(file, 'utf8');
-          const result = stripLegacyHeaderLines(source);
-          if (result.removed === 0) continue;
-          touched++;
-          removed += result.removed;
-          console.log(
-            `[strip] ${file}: ${result.removed} line(s)${options.dryRun === true ? ' (dry-run)' : ''}`,
-          );
-          if (options.dryRun !== true) writeFileSync(file, result.content, 'utf8');
-        }
-        const mode = options.dryRun === true ? ' (dry-run)' : '';
-        console.log(`strip-legacy-headers: ${touched} file(s), ${removed} line(s) removed${mode}`);
-        console.log('next: re-run `llman-sdd init --update` to refresh skills and templates');
-        return;
-      }
       if (action === 'frozen-cards-unfence') {
-        if (
-          options.kind !== undefined ||
-          options.versionExpr !== undefined ||
-          options.fromVersion !== undefined ||
-          options.toVersion !== undefined
-        ) {
-          throw new CliError(
-            'frozen-cards-unfence takes no --kind/--version-expr/--from-version/--to-version',
-          );
+        if (options.fromVersion !== undefined || options.toVersion !== undefined) {
+          throw new CliError('frozen-cards-unfence takes no --from-version/--to-version');
         }
-        // r121: legacy fenced cards are a *multi*-document YAML stream, which the
-        // stock pre-commit `check-yaml` rejects. Rewrite them to the fence-free
-        // single-document form our own writer already emits, so a user repo works
-        // with default tooling and needs no hook exemption.
         const rctx = reRootContext(ctx, options.directory);
         if (options.dryRun === true) {
           const hits = planUnfenceLegacyCards(rctx.io, ARCHIVE_DIR_REL);
@@ -247,23 +144,12 @@ export function registerProject(program: Command, ctx: CliContext): void {
       }
       if (action !== undefined) {
         throw new CliError(
-          `unknown migrate action: ${action} (expected: prompt | strip-legacy-headers | frozen-cards-unfence)`,
+          `unknown migrate action: ${action} (expected: prompt | frozen-cards-unfence)`,
           2,
         );
       }
-      if (options.kind === undefined) {
-        console.log(migrateOverviewFor(locale));
-        console.log(migrationOverviewLines().join('\n'));
-        return;
-      }
-      const note = migrateNoteFor(options.kind, locale);
-      if (note === null) {
-        throw new CliError(
-          `unknown migration kind: ${options.kind} (expected: toon2features | specs-flatten)`,
-          2,
-        );
-      }
-      console.log(note);
+      console.log(migrateOverviewFor(locale));
+      console.log(migrationOverviewLines().join('\n'));
     });
   addSpecDirOption(migrate);
 }

@@ -73,10 +73,10 @@ export function newChange(
 export interface StartResult {
   branch: string;
   baseBranch: string;
-  /** Where the recorded base_branch came from (r95 deviation warning input). */
-  baseSource: 'flag' | 'worktree' | 'default';
+  /** Where the recorded base_branch came from. */
+  baseSource: AttachBaseSource | 'worktree';
   baseSha: string;
-  /** Absolute worktree path when started with --worktree (r68); undefined on the classic path. */
+  /** Absolute worktree path when started with --worktree; undefined when binding the current branch. */
   worktreePath?: string;
 }
 
@@ -177,13 +177,29 @@ export function startChange(
     worktreeNaming?: 'id' | 'hash';
     /** r119: instance dir relative to the git toplevel ('' at the repo root). */
     instanceDirRel?: string;
+    /** Rebind when the change is already attached to a branch. */
+    force?: boolean;
   } = {},
 ): StartResult {
   const path = proposalPath(id);
   if (!io.exists(path)) throw new LifecycleError(`proposal not found: ${path}`);
+  const here = currentBranch(git);
+  if (
+    !opts.worktree &&
+    here !== null &&
+    here !== '' &&
+    here !== defaultBranch(git) &&
+    !opts.force
+  ) {
+    const existing = readBinding(io.readText(path));
+    if (existing !== null) {
+      throw new LifecycleError(
+        `change \`${id}\` already attached to branch \`${existing.branch}\` (base ${existing.baseSha}); pass --force to rebind`,
+      );
+    }
+  }
   const dirty = dirtyCount(git);
   if (dirty > 0) throw new LifecycleError(dirtyTree('change start'));
-  const here = currentBranch(git);
   if (here === null) throw new LifecycleError(detachedHead('change start'));
   const branchPrefix = opts.branchPrefix ?? 'sdd/';
   const branch = `${branchPrefix}${id}`;
@@ -192,9 +208,20 @@ export function startChange(
     assertLocalBase(git, opts.base, branch, 'new');
   }
 
+  // A non-default checkout binds the current branch. The default branch
+  // still creates sdd/<id>. --worktree always creates a branch elsewhere.
+  if (!opts.worktree && here !== defaultBranch(git)) {
+    const bound = attachChange(git, io, id, { force: opts.force, base: opts.base });
+    return {
+      branch: bound.branch,
+      baseBranch: bound.baseBranch,
+      baseSource: bound.baseSource,
+      baseSha: bound.baseSha,
+    };
+  }
+
   // r68 fork-source resolution: --base explicit > current branch (worktree
-  // mode records the actual source, which may be a non-default branch) >
-  // default branch. The classic path keeps the r14 default-branch gate.
+  // mode records the actual source) > default branch.
   let baseBranch: string;
   let baseSource: StartResult['baseSource'];
   if (opts.base !== undefined) {
@@ -206,11 +233,6 @@ export function startChange(
   } else {
     baseBranch = defaultBranch(git);
     baseSource = 'default';
-    if (here !== baseBranch) {
-      throw new LifecycleError(
-        `already on non-default branch \`${here}\`; use \`change attach\` to bind it, or switch to the default branch before \`change start\``,
-      );
-    }
   }
 
   let worktreePath: string | undefined;
@@ -269,7 +291,7 @@ export function attachChange(
   }
   const branch = currentBranch(git);
   if (branch === null || branch === '') {
-    throw new LifecycleError(detachedHead('change attach'));
+    throw new LifecycleError(detachedHead('change start'));
   }
   if (opts.base !== undefined) {
     assertLocalBase(git, opts.base, branch, 'bound');
@@ -286,7 +308,7 @@ export function attachChange(
         });
   if (branch === fork.branch) {
     throw new LifecycleError(
-      `${onDefaultBranch('change attach', branch)}; create or switch to a feature branch, or use \`change start\``,
+      `${onDefaultBranch('change start', branch)}; create or switch to a feature branch before binding the current checkout`,
     );
   }
   const baseSha = mergeBase(git, branch, fork.branch);
@@ -388,7 +410,7 @@ export function finalizeChange(
   const path = proposalPath(id);
   const binding = readBinding(io.readText(path));
   if (binding === null) {
-    throw new LifecycleError(`change \`${id}\` has no branch binding — run start/attach first`);
+    throw new LifecycleError(`change \`${id}\` has no branch binding — run \`change start\` first`);
   }
   // T34 close-out gate before any write: specs-landed verdict + task gate.
   const closeOut = closeOutGate({ git, io, id, binding, specsPrefix: opts.specsPrefix });
@@ -416,7 +438,7 @@ export function finalizeChange(
   // fail before any write (no switch, no merge, no rename).
   const current = currentBranch(git);
   if (current !== binding.branch) {
-    throw new LifecycleError(notOnBoundBranch('change finalize', binding.branch, current));
+    throw new LifecycleError(notOnBoundBranch('change archive', binding.branch, current));
   }
   const method = opts.method ?? 'squash';
   const target = opts.into ?? binding.baseBranch ?? defaultBranch(git);
@@ -540,7 +562,7 @@ function mergeRenameCommit(
   return { target, archiveDir, warnings, commitSubject, executedIn };
 }
 
-/** `change archive`: independent seal-off with task + strict git gates (r39/r40). */
+/** `change archive`: task gates, clean tree, merge, rename, optional close-out commit. */
 export function archiveChange(
   git: GitLike,
   io: FsIo,
@@ -548,68 +570,42 @@ export function archiveChange(
   opts: {
     into?: string;
     method?: 'squash' | 'ff';
-    force?: boolean;
     /** CLI already enforced a clean tree before the acceptance command ran. */
     skipCleanTree?: boolean;
     today: string;
+    noCommit?: boolean;
     /** r119: instance-relative specs prefix of the change's own root. */
     specsPrefix?: string;
   },
 ): FinalizeResult {
   const path = proposalPath(id);
   const binding = readBinding(io.readText(path));
-  if (!opts.force && binding === null) {
-    throw new LifecycleError(`change \`${id}\` has no branch binding — run start/attach first`);
+  if (binding === null) {
+    throw new LifecycleError(`change \`${id}\` has no branch binding — run \`change start\` first`);
   }
-  if (!opts.force) {
-    // T34: shared close-out verdict before any write (archive honors --force).
-    const closeOut = closeOutGate({ git, io, id, binding, specsPrefix: opts.specsPrefix });
-    if (!closeOut.ok) throw new LifecycleError(closeOut.reason as string);
-    const tasksPath = `${CHANGES_DIR}/${id}/tasks.md`;
-    const gate = archiveTaskGate(io.exists(tasksPath) ? io.readText(tasksPath) : null);
-    if (gate.blocked) {
-      // D9: when a pending unchecked task starts with a close-out verb, append
-      // the same remediation hint as the validate WARNING (single constant).
-      const closeOut = closeOutTaskLines(gate.pendingLines);
-      throw new LifecycleError(
-        [
-          `archive blocked by unchecked tasks (${gate.pendingLines.length} pending)`,
-          ...gate.pendingLines,
-          ...(closeOut.length > 0
-            ? [
-                `task "${closeOut[0]?.replace(/^-\s+\[ \]\s*/u, '').trim() ?? ''}" looks like a close-out step; ${CLOSE_OUT_TASK_HINT}`,
-              ]
-            : []),
-        ].join('\n'),
-      );
-    }
-    const current = currentBranch(git);
-    if (current === null || current === '')
-      throw new LifecycleError(detachedHead('change archive'));
-    if (current !== binding?.branch) {
-      throw new LifecycleError(
-        notOnBoundBranch('change archive', (binding?.branch ?? '') as string, current),
-      );
-    }
-    if (current === defaultBranch(git)) {
-      throw new LifecycleError(onDefaultBranch('change archive', current));
-    }
-    if (!opts.skipCleanTree && !isCleanTree(git))
-      throw new LifecycleError(dirtyTree('change archive'));
-  } else if (binding === null) {
-    throw new LifecycleError(`change \`${id}\` has no branch binding — cannot merge`);
+  const closeOut = closeOutGate({ git, io, id, binding, specsPrefix: opts.specsPrefix });
+  if (!closeOut.ok) throw new LifecycleError(closeOut.reason as string);
+  const current = currentBranch(git);
+  if (current === null || current === '') throw new LifecycleError(detachedHead('change archive'));
+  if (current !== binding.branch) {
+    throw new LifecycleError(notOnBoundBranch('change archive', binding.branch, current));
   }
+  if (current === defaultBranch(git)) {
+    throw new LifecycleError(onDefaultBranch('change archive', current));
+  }
+  if (!opts.skipCleanTree && !isCleanTree(git))
+    throw new LifecycleError(dirtyTree('change archive'));
   const method = opts.method ?? 'squash';
-  const target = opts.into ?? binding?.baseBranch ?? defaultBranch(git);
+  const target = opts.into ?? binding.baseBranch ?? defaultBranch(git);
   return mergeRenameCommit(
     git,
     io,
     id,
-    binding?.branch as string,
+    binding.branch,
     target,
     method,
     opts.today,
-    undefined,
+    opts.noCommit,
     instanceDirRelOf(opts.specsPrefix ?? DEFAULT_SPECS_PREFIX),
   );
 }

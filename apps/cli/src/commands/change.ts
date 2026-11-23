@@ -1,18 +1,16 @@
 import { lstatSync, readdirSync } from 'node:fs';
-import { basename, isAbsolute, join, relative, resolve } from 'node:path';
+import { isAbsolute, join, relative, resolve } from 'node:path';
 
 import {
   CLOSE_OUT_TASK_HINT,
   closeOutTaskLines,
   archiveChange,
-  attachChange,
+  archiveTaskGate,
   changeDiff,
   changeDiffInfo,
   defaultBranch,
   deriveChangeId,
-  finalizeChange,
   harvestAcrossWorktrees,
-  archiveTaskGate,
   isCleanTree,
   newChange,
   renderChangeIdTemplate,
@@ -24,7 +22,7 @@ import {
   readNeedsSpecsChange,
   type GitLike,
 } from '@llman-sdd/core';
-import { Option, type Command } from 'commander';
+import type { Command } from 'commander';
 
 import {
   CliError,
@@ -202,7 +200,7 @@ function deriveNewId(ctx: CliContext, description: string, verb: string | undefi
 export function registerChange(program: Command, ctx: CliContext): void {
   const change = program
     .command('change')
-    .description('Change lifecycle: new / start / attach / next-id / diff / finalize');
+    .description('Change lifecycle: new / start / next-id / diff / archive');
 
   const newCmd = change
     .command('new')
@@ -248,7 +246,7 @@ export function registerChange(program: Command, ctx: CliContext): void {
 
   const startCmd = change
     .command('start')
-    .description('Bind the change to a new feature branch (clean tree + default branch gates)')
+    .description('Create sdd/<id> on the default branch, or bind the current feature branch')
     .argument('<id>')
     .option(
       '--branch-prefix <prefix>',
@@ -256,8 +254,9 @@ export function registerChange(program: Command, ctx: CliContext): void {
     )
     .option(
       '--base <branch>',
-      'explicit fork-source branch to record (must be an existing local branch differing from the new branch; exempts the default-branch gate)',
+      'explicit fork-source branch to record (must be an existing local branch)',
     )
+    .option('--force', 'rebind an already attached change to the current branch')
     .option(
       '--worktree',
       'create the branch in a dedicated worktree (sdd.worktree_root / sdd.worktree_naming config) instead of switching this checkout',
@@ -266,7 +265,13 @@ export function registerChange(program: Command, ctx: CliContext): void {
   startCmd.action(
     (
       id: string,
-      options: { branchPrefix?: string; base?: string; worktree?: boolean; directory?: string },
+      options: {
+        branchPrefix?: string;
+        base?: string;
+        force?: boolean;
+        worktree?: boolean;
+        directory?: string;
+      },
     ) => {
       const rctx = reRootContext(ctx, options.directory);
       const resolved = resolveChangeIdOrExit(rctx, program, id);
@@ -275,11 +280,10 @@ export function registerChange(program: Command, ctx: CliContext): void {
       const result = startChange(git, rctx.io, resolved.id, {
         branchPrefix: options.branchPrefix ?? config?.sdd?.branch_prefix ?? 'sdd/',
         base: options.base,
+        force: options.force,
         worktree: options.worktree,
         worktreeRoot: config?.sdd?.worktree_root ?? undefined,
         worktreeNaming: config?.sdd?.worktree_naming ?? undefined,
-        // r119: the worktree redirect keeps the instance offset (sub-root
-        // start --worktree binds the SAME instance inside the new worktree).
         instanceDirRel: instanceDirRelFor(rctx),
       });
       warnBaseBranchDeviation(git, result);
@@ -287,32 +291,6 @@ export function registerChange(program: Command, ctx: CliContext): void {
         `started change \`${resolved.id}\` → branch \`${result.branch}\` base \`${result.baseSha}\` base-branch \`${result.baseBranch}\``,
       );
       if (result.worktreePath !== undefined) console.log(`worktree ${result.worktreePath}`);
-    },
-  );
-
-  const attachCmd = change
-    .command('attach')
-    .description('Bind the change to the current feature branch')
-    .argument('<id>')
-    .option('--force', 'rebind an already attached change to the current branch')
-    .option(
-      '--base <branch>',
-      'explicit fork-point branch to record (must be an existing local branch)',
-    );
-  addSpecDirOption(attachCmd);
-  attachCmd.action(
-    (id: string, options: { force?: boolean; base?: string; directory?: string }) => {
-      const rctx = reRootContext(ctx, options.directory);
-      const resolved = resolveChangeIdOrExit(rctx, program, id);
-      const git = ctx.git;
-      const result = attachChange(git, rctx.io, resolved.id, {
-        force: options.force,
-        base: options.base,
-      });
-      warnBaseBranchDeviation(git, result);
-      console.log(
-        `attached change \`${resolved.id}\` → branch \`${result.branch}\` base \`${result.baseSha}\` base-branch \`${result.baseBranch}\``,
-      );
     },
   );
 
@@ -348,14 +326,16 @@ export function registerChange(program: Command, ctx: CliContext): void {
 
   const archiveCmd = change
     .command('archive')
-    .description(
-      'Independent seal-off: task gates + merge + archive rename + commit (cold backup: `llman-sdd archive freeze`)',
-    )
+    .description('Validate, merge the feature branch, archive docs, and close out')
     .argument('<id>')
-    .option('--into <branch>', 'target branch to merge into')
-    .option('--method <method>', 'merge method: squash | ff')
-    .option('--dry-run', 'print the rename plan only')
-    .addOption(new Option('--force', 'skip task and git gates').hideHelp());
+    .option('--into <branch>', 'merge target override (defaults to base_branch)')
+    .option(
+      '--method <method>',
+      'merge method: squash | ff (default: sdd.merge_method config, then squash)',
+    )
+    .option('--no-check', 'skip the pre-merge validation sweep')
+    .option('--no-commit', 'skip the close-out commit (manual/CI history)')
+    .option('--dry-run', 'print the rename plan only');
   addSpecDirOption(archiveCmd);
   archiveCmd.action(
     (
@@ -363,8 +343,9 @@ export function registerChange(program: Command, ctx: CliContext): void {
       options: {
         into?: string;
         method?: string;
+        check?: boolean;
+        commit?: boolean;
         dryRun?: boolean;
-        force?: boolean;
         directory?: string;
       },
     ) => {
@@ -372,7 +353,6 @@ export function registerChange(program: Command, ctx: CliContext): void {
       const rctx = reRootContext(ctx, options.directory);
       const resolved = resolveChangeIdOrExit(rctx, program, id);
       id = resolved.id;
-      const io = rctx.io;
       if (options.dryRun) {
         const date = new Date().toISOString().slice(0, 10);
         console.log(
@@ -380,46 +360,51 @@ export function registerChange(program: Command, ctx: CliContext): void {
         );
         return;
       }
-      // r40 task gate: single core implementation (archiveTaskGate); the
-      // CLI only renders the blocked output + options list, byte-identical.
-      if (!options.force) {
-        const tasksPath = `llmanspec/changes/${id}/tasks.md`;
-        const gate = archiveTaskGate(io.exists(tasksPath) ? io.readText(tasksPath) : null);
-        if (gate.blocked) {
-          console.error(`Archive blocked: ${gate.pendingLines.length} unchecked task(s).`);
-          for (const line of gate.pendingLines) {
-            console.error(`  - [ ] ${line.replace(/^-\s+\[ \]\s*/u, '').trim()}`);
-          }
-          // D9: point at a close-out pseudo-task with the single shared hint.
-          const closeOut = closeOutTaskLines(gate.pendingLines);
-          if (closeOut.length > 0) {
-            console.error(
-              `  task "${closeOut[0]?.replace(/^-\s+\[ \]\s*/u, '').trim() ?? ''}" looks like a close-out step; ${CLOSE_OUT_TASK_HINT}`,
-            );
-          }
-          console.error(
-            'Options:\n  1. Complete the remaining tasks\n  2. Use --force to archive anyway (not recommended)',
-          );
-          throw new Error('archive blocked by unchecked tasks');
+      const tasksPath = `llmanspec/changes/${id}/tasks.md`;
+      const gate = archiveTaskGate(rctx.io.exists(tasksPath) ? rctx.io.readText(tasksPath) : null);
+      if (gate.blocked) {
+        console.error(`Archive blocked: ${gate.pendingLines.length} unchecked task(s).`);
+        for (const line of gate.pendingLines) {
+          console.error(`  - [ ] ${line.replace(/^-\s+\[ \]\s*/u, '').trim()}`);
         }
-        if (!isCleanTree(ctx.git)) {
-          throw new CliError('`change archive` requires a clean working tree');
+        const closeOut = closeOutTaskLines(gate.pendingLines);
+        if (closeOut.length > 0) {
+          console.error(
+            `  task "${closeOut[0]?.replace(/^-\s+\[ \]\s*/u, '').trim() ?? ''}" looks like a close-out step; ${CLOSE_OUT_TASK_HINT}`,
+          );
+        }
+        throw new CliError('archive blocked by unchecked tasks');
+      }
+      if (options.check !== false) {
+        const failed = runValidateSweep(rctx);
+        if (failed) {
+          throw new CliError('archive aborted: validation sweep failed (use --no-check to skip)');
         }
       }
-      enforceCloseOutHarness(rctx, id, false);
-      const result = archiveChange(ctx.git, io, id, {
+      if (!isCleanTree(ctx.git)) {
+        throw new CliError('`change archive` requires a clean working tree');
+      }
+      enforceCloseOutHarness(rctx, id, options.check === false);
+      const config = loadCliConfig(rctx.root);
+      const method = options.method ?? config?.sdd?.merge_method ?? 'squash';
+      const result = archiveChange(ctx.git, rctx.io, id, {
         into: options.into,
-        method: options.method as 'squash' | 'ff' | undefined,
-        force: options.force,
+        method: method as 'squash' | 'ff',
         skipCleanTree: true,
         today: new Date().toISOString().slice(0, 10),
-        // r119: judge specs-landing under the change's own instance root.
+        noCommit: options.commit === false,
         specsPrefix: specsPrefixFor(rctx),
       });
-      // node:path.basename — platform-aware (win32 backslashes would defeat
-      // a hand-rolled lastIndexOf('/')).
-      const archiveName = basename(result.archiveDir ?? '');
-      console.log(`Change '${id}' archived as '${archiveName}'.`);
+      for (const w of result.warnings) console.error(`[WARNING] ${w}`);
+      if (options.commit === false) {
+        console.log(
+          `archived \`${id}\` → ${result.archiveDir} on ${result.target} (close-out commit skipped — run: git add -A && git commit -m "archive(sdd): ${id}")`,
+        );
+      } else {
+        console.log(
+          `archived \`${id}\` → ${result.archiveDir} (commit "${result.commitSubject}" on ${result.target})`,
+        );
+      }
       if (result.executedIn !== null) {
         console.log(`executed in target worktree ${result.executedIn}`);
       }
@@ -467,69 +452,6 @@ export function registerChange(program: Command, ctx: CliContext): void {
       // T37: an empty diff says so instead of printing nothing.
       if (diff.trim() === '') console.log('no differences against the base (empty diff)');
       else console.log(diff);
-    },
-  );
-
-  const finalizeCmd = change
-    .command('finalize')
-    .description('Validate, merge the feature branch, archive docs, close out with one commit')
-    .argument('<id>')
-    .option('--into <branch>', 'merge target override (defaults to base_branch)')
-    .option(
-      '--method <method>',
-      'merge method: squash | ff (default: sdd.merge_method config, then squash)',
-    )
-    .option('--no-check', 'skip the pre-merge validation sweep')
-    .option('--no-commit', 'skip the close-out commit (manual/CI history)');
-  addSpecDirOption(finalizeCmd);
-  finalizeCmd.action(
-    (
-      id: string,
-      options: {
-        into?: string;
-        method?: string;
-        check?: boolean;
-        commit?: boolean;
-        directory?: string;
-      },
-    ) => {
-      assertMergeMethod(options.method);
-      const rctx = reRootContext(ctx, options.directory);
-      if (options.check !== false) {
-        const failed = runValidateSweep(rctx);
-        if (failed) {
-          throw new CliError('finalize aborted: validation sweep failed (use --no-check to skip)');
-        }
-      }
-      const resolved = resolveChangeIdOrExit(rctx, program, id);
-      id = resolved.id;
-      enforceCloseOutHarness(rctx, id, options.check === false);
-      const config = loadCliConfig(rctx.root);
-      const method = options.method ?? config?.sdd?.merge_method ?? 'squash';
-      const result = finalizeChange(ctx.git, rctx.io, id, {
-        into: options.into,
-        method: method as 'squash' | 'ff',
-        today: new Date().toISOString().slice(0, 10),
-        noCommit: options.commit === false,
-        // r119: judge specs-landing under the change's own instance root.
-        specsPrefix: specsPrefixFor(rctx),
-      });
-      for (const w of result.warnings) console.error(`[WARNING] ${w}`);
-      if (options.commit === false) {
-        console.log(
-          `finalized \`${id}\` → ${result.archiveDir} on ${result.target} (close-out commit skipped — run: git add -A && git commit -m "archive(sdd): ${id}")`,
-        );
-        if (result.executedIn !== null) {
-          console.log(`executed in target worktree ${result.executedIn}`);
-        }
-        return;
-      }
-      console.log(
-        `finalized \`${id}\` → ${result.archiveDir} (commit "${result.commitSubject}" on ${result.target})`,
-      );
-      if (result.executedIn !== null) {
-        console.log(`executed in target worktree ${result.executedIn}`);
-      }
     },
   );
 }

@@ -102,13 +102,11 @@
   @req:r70
   规则: 模板指引语义对齐
     模板 skills 与 units(内置 zh-Hans)中对 CLI 的行为性指引 MUST 与实际值域与行为一致:review 人审检查点 MUST
-    用无旗标调用(--capability 值域仅限 spec id)、已删除的兼容旗标 MUST NOT 再被推荐、change archive 收口 MUST 表述为与 finalize
-    同样的自动提交、context unavailable 修复指引 MUST 覆盖 index stale 与 chat model 未设双分支、引用不存在的 JSON 字段 MUST NOT
-    出现;propose「写 tasks.md」一节与 apply「勾选」一节 MUST 含约束句——tasks.md 只列实现与验证任务,收口(change finalize/change
-    archive)是流水线步骤 MUST NOT 列为任务;apply 模板 MUST 含门禁证据约束句——harness 证据 MUST 来自真实 harness(声称 harness 合格 MUST
+    用无旗标调用(--capability 值域仅限 spec id)、已删除的兼容旗标 MUST NOT 再被推荐、change archive 收口 MUST 表述为自动提交 `archive(sdd)` 且要求干净工作区、context unavailable 修复指引 MUST 覆盖 index stale 与 chat model 未设双分支、引用不存在的 JSON 字段 MUST NOT
+    出现;propose「写 tasks.md」一节与 apply「勾选」一节 MUST 含约束句——tasks.md 只列实现与验证任务,收口(change archive)是流水线步骤 MUST NOT 列为任务;apply 模板 MUST 含门禁证据约束句——harness 证据 MUST 来自真实 harness(声称 harness 合格 MUST
     已用显式 `--check`,缺省结构门的通过不是 harness 通过、harness 失败 MUST 先查根因)、编辑与验证 MUST 串行(MUST NOT 同批并行工具调用)、
     前后对比类判据 MUST 在 change 分支上测量、重构类 task MUST 对比测试用例数,并 MUST 含验证阶梯(unit → 定向 BDD → `validate --check` →
-    finalize)引导;verify 模板 MUST 含审查者亲自复跑门禁(经 `--check --strict` 取得真实 harness 证据,MUST NOT 采信实现者报告,不符为
+    change archive)引导;verify 模板 MUST 含审查者亲自复跑门禁(经 `--check --strict` 取得真实 harness 证据,MUST NOT 采信实现者报告,不符为
     CRITICAL,harness 证据 MUST 经 `--check`)与前后对比测量位置核对;propose「写 tasks.md」一节 MUST 要求前后对比类完成判据注明在 change 分支上测量;对账 MUST 以自动门禁纳入 bun
     test 套件(随 qa 运行),以禁用模式与必含标记声明(模式 MUST 覆盖已移除命令 checkpoint/change
     delta/feature_delta/solidify/project import 与已删除旗标及修饰符),违例 MUST 逐条报出来源模板与违例原因,缺失必含标记 MUST

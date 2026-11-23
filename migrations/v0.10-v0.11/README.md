@@ -1,6 +1,20 @@
 # v0.10 → v0.11 迁移
 
-本窗口目前包含冻结平铺卡的 YAML 形态归一,以及技能发现面的调整。
+本窗口包含冻结平铺卡的 YAML 形态归一、技能发现面的调整，以及命令面的替换。被删掉的命令没有别名。
+
+## 命令替换
+
+| 旧命令                                           | 新命令                                                                             |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| `llman-sdd change finalize <id>`                 | `llman-sdd change archive <id>`（另要求干净工作区；没有 `--force`）                |
+| `llman-sdd archive freeze`                       | `llman-sdd freeze`                                                                 |
+| `llman-sdd archive thaw`                         | `llman-sdd thaw`                                                                   |
+| `llman-sdd change attach <id>`                   | `llman-sdd change start <id>`（默认分支创建 `sdd/<id>`；其他本地分支绑定当前检出） |
+| `llman-sdd spec skeleton <capability>`           | `llman-sdd spec new <capability>`                                                  |
+| `llman-sdd spec migrate-native`                  | 已删除。历史标签保持惰性                                                           |
+| `llman-sdd project migrate strip-legacy-headers` | 已删除。残留头注释手工删                                                           |
+| `llman-sdd project migrate --kind`               | 已删除                                                                             |
+| `--version-expr`                                 | 已删除。用 `--from-version` 与 `--to-version`                                      |
 
 ## 技能发现
 
@@ -27,7 +41,7 @@ llman-sdd init --check
 
 ## 为什么需要
 
-`archive freeze` 在 0.9 时代产出带 `frozen:` 段的元数据卡,整文件用 `---` 围栏包裹。
+`freeze` 在 0.9 时代产出带 `frozen:` 段的元数据卡,整文件用 `---` 围栏包裹。
 0.10 起写入侧改为无围栏单文档 YAML,但存量围栏卡按「不迁移」保留。围栏使一个文件成为
 **多文档** YAML 流,于是 pre-commit 官方 `check-yaml`(默认严格单文档)对这批卡恒报:
 

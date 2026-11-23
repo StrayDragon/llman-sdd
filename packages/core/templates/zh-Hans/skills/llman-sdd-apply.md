@@ -31,12 +31,12 @@ flowchart LR
 - **管辖范围**：SDD 流程（change 分支、proposal、specs 编辑门）只约束行为合约面——`llmanspec/**` 及其产物对齐（如 `.agents/skills` 渲染新鲜度）。仓库其余文件（构建脚本、CI、一般文档、测试实现）按项目常规工程流程直改直提交，不经 change 包装；改动触及行为合约语义时，回到对应 skill 流程。
 - **不得猜测**：需求不明或 specs 与现实矛盾 → STOP 报告，不自行假定。
 - **不留旧兼容层**：change 要求改行为就全量升级到新写法，除非 tasks/proposal 明确要兼容。
-- **收尾**：该轮以宜接 `llman-sdd-verify` 收束；finalize/archive 归 `llman-sdd-archive`（不得在自修复循环里 finalize）。
+- **收尾**：该轮以宜接 `llman-sdd-verify` 收束；`change archive` 归 `llman-sdd-archive`（不得在自修复循环里收口）。
 
 ## Commit 策略
 
-- **change 分支上提交自由**（`change finalize` 不得求干净树）：按 task/里程碑分段提交，或留脏交给 finalize 一次收尾——均为一等公民。
-- **默认收尾**：全部 task 过门禁且 verify 全绿后，`llman-sdd change finalize <id>` 自动提交 `archive(sdd): <change-id>`（未提交 diff + frontmatter + 改名一笔）。不得在 apply 循环内 finalize。`--no-commit` 跳过自动提交（手动/CI 历史、pre-commit hook 冲突）。
+- **change 分支上提交自由**：按 task 或里程碑分段提交。收口 `change archive` 要求干净工作区，先提交再跑。
+- **默认收尾**：全部 task 过门禁且 verify 全绿后，提交工作区，再 `llman-sdd change archive <id>`。它自动提交 `archive(sdd): <change-id>`（改名与合并一笔）。不得在 apply 循环内收口。`--no-commit` 跳过自动提交（手动/CI 历史、pre-commit hook 冲突）。
 - **blocker 中断**：因 blocker STOP 前先做**一次** WIP commit（如 `wip(sdd): <change-id> <摘要>`）保全现场再报告。
 
 ## 步骤
@@ -49,7 +49,7 @@ flowchart LR
 
 ### 1) 选定 change id 并查前置
 - 已提供则直接用；否则从上下文推断，不明确就跑 `llman-sdd list --json` 让用户选。始终说明“使用变更：<id>”并告知如何覆盖。
-- 确认在经 `llman-sdd change start <id>` 或 `change attach <id>` 绑定的非默认分支上（仅重绑用 `--force`）。分支上的 specs 即唯一事实来源——不得在 `changes/<id>/specs/` 下编写。
+- 确认在经 `llman-sdd change start <id>` 或 `change start <id>` 绑定的非默认分支上（仅重绑用 `--force`）。分支上的 specs 即唯一事实来源——不得在 `changes/<id>/specs/` 下编写。
 {{ unit("skills/stage-guard") }}
 - 用 `llman-sdd context --task "<proposal 目标>" --paths "<specs scope>"` 获取匹配 `<paths>` 的 specs。
   - {{ unit("skills/index-fallback") }}
@@ -66,7 +66,7 @@ flowchart LR
 ### 4) 逐任务实施（循环）
 对每个未完成 task：
 1. **实现**：严格按 task 描述 + specs 要求，改动最小。
-2. **完成后立刻勾 checkbox**：`- [ ]` → `- [x]`。**收口不是 task**：`change finalize` / `change archive` 是流水线步骤，不得 出现在 tasks.md——若已列（如“收口——finalize”），删掉（收口的任务门要求全部任务已勾）。
+2. **完成后立刻勾 checkbox**：`- [ ]` → `- [x]`。**收口不是 task**：`change archive` 是流水线步骤，不得出现在 tasks.md——若已列（如“收口——finalize”），删掉（收口的任务门要求全部任务已勾）。
 3. **编辑与验证串行**：验证 必须 在编辑落盘后执行；不得 把编辑与测试/校验放进同一批并行工具调用（可能读到旧文件，产生假失败/假通过）。
 4. task 不明、遇 blocker、或 specs/design 与现实不一致 → STOP 报告，不自行假定。
 
@@ -79,7 +79,7 @@ flowchart LR
 - L1 最小单元：已声明验证手段中能直接加载被改模块的最快一层，仅覆盖当前改动点。
 - L2 定向行为：定向执行已声明验证手段中匹配当前场景的子集（已配置 `specs.check_command` 时优先），只复现目标行为。
 - L3 显式全量：`llman-sdd validate --check`（配置 `specs.check_command` 时执行全量 harness；缺省 validate 不再执行 harness）。
-- L4 收口兜底：`change finalize` 预合并强制真实 harness——每次收口至少 1 次全量。
+- L4 收口兜底：`change archive` 预合并强制真实 harness——每次收口至少 1 次全量。
 - 自修复循环默认用 L1/L2 快速复现；只有需要全量验收时才 L3；避免无谓白付全量成本。
 
 **门禁证据**：

@@ -31,8 +31,7 @@ export const MIGRATIONS: readonly MigrationDoc[] = [
       {
         title: 'Governance metadata retirement (`# reviewed-through:` stamp & `# scope:` header)',
         steps: [
-          'Run `llman-sdd project migrate strip-legacy-headers --dry-run` to preview the affected spec files.',
-          'Run `llman-sdd project migrate strip-legacy-headers` to strip legacy `# scope:` / `# reviewed-through:` / `# capability:` header comment lines (idempotent).',
+          'Delete leftover `# scope:`, `# reviewed-through:`, and `# capability:` header comment lines under `llmanspec/specs/**` by hand. The one-shot command was removed and has no alias.',
           'Run `llman-sdd init --update` to refresh the managed AGENTS blocks and agent skills.',
           'Run `llman-sdd validate --all --strict` — it must pass.',
         ],
@@ -51,8 +50,7 @@ export const MIGRATIONS: readonly MigrationDoc[] = [
       {
         title: 'Retire `# capability:` header; assign spec ids from paths (r101)',
         steps: [
-          'Run `llman-sdd project migrate strip-legacy-headers --dry-run` to preview spec header strips.',
-          'Run `llman-sdd project migrate strip-legacy-headers` to remove `# capability:` (and any remaining `# scope:` / `# reviewed-through:`) lines.',
+          'Delete leftover `# capability:` (and any remaining `# scope:` / `# reviewed-through:`) lines under `llmanspec/specs/**` by hand. The one-shot command was removed and has no alias.',
           'Ensure each `功能:` / `Feature:` title equals the assigned spec id (`llman-sdd list --specs` for ids).',
           'Run `llman-sdd init --update` to refresh managed skills and feature-contract guidance.',
           'Run `llman-sdd validate --all --strict` — it must pass.',
@@ -100,12 +98,12 @@ export const MIGRATIONS: readonly MigrationDoc[] = [
         steps: [
           'Optionally pin `locale: zh-Hans` in `llmanspec/config.yaml` — `en` and any unknown value now render Chinese.',
           'Run `llman-sdd init --update` and commit the refreshed managed AGENTS blocks and `.agents/skills/**`.',
-          'Re-run `llman-sdd spec skeleton <name>` where a skeleton dialect matters — it now emits `# language: zh-CN`.',
+          'Re-run `llman-sdd spec new <name>` where a skeleton dialect matters — it now emits `# language: zh-CN`.',
           'Run `llman-sdd validate --all --strict` — it must pass.',
         ],
         checks: [
           'No English-rendered managed block or skill remains after `init --update`.',
-          '`llman-sdd spec skeleton <name>` emits `# language: zh-CN`.',
+          '`llman-sdd spec new <name>` emits `# language: zh-CN`.',
           'A missing template resource makes `init` fail instead of silently skipping.',
         ],
       },
@@ -116,10 +114,10 @@ export const MIGRATIONS: readonly MigrationDoc[] = [
           'For a change that touches the contract, land and commit your `llmanspec/specs/**` edits on the bound branch before closing out.',
           'Set `needs_specs_change: false` in `proposal.md` frontmatter only when the change genuinely needs no contract edit.',
           'Keep `tasks.md` fully checked whenever the file exists.',
-          'Run `llman-sdd change finalize <id>` (or `archive`) — the gate runs before any merge and writes nothing on failure.',
+          'Run `llman-sdd change archive <id>` — the gate runs before any merge and writes nothing on failure.',
         ],
         checks: [
-          '`llman-sdd change finalize <id>` on a spec-unlanded change fails with zero writes.',
+          '`llman-sdd change archive <id>` on a spec-unlanded change fails with zero writes.',
           'A change that landed its specs, or declared `needs_specs_change: false`, still closes out cleanly.',
         ],
       },
@@ -182,6 +180,22 @@ export const MIGRATIONS: readonly MigrationDoc[] = [
           'No `llmanspec/changes/archive/<YYYY-MM-DD>-<id>.yaml` card opens with a bare `---` line.',
           'The stock `check-yaml` hook (no `--allow-multiple-documents`, no exclude) passes on the archive directory.',
           '`llman-sdd graph --scope archived` shows the same frozen nodes and dependency edges as before.',
+        ],
+      },
+      {
+        title: 'Command surface: one close-out, one bind, top-level cold backup',
+        steps: [
+          'Replace `llman-sdd change finalize` with `llman-sdd change archive`. There is no alias. Close-out now also requires a clean tree and refuses `--force`.',
+          'Replace `llman-sdd archive freeze` with `llman-sdd freeze`, and `llman-sdd archive thaw` with `llman-sdd thaw`. Flags are unchanged.',
+          'Replace `llman-sdd change attach` with `llman-sdd change start`. On the default branch it creates `sdd/<id>`; on another local branch it binds the current checkout. `--force` rebinds.',
+          'Replace `llman-sdd spec skeleton` with `llman-sdd spec new`.',
+          'Stop calling `spec migrate-native`, `project migrate strip-legacy-headers`, `project migrate --kind`, and `--version-expr`. Those commands and flags are gone and have no aliases. Keep `project migrate prompt` and `project migrate frozen-cards-unfence`.',
+          'Run `llman-sdd init --update` so installed skills name the new commands.',
+        ],
+        checks: [
+          '`llman-sdd change finalize`, `llman-sdd change attach`, `llman-sdd spec skeleton`, and `llman-sdd archive` exit 2 as unknown commands.',
+          '`llman-sdd change archive --help` lists `--no-check`, `--no-commit`, and `--dry-run`, and does not list `--force`.',
+          '`llman-sdd freeze --help` and `llman-sdd thaw --help` succeed.',
         ],
       },
     ],
@@ -251,7 +265,6 @@ export function migrationOverviewLines(): string[] {
     'Versioned migration playbooks (agent-readable, via `project migrate prompt`):',
     versions,
     'Usage: llman-sdd project migrate prompt --from-version <from> --to-version <to>',
-    'Mechanical spec-header strip: llman-sdd project migrate strip-legacy-headers [--dry-run]',
     'Legacy frozen-card unfence: llman-sdd project migrate frozen-cards-unfence [--dry-run]',
   ];
 }

@@ -1,5 +1,5 @@
 // Domain step definitions: 读命令输出合同批 — 覆盖 r21(show --output json
-// 字段集 / show spec 原文 / graph mermaid 合同)、r22(spec skeleton /
+// 字段集 / show spec 原文 / graph mermaid 合同)、r22(spec new /
 // next-req-id / project migrate 三态)、r51-r53(list compact-json 排序 /
 // show 文本与 JSON 门 / show --output human 变体)。
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
@@ -271,9 +271,9 @@ bdd.given('一个已初始化且含 r1 规则的临时仓库', (ctx) => {
   ctx.fixtures['migrate仓库'] = { repo: makeTempRepo() };
 });
 
-bdd.when('运行 spec skeleton 与 next-req-id 与 project migrate 三态', (ctx) => {
+bdd.when('运行 spec new 与 next-req-id 与 project migrate 三态', (ctx) => {
   const repo = (ctx.fixtures['migrate仓库'] as { repo: TempRepo }).repo;
-  const skel = repo.run('bun', [CLI, 'spec', 'skeleton', 'capx']);
+  const skel = repo.run('bun', [CLI, 'spec', 'new', 'capx']);
   const skeletonContent =
     skel.code === 0
       ? readFileSync(join(repo.root, 'llmanspec', 'specs', 'capx.feature'), 'utf8')
@@ -303,7 +303,7 @@ bdd.when('运行 spec skeleton 与 next-req-id 与 project migrate 三态', (ctx
 
 bdd.thenStep('skeleton 产物过单轨校验且 next-req-id 输出最大已用号加一', (ctx) => {
   const r = ctx.fixtures['migrate结果'] as MigrateResult;
-  if (r.skeletonCode !== 0) throw new Error('spec skeleton failed');
+  if (r.skeletonCode !== 0) throw new Error('spec new failed');
   const doc = parseCapability(r.skeletonContent, 'capx.feature');
   if (doc.errors.length !== 0) {
     throw new Error(`skeleton fails single-track validation: ${JSON.stringify(doc.errors)}`);
@@ -321,35 +321,21 @@ bdd.thenStep('skeleton 产物过单轨校验且 next-req-id 输出最大已用�
   }
 });
 
-bdd.thenStep('migrate 裸调用输出总览且两种 kind 各输出协作说明', (ctx) => {
+bdd.thenStep('migrate 裸调用输出总览', (ctx) => {
   const r = ctx.fixtures['migrate结果'] as MigrateResult;
-  // 总览含两种 --kind 提示(输出文案随 config locale 变化,断言取语言中立标记)
-  for (const marker of ['toon2features', 'specs-flatten']) {
-    if (!r.bareOut.includes(marker)) {
-      throw new Error(`bare migrate overview missing "${marker}":\n${r.bareOut}`);
-    }
-  }
-  if (!r.toonOut.includes('spec.toon')) {
-    throw new Error(`toon2features guidance missing:\n${r.toonOut}`);
-  }
-  if (!r.flattenOut.includes('git mv')) {
-    throw new Error(`specs-flatten guidance missing:\n${r.flattenOut}`);
-  }
+  if (r.bareOut.trim() === '') throw new Error('bare migrate overview was empty');
 });
 
-bdd.thenStep('未知 --kind 退出码非零', (ctx) => {
+bdd.thenStep('--kind 为未知选项且退出码为 2', (ctx) => {
   const r = ctx.fixtures['migrate结果'] as MigrateResult;
-  if (r.unknownCode === 0) throw new Error(`unknown kind must exit non-zero: ${r.unknownOut}`);
-  if (!r.unknownOut.includes('unknown migration kind')) {
-    throw new Error(`unexpected error output: ${r.unknownOut}`);
-  }
+  if (r.unknownCode !== 2) throw new Error(`--kind must exit 2: ${r.unknownCode}\n${r.unknownOut}`);
 });
 
-// align-report-cli-surface B18:spec skeleton 不再创建仓库根 src/,
+// align-report-cli-surface B18:spec new 不再创建仓库根 src/,
 // 骨架 # scope: 指向 llmanspec/(本地化兼容单轨校验)。
-bdd.when('运行 spec skeleton', (ctx) => {
+bdd.when('运行 spec new', (ctx) => {
   const repo = (ctx.fixtures['migrate仓库'] as { repo: TempRepo }).repo;
-  const skel = repo.run('bun', [CLI, 'spec', 'skeleton', 'capx']);
+  const skel = repo.run('bun', [CLI, 'spec', 'new', 'capx']);
   const content =
     skel.code === 0
       ? readFileSync(join(repo.root, 'llmanspec', 'specs', 'capx.feature'), 'utf8')
@@ -359,7 +345,7 @@ bdd.when('运行 spec skeleton', (ctx) => {
 
 bdd.thenStep('骨架通过单轨校验且头部无 # scope: 行', (ctx) => {
   const r = ctx.fixtures['skeleton结果'] as { code: number; content: string };
-  if (r.code !== 0) throw new Error('spec skeleton failed');
+  if (r.code !== 0) throw new Error('spec new failed');
   const doc = parseCapability(r.content, 'capx.feature');
   if (doc.errors.length > 0)
     throw new Error(`skeleton fails single-track validation: ${JSON.stringify(doc.errors)}`);

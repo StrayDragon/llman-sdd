@@ -131,9 +131,9 @@ bdd.given('一个次级 worktree 持有非默认分支且含带日期归档目�
   ctx.fixtures['侧检仓库'] = { repo, sidePath } satisfies SideWorktreeFreeze;
 });
 
-bdd.when('在次级 worktree 运行 archive freeze', (ctx) => {
+bdd.when('在次级 worktree 运行 freeze', (ctx) => {
   const { sidePath } = ctx.fixtures['侧检仓库'] as SideWorktreeFreeze;
-  const proc = runCli(['archive', 'freeze'], sidePath);
+  const proc = runCli(['freeze'], sidePath);
   ctx.fixtures['侧检冻结'] = {
     code: proc.status ?? 1,
     stdout: proc.stdout ?? '',

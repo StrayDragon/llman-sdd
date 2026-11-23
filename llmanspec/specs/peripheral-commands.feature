@@ -56,19 +56,19 @@
 
   @req:r22
   规则: spec 助手与 migrate 引导壳
-    `spec skeleton <cap>` MUST 生成通过单轨校验的骨架(locale 按 config);骨架 MUST NOT 创建仓库根 `src/` 目录,且 MUST NOT 写入
+    `spec new <cap>` MUST 生成通过单轨校验的骨架(locale 按 config);骨架 MUST NOT 创建仓库根 `src/` 目录,且 MUST NOT 写入
     `# scope:` 或 `# capability:` 头注释(头部仅 `# language:`/`# purpose:`);`spec next-req-id` MUST 扫描全局 rN 注册表输出最大已用号加一(空注册表输出 r1)且 MUST NOT 复用树内已
-    退役的空缺号段(`spec skeleton` 取号共用同一语义;数字 id 分发统一为 max+1 单点分配器原语,分发与 already-in-use 检验
+    退役的空缺号段(`spec new` 取号共用同一语义;数字 id 分发统一为 max+1 单点分配器原语,分发与 already-in-use 检验
     MUST 同源且 MUST 零持久化状态(不写计数器/tombstone/缓存文件,重扫描即真相),`project dedupe-req-ids` 重映射与
     change_id.template 的 llman_sdd_unique_id 同受此约束;本条取代「与前代
-    smallest free 有意分叉、不得合并」旧红线,退役号不复用的理由继承 issue #5 与 align-next-req-id-max-plus-one 的 design);`project migrate` 的 `--kind` legacy 协作说明 MUST 保持输出且该路径不执行任何迁移;迁移总览、playbook 与 strip 子命令见 peripheral-commands r100。
+    smallest free 有意分叉、不得合并」旧红线,退役号不复用的理由继承 issue #5 与 align-next-req-id-max-plus-one 的 design);`project migrate` 裸调用 MUST 输出总览,`--kind` MUST NOT 存在(未知选项,退出码 2)。迁移总览与 playbook 见 peripheral-commands r100。
 
     场景: spec 助手产物与 migrate 三态
       假如 一个已初始化且含 r1 规则的临时仓库
-      当 运行 spec skeleton 与 next-req-id 与 project migrate 三态
+      当 运行 spec new 与 next-req-id 与 project migrate 三态
       那么 skeleton 产物过单轨校验且 next-req-id 输出最大已用号加一
-      而且 migrate 裸调用输出总览且两种 kind 各输出协作说明
-      而且 未知 --kind 退出码非零
+      而且 migrate 裸调用输出总览
+      而且 --kind 为未知选项且退出码为 2
 
     场景: 空缺号段不被复用
       假如 一个已初始化且含 r1 与 r5 规则的临时仓库
@@ -76,9 +76,9 @@
       那么 输出 r6 而非复用空缺号 r2
 
 
-    场景: spec skeleton 不产生仓库根 src
+    场景: spec new 不产生仓库根 src
       假如 一个已初始化且含 r1 规则的临时仓库
-      当 运行 spec skeleton
+      当 运行 spec new
       那么 骨架通过单轨校验且头部无 # scope: 行
       而且 仓库根无 src/ 目录
 
@@ -190,12 +190,12 @@
 
   @req:r55
   规则: spec 助手兼容 flag
-    `spec skeleton` MUST 支持 `--force`(覆盖已存在 .feature,无 force 时已存在 MUST 报错);`spec next-req-id` MUST 支持
+    `spec new` MUST 支持 `--force`(覆盖已存在 .feature,无 force 时已存在 MUST 报错);`spec next-req-id` MUST 支持
     `--json`(输出 {reqId})。
 
     场景: skeleton force 与 next-req-id json
       假如 一个已存在 spec 的临时工作区
-      当 运行 spec skeleton --force 与 spec next-req-id --json
+      当 运行 spec new --force 与 spec next-req-id --json
       那么 覆盖成功且 JSON 形状正确
 
   @req:r58
@@ -278,11 +278,8 @@
   规则: project migrate 按版本组织的迁移手册与存量头剥离
     迁移注册表 MUST 按单版本组织(每版本声明自己的迁移条目,条目含标题、逐步命令与自检清单),`project migrate` 裸调用 MUST 在既有总览之上追加已知迁移版本清单(含获取方式提示);
     `project migrate prompt --from-version <v> --to-version <v>` MUST 输出面向 agent 的英文迁移手册:按 `(from, to]` 左开右闭的数值比较聚合范围内全部已登记版本并升序输出,逐版本 `## <version>` 头,版本内逐条目标题、编号步骤与逐项自检清单,版本间以水平分割线分隔,同一范围的输出 MUST 逐字节确定;
-    版本 MUST 为 `x.y.z` 三段数字,非法格式或 `from >= to` MUST 报错;范围合法但无登记条目 MUST 输出无登记迁移提示且退出码为 0;
-    `--version-expr` 为废弃旗标:继续解析并等价映射为新旗标语义,MUST 向 stderr 输出弃用 WARNING 指引新旗标,与新旗标同给 MUST 报冲突错;
-    `--from-version`、`--to-version`、`--kind` 或 `--version-expr` 任一出现而无 `action` 时 MUST 报用法错误(退出码 2)并列出合法
-    `action`(prompt、strip-legacy-headers),MUST NOT 静默忽略该旗标;
-    `project migrate strip-legacy-headers` MUST 扫描当前实例根 `llmanspec/specs/**` 全部 .feature,删除行首 `# scope:`、`# reviewed-through:` 或 `# capability:` 的注释行(全文范围,幂等:无匹配则零改动),`--dry-run` MUST 仅报告将改动的文件与行数而不写盘,执行结束 MUST 输出后续清单(重跑 `init --update`)与改动统计,剥除后产物 MUST 通过结构校验。
+    版本 MUST 为 `x.y.z` 三段数字,非法格式或 `from >= to` MUST 报错;范围合法但无登记条目 MUST 输出无登记迁移提示且退出码为 0。
+    `strip-legacy-headers`、`--kind` 与 `--version-expr` MUST NOT 存在。
 
     场景: 迁移手册按版本范围聚合输出
       假如 一个已安装本 CLI 的临时仓库
@@ -305,22 +302,6 @@
       当 运行 prompt 携带非法版本格式与携带 from 大于 to 两例
       那么 均报错且非法格式例的错误信息含 x.y.z 格式提示
 
-    场景: 废弃旗标可用但告警且与新旗标冲突报错
-      假如 一个已安装本 CLI 的临时仓库
-      当 运行 project migrate prompt --version-expr "0.7.5->0.8.0" 与其再同给 --from-version 0.7.5 一例
-      那么 前者输出 0.8.0 迁移手册且 stderr 含弃用 WARNING
-      而且 后者报旗标冲突错
-
-    场景: 剥除历史头行且幂等
-      假如 一个 specs 含 # scope: 与 # reviewed-through: 与 # capability: 头行的临时仓库
-      当 运行 project migrate strip-legacy-headers 后再次运行
-      那么 首次运行后三类头行不再出现且文件仍通过结构校验
-      而且 第二次运行报告零改动
-
-    场景: dry-run 只报告不写盘
-      假如 一个 specs 含历史头行的临时仓库
-      当 运行 project migrate strip-legacy-headers --dry-run
-      那么 报告含将改动的文件且文件内容不变
   @req:r105
   规则: spec transitions 只读内省输出契约
     llman-sdd spec transitions MUST 为零参数只读子命令:输出状态流转校验的判定细节,内容 MUST 含特征词列别名族(from/初始状态、event/事件、to/目标状态)、无 tag 时的嗅探判据(三族至少两族)、@transitions/@no-transitions 双向覆盖语义与 1-4 道门禁清单;内容常量 MUST 由 core 单一事实源导出,输出为人读格式。

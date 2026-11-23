@@ -22,7 +22,7 @@ disable-model-invocation: true
 2. 确保已 `llman-sdd init`（存在 `llmanspec/`）。
 3. `llmanspec/changes/<id>/` 已存在：询问补齐或换 id；勿未确认就覆盖。
 4. 建规划文档（可短暂在默认分支）：`llman-sdd change new <id>`（或手写）→ 充实 `proposal.md` → `design.md`（按需）→ `tasks.md`。
-5. **绑定分支**：`llman-sdd change start <id>`（干净树 + 默认分支）或手动建分支后 `change attach <id>`。
+5. **绑定分支**：`llman-sdd change start <id>`（干净树 + 默认分支）或手动建分支后 `change start <id>`。
 6. **提交 specs**：在绑定分支编辑 `llmanspec/specs/<capability>.feature`（扁平，或目录主文件）并 commit；无合约变更设 `needs_specs_change: false`。
 7. 校验：`llman-sdd validate <id> --strict`。
 8. 用 `llman-sdd show <id> --output json` 确认 specs-landed 门绿（`specsLanded`/`needsSpecsChange`）后宜接 `llman-sdd-apply`（未提交前不得提示）。

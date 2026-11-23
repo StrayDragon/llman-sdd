@@ -309,13 +309,13 @@ bdd.when('先 dry-run 再按 before 与 keep-recent 执行 freeze', (ctx) => {
   const repo = ctx.fixtures['freeze仓库'] as FreezeFixture;
   // --before 2026-01-03 候选 = ancient + middle;--keep-recent 1 再按名保留
   // middle → 实际只冻结 ancient。
-  const dry = repo.run(['archive', 'freeze', '--dry-run', '--before', '2026-01-03']);
+  const dry = repo.run(['freeze', '--dry-run', '--before', '2026-01-03']);
   const archiveDir = join(repo.root, 'llmanspec', 'changes', 'archive');
   const dryClean =
     DATED_DIRS.every((dir) => existsSync(join(archiveDir, dir))) &&
     !existsSync(join(archiveDir, FREEZE_ARCHIVE_NAME));
-  const real = repo.run(['archive', 'freeze', '--before', '2026-01-03', '--keep-recent', '1']);
-  const list = repo.run(['archive', 'freeze', '--list']);
+  const real = repo.run(['freeze', '--before', '2026-01-03', '--keep-recent', '1']);
+  const list = repo.run(['freeze', '--list']);
   ctx.fixtures['freeze结果'] = { dry, dryClean, real, list } satisfies FreezeResult;
 });
 
@@ -385,9 +385,9 @@ bdd.given('一个含带日期归档目录的临时仓库', (ctx) => {
   } satisfies FreezeFixture;
 });
 
-bdd.when('运行 archive freeze --before 该日期', (ctx) => {
+bdd.when('运行 freeze --before 该日期', (ctx) => {
   const repo = ctx.fixtures['卡冻结仓库'] as FreezeFixture;
-  const res = repo.run(['archive', 'freeze', '--before', '2026-02-01']);
+  const res = repo.run(['freeze', '--before', '2026-02-01']);
   ctx.fixtures['卡冻结结果'] = {
     code: res.code,
     stdout: res.stdout,
@@ -506,7 +506,7 @@ bdd.given('一个含平铺冻结卡与冷备的临时仓库', (ctx) => {
     const proc = runCli(args, root);
     return { code: proc.status ?? 1, stdout: proc.stdout ?? '', stderr: proc.stderr ?? '' };
   };
-  const frozen = cli(['archive', 'freeze', '--before', '2026-02-01']);
+  const frozen = cli(['freeze', '--before', '2026-02-01']);
   if (frozen.code !== 0) throw new Error(`freeze setup failed: ${frozen.stdout}${frozen.stderr}`);
   ctx.fixtures['卡解冻仓库'] = {
     root,
@@ -514,9 +514,9 @@ bdd.given('一个含平铺冻结卡与冷备的临时仓库', (ctx) => {
   } satisfies FreezeFixture;
 });
 
-bdd.when('运行 archive thaw --change 该卡名', (ctx) => {
+bdd.when('运行 thaw --change 该卡名', (ctx) => {
   const repo = ctx.fixtures['卡解冻仓库'] as FreezeFixture;
-  const res = repo.run(['archive', 'thaw', '--change', '2026-01-01-card-thaw']);
+  const res = repo.run(['thaw', '--change', '2026-01-01-card-thaw']);
   ctx.fixtures['卡解冻结果'] = {
     code: res.code,
     stdout: res.stdout,

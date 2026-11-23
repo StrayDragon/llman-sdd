@@ -716,17 +716,17 @@ bdd.when(
     writeFileSync(configPath, 'schema: spec-driven\n');
 
     // 2. attach --base pointing at a missing branch
-    const a = repo.run('bun', [CLI, 'change', 'attach', id, '--force', '--base', 'no-such-branch']);
+    const a = repo.run('bun', [CLI, 'change', 'start', id, '--force', '--base', 'no-such-branch']);
     outputs.push(`${a.stdout}${a.stderr}`);
 
     // 3. detached HEAD → attach refuses
     repo.run('git', ['checkout', '-q', '--detach']);
-    const d = repo.run('bun', [CLI, 'change', 'attach', id, '--force']);
+    const d = repo.run('bun', [CLI, 'change', 'start', id, '--force']);
     outputs.push(`${d.stdout}${d.stderr}`);
 
     // 4. finalize on a non-bound branch
     repo.run('git', ['switch', '-qC', 'other-branch']);
-    const f = repo.run('bun', [CLI, 'change', 'finalize', id]);
+    const f = repo.run('bun', [CLI, 'change', 'archive', id]);
     outputs.push(`${f.stdout}${f.stderr}`);
 
     ctx.fixtures['四路径输出'] = outputs;

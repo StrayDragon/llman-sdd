@@ -505,9 +505,9 @@ bdd.given('一个根与子根各含归档 change 的临时仓库', (ctx) => {
   ctx.fixtures['双根仓库'] = { repo };
 });
 
-bdd.when('在子包源码子目录运行 archive freeze --dry-run', (ctx) => {
+bdd.when('在子包源码子目录运行 freeze --dry-run', (ctx) => {
   const { repo } = ctx.fixtures['双根仓库'] as { repo: TempRepo };
-  const proc = runCli(['archive', 'freeze', '--dry-run'], subSrcDir(repo), process.env);
+  const proc = runCli(['freeze', '--dry-run'], subSrcDir(repo), process.env);
   ctx.fixtures['子根冻结结果'] = {
     code: proc.status ?? 1,
     out: `${proc.stdout ?? ''}${proc.stderr ?? ''}`,
@@ -525,7 +525,7 @@ bdd.thenStep('只列出子根实例的归档目录名', (ctx) => {
   }
 });
 
-bdd.when('在子包源码子目录运行 archive freeze 与 archive thaw --dest restored', (ctx) => {
+bdd.when('在子包源码子目录运行 freeze 与 thaw --dest restored', (ctx) => {
   if (bundledSevenZip !== 'ok') {
     throw new Error(
       '[7z 环境守卫] bundled 7z-wasm 依赖不可用——多根 freeze/thaw 场景无法执行,请先 bun install',
@@ -533,9 +533,9 @@ bdd.when('在子包源码子目录运行 archive freeze 与 archive thaw --dest 
   }
   const { repo } = ctx.fixtures['双根仓库'] as { repo: TempRepo };
   const cwd = subSrcDir(repo);
-  const frozen = runCli(['archive', 'freeze', '--before', '2027-01-01'], cwd, process.env);
+  const frozen = runCli(['freeze', '--before', '2027-01-01'], cwd, process.env);
   const thawed = runCli(
-    ['archive', 'thaw', '--change', '2026-02-02-sub-archived', '--dest', 'restored'],
+    ['thaw', '--change', '2026-02-02-sub-archived', '--dest', 'restored'],
     cwd,
     process.env,
   );
@@ -749,7 +749,7 @@ bdd.given('一个根实例含既有 change 且子根已 start 的临时仓库', 
   ctx.fixtures['双根仓库'] = { repo, id, src };
 });
 
-bdd.when('在子包源码子目录运行 change new 与 change finalize', (ctx) => {
+bdd.when('在子包源码子目录运行 change new 与 change archive', (ctx) => {
   const { repo, id, src } = ctx.fixtures['双根仓库'] as {
     repo: TempRepo;
     id: string;
@@ -765,7 +765,7 @@ bdd.when('在子包源码子目录运行 change new 与 change finalize', (ctx) 
     }
     repo.run('git', ['add', '-A']);
     repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'draft: extra']);
-    const finalized = runCli(['change', 'finalize', id], src, process.env);
+    const finalized = runCli(['change', 'archive', id], src, process.env);
     return {
       code: finalized.status ?? 1,
       out: `${finalized.stdout ?? ''}${finalized.stderr ?? ''}`,
@@ -797,14 +797,14 @@ bdd.thenStep('子根产物归位子根且根实例 llmanspec 树逐字节未变'
   }
 });
 
-bdd.when('在子包源码子目录运行 archive freeze', (ctx) => {
+bdd.when('在子包源码子目录运行 freeze', (ctx) => {
   if (bundledSevenZip !== 'ok') {
-    throw new Error('[7z 环境守卫] bundled 7z-wasm 依赖不可用——archive freeze 场景无法执行');
+    throw new Error('[7z 环境守卫] bundled 7z-wasm 依赖不可用——freeze 场景无法执行');
   }
   const { repo } = ctx.fixtures['双根仓库'] as { repo: TempRepo };
   const cwd = subSrcDir(repo);
   recordWriteFace(ctx, repo, () => {
-    const r = runCli(['archive', 'freeze', '--before', '2027-01-01'], cwd, process.env);
+    const r = runCli(['freeze', '--before', '2027-01-01'], cwd, process.env);
     return { code: r.status ?? 1, out: `${r.stdout ?? ''}${r.stderr ?? ''}` };
   });
 });
@@ -863,30 +863,19 @@ bdd.when('在子包源码子目录运行 spec migrate-native 指向根实例文�
   };
 });
 
-bdd.thenStep('该根实例文件按显式路径被迁移且子根实例零写入', (ctx) => {
-  const { repo } = ctx.fixtures['双根仓库'] as { repo: TempRepo };
+bdd.thenStep('命令不存在且两实例均零写入', (ctx) => {
   const r = ctx.fixtures['迁移写结果'] as {
     code: number;
     out: string;
-    target: string;
     before: string;
     after: string;
     subBefore: string;
     subAfter: string;
   };
-  if (r.code !== 0) throw new Error(`migrate-native failed: ${r.out}`);
-  const migrated = readFileSync(join(repo.root, 'llmanspec', 'specs', 'legacy.feature'), 'utf8');
-  if (!migrated.includes('规则:')) throw new Error(`explicit path was not migrated:\n${migrated}`);
-  // 显式路径豁免:目标在根实例,写入确实发生(非默认目标约束)
-  if (r.before === r.after) throw new Error('explicit --paths target was not written');
-  if (existsSync(join(subRootOf(repo), 'llmanspec', 'specs', 'legacy.feature'))) {
-    throw new Error('explicit path was re-anchored to the instance root instead of cwd');
-  }
-  // 豁免同样受 r116 的越根约束:显式路径只授权写目标文件,子根 llmanspec 树
-  // MUST 逐字节未变(单文件存在性检查不足以覆盖同根其他产物的写入)。
-  if (r.subBefore !== r.subAfter) {
-    throw new Error('explicit-path write leaked into the sub-root instance');
-  }
+  if (r.code !== 2)
+    throw new Error(`spec migrate-native must be unknown (rc=2): ${r.code}\n${r.out}`);
+  if (r.before !== r.after) throw new Error('root instance was written');
+  if (r.subBefore !== r.subAfter) throw new Error('sub-root instance was written');
 });
 
 // ---------------------------------------------------------------------------
@@ -1173,12 +1162,12 @@ bdd.given('一个根与子根双实例且子根 change 已绑定分支并提交�
   ctx.fixtures['子根落地仓库'] = { repo };
 });
 
-bdd.when('在子根实例上运行 show 该 change 与 change finalize 该 change', (ctx) => {
+bdd.when('在子根实例上运行 show 该 change 与 change archive 该 change', (ctx) => {
   const { repo } = ctx.fixtures['子根落地仓库'] as { repo: TempRepo };
   // 剥离 harness 嵌套守卫(同 worktree 收口用例):finalize 收口 harness 决策读父环境。
   const { LLMAN_SDD_HARNESS_ACTIVE: _guard, ...env } = process.env;
   const showed = runCli(['show', 'subland', '--output', 'json'], subRootOf(repo), env);
-  const finalized = runCli(['change', 'finalize', 'subland'], subRootOf(repo), env);
+  const finalized = runCli(['change', 'archive', 'subland'], subRootOf(repo), env);
   ctx.fixtures['子根收口结果'] = {
     showOut: showed.stdout ?? '',
     showCode: showed.status ?? 1,
@@ -1253,7 +1242,7 @@ bdd.thenStep('show 的 specs-landed 门为不通过且提示落在本实例 llma
 });
 
 // ---------------------------------------------------------------------------
-// cli r109 — 缺实例链接 worktree 中 archive freeze 报域错误且可显式重定向。
+// cli r109 — 缺实例链接 worktree 中 freeze 报域错误且可显式重定向。
 // ---------------------------------------------------------------------------
 
 bdd.given('一个根实例含归档条目且挂有缺 llmanspec 链接 worktree 的临时仓库', (ctx) => {
@@ -1274,27 +1263,20 @@ bdd.given('一个根实例含归档条目且挂有缺 llmanspec 链接 worktree 
   ctx.fixtures['缺实例 worktree 归档仓库'] = { repo, side };
 });
 
-bdd.when(
-  '在该 worktree 内运行 archive freeze --dry-run 并再以 --directory 指向主检出运行一次',
-  (ctx) => {
-    const { repo, side } = ctx.fixtures['缺实例 worktree 归档仓库'] as {
-      repo: TempRepo;
-      side: string;
-    };
-    const plain = runCli(['archive', 'freeze', '--dry-run'], side, process.env);
-    const redirected = runCli(
-      ['archive', 'freeze', '--dry-run', '--directory', repo.root],
-      side,
-      process.env,
-    );
-    ctx.fixtures['缺实例 freeze 结果'] = {
-      plainCode: plain.status ?? 1,
-      plainOut: `${plain.stdout ?? ''}${plain.stderr ?? ''}`,
-      redirCode: redirected.status ?? 1,
-      redirOut: `${redirected.stdout ?? ''}${redirected.stderr ?? ''}`,
-    };
-  },
-);
+bdd.when('在该 worktree 内运行 freeze --dry-run 并再以 --directory 指向主检出运行一次', (ctx) => {
+  const { repo, side } = ctx.fixtures['缺实例 worktree 归档仓库'] as {
+    repo: TempRepo;
+    side: string;
+  };
+  const plain = runCli(['freeze', '--dry-run'], side, process.env);
+  const redirected = runCli(['freeze', '--dry-run', '--directory', repo.root], side, process.env);
+  ctx.fixtures['缺实例 freeze 结果'] = {
+    plainCode: plain.status ?? 1,
+    plainOut: `${plain.stdout ?? ''}${plain.stderr ?? ''}`,
+    redirCode: redirected.status ?? 1,
+    redirOut: `${redirected.stdout ?? ''}${redirected.stderr ?? ''}`,
+  };
+});
 
 bdd.thenStep('缺省调用报域错误退出 1,显式重定向可用且输出非主检出 WARNING', (ctx) => {
   const r = ctx.fixtures['缺实例 freeze 结果'] as {
@@ -1387,7 +1369,7 @@ bdd.given(
   },
 );
 
-bdd.when('在该 worktree 的子包目录运行 change finalize 该 change', (ctx) => {
+bdd.when('在该 worktree 的子包目录运行 change archive 该 change', (ctx) => {
   const { repo, wt } = ctx.fixtures['worktree 子根收口仓库'] as {
     repo: TempRepo;
     wt: string;
@@ -1395,7 +1377,7 @@ bdd.when('在该 worktree 的子包目录运行 change finalize 该 change', (ct
   // 剥离 harness 嵌套守卫(同本文件空目录用例与 makeTempRepo 的 run):finalize
   // 的收口 harness 决策读父环境,套件作为 harness 跑时必须按全新顶层上下文起 CLI。
   const { LLMAN_SDD_HARNESS_ACTIVE: _guard, ...env } = process.env;
-  const fin = runCli(['change', 'finalize', 'subland'], join(wt, SUB), env);
+  const fin = runCli(['change', 'archive', 'subland'], join(wt, SUB), env);
   ctx.fixtures['worktree 子根收口结果'] = {
     code: fin.status ?? 1,
     out: `${fin.stdout ?? ''}${fin.stderr ?? ''}`,

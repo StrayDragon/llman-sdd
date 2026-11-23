@@ -37,6 +37,12 @@ bdd.when('对其运行 change start', (ctx) => {
     exitCode: result.code,
     stdout: result.stdout,
   } satisfies CliResult;
+  ctx.fixtures['attach结果'] = { code: result.code, stdout: result.stdout };
+  ctx.fixtures['attachcli结果'] = {
+    code: result.code,
+    stdout: result.stdout,
+    stderr: result.stderr,
+  };
 });
 
 bdd.thenStep('分支 {branch} 被创建且被检出', (ctx, branch) => {
@@ -75,10 +81,10 @@ bdd.given('一个已完成 start 并在特性分支有新提交的临时仓库',
   ctx.fixtures['change'] = { id };
 });
 
-bdd.when('对其运行 change finalize', (ctx) => {
+bdd.when('对其运行 change archive', (ctx) => {
   const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
   const id = (ctx.fixtures['change'] as { id: string }).id;
-  const result = repo.run('bun', [CLI, 'change', 'finalize', id]);
+  const result = repo.run('bun', [CLI, 'change', 'archive', id]);
   ctx.fixtures['finalize结果'] = {
     exitCode: result.code,
     stdout: result.stdout,
@@ -114,7 +120,7 @@ bdd.thenStep('特性分支上的变更内容出现在目标分支', (ctx) => {
 });
 
 // ---------------------------------------------------------------------------
-// r31 — change attach default-branch gate (acceptance)
+// r31 — change start default-branch gate (acceptance)
 // ---------------------------------------------------------------------------
 
 interface AttachResult {
@@ -122,30 +128,30 @@ interface AttachResult {
   stdout: string;
 }
 
-bdd.when('在默认分支上对其运行 change attach', (ctx) => {
+bdd.when('在默认分支上对其运行 change start', (ctx) => {
   const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
   const id = (ctx.fixtures['change'] as { id: string }).id;
-  const result = repo.run('bun', [CLI, 'change', 'attach', id]);
+  const result = repo.run('bun', [CLI, 'change', 'start', id]);
   ctx.fixtures['attach结果'] = { code: result.code, stdout: result.stdout } satisfies AttachResult;
   ctx.fixtures['attach输出'] = `${result.stdout}${result.stderr}`;
 });
 
-bdd.thenStep('attach 报错且不写绑定', (ctx) => {
+bdd.thenStep('默认分支上 start 创建 sdd 分支', (ctx) => {
   const result = ctx.fixtures['attach结果'] as AttachResult;
   const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
   const id = (ctx.fixtures['change'] as { id: string }).id;
-  if (result.code === 0)
-    throw new Error(`attach should have failed on default branch: ${result.stdout}`);
+  if (result.code !== 0) throw new Error(`start on the default branch failed: ${result.stdout}`);
   const proposal = readFileSync(join(repo.root, 'llmanspec', 'changes', id, 'proposal.md'), 'utf8');
-  if (proposal.includes('branch:'))
-    throw new Error(`binding written despite gate failure:\n${proposal}`);
+  if (!proposal.includes(`branch: sdd/${id}`)) {
+    throw new Error(`expected a new sdd branch binding:\n${proposal}`);
+  }
 });
 
-bdd.when('切到特性分支再运行 change attach', (ctx) => {
+bdd.when('切到特性分支再运行 change start', (ctx) => {
   const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
   const id = (ctx.fixtures['change'] as { id: string }).id;
   repo.run('git', ['switch', '-qc', 'feat/attach']);
-  const result = repo.run('bun', [CLI, 'change', 'attach', id]);
+  const result = repo.run('bun', [CLI, 'change', 'start', id]);
   ctx.fixtures['attach结果'] = { code: result.code, stdout: result.stdout } satisfies AttachResult;
 });
 
@@ -255,15 +261,15 @@ bdd.given('一个已 attach 的 feature 分支仓库', (ctx) => {
   const id = 'demo-bind';
   seedChange(repo, id, { commit: 'draft' });
   repo.run('git', ['switch', '-qc', 'feat/bind']);
-  repo.run('bun', [CLI, 'change', 'attach', id]);
+  repo.run('bun', [CLI, 'change', 'start', id]);
   ctx.fixtures['仓库'] = { root: repo.root, repo };
   ctx.fixtures['change'] = { id };
 });
 
-bdd.when('无 force 再次运行 change attach', (ctx) => {
+bdd.when('无 force 再次运行 change start', (ctx) => {
   const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
   const id = (ctx.fixtures['change'] as { id: string }).id;
-  const result = repo.run('bun', [CLI, 'change', 'attach', id]);
+  const result = repo.run('bun', [CLI, 'change', 'start', id]);
   ctx.fixtures['attach重绑'] = { code: result.code, stdout: result.stdout, stderr: result.stderr };
 });
 
@@ -275,10 +281,12 @@ bdd.thenStep('报错提示已绑定', (ctx) => {
   }
 });
 
-bdd.when('带 --force --base main 运行 change attach', (ctx) => {
+bdd.when('带 --force --base main 运行 change start', (ctx) => {
   const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
   const id = (ctx.fixtures['change'] as { id: string }).id;
-  const result = repo.run('bun', [CLI, 'change', 'attach', id, '--force', '--base', 'main']);
+  repo.run('git', ['add', '-A']);
+  repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'bind']);
+  const result = repo.run('bun', [CLI, 'change', 'start', id, '--force', '--base', 'main']);
   ctx.fixtures['attach重绑'] = { code: result.code, stdout: result.stdout, stderr: result.stderr };
 });
 
@@ -291,10 +299,10 @@ bdd.thenStep('重绑成功且 base_branch 记录为 main', (ctx) => {
   if (!proposal.includes('base_branch: main')) throw new Error(`base_branch missing:\n${proposal}`);
 });
 
-bdd.when('运行 change finalize --no-commit', (ctx) => {
+bdd.when('运行 change archive --no-commit', (ctx) => {
   const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
   const id = (ctx.fixtures['change'] as { id: string }).id;
-  const result = repo.run('bun', [CLI, 'change', 'finalize', id, '--no-commit']);
+  const result = repo.run('bun', [CLI, 'change', 'archive', id, '--no-commit']);
   ctx.fixtures['finalize结果'] = { code: result.code, stdout: result.stdout };
 });
 
@@ -514,14 +522,24 @@ bdd.when('对其运行 change start --worktree', (ctx) => {
 });
 
 bdd.when('对其运行 change start --base {branch}', (ctx, base) => {
-  const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
-  const id = (ctx.fixtures['change'] as { id: string }).id;
+  const gate = ctx.fixtures['分支门仓库'] as { repo: TempRepo; id: string } | undefined;
+  const repo = gate?.repo ?? (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
+  const id = gate?.id ?? (ctx.fixtures['change'] as { id: string }).id;
   const result = repo.run('bun', [CLI, 'change', 'start', id, '--base', base]);
   ctx.fixtures['startcli结果'] = {
     code: result.code,
     stdout: result.stdout,
     stderr: result.stderr,
   } satisfies StartCliResult;
+  ctx.fixtures['分支门结果'] = result;
+});
+
+bdd.thenStep('当前分支保持 {branch}', (ctx, branch: string) => {
+  const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
+  const r = ctx.fixtures['startcli结果'] as StartCliResult;
+  if (r.code !== 0) throw new Error(`change start failed: ${r.stdout}${r.stderr}`);
+  const current = repo.run('git', ['branch', '--show-current']).stdout.trim();
+  if (current !== branch) throw new Error(`expected checkout to stay on ${branch}, got ${current}`);
 });
 
 bdd.thenStep('当前检出保持 {branch}', (ctx, branch: string) => {
@@ -665,20 +683,18 @@ bdd.when('在非默认分支对其运行 change start', (ctx) => {
   ctx.fixtures['分支门结果'] = repo.run('bun', [CLI, 'change', 'start', id]);
 });
 
-bdd.thenStep('start 报错提示改用 attach 且未创建分支', (ctx) => {
-  const repo = (ctx.fixtures['分支门仓库'] as { repo: TempRepo }).repo;
+bdd.thenStep('绑定写入当前分支且未创建 sdd 分支', (ctx) => {
+  const { repo, id } = ctx.fixtures['分支门仓库'] as { repo: TempRepo; id: string };
   const r = ctx.fixtures['分支门结果'] as { code: number; stdout: string; stderr: string };
-  const out = `${r.stdout}${r.stderr}`;
-  if (
-    r.code === 0 ||
-    !out.includes('already on non-default branch') ||
-    !out.includes('change attach')
-  ) {
-    throw new Error(`gate failure with attach hint expected: ${out}`);
+  if (r.code !== 0) throw new Error(`start should bind the current branch: ${r.stdout}${r.stderr}`);
+  const proposal = readFileSync(join(repo.root, 'llmanspec', 'changes', id, 'proposal.md'), 'utf8');
+  if (!proposal.includes('branch: topic/one')) {
+    throw new Error(`expected the current branch to be bound:\n${proposal}`);
   }
   const refExists =
     repo.run('git', ['show-ref', '--verify', '--quiet', 'refs/heads/sdd/demo-feat']).code === 0;
-  if (refExists) throw new Error('sdd/demo-feat must not be created on gate failure');
+  if (refExists)
+    throw new Error('sdd/demo-feat must not be created when binding the current branch');
 });
 
 bdd.given('一个已切到特性分支且已提交 change 的临时仓库(无绑定)', (ctx) => {
@@ -691,9 +707,9 @@ bdd.given('一个已切到特性分支且已提交 change 的临时仓库(无绑
   ctx.fixtures['分支门仓库'] = { repo, id: 'demo-attach-base', defaultBranch: 'main' };
 });
 
-bdd.when('对其运行 change attach --base {branch}', (ctx, base: string) => {
+bdd.when('对其运行 change start --base {branch}', (ctx, base: string) => {
   const { repo, id } = ctx.fixtures['分支门仓库'] as { repo: TempRepo; id: string };
-  ctx.fixtures['分支门结果'] = repo.run('bun', [CLI, 'change', 'attach', id, '--base', base]);
+  ctx.fixtures['分支门结果'] = repo.run('bun', [CLI, 'change', 'start', id, '--base', base]);
 });
 
 bdd.thenStep('attach 报错含 "{text}" 且不写绑定', (ctx, text: string) => {
@@ -955,11 +971,11 @@ bdd.thenStep('proposal 内容未变', (ctx) => {
 });
 
 // r15 — 非绑定分支零写入 + 合并冲突 best-effort
-bdd.when('切到另一分支后运行 change finalize', (ctx) => {
+bdd.when('切到另一分支后运行 change archive', (ctx) => {
   const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
   const id = (ctx.fixtures['change'] as { id: string }).id;
   repo.run('git', ['switch', '-qc', 'unrelated']);
-  const result = repo.run('bun', [CLI, 'change', 'finalize', id]);
+  const result = repo.run('bun', [CLI, 'change', 'archive', id]);
   ctx.fixtures['finalize结果'] = {
     exitCode: result.code,
     stdout: result.stdout,
@@ -1036,12 +1052,12 @@ bdd.thenStep('输出含合并冲突 WARNING 与手工命令提示', (ctx) => {
 });
 
 // r31 — attach 报错文案族(detached HEAD 稳定子串)
-bdd.when('在 detached HEAD 上对其运行 change attach', (ctx) => {
+bdd.when('在 detached HEAD 上对其运行 change start', (ctx) => {
   const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
   const id = (ctx.fixtures['change'] as { id: string }).id;
   const head = repo.run('git', ['rev-parse', 'HEAD']).stdout.trim();
   repo.run('git', ['checkout', '-q', '--detach', head]);
-  const result = repo.run('bun', [CLI, 'change', 'attach', id]);
+  const result = repo.run('bun', [CLI, 'change', 'start', id]);
   ctx.fixtures['attach结果'] = { code: result.code, stdout: result.stdout } satisfies AttachResult;
   ctx.fixtures['attach输出'] = `${result.stdout}${result.stderr}`;
 });
@@ -1086,7 +1102,7 @@ bdd.given(
     repo.run('git', ['add', '-A']);
     repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'seed']);
     repo.run('git', ['switch', '-qc', 'feat/stage']);
-    repo.run('bun', [CLI, 'change', 'attach', 'demo-full']);
+    repo.run('bun', [CLI, 'change', 'start', 'demo-full']);
     ctx.fixtures['stage仓库'] = { repo };
     // Shared `运行 list --json` When reads the bare workspace fixture.
     ctx.fixtures['stage工作区'] = { root: repo.root };
@@ -1144,7 +1160,7 @@ bdd.given('一个处于 "{from}" 阶段的 change 工作区', (ctx, from) => {
   repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'seed']);
   if (from === 'full') {
     repo.run('git', ['switch', '-qc', 'feat/bind']);
-    repo.run('bun', [CLI, 'change', 'attach', id]);
+    repo.run('bun', [CLI, 'change', 'start', id]);
   }
   ctx.fixtures['stage大纲'] = { repo, id } satisfies StageOutlineFixture;
   ctx.fixtures['stage工作区'] = { root: repo.root };
@@ -1159,7 +1175,7 @@ bdd.when('执行 stage 迁移事件 "{event}"', (ctx, event) => {
     writeFileSync(join(dir, 'tasks.md'), '# Tasks\n- [ ] t\n');
   } else if (event === 'bind_branch') {
     repo.run('git', ['switch', '-qc', 'feat/bind']);
-    repo.run('bun', [CLI, 'change', 'attach', id]);
+    repo.run('bun', [CLI, 'change', 'start', id]);
   } else {
     throw new Error(`unknown stage event: ${event}`);
   }
@@ -1311,6 +1327,16 @@ bdd.when('运行 change archive --force', (ctx) => {
   };
 });
 
+bdd.thenStep('退出码为 2 且不产生归档', (ctx) => {
+  const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
+  const r = ctx.fixtures['archive结果'] as { code: number; stdout: string; stderr: string };
+  if (r.code !== 2)
+    throw new Error(`--force must be an unknown option (rc=2): ${r.code}\n${r.stderr}`);
+  if (existsSync(join(repo.root, 'llmanspec', 'changes', 'archive'))) {
+    throw new Error('archive dir was created');
+  }
+});
+
 // r44 — change new 覆盖与显式 verb(dry-run 派生前缀)
 bdd.when('对已存在的 change id 运行 change new', (ctx) => {
   const { root } = ctx.fixtures['dryrun工作区'] as { root: string };
@@ -1438,10 +1464,10 @@ bdd.given('一个已完成 start 并在特性分支有新提交且 live specs �
   ctx.fixtures['change'] = { id };
 });
 
-bdd.when('运行 change finalize --no-check', (ctx) => {
+bdd.when('运行 change archive --no-check', (ctx) => {
   const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
   const id = (ctx.fixtures['change'] as { id: string }).id;
-  const result = repo.run('bun', [CLI, 'change', 'finalize', id, '--no-check']);
+  const result = repo.run('bun', [CLI, 'change', 'archive', id, '--no-check']);
   ctx.fixtures['finalize结果'] = {
     exitCode: result.code,
     stdout: result.stdout,
@@ -1488,10 +1514,10 @@ bdd.thenStep('目标分支包含特性分支的两个原始提交', (ctx) => {
   }
 });
 
-bdd.when('以 --method bogus 运行 change finalize', (ctx) => {
+bdd.when('以 --method bogus 运行 change archive', (ctx) => {
   const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
   const id = (ctx.fixtures['change'] as { id: string }).id;
-  const result = repo.run('bun', [CLI, 'change', 'finalize', id, '--method', 'bogus']);
+  const result = repo.run('bun', [CLI, 'change', 'archive', id, '--method', 'bogus']);
   ctx.fixtures['finalize结果'] = {
     exitCode: result.code,
     stdout: result.stdout,
@@ -1730,10 +1756,10 @@ bdd.when('对其运行 change archive', (ctx) => {
   } satisfies CliResult;
 });
 
-bdd.when('在设置 LLMAN_SDD_HARNESS_ACTIVE=1 的环境下运行 change finalize', (ctx) => {
+bdd.when('在设置 LLMAN_SDD_HARNESS_ACTIVE=1 的环境下运行 change archive', (ctx) => {
   const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
   const id = (ctx.fixtures['change'] as { id: string }).id;
-  const proc = runCli(['change', 'finalize', id], repo.root, {
+  const proc = runCli(['change', 'archive', id], repo.root, {
     ...process.env,
     LLMAN_SDD_HARNESS_ACTIVE: '1',
   });
@@ -1773,6 +1799,11 @@ interface AttachCliResult {
   stderr: string;
 }
 
+bdd.given('topic 之外存在本地分支 feature/src', (ctx) => {
+  const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
+  repo.run('git', ['branch', 'feature/src']);
+});
+
 bdd.given('{branch} 分支配置 branch.<name>.base 为 {base}', (ctx, branch: string, base: string) => {
   const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
   repo.run('git', ['branch', base]);
@@ -1792,10 +1823,10 @@ bdd.given('{branch} 分支的 upstream 为 remote-tracking 引用 {ref}', (ctx, 
   repo.run('git', ['config', `branch.${branch}.merge`, `refs/remotes/${ref}`]);
 });
 
-bdd.when('对其运行 change attach', (ctx) => {
+bdd.when('对其运行 change start', (ctx) => {
   const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
   const id = (ctx.fixtures['change'] as { id: string }).id;
-  const result = repo.run('bun', [CLI, 'change', 'attach', id]);
+  const result = repo.run('bun', [CLI, 'change', 'start', id]);
   ctx.fixtures['attachcli结果'] = {
     code: result.code,
     stdout: result.stdout,
@@ -1839,10 +1870,10 @@ bdd.thenStep('标准错误不含偏离 WARNING', (ctx) => {
   }
 });
 
-bdd.when('对其运行 change finalize --into {branch}', (ctx, branch) => {
+bdd.when('对其运行 change archive --into {branch}', (ctx, branch) => {
   const repo = (ctx.fixtures['仓库'] as { repo: TempRepo }).repo;
   const id = (ctx.fixtures['change'] as { id: string }).id;
-  const result = repo.run('bun', [CLI, 'change', 'finalize', id, '--into', branch]);
+  const result = repo.run('bun', [CLI, 'change', 'archive', id, '--into', branch]);
   ctx.fixtures['finalize结果'] = {
     exitCode: result.code,
     stdout: result.stdout,

@@ -84,35 +84,32 @@ test.skipIf(!existsSync(BIN))(
   },
 );
 
-test.skipIf(!existsSync(BIN))(
-  'compiled binary archive freeze/thaw roundtrip (embedded wasm)',
-  () => {
-    const dir = mkdtempSync(join(tmpdir(), 'llman-sdd-7z-'));
-    try {
-      spawnSync(BIN, ['init'], { cwd: dir, encoding: 'utf8' });
-      const old = join(dir, 'llmanspec', 'changes', 'archive', '2026-01-01-old');
-      mkdirSync(old, { recursive: true });
-      writeFileSync(join(old, 'proposal.md'), '---\ndepends_on: []\n---\n\n# old\n');
+test.skipIf(!existsSync(BIN))('compiled binary freeze/thaw roundtrip (embedded wasm)', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'llman-sdd-7z-'));
+  try {
+    spawnSync(BIN, ['init'], { cwd: dir, encoding: 'utf8' });
+    const old = join(dir, 'llmanspec', 'changes', 'archive', '2026-01-01-old');
+    mkdirSync(old, { recursive: true });
+    writeFileSync(join(old, 'proposal.md'), '---\ndepends_on: []\n---\n\n# old\n');
 
-      const freeze = spawnSync(BIN, ['archive', 'freeze'], { cwd: dir, encoding: 'utf8' });
-      expect(freeze.status).toBe(0);
-      expect(existsSync(join(dir, 'llmanspec', 'changes', 'archive', FREEZE_ARCHIVE_NAME))).toBe(
-        true,
-      );
-      expect(existsSync(old)).toBe(false);
+    const freeze = spawnSync(BIN, ['freeze'], { cwd: dir, encoding: 'utf8' });
+    expect(freeze.status).toBe(0);
+    expect(existsSync(join(dir, 'llmanspec', 'changes', 'archive', FREEZE_ARCHIVE_NAME))).toBe(
+      true,
+    );
+    expect(existsSync(old)).toBe(false);
 
-      const list = spawnSync(BIN, ['archive', 'freeze', '--list'], { cwd: dir, encoding: 'utf8' });
-      expect(list.status).toBe(0);
-      expect(list.stdout).toContain('2026-01-01-old');
+    const list = spawnSync(BIN, ['freeze', '--list'], { cwd: dir, encoding: 'utf8' });
+    expect(list.status).toBe(0);
+    expect(list.stdout).toContain('2026-01-01-old');
 
-      const thaw = spawnSync(BIN, ['archive', 'thaw', '--change', '2026-01-01-old'], {
-        cwd: dir,
-        encoding: 'utf8',
-      });
-      expect(thaw.status).toBe(0);
-      expect(existsSync(join(old, 'proposal.md'))).toBe(true);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  },
-);
+    const thaw = spawnSync(BIN, ['thaw', '--change', '2026-01-01-old'], {
+      cwd: dir,
+      encoding: 'utf8',
+    });
+    expect(thaw.status).toBe(0);
+    expect(existsSync(join(old, 'proposal.md'))).toBe(true);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

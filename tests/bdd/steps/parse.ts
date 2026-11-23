@@ -361,9 +361,9 @@ bdd.given('一个 locale 为 zh-Hans 的已初始化临时仓库', (ctx) => {
   ctx.fixtures['skeleton仓库'] = { repo };
 });
 
-bdd.when('运行 spec skeleton demo-cap', (ctx) => {
+bdd.when('运行 spec new demo-cap', (ctx) => {
   const { repo } = ctx.fixtures['skeleton仓库'] as { repo: TempRepo };
-  const result = repo.run('bun', [CLI, 'spec', 'skeleton', 'demo-cap']);
+  const result = repo.run('bun', [CLI, 'spec', 'new', 'demo-cap']);
   const path = join(repo.root, 'llmanspec', 'specs', 'demo-cap.feature');
   const content = existsSync(path) ? readFileSync(path, 'utf8') : null;
   ctx.fixtures['skeleton结果'] = {
@@ -575,10 +575,10 @@ bdd.thenStep('迁移产物仍使用中文关键字且解析无错误', (ctx) => 
 // r7/r88 — official dialect vocabulary for skeleton + migration (acceptance)
 // ---------------------------------------------------------------------------
 
-bdd.when('在 locale 为 fr 的已初始化临时仓库运行 spec skeleton demo-cap', (ctx) => {
+bdd.when('在 locale 为 fr 的已初始化临时仓库运行 spec new demo-cap', (ctx) => {
   const repo = makeTempRepo();
   writeFileSync(join(repo.root, 'llmanspec', 'config.yaml'), 'schema: spec-driven\nlocale: fr\n');
-  const result = repo.run('bun', [CLI, 'spec', 'skeleton', 'demo-cap']);
+  const result = repo.run('bun', [CLI, 'spec', 'new', 'demo-cap']);
   const path = join(repo.root, 'llmanspec', 'specs', 'demo-cap.feature');
   const content = existsSync(path) ? readFileSync(path, 'utf8') : null;
   ctx.fixtures['skeleton结果'] = {

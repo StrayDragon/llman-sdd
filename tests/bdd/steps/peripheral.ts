@@ -354,11 +354,11 @@ bdd.given('一个已存在 spec 的临时工作区', (ctx) => {
   ctx.fixtures['skel工作区'] = { root };
 });
 
-bdd.when('运行 spec skeleton --force 与 spec next-req-id --json', (ctx) => {
+bdd.when('运行 spec new --force 与 spec next-req-id --json', (ctx) => {
   const { root } = ctx.fixtures['skel工作区'] as { root: string };
-  const first = runCli(['spec', 'skeleton', 'capx'], root);
-  const again = runCli(['spec', 'skeleton', 'capx'], root);
-  const forced = runCli(['spec', 'skeleton', 'capx', '--force'], root);
+  const first = runCli(['spec', 'new', 'capx'], root);
+  const again = runCli(['spec', 'new', 'capx'], root);
+  const forced = runCli(['spec', 'new', 'capx', '--force'], root);
   const json = runCli(['spec', 'next-req-id', '--json'], root);
   ctx.fixtures['skel结果'] = {
     firstCode: first.status ?? 1,
@@ -391,17 +391,16 @@ bdd.given('一个含冻结归档的临时仓库', (ctx) => {
   const dir = join(repo.root, 'llmanspec', 'changes', 'archive', '2026-01-01-frozen');
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, 'proposal.md'), '---\ndepends_on: []\n---\nx\n');
-  repo.run('bun', [CLI, 'archive', 'freeze']);
+  repo.run('bun', [CLI, 'freeze']);
   repo.run('git', ['add', '-A']);
   repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'frozen']);
   ctx.fixtures['freeze仓库'] = { root: repo.root, repo };
 });
 
-bdd.when('运行 archive thaw --dest', (ctx) => {
+bdd.when('运行 thaw --dest', (ctx) => {
   const { repo } = ctx.fixtures['freeze仓库'] as { repo: TempRepo };
   const result = repo.run('bun', [
     CLI,
-    'archive',
     'thaw',
     '--change',
     '2026-01-01-frozen',
