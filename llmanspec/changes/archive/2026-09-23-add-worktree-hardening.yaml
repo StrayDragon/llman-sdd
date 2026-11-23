@@ -1,4 +1,2 @@
----
 title: "worktree 加固:next-id 跨 worktree 扫描 + freeze 主检出警告"
 depends_on: []
----

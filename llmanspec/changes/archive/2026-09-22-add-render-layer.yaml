@@ -1,4 +1,2 @@
----
 title: "渲染层地基:统一机器格式出口(IR + json/compact-json/toon 渲染器)"
 depends_on: [fix-show-dirstyle-specs]
----

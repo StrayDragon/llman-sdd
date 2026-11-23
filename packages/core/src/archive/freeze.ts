@@ -18,6 +18,7 @@ import {
   frozenCardIdOf,
   frozenCardName,
   isFrozenCard,
+  unfenceFrozenCard,
 } from './frozenCard.ts';
 import { collectFilteredEntries } from './ignoreChain.ts';
 import type { SevenZipPort } from './sevenzip.ts';
@@ -198,6 +199,42 @@ export interface ThawResult {
   restored: string[];
 }
 
+/**
+ * r121: rewrite every fenced card under `archiveDirRel` into the fence-free
+ * single-document form. Shared by the thaw pass and the migrate action so both
+ * obey one definition of "legacy card". Returns how many cards changed.
+ * Cards that are not fenced (or not plainly fenced) are left untouched.
+ */
+export function unfenceLegacyCards(io: FreezeIo, archiveDirRel: string): number {
+  let changed = 0;
+  for (const rel of planUnfenceLegacyCards(io, archiveDirRel)) {
+    const unfenced = unfenceFrozenCard(io.readText(rel));
+    if (unfenced === null) continue;
+    io.writeText(rel, unfenced);
+    changed++;
+  }
+  return changed;
+}
+
+/**
+ * r121: dry-run half of {@link unfenceLegacyCards} — the exact same scan and
+ * predicates, returning the card paths that WOULD change without writing.
+ * Sharing the predicate is what keeps `--dry-run` from drifting from the write
+ * path.
+ */
+export function planUnfenceLegacyCards(io: FreezeIo, archiveDirRel: string): string[] {
+  if (!io.exists(archiveDirRel)) return [];
+  const hits: string[] = [];
+  for (const name of io.listDir(archiveDirRel).toSorted()) {
+    if (!isFrozenCard(name) || frozenCardIdOf(name) === null) continue;
+    const rel = `${archiveDirRel}/${name}`;
+    if (io.isDirectory(rel)) continue;
+    if (unfenceFrozenCard(io.readText(rel)) === null) continue;
+    hits.push(rel);
+  }
+  return hits;
+}
+
 export async function runThaw(
   io: FreezeIo,
   sz: SevenZipPort,
@@ -242,10 +279,12 @@ export async function runThaw(
       if (io.exists(cardRel)) io.remove(cardRel);
       restored.push(name);
     }
-    return {
-      restored,
-      lines: [`Thawed ${restored.length} selected archived changes to ${destRel}`],
-    };
+    // r121: thaw already rewrites the archive area, so normalize any remaining
+    // fenced cards in the same pass. Failing here must never block the restore.
+    const unfenced = unfenceLegacyCards(io, ARCHIVE_DIR_REL);
+    const lines = [`Thawed ${restored.length} selected archived changes to ${destRel}`];
+    if (unfenced > 0) lines.push(`Unfenced ${unfenced} legacy card(s)`);
+    return { restored, lines };
   } finally {
     io.removeDir(tmpRel);
   }

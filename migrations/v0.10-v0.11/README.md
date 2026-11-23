@@ -1,0 +1,58 @@
+# v0.10 → v0.11 迁移
+
+本窗口只有一条:冻结平铺卡的 YAML 形态归一。目的是让 llman-sdd 的产物在**通用工具链**下
+开箱可用——不需要用户为它写钩子豁免。
+
+## 破坏面
+
+无行为破坏。存量围栏卡的读取兼容保留,未跑迁移的仓库照常工作;跑完迁移后,卡的语义
+(`title` / `depends_on`)与依赖边逐条不变,只是不再带 `---` 围栏。
+
+## 为什么需要
+
+`archive freeze` 在 0.9 时代产出带 `frozen:` 段的元数据卡,整文件用 `---` 围栏包裹。
+0.10 起写入侧改为无围栏单文档 YAML,但存量围栏卡按「不迁移」保留。围栏使一个文件成为
+**多文档** YAML 流,于是 pre-commit 官方 `check-yaml`(默认严格单文档)对这批卡恒报:
+
+```
+only single YAML document expected but multiple found
+```
+
+用户此前只能给钩子加 `exclude` 或 `--allow-multiple-documents`,等于让归档卡脱离通用
+校验。v0.11 起工具提供归一入口,把这个缺口从用户侧收回工具侧。
+
+## 升级步骤
+
+```bash
+# 1. 先看会改哪些卡(零写入)
+llman-sdd project migrate frozen-cards-unfence --dry-run
+
+# 2. 执行归一(幂等,可重复运行)
+llman-sdd project migrate frozen-cards-unfence
+
+# 3. 去掉你此前为归档卡加的 check-yaml 豁免(如果有)
+#    .pre-commit-config.yaml 里 check-yaml 不再需要 exclude 或
+#    --allow-multiple-documents
+
+# 4. 全量校验
+llman-sdd validate --all --strict
+```
+
+## 自检
+
+- `llmanspec/changes/archive/` 下没有任何 `<YYYY-MM-DD>-<id>.yaml` 以裸 `---` 行为首行。
+- 不带任何豁免的 `check-yaml` 钩子在归档目录上通过。
+- `llman-sdd graph --scope archived` 输出的冻结节点数与依赖边与升级前一致。
+- 重复运行归一动作输出 `0 card(s) normalized`。
+
+## 归一不碰什么
+
+判定从严,宁可漏归一也不误改:
+
+| 输入                                                            | 行为                 |
+| --------------------------------------------------------------- | -------------------- |
+| 首末行恰为 `---`、去围栏后是单文档、键只有 `title`/`depends_on` | 归一                 |
+| 无围栏卡                                                        | 跳过(幂等)           |
+| `title: "a --- b"` 这类值里含 `---`                             | 跳过(首行不是裸围栏) |
+| 去围栏后是多文档或语法错                                        | 跳过                 |
+| 含 `frozen:` 等超出 `title`/`depends_on` 的键                   | 跳过(留待人工判断)   |

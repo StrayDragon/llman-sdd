@@ -114,6 +114,33 @@
       当 运行 archive thaw --change "nonexistent"
       那么 thaw 未知名报错并列出可用条目
 
+  @req:r121
+  规则: 冻结卡形态归一
+    平铺卡 MUST 只以无围栏单文档 YAML 形态写出(`freeze` 与 `thaw` 写出一律如此);通用单文档
+    YAML 校验器 MUST 能直接解析本工具写出的卡。读取侧 MUST 继续兼容 `---` 围栏卡(存量前代
+    产物),使未迁移的仓库照常可读、graph 归档节点与依赖边不变。
+    工具 MUST 提供归一入口 `project migrate frozen-cards-unfence [--dry-run]`:把实例归档目录内
+    「首行与末行恰为 `---`」的围栏卡改写为无围栏单文档 YAML,卡内容与键序原样保留;`--dry-run`
+    MUST 零写入并报告命中文件。归一 MUST 幂等(对已归一的卡再跑无改动)且 MUST NOT 误改非常规
+    卡(正文含 `---`、去围栏后非单文档、键集超出 `title`/`depends_on`、或 `depends_on` 非数组 /
+    `title` 非字符串者一律跳过)。`thaw` 回置目录时 MUST 顺带归一该实例的围栏卡,该步骤失败
+    MUST NOT 阻断回置。
+
+    场景: 归一动作 dry-run 零写入
+      假如 一个归档目录含围栏卡与无围栏卡与正文含 --- 的非常规卡
+      当 运行 project migrate frozen-cards-unfence 的 dry-run
+      那么 dry-run 零写入且报告命中一张卡
+
+    场景: 归一动作幂等且零误改
+      假如 一个归档目录含围栏卡与无围栏卡与正文含 --- 的非常规卡
+      当 连续两次运行 project migrate frozen-cards-unfence
+      那么 仅围栏卡被改写为无围栏且其余卡逐字节不变且二次运行零改动
+
+    场景: 归一后通用单文档校验器可解析
+      假如 一个归档目录含围栏卡与无围栏卡与正文含 --- 的非常规卡
+      当 连续两次运行 project migrate frozen-cards-unfence
+      那么 每张卡均可被单文档 YAML 解析器解析且 depends_on 解析不变
+
   @req:r33
   规则: review --capability 过滤口径
     `review --capability <C>` MUST 将 unbound 信号限定为 C(其余 capability 的同类信号 MUST NOT

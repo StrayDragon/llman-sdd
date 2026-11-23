@@ -1,4 +1,2 @@
----
 title: "报告型命令缺省 TOON 输出与 --output 统一"
 depends_on: [filter-info-issues-by-default]
----

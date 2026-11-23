@@ -276,6 +276,8 @@ export {
   runFreeze,
   runList,
   runThaw,
+  unfenceLegacyCards,
+  planUnfenceLegacyCards,
   type FreezeIo,
   type FreezeOpts,
   type FreezeRunResult,
@@ -287,6 +289,7 @@ export {
   frozenCardIdOf,
   frozenCardName,
   isFrozenCard,
+  unfenceFrozenCard,
 } from './archive/frozenCard.ts';
 export {
   IgnoreChainError,

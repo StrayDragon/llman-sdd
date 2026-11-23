@@ -2,7 +2,7 @@
 // the real CLI in temp workspaces, mirroring the meta-foundation freeze
 // idioms. Step texts are unique per handler (the runner dispatches by
 // first-match on the full step text).
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -34,6 +34,8 @@ interface FilterRepo {
   /** Repo root holding .gitignore layers (== cwd except the git-root case). */
   root: string;
   dated: string;
+  /** r121: filename of a seeded legacy fenced card unrelated to `dated`. */
+  legacyName?: string;
 }
 
 interface CliOut {
@@ -265,7 +267,16 @@ bdd.given('一个已完成含排除过滤 freeze 的临时仓库', (ctx) => {
   if (frozen.code !== 0) {
     throw new Error(`freeze setup failed: ${frozen.stdout}${frozen.stderr}`);
   }
-  ctx.fixtures['r120解冻仓库'] = { cwd: root, root, dated } satisfies FilterRepo;
+  // r121: seed a legacy fenced card belonging to ANOTHER frozen change, so the
+  // thaw pass has a fence to normalize while the thawed entry's own card is
+  // deleted. Its body must survive the normalization untouched.
+  const legacyName = '2026-01-02-legacycard.yaml';
+  write(
+    root,
+    `llmanspec/changes/archive/${legacyName}`,
+    '---\ntitle: "legacy"\ndepends_on: []\n---\n',
+  );
+  ctx.fixtures['r120解冻仓库'] = { cwd: root, root, dated, legacyName } satisfies FilterRepo;
 });
 
 bdd.when('运行 archive thaw --change 该条目', (ctx) => {
@@ -289,5 +300,16 @@ bdd.thenStep('目录回置且内容为过滤后集合(正文在、被忽略产�
   if (existsSync(join(back, 'research', 'poc'))) throw new Error('ignored target/ artifact thawed');
   if (existsSync(join(repo.root, 'llmanspec', 'changes', 'archive', `${repo.dated}.yaml`))) {
     throw new Error('flat card survived thaw');
+  }
+  // r121: the thaw pass also normalizes remaining legacy fenced cards.
+  if (repo.legacyName !== undefined) {
+    const legacyPath = join(repo.root, 'llmanspec', 'changes', 'archive', repo.legacyName);
+    const legacy = readFileSync(legacyPath, 'utf8');
+    if (legacy.startsWith('---')) {
+      throw new Error('legacy fenced card was not normalized by the thaw pass');
+    }
+    if (!legacy.includes('title: "legacy"') || !legacy.includes('depends_on: []')) {
+      throw new Error(`legacy card body changed during normalization: ${legacy}`);
+    }
   }
 });

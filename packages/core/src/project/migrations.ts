@@ -167,6 +167,25 @@ export const MIGRATIONS: readonly MigrationDoc[] = [
       },
     ],
   },
+  {
+    version: '0.11.0',
+    items: [
+      {
+        title: 'Frozen cards normalized to single-document YAML (no `---` fences)',
+        steps: [
+          'Run `llman-sdd project migrate frozen-cards-unfence --dry-run` to preview the legacy fenced cards.',
+          'Run `llman-sdd project migrate frozen-cards-unfence` to rewrite them as fence-free single-document YAML (idempotent).',
+          'Drop any `check-yaml` exemption you added for `llmanspec/changes/archive/*.yaml` — stock pre-commit accepts the cards as-is.',
+          'Run `llman-sdd validate --all --strict` — it must pass.',
+        ],
+        checks: [
+          'No `llmanspec/changes/archive/<YYYY-MM-DD>-<id>.yaml` card opens with a bare `---` line.',
+          'The stock `check-yaml` hook (no `--allow-multiple-documents`, no exclude) passes on the archive directory.',
+          '`llman-sdd graph --scope archived` shows the same frozen nodes and dependency edges as before.',
+        ],
+      },
+    ],
+  },
 ];
 
 const VERSION_RE = /^\d+\.\d+\.\d+$/u;
@@ -233,5 +252,6 @@ export function migrationOverviewLines(): string[] {
     versions,
     'Usage: llman-sdd project migrate prompt --from-version <from> --to-version <to>',
     'Mechanical spec-header strip: llman-sdd project migrate strip-legacy-headers [--dry-run]',
+    'Legacy frozen-card unfence: llman-sdd project migrate frozen-cards-unfence [--dry-run]',
   ];
 }

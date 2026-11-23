@@ -216,7 +216,8 @@ bdd.thenStep('仅归档节点出现', (ctx) => {
 });
 
 // r54 扩展 — 冻结平铺卡识别为 archived 节点且依赖边保留 (acceptance);
-// 双格式:新卡为无围栏纯 YAML(r24 修订),存量卡为 --- 围栏格式(不迁移)。
+// 读侧双格式:新卡为无围栏纯 YAML(r24),存量卡为 --- 围栏格式(读兼容保留,
+// 归一入口见 review-freeze r121)。
 bdd.given('一个含纯 YAML 平铺冻结卡且卡内 depends_on 指向另一冻结卡的临时工作区', (ctx) => {
   const root = mkdtempSync(join(tmpdir(), 'llman-freeze-card-'));
   mkdirSync(join(root, 'llmanspec'), { recursive: true });

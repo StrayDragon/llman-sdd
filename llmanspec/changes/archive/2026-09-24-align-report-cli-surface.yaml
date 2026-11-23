@@ -1,4 +1,2 @@
----
 title: "报告面与 CLI 命令面对齐、残留面彻底清除与 0.4.0 发布"
 depends_on: [fix-lifecycle-validation-defects, harden-core-purity-config, align-docs-and-gates]
----

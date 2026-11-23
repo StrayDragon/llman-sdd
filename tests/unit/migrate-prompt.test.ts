@@ -13,7 +13,7 @@ import {
 
 describe('per-version migration registry (r100 project migrate prompt)', () => {
   test('registry is keyed by release version with executable items', () => {
-    expect(knownMigrationVersions()).toEqual(['0.8.0', '0.9.0', '0.10.0']);
+    expect(knownMigrationVersions()).toEqual(['0.8.0', '0.9.0', '0.10.0', '0.11.0']);
     for (const doc of MIGRATIONS) {
       expect(isValidVersion(doc.version)).toBe(true);
       for (const item of doc.items) {

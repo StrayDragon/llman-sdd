@@ -1,4 +1,2 @@
----
 title: "消费 change_id 配置:pattern 校验与 template 渲染"
 depends_on: [align-next-id-numeric, change-family-flags]
----

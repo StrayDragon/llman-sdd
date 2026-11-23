@@ -1,6 +1,9 @@
 ---
 depends_on: []
 title: 冻结卡归一为通用单文档 YAML
+branch: sdd/unfence-frozen-cards
+base_branch: main
+base_sha: d221df31651a9f0fddd099e1cd973c114fed087b
 ---
 
 ## Why

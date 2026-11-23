@@ -152,7 +152,7 @@
     层;种子模式 MUST 保持既有的依赖+反向 BFS 展开语义(缺省 1);`--depth` 不得在任一模式被静默忽略。
     冻结平铺卡 `changes/archive/<YYYY-MM-DD>-<id>.yaml` MUST 被识别为 archived 节点(与归档目录同语义,标注 done 与 archived
     class);卡内 `depends_on` MUST 参与依赖边解析,读取 MUST 兼容单文档纯 YAML 卡(review-freeze r24 新格式)与 `---`
-    围栏卡(存量格式,不迁移),使冻结 change 的依赖链在 `--scope archived` 与
+    围栏卡(存量格式;读取永远兼容,归一入口见 review-freeze r121),使冻结 change 的依赖链在 `--scope archived` 与
     `--scope all` 下可展示;平铺卡 id 拆解(`<date>-<id>`、去 `.yaml` 后缀)与归档目录口径一致。
 
     场景: scope 与种子子图

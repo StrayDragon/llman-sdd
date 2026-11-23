@@ -1,4 +1,2 @@
----
 title: "修复 show 对目录式 specs 的解析缺陷"
 depends_on: []
----

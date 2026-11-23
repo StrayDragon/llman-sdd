@@ -1,4 +1,2 @@
----
 title: "Port:周边命令面(list/show/graph/spec 助手)(Phase 6)"
 depends_on: [port-change-lifecycle, port-init-and-generators]
----

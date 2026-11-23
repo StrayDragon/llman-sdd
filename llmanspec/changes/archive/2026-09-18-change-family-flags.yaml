@@ -1,4 +1,2 @@
----
 title: "change 族 flag 对齐:new/attach/start/finalize/diff"
 depends_on: [align-next-id-numeric]
----

@@ -1,4 +1,2 @@
----
 title: "Release:v2 发布与切换(Phase 7)"
 depends_on: [port-validation-engine, port-change-lifecycle, port-init-and-generators, port-peripheral-commands, port-review-freeze-context, port-context-index, refine-slop-qa-release]
----

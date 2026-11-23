@@ -2,6 +2,7 @@ import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from '
 import { join } from 'node:path';
 
 import {
+  ARCHIVE_DIR_REL,
   DEFAULT_LOCALE,
   buildReqRegistry,
   compareVersions,
@@ -13,7 +14,9 @@ import {
   knownMigrationVersions,
   parseVersionExpr,
   planDedupe,
+  planUnfenceLegacyCards,
   stripLegacyHeaderLines,
+  unfenceLegacyCards,
 } from '@llman-sdd/core';
 import type { Command } from 'commander';
 
@@ -22,6 +25,7 @@ import {
   addSpecDirOption,
   loadCliConfig,
   loadRootSpecEntries,
+  reRootContext,
   type CliContext,
   resolveRootSpecsDir,
 } from '../cli-shared.ts';
@@ -124,9 +128,9 @@ export function registerProject(program: Command, ctx: CliContext): void {
   const migrate = project
     .command('migrate')
     .description(
-      'Migration hub: legacy collaboration notes, versioned agent playbooks, spec-header strip',
+      'Migration hub: legacy collaboration notes, versioned agent playbooks, spec-header strip, frozen-card unfence',
     )
-    .argument('[action]', 'prompt | strip-legacy-headers')
+    .argument('[action]', 'prompt | strip-legacy-headers | frozen-cards-unfence')
     .option('--kind <kind>', 'legacy collaboration notes: toon2features | specs-flatten')
     .option('--from-version <version>', 'migration playbook range start, exclusive (x.y.z)')
     .option('--to-version <version>', 'migration playbook range end, inclusive (x.y.z)')
@@ -134,7 +138,7 @@ export function registerProject(program: Command, ctx: CliContext): void {
       '--version-expr <expr>',
       "deprecated — use --from-version/--to-version instead (e.g. '0.7.5->0.8.0')",
     )
-    .option('--dry-run', 'strip-legacy-headers: report affected files without writing')
+    .option('--dry-run', 'strip-legacy-headers/frozen-cards-unfence: report without writing')
     .action((action: string | undefined, options: MigrateOptions) => {
       // T36: version-range flags without an action are a usage error (rc 2),
       // not a silent no-op — the error names the action that consumes them.
@@ -215,9 +219,35 @@ export function registerProject(program: Command, ctx: CliContext): void {
         console.log('next: re-run `llman-sdd init --update` to refresh skills and templates');
         return;
       }
+      if (action === 'frozen-cards-unfence') {
+        if (
+          options.kind !== undefined ||
+          options.versionExpr !== undefined ||
+          options.fromVersion !== undefined ||
+          options.toVersion !== undefined
+        ) {
+          throw new CliError(
+            'frozen-cards-unfence takes no --kind/--version-expr/--from-version/--to-version',
+          );
+        }
+        // r121: legacy fenced cards are a *multi*-document YAML stream, which the
+        // stock pre-commit `check-yaml` rejects. Rewrite them to the fence-free
+        // single-document form our own writer already emits, so a user repo works
+        // with default tooling and needs no hook exemption.
+        const rctx = reRootContext(ctx, options.directory);
+        if (options.dryRun === true) {
+          const hits = planUnfenceLegacyCards(rctx.io, ARCHIVE_DIR_REL);
+          for (const rel of hits) console.log(`[unfence] ${rel} (dry-run)`);
+          console.log(`frozen-cards-unfence: ${hits.length} card(s) would change (dry-run)`);
+          return;
+        }
+        const changed = unfenceLegacyCards(rctx.io, ARCHIVE_DIR_REL);
+        console.log(`frozen-cards-unfence: ${changed} card(s) normalized to single-document YAML`);
+        return;
+      }
       if (action !== undefined) {
         throw new CliError(
-          `unknown migrate action: ${action} (expected: prompt | strip-legacy-headers)`,
+          `unknown migrate action: ${action} (expected: prompt | strip-legacy-headers | frozen-cards-unfence)`,
           2,
         );
       }
