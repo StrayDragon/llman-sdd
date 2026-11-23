@@ -59,10 +59,10 @@ change `simplify-cli-core-and-skills`：模板树单线化为中文、收口门�
   `show <id>` 缺省面保持前代 changes 宽容行为；worktree 缺实例目录时编号清点静默跳过。
 - `change-lifecycle` r119 + r68：specs-landed 收口门按 change 所属实例根判定（实例相对
   前缀、严格本实例、仿冒路径不计数；show 红态 hint 统一含实例前缀）；`change start
---worktree` 在子根实例上绑定落新 worktree 的同一子根实例；worktree 内 finalize 的归档
+  --worktree` 在子根实例上绑定落新 worktree 的同一子根实例；worktree 内 finalize 的归档
   重定向携带实例偏移（`ioAt` 全部调用点闭合）。
 - 杂项：`validate --all-roots` 零根域错误统一消息族（`no llmanspec root at or under:
-<path>`）；六处链式内联 `--directory` 声明收敛共享 helper（选项序零漂移）；归档条目
+  <path>`）；六处链式内联 `--directory` 声明收敛共享 helper（选项序零漂移）；归档条目
   id 文法边缘（`YYYY-MM-DD-.yaml`）不再误解析；`harvestIo` 吞错收窄恢复
   `cannot list` 告警通道。
 
@@ -421,7 +421,7 @@ en/zh-CN 关键字输出与 0.5.0 逐字节一致。
 ### 迁移说明（详见 `migrations/v0.4-v0.5/README.md`）
 
 - 旧标签轨 `.feature` **必须**先迁移：`llman-sdd spec migrate-native --dry-run
-<specs-dir>` 预览 → `llman-sdd spec migrate-native --yes <specs-dir>` 执行
+  <specs-dir>` 预览 → `llman-sdd spec migrate-native --yes <specs-dir>` 执行
   （或 `bash migrations/v0.4-v0.5/migrate-spec-format.sh`）。规则→`规则:` 块、
   验收按 `@req` 嵌套、剥除旧标签、无归属验收转为功能级示例。
 - 新增结构门（validate ERROR）：`spec must define at least one rule`、
@@ -464,7 +464,7 @@ en/zh-CN 关键字输出与 0.5.0 逐字节一致。
   `fileName` 口径，CLI 命令走 strip 口径。唯一可见变化：capability header
   缺失（本就 ERROR 路径）时，错误消息与报告中的 id 从 `t.feature` 形态变为
   `t` 形态（如 `FAIL spec/t`、`spec \`t\`: missing ...`、review 信号与
-tree.json 的 `spec_id`）。
+  tree.json 的 `spec_id`）。
 - proposal frontmatter 块提取统一：三处内联 `/^---\n([\s\S]*?)\n---/u` 正则
   （graph deps / show needsSpecsChange / changeCheck depends_on·blocks 门）收敛到
   `change/frontmatter.ts` 新增的 `extractFrontmatter`（与原正则逐字节等价，
@@ -505,7 +505,7 @@ golden 基线扩展双 locale(zh `skills/` 不动,en 平行 `skills-en/`),en 模
 
 - 报告型命令（`list` / `show` / `validate` / `review` / `index check` /
   `config skills`）输出旗标统一为共享注册的三个旗标 `--output
-<toon|json|compact-json|human>`、`--json`、`--compact-json`（缺省 TOON 见上）。
+  <toon|json|compact-json|human>`、`--json`、`--compact-json`（缺省 TOON 见上）。
   `list --changes`、全局 `--no-interactive`、`--skip-specs`、`show --output`
   的 `deltas` 修饰 token、`show --json` 的 `deltaCount`/`deltas` 字段全部移除
   （v1 兼容别名面不再保留已删除项）。
@@ -576,7 +576,7 @@ v0.3.0 的 GitHub 单二进制产物不受影响（源码内嵌，不经 npm 依
 - **change id 前缀解析**（v1 r112 对齐，r61）：`show`、`validate <item>` 与
   `change start/attach/diff/finalize/archive` 支持唯一前缀解析（如 `c2805` →
   `c2805-update-todo-llm-api`），人读输出向 stderr 打 `'input' -> 'resolved'
-(prefix match)` 提示；多前缀命中报错列候选；`--json` 的 `matchedViaPrefix`
+  (prefix match)` 提示；多前缀命中报错列候选；`--json` 的 `matchedViaPrefix`
   如实上报；大小写敏感；graph 种子保持自有解析（含归档兜底）。
 - **context 索引懒刷新**（v1 r97 对齐，r62）：索引 missing/corrupted/stale 时检索前
   自动 rebuild 一次（零 LLM），不再仅因索引缺失返回 unavailable；重建失败输出

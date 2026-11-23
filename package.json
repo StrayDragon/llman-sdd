@@ -31,18 +31,18 @@
   },
   "devDependencies": {
     "7z-wasm": "^1.2.0",
-    "@cucumber/gherkin": "^42.0.1",
-    "@cucumber/messages": "^34.2.1",
-    "@daimonia/stc": "^0.2.1",
+    "@cucumber/gherkin": "^43.0.0",
+    "@cucumber/messages": "^35.0.0",
+    "@daimonia/stc": "^0.6.0",
     "@llman-sdd/core": "workspace:*",
-    "@toon-format/toon": "^4.1.1",
-    "@types/bun": "^1.4.2",
+    "@toon-format/toon": "^4.4.0",
+    "@types/bun": "^1.4.5",
     "@types/nunjucks": "^3.2.6",
-    "oxfmt": "^0.67.0",
-    "oxlint": "^1.82.0",
+    "oxfmt": "^0.79.0",
+    "oxlint": "^1.94.0",
     "typescript": "^7.0.2",
     "yaml": "^2.9.1",
-    "zod": "^4.6.5"
+    "zod": "^4.6.7"
   },
   "engines": {
     "bun": ">=1.4.0",

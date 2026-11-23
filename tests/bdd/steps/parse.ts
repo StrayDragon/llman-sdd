@@ -316,7 +316,8 @@ bdd.given(
   '一个头注释区含 `# capability:` 与 `# scope:` 与 `# reviewed-through:` 行的 feature 内容',
   (ctx) => {
     ctx.fixtures['feature'] = {
-      源文本: '# capability: legacy\n# purpose: p\n# scope: src/\n# reviewed-through: c12\n\n功能: legacy\n\n  @req:r1\n  规则: 规则\n    描述\n',
+      源文本:
+        '# capability: legacy\n# purpose: p\n# scope: src/\n# reviewed-through: c12\n\n功能: legacy\n\n  @req:r1\n  规则: 规则\n    描述\n',
     };
   },
 );

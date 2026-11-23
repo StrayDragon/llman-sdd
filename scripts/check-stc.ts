@@ -42,7 +42,8 @@ for (const file of files) {
   const proc = spawnSync(
     stcBin,
     ['check', file, '--profile', 'for-instruction-writing', '--json'],
-    { encoding: 'utf8', cwd: root },
+    // STC_UPDATE_CHECK=0:stc 0.6 起会在检查时后台 npm view 查新版;门禁不联网。
+    { encoding: 'utf8', cwd: root, env: { ...process.env, STC_UPDATE_CHECK: '0' } },
   );
   const parsed = parseStcJson(proc.status, proc.stdout ?? null);
   if (parsed === null) {

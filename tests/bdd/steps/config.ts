@@ -329,7 +329,8 @@ bdd.thenStep('加载成功且解析结果的 bdd 段不含未经声明的键', (
 
 bdd.given('一个 config 内容 bdd 段含 default_language 与 feature_dir', (ctx) => {
   ctx.fixtures['config'] = {
-    源文本: 'schema: spec-driven\nbdd:\n  default_language: zh-CN\n  feature_dir: tests/features/\n  run_command: "bun test"\n',
+    源文本:
+      'schema: spec-driven\nbdd:\n  default_language: zh-CN\n  feature_dir: tests/features/\n  run_command: "bun test"\n',
   };
   return ctx.fixtures['config'];
 });

@@ -400,8 +400,8 @@ Harbor 默认 `[environment].network_mode = public`。任务 toml **必须改掉
 
 | 钉 | 本仓文件 | 镜像 |
 |---|---|---|
-| Bun | `.bun-version` → **1.4.0** | `COPY .bun-version` + 官方安装脚本按该文件 |
-| Node | `.node-version` → **24.15.0** | 可选；运行时代码禁用 Bun 专属 API，但 CLI 入口是 `bun apps/cli/src/main.ts`。镜像主路径用 bun 即可 |
+| Bun | `.bun-version` → **1.4.5** | `COPY .bun-version` + 官方安装脚本按该文件 |
+| Node | `.node-version` → **24.22.3** | 可选；运行时代码禁用 Bun 专属 API，但 CLI 入口是 `bun apps/cli/src/main.ts`。镜像主路径用 bun 即可 |
 | llman-sdd | git tag / `package.json` version | 复制本仓源码 `bun install --frozen-lockfile`，或安装发布的 `@llman-sdd/cli`。**评测 HEAD skills 时必须 COPY 当前工作树的渲染产物**，不能只用 npm 上旧包里的模板 |
 
 推荐两层：
