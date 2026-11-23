@@ -16,6 +16,14 @@
 | `llman-sdd project migrate --kind`               | 已删除                                                                             |
 | `--version-expr`                                 | 已删除。用 `--from-version` 与 `--to-version`                                      |
 
+## 索引与检索
+
+`index` 与 `context` 已删除，没有别名。`LLMAN_SDD_INDEX_BACKEND`、`LLMAN_SDD_INDEX_CHAT_*`、`LLMAN_SDD_INDEX_OPENAI_*` 不再被读取。定位规格用 `llman-sdd list --specs`，再直读 `.feature`。
+
+版本戳改到 `llmanspec/.sdd-state.json`。已有的 `llmanspec/.context/sdd-state.json` 仍会被读到，直到下一次 `init` 或 `init --update` 写下新路径。更新不删除旧文件。
+
+`llmanspec/.context/pageindex/` 不再被读取。`init --update` 不会删它。不需要的话可以自己删掉这个目录。
+
 ## 技能发现
 
 `extra_skills` 与 `config skills` 不再是配置合同。`llman-sdd init --update` 写入全部内置

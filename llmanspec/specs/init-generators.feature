@@ -102,7 +102,7 @@
   @req:r70
   规则: 模板指引语义对齐
     模板 skills 与 units(内置 zh-Hans)中对 CLI 的行为性指引 MUST 与实际值域与行为一致:review 人审检查点 MUST
-    用无旗标调用(--capability 值域仅限 spec id)、已删除的兼容旗标 MUST NOT 再被推荐、change archive 收口 MUST 表述为自动提交 `archive(sdd)` 且要求干净工作区、context unavailable 修复指引 MUST 覆盖 index stale 与 chat model 未设双分支、引用不存在的 JSON 字段 MUST NOT
+    用无旗标调用(--capability 值域仅限 spec id)、已删除的兼容旗标 MUST NOT 再被推荐、change archive 收口 MUST 表述为自动提交 `archive(sdd)` 且要求干净工作区、定位规格 MUST 用 `list --specs` 再直读 `.feature` 且 MUST NOT 推荐 `index` 或 `context`、引用不存在的 JSON 字段 MUST NOT
     出现;propose「写 tasks.md」一节与 apply「勾选」一节 MUST 含约束句——tasks.md 只列实现与验证任务,收口(change archive)是流水线步骤 MUST NOT 列为任务;apply 模板 MUST 含门禁证据约束句——harness 证据 MUST 来自真实 harness(声称 harness 合格 MUST
     已用显式 `--check`,缺省结构门的通过不是 harness 通过、harness 失败 MUST 先查根因)、编辑与验证 MUST 串行(MUST NOT 同批并行工具调用)、
     前后对比类判据 MUST 在 change 分支上测量、重构类 task MUST 对比测试用例数,并 MUST 含验证阶梯(unit → 定向 BDD → `validate --check` →
@@ -213,3 +213,18 @@
       假如 一个无任何 llmanspec 实例的空目录
       当 运行 init --check --update
       那么 init check 与 update 同给时退出码非零
+
+  @req:r123
+  规则: 版本戳路径
+    `init` 与 `init --update` MUST 把 CLI 版本写到 `llmanspec/.sdd-state.json`，且 MUST NOT 创建或改写 `llmanspec/.context/sdd-state.json`。读取 MUST 先读新路径；新路径不存在时 MUST 读旧路径。新路径存在但损坏时 MUST 视为没有记录，不得改读旧路径。旧文件 MUST NOT 被删除。
+
+    场景: 新建实例只写新路径
+      假如 一个无任何 llmanspec 实例的空目录
+      当 运行 init
+      那么 版本戳写在新路径且旧路径不存在
+
+    场景: 旧路径只读回退且更新保留旧文件
+      假如 一个已由 init 生成技能的临时工作区
+      假如 版本戳被挪到旧路径
+      当 再运行 init --update
+      那么 新路径写入版本且旧路径文件仍在

@@ -55,8 +55,7 @@ flowchart LR
    - **实现层变更**（重构、typo、性能）→ `llman-sdd-quick`
    - **元规范变更**（SDD 模板/流程）→ 完整 SDD
    - 不确定选完整 SDD（保守）。
-2. 用 `llman-sdd context --task "<目标>" --paths "<范围>"` 找匹配 `<paths>` 的 specs。
-   - {{ unit("skills/index-fallback") }}
+2. 用 `llman-sdd list --specs` 列出规格，再直读相关 `.feature`。
 3. 收集输入：简短变更描述；change id（用户给了就用，否则按非阻塞规则推导并宣布）；受影响 capability（命名 `specs/<capability>`）。
 
 ### 2) 确认项目已初始化

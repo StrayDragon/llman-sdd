@@ -137,16 +137,8 @@ bdd.thenStep('报告不含 crossRootCollisions 字段', (ctx) => {
 
 bdd.when('在仓库根以 --directory 指向子根运行 index rebuild 与 context', (ctx) => {
   const { repo } = ctx.fixtures['双根仓库'] as { repo: TempRepo };
-  // 显式空 chat model:走零 LLM 路径,懒重建不依赖可达 API(同 r62 场景)。
-  const env: Record<string, string> = { ...process.env, LLMAN_SDD_INDEX_CHAT_MODEL: '' };
-  const rebuild = runCli(['index', 'rebuild', '--directory', SUB], repo.root, env);
-  // 先删子根索引,使随后的懒重建可归因于 context 本身而非前一条命令。
-  rmSync(join(subRootOf(repo), 'llmanspec', '.context'), { recursive: true, force: true });
-  const context = runCli(
-    ['context', '--paths', 'llmanspec/specs', '--directory', SUB],
-    repo.root,
-    env,
-  );
+  const rebuild = runCli(['index', 'rebuild', '--directory', SUB], repo.root);
+  const context = runCli(['context', '--paths', 'llmanspec/specs', '--directory', SUB], repo.root);
   ctx.fixtures['子根读侧结果'] = {
     rebuildCode: rebuild.status ?? 1,
     rebuildOut: `${rebuild.stdout ?? ''}${rebuild.stderr ?? ''}`,
@@ -155,7 +147,7 @@ bdd.when('在仓库根以 --directory 指向子根运行 index rebuild 与 conte
   };
 });
 
-bdd.thenStep('索引产物只落在子根实例且根实例无索引目录', (ctx) => {
+bdd.thenStep('两条命令均为未知命令且两实例均无索引写入', (ctx) => {
   const { repo } = ctx.fixtures['双根仓库'] as { repo: TempRepo };
   const r = ctx.fixtures['子根读侧结果'] as {
     rebuildCode: number;
@@ -163,20 +155,18 @@ bdd.thenStep('索引产物只落在子根实例且根实例无索引目录', (ct
     contextCode: number;
     contextOut: string;
   };
-  if (r.rebuildCode !== 0) throw new Error(`index rebuild failed: ${r.rebuildOut}`);
-  if (r.contextCode !== 0) throw new Error(`context failed: ${r.contextOut}`);
-  const treePath = join(subRootOf(repo), 'llmanspec', '.context', 'pageindex', 'tree.json');
-  if (!existsSync(treePath)) {
-    throw new Error('index store missing under the --directory instance');
+  for (const [name, code, out] of [
+    ['index', r.rebuildCode, r.rebuildOut],
+    ['context', r.contextCode, r.contextOut],
+  ] as const) {
+    if (code !== 2 || !/unknown (command|option)/u.test(out)) {
+      throw new Error(`${name} must be an unknown command (rc=2): ${code}\n${out}`);
+    }
   }
-  const tree = JSON.parse(readFileSync(treePath, 'utf8')) as { docs: { spec_id: string }[] };
-  const ids = tree.docs.map((d) => d.spec_id).join(',');
-  if (!ids.includes('tuicap')) throw new Error(`sub-root capability missing from tree: ${ids}`);
-  if (ids.includes('sample')) {
-    throw new Error(`tree covers the launch root capability instead: ${ids}`);
-  }
-  if (existsSync(join(repo.root, 'llmanspec', '.context'))) {
-    throw new Error('launch root received the index store');
+  for (const root of [repo.root, subRootOf(repo)]) {
+    if (existsSync(join(root, 'llmanspec', '.context', 'pageindex'))) {
+      throw new Error(`index store written under ${root}`);
+    }
   }
 });
 

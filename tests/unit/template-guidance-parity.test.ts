@@ -25,6 +25,11 @@ type Locale = (typeof LOCALES)[number];
 /** Patterns that must NOT appear in ANY template markdown file. */
 const FORBIDDEN_EVERYWHERE: readonly { pattern: RegExp; reason: string }[] = [
   {
+    pattern: /llman-sdd (index|context)\b/u,
+    reason:
+      'index and context were removed; locate specs with `list --specs` and read the .feature files',
+  },
+  {
     pattern: /review --capability/u,
     reason:
       '`--capability` takes a spec id; the human-review checkpoint must call plain `llman-sdd review` (a change id here exits 1 and reads as CRITICAL)',
@@ -99,10 +104,9 @@ const FORBIDDEN_PER_FILE: Readonly<Record<string, readonly { pattern: RegExp; re
 const REQUIRED_PER_FILE: Readonly<Record<string, readonly string[]>> = {
   // context-unavailable fallback (index stale vs chat model unset) lives in the
   // shared unit; the four call sites must keep referencing it (T11).
-  'units/skills/index-fallback.md': ['LLMAN_SDD_INDEX_CHAT_MODEL', 'index rebuild'],
-  'skills/llman-sdd-explore.md': ['unit("skills/index-fallback")'],
+  'skills/llman-sdd-explore.md': ['list --specs'],
   'skills/llman-sdd-propose.md': [
-    'unit("skills/index-fallback")',
+    'list --specs',
     'spec next-req-id',
     'spec add-req',
     'spec add-scenario',
@@ -117,7 +121,7 @@ const REQUIRED_PER_FILE: Readonly<Record<string, readonly string[]>> = {
     'measured on the change branch|在 change 分支上测量',
   ],
   'skills/llman-sdd-apply.md': [
-    'unit("skills/index-fallback")',
+    'list --specs',
     'specs-landed gate|specs-landed 门',
     'completion signal|完成信号',
     // D9: 勾选节明确收口不是 task
@@ -142,7 +146,7 @@ const REQUIRED_PER_FILE: Readonly<Record<string, readonly string[]>> = {
     // opt-in harness 证据必须显式 --check(r70,2026-10 validate-harness-opt-in)
     '--check --strict|--check --strict',
   ],
-  'skills/llman-sdd-quick.md': ['unit("skills/index-fallback")'],
+  'skills/llman-sdd-quick.md': ['list --specs'],
   // manual-trigger-only skills back the claim with the frontmatter key
   'skills/llman-sdd-apply-cycle.md': [
     'disable-model-invocation: true',

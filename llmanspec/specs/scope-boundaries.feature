@@ -30,10 +30,10 @@
   规则: 根限定一律经 --directory
     跨实例根消歧 MUST 仅经 cli r109 的 `--directory <path>`;MUST NOT 引入 id 内嵌根限定语法(形如 `<path>#<id>` 或 `<root>:<id>`),任何命令的参数面 MUST NOT 接受或解析此类复合标识符。解析出的实例根 MUST 决定该命令的全部读写目标。
 
-    场景: 读侧命令以 --directory 限定实例根
+    场景: index 与 context 不再写入任何实例
       假如 一个含根与子根双 llmanspec 的临时仓库
       当 在仓库根以 --directory 指向子根运行 index rebuild 与 context
-      那么 索引产物只落在子根实例且根实例无索引目录
+      那么 两条命令均为未知命令且两实例均无索引写入
 
     场景: req 注册表按 --directory 限定实例根
       假如 一个含根与子根双 llmanspec 的临时仓库

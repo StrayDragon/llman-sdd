@@ -91,8 +91,7 @@ flowchart LR
 - 需要时用 ASCII 图可视化；同时保留多个选项与权衡。
 
 ## 动作清单
-1. 用 `llman-sdd context --task "<任务>" --paths "<文件>"` 定位匹配 `<paths>` 的 specs，通读其 `direct` 列出的 spec 全文（这些是必须理解的合约）。
-   - context 不可用(含 `quality: "unavailable"`)→ 先 `llman-sdd index check`:stale/缺失则 `llman-sdd index rebuild`(默认 pageindex,免模型)后重试;fresh 仍不可用(`LLMAN_SDD_INDEX_CHAT_MODEL` 未设)→ 改用 `llman-sdd list --specs` + 直读 `.feature`——勿循环 rebuild。
+1. 用 `llman-sdd list --specs` 列出规格，再直读相关 `.feature`。
 2. 澄清目标与约束（问 1–3 个问题）。
 3. **逐问深挖分支（可选，用户显式触发才进入）**：触发词“深挖”“grill”“逐个问”“彻底理清”。进入后一问一答走清决策：
    - 一次只问一个问题，附你的推荐答案，等反馈再问下一个。
@@ -118,7 +117,7 @@ flowchart LR
 > 文中“规约”= 本项目 `llmanspec/specs/` 下的 `.feature` 文件；用 `llman-sdd list --specs` / `llman-sdd show <capability>` 查全文。
 
 ## Context
-- 先查状态再动手：change/spec 状态以 `llman-sdd show/list/validate` 输出为准；读 spec 全文前先用 `llman-sdd context --task --paths` 定位。
+- 先查状态再动手：change/spec 状态以 `llman-sdd show/list/validate` 输出为准；读 spec 全文前先 `llman-sdd list --specs`，再直读 `.feature`。
 
 ## Goal
 - 达成一个可验证结果；报告附结果路径与校验状态。

@@ -23,8 +23,7 @@
     "check:stc": "bun scripts/check-stc.ts",
     "pending-gate": "bun scripts/pending-gate.ts",
     "gen:schema": "bun scripts/gen-schema.ts",
-    "check:schema": "bun scripts/gen-schema.ts --check",
-    "smoke:context": "bun scripts/smoke-context.ts"
+    "check:schema": "bun scripts/gen-schema.ts --check"
   },
   "dependencies": {
     "nunjucks": "^3.2.4"

@@ -282,6 +282,44 @@ bdd.given('一个已由 init 生成技能的临时工作区', (ctx) => {
   ctx.fixtures['空目录工作区'] = { root, before: workspaceBytes(root) };
 });
 
+bdd.given('版本戳被挪到旧路径', (ctx) => {
+  const { root } = ctx.fixtures['空目录工作区'] as { root: string };
+  const stamp = readFileSync(join(root, 'llmanspec', '.sdd-state.json'), 'utf8');
+  mkdirSync(join(root, 'llmanspec', '.context'), { recursive: true });
+  writeFileSync(join(root, 'llmanspec', '.context', 'sdd-state.json'), stamp);
+  rmSync(join(root, 'llmanspec', '.sdd-state.json'));
+});
+
+bdd.when('再运行 init --update', (ctx) => {
+  const { root } = ctx.fixtures['空目录工作区'] as { root: string };
+  const proc = spawnSync('bun', [CLI, 'init', '--update'], { cwd: root, encoding: 'utf8' });
+  ctx.fixtures['空目录init结果'] = {
+    code: proc.status ?? 1,
+    out: `${proc.stdout ?? ''}${proc.stderr ?? ''}`,
+  };
+});
+
+bdd.thenStep('版本戳写在新路径且旧路径不存在', (ctx) => {
+  const { root } = ctx.fixtures['空目录工作区'] as { root: string };
+  const r = ctx.fixtures['空目录init结果'] as { code: number; out: string };
+  if (r.code !== 0) throw new Error(`init failed: ${r.out}`);
+  const stamp = readFileSync(join(root, 'llmanspec', '.sdd-state.json'), 'utf8');
+  if (!stamp.includes('cli_version')) throw new Error(`new stamp missing version:\n${stamp}`);
+  if (existsSync(join(root, 'llmanspec', '.context', 'sdd-state.json'))) {
+    throw new Error('init must not create the legacy stamp');
+  }
+});
+
+bdd.thenStep('新路径写入版本且旧路径文件仍在', (ctx) => {
+  const { root } = ctx.fixtures['空目录工作区'] as { root: string };
+  const r = ctx.fixtures['空目录init结果'] as { code: number; out: string };
+  if (r.code !== 0) throw new Error(`init --update failed: ${r.out}`);
+  const fresh = readFileSync(join(root, 'llmanspec', '.sdd-state.json'), 'utf8');
+  const legacy = readFileSync(join(root, 'llmanspec', '.context', 'sdd-state.json'), 'utf8');
+  if (!fresh.includes('cli_version')) throw new Error(`new stamp missing:\n${fresh}`);
+  if (!legacy.includes('cli_version')) throw new Error('legacy stamp was removed');
+});
+
 bdd.given('一个已由 init 生成技能且其中一个版本被改成 0.0.1 的临时工作区', (ctx) => {
   const root = mkdtempSync(join(tmpdir(), 'llman-skillcheck-'));
   const proc = spawnSync('bun', [CLI, 'init'], { cwd: root, encoding: 'utf8' });

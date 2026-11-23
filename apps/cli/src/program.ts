@@ -15,9 +15,7 @@ import { CliError, versionDisplay, type CliContext } from './cli-shared.ts';
 import { registerArchive } from './commands/archive.ts';
 import { registerChange } from './commands/change.ts';
 import { registerConfig } from './commands/config.ts';
-import { registerContext } from './commands/context.ts';
 import { registerGraph } from './commands/graph.ts';
-import { registerIndex } from './commands/index.ts';
 import { registerInit } from './commands/init.ts';
 import { registerList } from './commands/list.ts';
 import { registerProject } from './commands/project.ts';
@@ -61,14 +59,12 @@ export function createProgram(ctx: CliContext): Command {
   registerArchive(program, ctx);
   registerReview(program, ctx);
   registerConfig(program, ctx);
-  registerIndex(program, ctx);
-  registerContext(program, ctx);
   registerSelf(program, ctx);
 
   // cli r75: pure parent groups (no default action of their own) reject bare
   // calls as usage errors — commander's missing-action help on stderr, rc 2
   // via missingParameter/…; `config` keeps its default action (overview, rc 0).
-  for (const name of ['change', 'spec', 'project', 'index', 'self']) {
+  for (const name of ['change', 'spec', 'project', 'self']) {
     const group = program.commands.find((c) => c.name() === name);
     if (group === undefined) continue;
     group.action(() => {

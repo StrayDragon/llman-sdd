@@ -309,46 +309,13 @@ export {
   type ReviewSignal,
 } from './review/review.ts';
 export {
-  buildTreeIndex,
-  computeSpecHash,
-  type HashIo,
-  type SerializedDocNode,
-  type SerializedScenarioNode,
-  type SerializedReqNode,
-  type SerializedTreeIndex,
-} from './context/tree.ts';
-export {
-  CONTEXT_DIR_REL,
-  PAGEINDEX_DIR_REL,
-  REBUILD_LOCK_REL,
-  TREE_JSON_REL,
-  checkIndexFreshness,
-  loadTreeWithAutoRebuild,
-  parseLock,
-  rebuildIndex,
-  type AutoRefreshResult,
-  type FreshnessResult,
-  type IndexIo,
-  type RebuildOpts,
-  type RebuildResult,
-} from './context/indexStore.ts';
-export {
+  LEGACY_SDD_STATE_REL,
   SDD_STATE_REL,
   readSddState,
   semverLt,
   writeSddState,
   type SddState,
 } from './context/sddState.ts';
-export {
-  resolveChatConfig,
-  runContextRetrieval,
-  unavailableResult,
-  type ChatConfig,
-  type ContextResult,
-  type RetrieveDeps,
-  type TierEntry,
-  type TreeToolDeps,
-} from './context/retrieve.ts';
 export { maxUsedNumber, nextNumber } from './util/nextNumber.ts';
 export {
   COMPLETION_BIN,

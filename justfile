@@ -69,10 +69,6 @@ qa-stc:
 qa-skills-render:
     bun run check:skills-template-render
 
-# 真实 LLM 链路冒烟(env 守卫,未配置模型时干净跳过)
-smoke-context:
-    bun run smoke:context
-
 # 单文件二进制冒烟:先构建再跑 tests/integration/binary.test.ts
 smoke-binary:
     bun run build

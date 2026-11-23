@@ -26,7 +26,7 @@ const ALLOWED: Readonly<Record<string, readonly string[]>> = {
   // changeId.ts no longer imports the tree-only harvest; template vars take
   // the CLI-injected worktree-union collector instead.
   config: ['templates', 'root'],
-  context: ['spec', 'validation', 'util'],
+  context: ['util'],
   init: ['change', 'config', 'context', 'root', 'templates', 'util'],
   project: ['util'],
   report: ['archive', 'change', 'git', 'render', 'root', 'spec', 'util', 'validation'],

@@ -337,23 +337,6 @@ export const SKILL_DESCRIPTIONS: Record<string, string> = {
 };
 export const skillDesc = (name: string): string => SKILL_DESCRIPTIONS[name] ?? '';
 
-export function resolveBackend(flag: string | undefined): 'pageindex' {
-  // r57 normalization: trim, lowercase, `page-index` alias; blank values
-  // (unset flag / empty env) collapse to the pageindex default.
-  const raw = flag ?? process.env.LLMAN_SDD_INDEX_BACKEND ?? '';
-  const chosen = raw.trim() === '' ? 'pageindex' : raw.trim().toLowerCase();
-  if (chosen === 'rag') {
-    throw new Error(
-      'Backend `rag` is no longer supported. Use the default pageindex backend instead:\nSet `LLMAN_SDD_INDEX_CHAT_MODEL` to a tool-calling chat model, then\nrun `llman-sdd index rebuild`.',
-    );
-  }
-  const normalized = chosen === 'page-index' ? 'pageindex' : chosen;
-  if (normalized !== 'pageindex') {
-    throw new Error(`Unsupported backend: ${chosen}`);
-  }
-  return 'pageindex';
-}
-
 /**
  * Tolerant specs-dir half of the root fork (show gates trailer): bare
  * changes-only workspaces have no resolvable instance root; there the legacy

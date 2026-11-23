@@ -10,7 +10,7 @@
     MUST 保持退出码 0;错误渲染逻辑 MUST 收敛在主入口统一出口,各命令 MUST NOT 自行散落 `process.exitCode = 1` 写退出码点。
     参数解析失败 MUST 一律以退出码 2 退出,口径覆盖缺必需参数、多余参数、非法枚举值与非法旗标组合(前代对 handler 级校验如 `--format`
     以退出码 1 退出,本仓统一为 2,属有意 divergence)。不带子命令的根裸调用(含只给根级选项的情形)MUST 等同 `--help`:帮助文本写
-    stdout 且退出码 0;五个纯父分组 `change`/`spec`/`project`/`index`/`self` 缺必需子命令 MUST 报用法错误到 stderr 且退出码 2;
+    stdout 且退出码 0;四个纯父分组 `change`/`spec`/`project`/`self` 缺必需子命令 MUST 报用法错误到 stderr 且退出码 2;
     `config` MUST 保留其默认 action(裸调用输出概览且退出码 0)。
 
     场景: 未知命令单一前缀与退出码
@@ -41,6 +41,15 @@
       而且 退出码为 2
 
 
+    场景: index 与 context 为未知命令
+      假如 本仓库的真实 llmanspec 工作区
+      当 运行 CLI 的未知命令 index
+      那么 stderr 以 "Error: unknown command" 开头且不含 "Error: error:"
+      而且 退出码为 2
+      当 运行 CLI 的未知命令 context
+      那么 stderr 以 "Error: unknown command" 开头且不含 "Error: error:"
+      而且 退出码为 2
+
     场景: 缺必需参数退出码为 2
       假如 本仓库的真实 llmanspec 工作区
       当 运行 show 不带 change id 参数
@@ -48,7 +57,7 @@
 
   @req:r76
   规则: 报告命令输出旗标共享注册
-    报告命令 list/show/validate/review/index check 的输出旗标 MUST 由共享注册函数统一挂载,旗标面 MUST 一致为
+    报告命令 list/show/validate/review 的输出旗标 MUST 由共享注册函数统一挂载,旗标面 MUST 一致为
     `--output <toon|json|compact-json|human>`、`--json` 与 `--compact-json` 三个(缺省无输出旗标时输出 TOON);各命令文件
     MUST NOT 自行重复注册 `--output`;`show --output compact-json` MUST 输出可 `JSON.parse` 的单行 JSON,不得回落人读文本。
     共享面 MUST 覆盖 `change next-id`、`change diff` 与 `spec next-req-id`;`--compact-json` MUST 作为 `--json` 的成对修饰符
@@ -67,13 +76,6 @@
       假如 本仓库的真实 llmanspec 工作区
       当 运行 list --compact-json --output human
       那么 退出码为 2
-
-
-    场景: index check 兼容输出别名可用
-      假如 一个含 specs 且已 rebuild 索引的临时仓库
-      当 运行 index check --json 与 index check --output compact-json
-      那么 两输出均含同载荷 JSON 且 compact-json 为单行
-
 
     场景: legacy bdd 配置触发迁移 WARNING
       假如 一个含 legacy bdd 配置的临时仓库
@@ -120,7 +122,7 @@
     CLI 全部命令 MUST 经同一根发现算子解析实例根:起点为 `--directory <path>` 所指目录,缺省为进程当前工作目录,自起点向上取最近的
     有效实例(config.yaml 或 specs/ 判定,MUST 复用 validation r91 的有效性判据);`--directory` MUST 对全部命令可用;仅发现单根时
     全部命令输出 MUST 与单根时代逐字节一致;向上未找到有效实例时 MUST 报域错误(消息形如 `no llmanspec root at or above <path>`,
-    退出码 1)且 MUST NOT 泄漏底层 `ENOENT` 错误。只读命令(list/show/graph/review/config/index/context)接入根发现属超出前代的
+    退出码 1)且 MUST NOT 泄漏底层 `ENOENT` 错误。只读命令(list/show/graph/review/config)接入根发现属超出前代的
     有意 divergence:前代 `list` 以进程当前目录为根、不做向上发现。写入命令(change/archive/project)MUST 同样经该算子解析:解析
     起点缺省为进程当前工作目录并向上归位最近有效实例,MUST NOT 以 cwd 字面量为实例根、MUST NOT 在无实例处就地新建实例。
     `--directory` 覆盖面有两处显式豁免:`init`(以位置参数 `[path]` 定根)与 `self *`(无实例根语义);豁免之外的全部命令 MUST

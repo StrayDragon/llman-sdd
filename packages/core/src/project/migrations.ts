@@ -183,6 +183,22 @@ export const MIGRATIONS: readonly MigrationDoc[] = [
         ],
       },
       {
+        title: 'Index and context commands removed',
+        steps: [
+          'Stop calling `llman-sdd index` and `llman-sdd context`. Both are unknown commands and have no aliases.',
+          'Unset `LLMAN_SDD_INDEX_BACKEND`, `LLMAN_SDD_INDEX_CHAT_MODEL`, `LLMAN_SDD_INDEX_CHAT_API_HOST`, `LLMAN_SDD_INDEX_CHAT_API_KEY`, `LLMAN_SDD_INDEX_OPENAI_API_HOST`, and `LLMAN_SDD_INDEX_OPENAI_API_KEY` if you exported them.',
+          'Locate specs with `llman-sdd list --specs` and read the `.feature` files.',
+          'Leave `llmanspec/.context/pageindex/` in place if you want; nothing reads it. Delete that directory yourself when you no longer need it.',
+          'The version stamp moved to `llmanspec/.sdd-state.json`. An existing `llmanspec/.context/sdd-state.json` is still read until the next `llman-sdd init --update`, which writes only the new path and does not delete the old file.',
+          'Run `llman-sdd init --update` so installed skills stop mentioning index and context.',
+        ],
+        checks: [
+          '`llman-sdd index` and `llman-sdd context` exit 2 as unknown commands.',
+          '`llmanspec/.sdd-state.json` exists after `init --update` and contains `cli_version`.',
+          'If `llmanspec/.context/sdd-state.json` was present, it is still on disk after the update.',
+        ],
+      },
+      {
         title: 'Command surface: one close-out, one bind, top-level cold backup',
         steps: [
           'Replace `llman-sdd change finalize` with `llman-sdd change archive`. There is no alias. Close-out now also requires a clean tree and refuses `--force`.',

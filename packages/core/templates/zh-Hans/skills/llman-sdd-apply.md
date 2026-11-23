@@ -51,8 +51,7 @@ flowchart LR
 - 已提供则直接用；否则从上下文推断，不明确就跑 `llman-sdd list --json` 让用户选。始终说明“使用变更：<id>”并告知如何覆盖。
 - 确认在经 `llman-sdd change start <id>` 或 `change start <id>` 绑定的非默认分支上（仅重绑用 `--force`）。分支上的 specs 即唯一事实来源——不得在 `changes/<id>/specs/` 下编写。
 {{ unit("skills/stage-guard") }}
-- 用 `llman-sdd context --task "<proposal 目标>" --paths "<specs scope>"` 获取匹配 `<paths>` 的 specs。
-  - {{ unit("skills/index-fallback") }}
+- 用 `llman-sdd list --specs` 列出规格，再直读相关 `.feature`。
 
 ### 2) 通读事实来源工件
 - `llmanspec/changes/<id>/proposal.md`、`design.md`（如有）、`tasks.md`

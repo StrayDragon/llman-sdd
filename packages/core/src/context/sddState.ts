@@ -1,13 +1,13 @@
 /**
- * Scaffold-state record (version-awareness capability): init stamps the CLI
- * version that rendered the project so later runs can detect drift. All paths
- * ROOT-RELATIVE through the injected IO; corrupt/missing state is silent-OK
- * (the notice is best-effort, never load-bearing).
+ * Scaffold-state record (version-awareness): init stamps the CLI version that
+ * rendered the project so later runs can detect drift. The stamp lives at
+ * `llmanspec/.sdd-state.json`. Reads fall back to the previous
+ * `llmanspec/.context/sdd-state.json` and never delete it. Writes only the
+ * new path. Corrupt or missing state is silent-OK.
  */
 
-import { CONTEXT_DIR_REL } from './indexStore.ts';
-
-export const SDD_STATE_REL = `${CONTEXT_DIR_REL}/sdd-state.json`;
+export const SDD_STATE_REL = 'llmanspec/.sdd-state.json';
+export const LEGACY_SDD_STATE_REL = 'llmanspec/.context/sdd-state.json';
 
 export interface SddState {
   /** llman-sdd version that last rendered this project (init / --update). */
@@ -21,18 +21,9 @@ type StateIo = {
   mkdirp(path: string): void;
 };
 
-/** Persist the scaffold version (called from runInit after config resolution). */
-export function writeSddState(io: StateIo, version: string): void {
-  io.mkdirp(CONTEXT_DIR_REL);
-  const state: SddState = { cli_version: version };
-  io.writeText(SDD_STATE_REL, `${JSON.stringify(state, null, 2)}\n`);
-}
-
-/** Read the recorded version; null when absent/corrupt (silent-OK contract). */
-export function readSddState(io: Pick<StateIo, 'exists' | 'readText'>): SddState | null {
-  if (!io.exists(SDD_STATE_REL)) return null;
+function parseState(raw: string): SddState | null {
   try {
-    const parsed: unknown = JSON.parse(io.readText(SDD_STATE_REL));
+    const parsed: unknown = JSON.parse(raw);
     if (
       typeof parsed === 'object' &&
       parsed !== null &&
@@ -44,6 +35,20 @@ export function readSddState(io: Pick<StateIo, 'exists' | 'readText'>): SddState
   } catch {
     return null;
   }
+}
+
+/** Persist the scaffold version. Does not touch the legacy path. */
+export function writeSddState(io: StateIo, version: string): void {
+  io.mkdirp('llmanspec');
+  const state: SddState = { cli_version: version };
+  io.writeText(SDD_STATE_REL, `${JSON.stringify(state, null, 2)}\n`);
+}
+
+/** Read the recorded version: new path, then the legacy path. */
+export function readSddState(io: Pick<StateIo, 'exists' | 'readText'>): SddState | null {
+  if (io.exists(SDD_STATE_REL)) return parseState(io.readText(SDD_STATE_REL));
+  if (io.exists(LEGACY_SDD_STATE_REL)) return parseState(io.readText(LEGACY_SDD_STATE_REL));
+  return null;
 }
 
 export { semverLt } from '../util/semver.ts';

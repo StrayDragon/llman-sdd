@@ -1,9 +1,15 @@
 import { describe, expect, test } from 'bun:test';
-import { mkdtempSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { SDD_STATE_REL, readSddState, semverLt, writeSddState } from '@llman-sdd/core';
+import {
+  LEGACY_SDD_STATE_REL,
+  SDD_STATE_REL,
+  readSddState,
+  semverLt,
+  writeSddState,
+} from '@llman-sdd/core';
 
 import { makeNodeIo } from '../helpers/nodeIo.ts';
 
@@ -15,6 +21,8 @@ describe('sdd-state (version-awareness)', () => {
     expect(readSddState(io)).toEqual({ cli_version: '0.7.2' });
     const raw = readFileSync(join(root, SDD_STATE_REL), 'utf8');
     expect(raw).toBe('{\n  "cli_version": "0.7.2"\n}\n');
+    expect(SDD_STATE_REL).toBe('llmanspec/.sdd-state.json');
+    expect(existsSync(join(root, LEGACY_SDD_STATE_REL))).toBe(false);
   });
 
   test('read: null on missing file', () => {
@@ -25,7 +33,7 @@ describe('sdd-state (version-awareness)', () => {
   test('read: null on corrupt json or wrong shape (silent-OK contract)', () => {
     const root = mkdtempSync(join(tmpdir(), 'llman-state-'));
     const io = makeNodeIo(root);
-    io.mkdirp('llmanspec/.context');
+    io.mkdirp('llmanspec');
     io.writeText(SDD_STATE_REL, 'not json{');
     expect(readSddState(io)).toBeNull();
     io.writeText(SDD_STATE_REL, '{"noversion": 1}');
@@ -40,6 +48,17 @@ describe('sdd-state (version-awareness)', () => {
     writeSddState(io, '0.7.0');
     writeSddState(io, '0.8.0');
     expect(readSddState(io)).toEqual({ cli_version: '0.8.0' });
+  });
+
+  test('read falls back to the legacy path and write leaves that file', () => {
+    const root = mkdtempSync(join(tmpdir(), 'llman-state-'));
+    const io = makeNodeIo(root);
+    io.mkdirp('llmanspec/.context');
+    io.writeText(LEGACY_SDD_STATE_REL, '{\n  "cli_version": "0.10.1"\n}\n');
+    expect(readSddState(io)).toEqual({ cli_version: '0.10.1' });
+    writeSddState(io, '0.11.0');
+    expect(readSddState(io)).toEqual({ cli_version: '0.11.0' });
+    expect(readFileSync(join(root, LEGACY_SDD_STATE_REL), 'utf8')).toContain('0.10.1');
   });
 });
 

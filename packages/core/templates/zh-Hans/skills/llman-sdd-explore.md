@@ -36,8 +36,7 @@ flowchart LR
 - 需要时用 ASCII 图可视化；同时保留多个选项与权衡。
 
 ## 动作清单
-1. 用 `llman-sdd context --task "<任务>" --paths "<文件>"` 定位匹配 `<paths>` 的 specs，通读其 `direct` 列出的 spec 全文（这些是必须理解的合约）。
-   - {{ unit("skills/index-fallback") }}
+1. 用 `llman-sdd list --specs` 列出规格，再直读相关 `.feature`。
 2. 澄清目标与约束（问 1–3 个问题）。
 3. **逐问深挖分支（可选，用户显式触发才进入）**：触发词“深挖”“grill”“逐个问”“彻底理清”。进入后一问一答走清决策：
    - 一次只问一个问题，附你的推荐答案，等反馈再问下一个。

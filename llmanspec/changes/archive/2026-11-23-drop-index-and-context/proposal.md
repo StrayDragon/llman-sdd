@@ -2,6 +2,9 @@
 depends_on:
   - unify-command-surface
 title: 移除索引与语义检索
+branch: sdd/drop-index-and-context
+base_branch: main
+base_sha: ed48c302d016ff8ecb6f8fab559e1b57e6e6953d
 ---
 
 # 移除索引与语义检索

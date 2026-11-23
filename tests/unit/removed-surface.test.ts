@@ -22,9 +22,7 @@ const CommandRuntime = cliRequire('commander').Command as typeof Command;
 const registerArchive = (await import('../../apps/cli/src/commands/archive.ts')).registerArchive;
 const registerChange = (await import('../../apps/cli/src/commands/change.ts')).registerChange;
 const registerConfig = (await import('../../apps/cli/src/commands/config.ts')).registerConfig;
-const registerContext = (await import('../../apps/cli/src/commands/context.ts')).registerContext;
 const registerGraph = (await import('../../apps/cli/src/commands/graph.ts')).registerGraph;
-const registerIndex = (await import('../../apps/cli/src/commands/index.ts')).registerIndex;
 const registerInit = (await import('../../apps/cli/src/commands/init.ts')).registerInit;
 const registerSelf = (await import('../../apps/cli/src/commands/self.ts')).registerSelf;
 const registerList = (await import('../../apps/cli/src/commands/list.ts')).registerList;
@@ -59,8 +57,6 @@ function buildProgram(): Command {
   registerArchive(program, ctx);
   registerReview(program, ctx);
   registerConfig(program, ctx);
-  registerIndex(program, ctx);
-  registerContext(program, ctx);
   return program;
 }
 
@@ -115,7 +111,13 @@ test('list --changes is not registered on list (D2)', () => {
 test('removed commands do not exist anywhere (D2)', () => {
   const program = buildProgram();
   const allNames = flatten(program).map((n) => n.chain.join(' '));
-  for (const removed of ['change checkpoint', 'change delta', 'project import']) {
+  for (const removed of [
+    'change checkpoint',
+    'change delta',
+    'project import',
+    'index',
+    'context',
+  ]) {
     expect(allNames).not.toContain(removed);
   }
 });

@@ -29,7 +29,6 @@ export const OPTIONAL_SKILL_FILES: readonly string[] = [
 ];
 
 export const UNIT_FILES: readonly string[] = [
-  'skills/index-fallback.md',
   'skills/validation-hints.md',
   'skills/human-readable-summary.md',
   'skills/git-native-flow.md',
