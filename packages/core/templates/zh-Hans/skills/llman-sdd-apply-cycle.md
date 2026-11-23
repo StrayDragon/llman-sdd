@@ -1,6 +1,6 @@
 ---
 name: "llman-sdd-apply-cycle"
-description: "单 change 一轮到底：实施→测试→校验→verify→归档提交。仅手动触发，agent 不得自动调用。"
+description: "仅手动。用户显式调用 /llman-sdd-apply-cycle 时使用。一轮做完单个 change 的实施到归档。"
 metadata:
   version: "{{ llman_version }}"
 disable-model-invocation: true

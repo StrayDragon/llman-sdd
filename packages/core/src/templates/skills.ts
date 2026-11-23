@@ -50,17 +50,28 @@ export const ETHICS_KEYS: readonly string[] = [
 ];
 
 /** All-string globals (predecessor BTreeMap<String, String> semantics). */
+/** Skills the model must not load on its own. Init writes the Codex policy file for these. */
+export const MANUAL_INVOCATION_SKILLS: readonly string[] = [
+  'llman-sdd-apply-cycle',
+  'llman-sdd-wayfinder',
+  'llman-sdd-specs-compact',
+  'llman-sdd-ff',
+];
+
+export const OPENAI_EXPLICIT_POLICY = `policy:\n  allow_implicit_invocation: false\n`;
+
 export function buildTemplateVars(config: SddConfig, version: string): Record<string, string> {
   const vars: Record<string, string> = { llman_version: version };
   if (config.specs) {
     vars['specs_enabled'] = 'true';
     if (config.specs.verify_prompt) vars['specs_verify_prompt'] = config.specs.verify_prompt;
   }
-  const extras = new Set<string>(config.extra_skills ?? []);
+  // Every optional skill is installed. Template conditionals that used to
+  // follow extra_skills therefore always see the skill as present.
   for (const name of OPTIONAL_SKILL_FILES) {
     const stem = name.replace(/\.md$/u, '');
     const key = `extra_skill_${stem.replace(/^llman-sdd-/u, '').replaceAll('-', '_')}`;
-    if (extras.has(stem)) vars[key] = 'true';
+    vars[key] = 'true';
   }
   return vars;
 }
@@ -103,15 +114,8 @@ export interface SkillTemplate {
   content: string;
 }
 
-export function skillCandidates(config: SddConfig): string[] {
-  const extras: readonly string[] = config.extra_skills ?? [];
-  return [
-    ...DEFAULT_SKILL_FILES,
-    ...OPTIONAL_SKILL_FILES.filter((f) => {
-      const stem = f.replace(/\.md$/u, '');
-      return extras.includes(stem);
-    }),
-  ];
+export function skillCandidates(_config: SddConfig): string[] {
+  return [...DEFAULT_SKILL_FILES, ...OPTIONAL_SKILL_FILES];
 }
 
 export function loadSkillTemplates(

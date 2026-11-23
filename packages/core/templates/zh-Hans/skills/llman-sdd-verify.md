@@ -1,6 +1,6 @@
 ---
 name: "llman-sdd-verify"
-description: "验证已实施 change 与 specs/design/tasks 是否一致，产出 CRITICAL/WARNING/SUGGESTION 分级报告。apply 后运行，全绿可归档。"
+description: "实施完成后使用。对照规格给出 CRITICAL、WARNING、SUGGESTION。未通过则不归档。"
 metadata:
   version: "{{ llman_version }}"
 ---

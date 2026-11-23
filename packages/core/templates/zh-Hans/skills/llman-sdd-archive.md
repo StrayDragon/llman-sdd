@@ -1,6 +1,6 @@
 ---
 name: "llman-sdd-archive"
-description: "归档已完成 change：合并回基准分支（默认 squash）、文档改名入 archive/、自动收口提交。verify 全绿后运行。"
+description: "verify 通过后使用。把已完成 change 合并回基准分支并归档。不用于仍在实施的变更。"
 metadata:
   version: "{{ llman_version }}"
 ---

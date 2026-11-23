@@ -1,8 +1,9 @@
 ---
 name: "llman-sdd-ff"
-description: "一趟走完 propose 等价路径：规划文档 → 绑定分支 → 提交 specs。"
+description: "仅手动。用户要求一趟走完提案、绑分支并提交规格时使用。不作为 propose 的自动替代。"
 metadata:
   version: "{{ llman_version }}"
+disable-model-invocation: true
 ---
 
 # LLMAN SDD Fast-Forward (FF)

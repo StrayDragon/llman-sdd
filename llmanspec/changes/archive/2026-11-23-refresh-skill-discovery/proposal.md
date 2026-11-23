@@ -1,6 +1,9 @@
 ---
 depends_on: []
 title: 技能改为目录发现并始终注入
+branch: sdd/refresh-skill-discovery
+base_branch: main
+base_sha: 9231f29914f146cd4ec72cb9f029480bb2c78400
 ---
 
 # 技能改为目录发现并始终注入

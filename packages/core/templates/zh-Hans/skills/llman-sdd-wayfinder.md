@@ -1,6 +1,6 @@
 ---
 name: "llman-sdd-wayfinder"
-description: "把超出单会话的大型模糊工作拆成决策地图，逐个解决直到路径清晰。仅手动触发。"
+description: "仅手动。用户要把超出单会话的模糊工作拆成决策地图时使用。"
 metadata:
   version: "{{ llman_version }}"
 disable-model-invocation: true

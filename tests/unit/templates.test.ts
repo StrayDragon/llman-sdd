@@ -61,7 +61,7 @@ describe('locale chain', () => {
 });
 
 describe('buildTemplateVars', () => {
-  test('specs vars and extra_skill key naming', () => {
+  test('specs vars and every optional skill flag', () => {
     const cfg = loadConfig(
       `schema: spec-driven\nextra_skills:\n  - llman-sdd-arch-review\nspecs:\n  framework: ""\n  check_command: bun test\n`,
     );
@@ -69,18 +69,16 @@ describe('buildTemplateVars', () => {
     expect(vars['llman_version']).toBe('9.9.9');
     expect(vars['specs_enabled']).toBe('true');
     expect(vars['extra_skill_arch_review']).toBe('true');
-    expect(vars['extra_skill_continue']).toBeUndefined();
+    expect(vars['extra_skill_continue']).toBe('true');
   });
 });
 
 describe('skills', () => {
-  test('candidates = 10 defaults + enabled extras only', () => {
+  test('candidates are every built-in skill', () => {
     const base = loadConfig(`schema: spec-driven\n`);
-    expect(skillCandidates(base)).toHaveLength(10);
-    const withExtra = loadConfig(`schema: spec-driven\nextra_skills:\n  - llman-sdd-continue\n`);
-    const candidates = skillCandidates(withExtra);
-    expect(candidates).toHaveLength(11);
-    expect(candidates).toContain('llman-sdd-continue.md');
+    expect(skillCandidates(base)).toHaveLength(16);
+    expect(skillCandidates(base)).toContain('llman-sdd-continue.md');
+    expect(skillCandidates(base)).toContain('llman-sdd-research.md');
   });
 
   test('ethics gate rejects products missing governance keys', () => {

@@ -6,9 +6,8 @@
   @req:r5
   规则: 顶层字段域
     llmanspec/config.yaml MUST 位于项目根 llmanspec/ 目录;顶层字段 MUST 仅由
-    schema/locale/extra_skills/archive/specs/sdd/change_id 组成(specs 承接前代 bdd 段的 spec 验证配置角色;旧 bdd 段在兼容期经兼容提升消费,见旧配置兼容条),未知字段 SHALL 宽松放行(不报错)。schema 字段必填且 MUST 为
-    "spec-driven"。extra_skills 取值域 MUST 限于
-    llman-sdd-continue/llman-sdd-ff/llman-sdd-validate/llman-sdd-arch-review/llman-sdd-wayfinder/llman-sdd-research。
+    schema/locale/archive/specs/sdd/change_id 组成(specs 承接前代 bdd 段的 spec 验证配置角色;旧 bdd 段在兼容期经兼容提升消费,见旧配置兼容条),未知字段 SHALL 宽松放行(不报错)。schema 字段必填且 MUST 为
+    "spec-driven"。遗留顶层键 extra_skills SHALL 按未知键放行,不进入解析结果。
     specs 段 MUST 仅由 framework/check_command/verify_prompt 组成(语义为「整个 spec 验证」的 harness:check_command 承接前代
     run_command,支持占位符与 batch-once,由 validate 执行且缺省跳过、经 `--check` 显式执行;状态流转校验不经配置,由场景级 @transitions/@no-transitions tag 定界,见 @req:r102 与 validation 域 @req:r104);specs 段 MUST NOT 声明无消费方的字段(bindings、default_language、feature_dir 已移除或归入兼容处理;check_transitions 已移除,遗留键经宽松剥离消费,见 @req:r102)。
     旧配置的 bdd 段(framework/run_command/verify_prompt)在加载期 MUST 被识别并兼容提升为新 specs 语义(run_command → check_command 字段级映射,framework/verify_prompt 同名随迁):解析结果 MUST 以 specs 呈现、旧 bdd 段内无消费方字段 SHALL 保持宽松剥离/忽略,且 MUST 向 stderr 输出 WARNING 提示改用新形。
@@ -39,9 +38,9 @@
     被 gen-schema --check 以非零退出码拒绝。
 
     场景: 非法配置被拒绝
-      假如 一个 config 内容 extra_skills 含 "llman-sdd-unknown"
+      假如 一个 config 内容 schema 为 "bogus"
       当 加载该 config
-      那么 报错信息包含 "extra_skills"
+      那么 报错信息包含 "schema"
       而且 报错条数至多 5
 
 

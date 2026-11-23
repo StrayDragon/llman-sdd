@@ -36,14 +36,12 @@ test.skipIf(!existsSync(BIN))('compiled binary init renders skills from the embe
     expect(existsSync(join(dir, 'llmanspec', 'specs', '.gitkeep'))).toBe(true);
     expect(existsSync(join(dir, 'llmanspec', 'changes', 'archive', '.gitkeep'))).toBe(true);
 
-    // 默认 en 渲染 10 个默认 skills,且通过 ethics 治理门。
+    expect(existsSync(join(dir, 'llmanspec', 'AGENTS.md'))).toBe(true);
+    expect(readFileSync(join(dir, 'llmanspec', 'AGENTS.md'), 'utf8')).toContain('LLMANSPEC:START');
+
     const skillPath = join(dir, '.agents', 'skills', 'llman-sdd-explore', 'SKILL.md');
     expect(existsSync(skillPath)).toBe(true);
     expect(readFileSync(skillPath, 'utf8')).toContain('ethics.risk_level');
-
-    const rootAgents = readFileSync(join(dir, 'AGENTS.md'), 'utf8');
-    expect(rootAgents).toContain('<!-- LLMANSPEC:START -->');
-    expect(rootAgents).toContain('<!-- LLMANSPEC:END -->');
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

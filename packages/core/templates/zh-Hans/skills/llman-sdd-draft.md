@@ -1,6 +1,6 @@
 ---
 name: "llman-sdd-draft"
-description: "把 change 想法记成草案（仅 proposal.md，不问 id）。随手记 idea/未来需求；落实时走 propose。"
+description: "只把想法记成 proposal.md 时使用。不创建 tasks，不改规格。"
 metadata:
   version: "{{ llman_version }}"
 ---

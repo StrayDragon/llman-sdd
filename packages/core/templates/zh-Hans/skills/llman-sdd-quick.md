@@ -1,6 +1,6 @@
 ---
 name: "llman-sdd-quick"
-description: "快速路径：不改行为合约的小改动（重构/错字/性能）。要改行为合约（需求语义）就停，转 propose。"
+description: "不改行为合约的小改动时使用。要改需求语义就停，改走 propose。"
 metadata:
   version: "{{ llman_version }}"
 ---

@@ -1,5 +1,4 @@
 export {
-  EXTRA_SKILLS,
   archiveSchema,
   changeIdSchema,
   sddConfigSchema,
@@ -20,7 +19,7 @@ export {
   compileChangeIdPattern,
   renderChangeIdTemplate,
 } from './config/changeId.ts';
-export { renderConfigOverview, skillsJson } from './config/surface.ts';
+export { renderConfigOverview } from './config/surface.ts';
 
 export type {
   CapabilityDoc,
@@ -222,10 +221,12 @@ export {
   refreshSubRootBlocks,
   resolveEffectiveLocale,
   runInit,
+  stripManagedBlock,
   updateFileWithMarkers,
   type InitIo,
   type InitResult,
 } from './init/init.ts';
+export { checkSkillVersions, readSkillVersion, skillVersionCompatible } from './init/skillCheck.ts';
 export {
   changeTitle,
   collectChanges,

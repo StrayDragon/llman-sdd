@@ -110,7 +110,7 @@ bdd.when('运行 init packages/tui 与 init packages/tui --skills', (ctx) => {
   };
 });
 
-bdd.thenStep('子根双托管块写入且缺省无 .agents/skills 且 --skills 后注入', (ctx) => {
+bdd.thenStep('子根 llmanspec 托管块写入且缺省无 .agents/skills 且 --skills 后注入', (ctx) => {
   const { repo } = ctx.fixtures['双根仓库'] as { repo: TempRepo };
   const r = ctx.fixtures['子根init结果'] as {
     firstCode: number;
@@ -120,8 +120,11 @@ bdd.thenStep('子根双托管块写入且缺省无 .agents/skills 且 --skills �
     skillsAfterFlag: boolean;
   };
   if (r.firstCode !== 0) throw new Error(`sub-root init failed: ${r.firstOut}`);
-  const agents = readFileSync(join(subRootOf(repo), 'AGENTS.md'), 'utf8');
+  const agents = readFileSync(join(subRootOf(repo), 'llmanspec', 'AGENTS.md'), 'utf8');
   if (!agents.includes('LLMANSPEC:START')) throw new Error('sub-root managed block missing');
+  if (existsSync(join(subRootOf(repo), 'AGENTS.md'))) {
+    throw new Error('sub-root must not write a root AGENTS.md');
+  }
   if (r.skillsAfterDefault) throw new Error('sub-root default must not inject skills');
   if (r.secondCode !== 0) throw new Error('sub-root init --skills failed');
   if (!r.skillsAfterFlag) throw new Error('--skills did not inject');
@@ -145,8 +148,8 @@ bdd.given('一个含根实例与子根实例的 git 仓库且两实例托管块�
   const subInit = repo.run('bun', [CLI, 'init', SUB]);
   if (rootInit.code !== 0) throw new Error(`root init failed: ${rootInit.stderr}`);
   if (subInit.code !== 0) throw new Error(`sub-root init failed: ${subInit.stderr}`);
-  tamperManagedBlock(join(repo.root, 'AGENTS.md'));
-  tamperManagedBlock(join(subRootOf(repo), 'AGENTS.md'));
+  tamperManagedBlock(join(repo.root, 'llmanspec', 'AGENTS.md'));
+  tamperManagedBlock(join(subRootOf(repo), 'llmanspec', 'AGENTS.md'));
   ctx.fixtures['双根仓库'] = { repo };
 });
 
@@ -164,19 +167,25 @@ bdd.when('在子根运行 init --update', (ctx) => {
   } satisfies RunResult;
 });
 
-bdd.thenStep('根实例与子根实例的托管块均恢复为当前模板渲染且子根仍无 .agents/skills', (ctx) => {
-  const { repo } = ctx.fixtures['双根仓库'] as { repo: TempRepo };
-  const r = ctx.fixtures['子根update结果'] as RunResult;
-  if (r.code !== 0) throw new Error(`sub-root --update failed: ${r.out}`);
-  for (const p of [join(repo.root, 'AGENTS.md'), join(subRootOf(repo), 'AGENTS.md')]) {
-    const s = readFileSync(p, 'utf8');
-    if (s.includes('TAMPER-MARK')) throw new Error(`stale body survived in ${p}`);
-    if (!s.includes('LLMANSPEC:START')) throw new Error(`managed block missing in ${p}`);
-  }
-  if (existsSync(join(subRootOf(repo), '.agents', 'skills'))) {
-    throw new Error('sub-root --update must not inject skills');
-  }
-});
+bdd.thenStep(
+  '根实例与子根实例的 llmanspec 托管块均恢复为当前模板渲染且子根仍无 .agents/skills',
+  (ctx) => {
+    const { repo } = ctx.fixtures['双根仓库'] as { repo: TempRepo };
+    const r = ctx.fixtures['子根update结果'] as RunResult;
+    if (r.code !== 0) throw new Error(`sub-root --update failed: ${r.out}`);
+    for (const p of [
+      join(repo.root, 'llmanspec', 'AGENTS.md'),
+      join(subRootOf(repo), 'llmanspec', 'AGENTS.md'),
+    ]) {
+      const s = readFileSync(p, 'utf8');
+      if (s.includes('TAMPER-MARK')) throw new Error(`stale body survived in ${p}`);
+      if (!s.includes('LLMANSPEC:START')) throw new Error(`managed block missing in ${p}`);
+    }
+    if (existsSync(join(subRootOf(repo), '.agents', 'skills'))) {
+      throw new Error('sub-root --update must not inject skills');
+    }
+  },
+);
 
 // ---------------------------------------------------------------------------
 // r106 — 新建实例告警(祖先存在实例时 init 输出 WARNING)
@@ -231,6 +240,97 @@ bdd.thenStep('stderr 无新建实例 WARNING 且实例正常创建', (ctx) => {
   const r = ctx.fixtures['空目录init结果'] as RunResult;
   if (r.code !== 0) throw new Error(`init failed: ${r.out}`);
   if (r.out.includes('WARNING')) throw new Error(`unexpected WARNING:\n${r.out}`);
+});
+
+const MANUAL_SKILLS = [
+  'llman-sdd-apply-cycle',
+  'llman-sdd-wayfinder',
+  'llman-sdd-specs-compact',
+  'llman-sdd-ff',
+];
+
+bdd.thenStep('四个手动技能的描述以仅手动起句且带禁用自动调用与 openai.yaml', (ctx) => {
+  const { root } = ctx.fixtures['空目录工作区'] as { root: string };
+  const r = ctx.fixtures['空目录init结果'] as RunResult;
+  if (r.code !== 0) throw new Error(`init failed: ${r.out}`);
+  for (const name of MANUAL_SKILLS) {
+    const md = readFileSync(join(root, '.agents', 'skills', name, 'SKILL.md'), 'utf8');
+    if (!md.includes('description: "仅手动。')) {
+      throw new Error(`${name} description does not start with 仅手动`);
+    }
+    if (!md.includes('disable-model-invocation: true')) {
+      throw new Error(`${name} missing disable-model-invocation`);
+    }
+    const policy = readFileSync(
+      join(root, '.agents', 'skills', name, 'agents', 'openai.yaml'),
+      'utf8',
+    );
+    if (!policy.includes('allow_implicit_invocation: false')) {
+      throw new Error(`${name} missing openai explicit policy`);
+    }
+  }
+});
+
+const workspaceBytes = (root: string): string =>
+  readFileSync(join(root, 'llmanspec', 'config.yaml'), 'utf8') +
+  readFileSync(join(root, '.agents', 'skills', 'llman-sdd-apply', 'SKILL.md'), 'utf8');
+
+bdd.given('一个已由 init 生成技能的临时工作区', (ctx) => {
+  const root = mkdtempSync(join(tmpdir(), 'llman-skillcheck-'));
+  const proc = spawnSync('bun', [CLI, 'init'], { cwd: root, encoding: 'utf8' });
+  if ((proc.status ?? 1) !== 0) throw new Error(`init failed: ${proc.stderr}`);
+  ctx.fixtures['空目录工作区'] = { root, before: workspaceBytes(root) };
+});
+
+bdd.given('一个已由 init 生成技能且其中一个版本被改成 0.0.1 的临时工作区', (ctx) => {
+  const root = mkdtempSync(join(tmpdir(), 'llman-skillcheck-'));
+  const proc = spawnSync('bun', [CLI, 'init'], { cwd: root, encoding: 'utf8' });
+  if ((proc.status ?? 1) !== 0) throw new Error(`init failed: ${proc.stderr}`);
+  const skill = join(root, '.agents', 'skills', 'llman-sdd-apply', 'SKILL.md');
+  writeFileSync(
+    skill,
+    readFileSync(skill, 'utf8').replace(/version:\s*"[\d.]+"/u, 'version: "0.0.1"'),
+  );
+  ctx.fixtures['空目录工作区'] = { root, before: workspaceBytes(root) };
+});
+
+bdd.when('运行 init --check', (ctx) => {
+  const { root } = ctx.fixtures['空目录工作区'] as { root: string };
+  const proc = spawnSync('bun', [CLI, 'init', '--check'], { cwd: root, encoding: 'utf8' });
+  ctx.fixtures['空目录init结果'] = {
+    code: proc.status ?? 1,
+    out: `${proc.stdout ?? ''}${proc.stderr ?? ''}`,
+  } satisfies RunResult;
+});
+
+bdd.when('运行 init --check --update', (ctx) => {
+  const { root } = ctx.fixtures['空目录工作区'] as { root: string };
+  const proc = spawnSync('bun', [CLI, 'init', '--check', '--update'], {
+    cwd: root,
+    encoding: 'utf8',
+  });
+  ctx.fixtures['空目录init结果'] = {
+    code: proc.status ?? 1,
+    out: `${proc.stdout ?? ''}${proc.stderr ?? ''}`,
+  } satisfies RunResult;
+});
+
+bdd.thenStep('init check 退出码为 0 且工作区未被改写', (ctx) => {
+  const { root, before } = ctx.fixtures['空目录工作区'] as { root: string; before: string };
+  const r = ctx.fixtures['空目录init结果'] as RunResult;
+  if (r.code !== 0) throw new Error(`init --check failed: ${r.out}`);
+  if (workspaceBytes(root) !== before) throw new Error('init --check rewrote the workspace');
+});
+
+bdd.thenStep('init check 退出码非零且输出包含 init --update', (ctx) => {
+  const r = ctx.fixtures['空目录init结果'] as RunResult;
+  if (r.code === 0) throw new Error('mismatched skill version was accepted');
+  if (!r.out.includes('llman-sdd init --update')) throw new Error(`missing update hint:\n${r.out}`);
+});
+
+bdd.thenStep('init check 与 update 同给时退出码非零', (ctx) => {
+  const r = ctx.fixtures['空目录init结果'] as RunResult;
+  if (r.code === 0) throw new Error('init --check --update should fail');
 });
 
 bdd.given('一个子根含 r5 规则的临时仓库', (ctx) => {

@@ -1,6 +1,6 @@
 ---
 name: "llman-sdd-validate"
-description: "校验 change 与 specs，给出修复提示。"
+description: "用户要求校验 change 或规格时使用。给出修复提示。不代替 apply 的实现循环。"
 metadata:
   version: "{{ llman_version }}"
 ---

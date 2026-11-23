@@ -31,8 +31,8 @@
   @req:r19
   规则: init 产物面与命名空间治理
     `init` MUST 产出 llmanspec/config.yaml(含 $schema 头行与 locale 缺省)、specs/.gitkeep、
-    changes/archive/.gitkeep,并以托管块方式写根与 llmanspec 的 AGENTS.md(已有内容保留);`init --update` MUST 渲染默认 10 个
-    skills 加 extra_skills 扩展到 `.agents/skills/<stem>/SKILL.md`,且 MUST 仅清理 `llman-sdd-`
+    changes/archive/.gitkeep,并以托管块方式写 llmanspec/AGENTS.md(已有内容保留);根 AGENTS.md MUST NOT 写入托管块,`init --update` 遇到已有 LLMANSPEC 标记段时 MUST 删除该段并保留标记外正文,删完只剩空白时 MUST 删除该文件;`init --update` MUST 渲染全部内置
+    skills 到 `.agents/skills/<stem>/SKILL.md`,且 MUST 仅清理 `llman-sdd-`
     前缀内候选集外的目录;每个渲染产物 MUST 通过 ethics 治理门(5 个 ethics 键齐全)。渲染产物与 golden
     基线(tests/golden/baseline/)的版本号归一化比对 MUST 覆盖内置 zh-Hans locale,且 MUST 随 bun test 套件运行;比对失败
     MUST 报出差异文件名并区分缺失、多余与内容不同。
@@ -43,9 +43,14 @@
       那么 与 golden 基线归一化版本号后 diff 为空
       而且 每个 SKILL.md 通过 ethics 治理门
 
+    场景: 手动技能带发现阶段标识
+      假如 一个无任何 llmanspec 实例的空目录
+      当 运行 init
+      那么 四个手动技能的描述以仅手动起句且带禁用自动调用与 openai.yaml
+
   @req:r49
   规则: init 目标路径
-    `init [path]` MUST 支持位置参数指定目标目录(相对或绝对,不存在 MUST 自动创建),全部产物(llmanspec/、根 AGENTS.md、
+    `init [path]` MUST 支持位置参数指定目标目录(相对或绝对,不存在 MUST 自动创建),全部产物(llmanspec/、llmanspec/AGENTS.md、
     .agents/skills/)MUST 落在该目录下;缺省 MUST 为当前目录。
 
     场景: init 子目录目标
@@ -68,17 +73,17 @@
     场景: update 时工作区 config locale 压制 CLI 选项
       假如 一个 locale 为 zh-Hans 的已初始化工作区
       当 运行 init --update --locale en
-      那么 根 AGENTS.md 托管块仍为 zh-Hans 渲染且 config locale 保持 zh-Hans
+      那么 llmanspec/AGENTS.md 托管块仍为 zh-Hans 渲染且 config locale 保持 zh-Hans
 
     场景: config 缺 locale 键时 CLI 选项生效并告警
       假如 一个 config.yaml 无 locale 键的已初始化工作区
       当 运行 init --update --locale zh-Hans
-      那么 根 AGENTS.md 托管块为 zh-Hans 渲染且 stderr 含缺键 WARNING
+      那么 llmanspec/AGENTS.md 托管块为 zh-Hans 渲染且 stderr 含缺键 WARNING
 
     场景: config 缺 locale 键且无选项时回退内置并告警
       假如 一个 config.yaml 无 locale 键的已初始化工作区
       当 运行 init --update
-      那么 根 AGENTS.md 托管块为 zh-Hans 渲染且 stderr 含缺键 WARNING
+      那么 llmanspec/AGENTS.md 托管块为 zh-Hans 渲染且 stderr 含缺键 WARNING
 
   @req:r66
   规则: spec 撰写配对引导判据
@@ -151,18 +156,18 @@
       而且 仓库工作区未被改动
   @req:r93
   规则: init 逐根与 agent 面 skills 策略
-    init MUST 保持逐根构造(init [path] 定根、路径根相对、无嵌套守卫,根间重叠不做交叉校验);子根 init 照写 AGENTS.md 与 llmanspec/AGENTS.md 双托管块(marker 更新保留既有内容)。.agents/skills 仅当目标为仓库根实例时注入:子根 init 缺省 MUST NOT 注入 skills 且 MUST NOT 清理 skills 命名空间,--skills 旗标显式开启子根注入。`init --update` 在任意实例根上运行 MUST 复用根发现算子刷新全部发现根的托管块(per-workspace,不限于仓库根目标),skills 渲染与 llman-sdd-* 命名空间清理仍仅作用于仓库根实例。
+    init MUST 保持逐根构造(init [path] 定根、路径根相对、无嵌套守卫,根间重叠不做交叉校验);子根 init 写 llmanspec/AGENTS.md 托管块,MUST NOT 写根 AGENTS.md 托管块。`.agents/skills` 仅当目标为仓库根实例时注入:子根 init 缺省 MUST NOT 注入 skills 且 MUST NOT 清理 skills 命名空间,--skills 旗标显式开启子根注入。`init --update` 在任意实例根上运行 MUST 复用根发现算子刷新全部发现根的 llmanspec/AGENTS.md 托管块,并剥离各根 AGENTS.md 上已有的 LLMANSPEC 标记段(per-workspace,不限于仓库根目标),skills 渲染与 llman-sdd-* 命名空间清理仍仅作用于仓库根实例。
     托管块 marker 更新契约:START 与 END 双标记齐且有序时 MUST 原位替换块体(标记外既有内容保留);END 先于 START MUST 报错;标记缺失时 MUST 将整块前置插入。
 
     场景: 子根 init 缺省不注入 skills
       假如 一个 git 仓库的临时目录
       当 运行 init packages/tui 与 init packages/tui --skills
-      那么 子根双托管块写入且缺省无 .agents/skills 且 --skills 后注入
+      那么 子根 llmanspec 托管块写入且缺省无 .agents/skills 且 --skills 后注入
 
     场景: 子根 update 刷新全部发现根托管块
       假如 一个含根实例与子根实例的 git 仓库且两实例托管块均被篡改
       当 在子根运行 init --update
-      那么 根实例与子根实例的托管块均恢复为当前模板渲染且子根仍无 .agents/skills
+      那么 根实例与子根实例的 llmanspec 托管块均恢复为当前模板渲染且子根仍无 .agents/skills
 
     场景: 托管块 marker 更新契约
       假如 含双标记的 AGENTS.md 内容样例集(块体可替换、END 先于 START、标记缺失)
@@ -191,3 +196,22 @@
       假如 一个无任何 llmanspec 实例的空目录
       当 运行 init
       那么 stderr 无新建实例 WARNING 且实例正常创建
+
+  @req:r122
+  规则: init --check 核对技能版本
+    `init --check` MUST 读取 `.agents/skills/llman-sdd-*/SKILL.md` 的 metadata.version,且 MUST NOT 写入文件。主版本号与次版本号都等于当前 CLI 时退出码 MUST 为 0。没有 llman-sdd 技能、读不出版本、或主/次版本不同时退出码 MUST 非零,且输出 MUST 包含 `llman-sdd init --update`。补丁号可以不同。`--check` 与 `--update` 同给 MUST 报错且退出码非零。
+
+    场景: 版本匹配的技能通过检查
+      假如 一个已由 init 生成技能的临时工作区
+      当 运行 init --check
+      那么 init check 退出码为 0 且工作区未被改写
+
+    场景: 主次版本不同要求更新
+      假如 一个已由 init 生成技能且其中一个版本被改成 0.0.1 的临时工作区
+      当 运行 init --check
+      那么 init check 退出码非零且输出包含 init --update
+
+    场景: check 与 update 互斥
+      假如 一个无任何 llmanspec 实例的空目录
+      当 运行 init --check --update
+      那么 init check 与 update 同给时退出码非零

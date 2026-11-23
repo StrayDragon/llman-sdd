@@ -1,6 +1,6 @@
 ---
 name: "llman-sdd-apply"
-description: "循环实施已提案 change 的 tasks：写码→测试→失败自修复→门禁全绿。propose 完成、specs 提交后进入。"
+description: "提案已提交规格后使用。按 tasks 实现到门禁全绿。不用于还没绑定分支的变更。"
 metadata:
   version: "0.1.0"
 ---

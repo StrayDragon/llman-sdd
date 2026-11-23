@@ -1,4 +1,4 @@
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import {
@@ -7,6 +7,7 @@ import {
   refreshSubRootBlocks,
   resolveInstanceRoot,
   runInit,
+  checkSkillVersions,
 } from '@llman-sdd/core';
 import type { Command } from 'commander';
 
@@ -39,18 +40,47 @@ export function registerInit(program: Command, _ctx: CliContext): void {
       'locale for generated templates (explicit config.yaml locale wins; fills a missing key; built-in default zh-Hans)',
     )
     .option('--lang <locale>', 'alias of --locale')
+    .option('--check', 'check installed llman-sdd skill versions against this CLI (no writes)')
     .action(
       (
         path: string | undefined,
-        options: { update?: boolean; skills?: boolean; locale?: string; lang?: string },
+        options: {
+          update?: boolean;
+          skills?: boolean;
+          locale?: string;
+          lang?: string;
+          check?: boolean;
+        },
       ) => {
         if (options.locale !== undefined && options.lang !== undefined) {
           throw new CliError('--locale and --lang are mutually exclusive (they are aliases)');
         }
+        if (options.check === true && options.update === true) {
+          throw new CliError('--check and --update are mutually exclusive');
+        }
         let root = process.cwd();
         if (path !== undefined) {
           root = resolve(path);
-          mkdirSync(root, { recursive: true });
+          if (options.check !== true) mkdirSync(root, { recursive: true });
+        }
+        if (options.check === true) {
+          const skillsDir = join(root, '.agents', 'skills');
+          const skills: { name: string; markdown: string }[] = [];
+          try {
+            for (const name of readdirSync(skillsDir)) {
+              if (!name.startsWith('llman-sdd-')) continue;
+              skills.push({
+                name,
+                markdown: readFileSync(join(skillsDir, name, 'SKILL.md'), 'utf8'),
+              });
+            }
+          } catch {
+            // missing directory is an empty install
+          }
+          const result = checkSkillVersions(skills, version);
+          if (!result.ok) throw new CliError(result.message, 1);
+          console.log(result.message);
+          return;
         }
         const io = makeIo(root);
         const warn = (message: string): void => {

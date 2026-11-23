@@ -1,6 +1,6 @@
 ---
 name: "llman-sdd-explore"
-description: "探索模式：理清思路、调查需求、分析问题；只思考不写代码。意图不明或需先分析再行动时用。"
+description: "意图不明或要先分析时使用。只调查不改应用代码。不用于已经明确的实现任务。"
 metadata:
   version: "{{ llman_version }}"
 ---

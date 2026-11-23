@@ -8,15 +8,6 @@ import { z } from 'zod';
 
 import { DEFAULT_LOCALE } from '../locale.ts';
 
-export const EXTRA_SKILLS = [
-  'llman-sdd-continue',
-  'llman-sdd-ff',
-  'llman-sdd-validate',
-  'llman-sdd-arch-review',
-  'llman-sdd-wayfinder',
-  'llman-sdd-research',
-] as const;
-
 export const specsSchema = z.object({
   framework: z
     .string()
@@ -77,10 +68,6 @@ export const changeIdSchema = z.object({
 export const sddConfigSchema = z.object({
   schema: z.literal('spec-driven').describe('Schema identifier. Must be "spec-driven".'),
   locale: z.string().default(DEFAULT_LOCALE).describe('Locale used for SDD templates and skills.'),
-  extra_skills: z
-    .array(z.enum(EXTRA_SKILLS))
-    .nullish()
-    .describe('Additional optional SDD skills to enable (extend candidates on init --update).'),
   archive: archiveSchema
     .nullish()
     .describe('Archive behaviour settings (defer tracking, completion gates).'),

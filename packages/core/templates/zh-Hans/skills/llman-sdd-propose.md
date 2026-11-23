@@ -1,6 +1,6 @@
 ---
 name: "llman-sdd-propose"
-description: "为行为合约（需求语义）变更创建提案（proposal/tasks → 绑定分支 → 提交 specs）。小改动走 quick，记想法走 draft。"
+description: "行为合约要改时使用。创建提案、绑定分支并提交规格。小改动用 quick，只记想法用 draft。"
 metadata:
   version: "{{ llman_version }}"
 ---

@@ -48,7 +48,7 @@
 
   @req:r76
   规则: 报告命令输出旗标共享注册
-    报告命令 list/show/validate/review/index check/config skills 的输出旗标 MUST 由共享注册函数统一挂载,旗标面 MUST 一致为
+    报告命令 list/show/validate/review/index check 的输出旗标 MUST 由共享注册函数统一挂载,旗标面 MUST 一致为
     `--output <toon|json|compact-json|human>`、`--json` 与 `--compact-json` 三个(缺省无输出旗标时输出 TOON);各命令文件
     MUST NOT 自行重复注册 `--output`;`show --output compact-json` MUST 输出可 `JSON.parse` 的单行 JSON,不得回落人读文本。
     共享面 MUST 覆盖 `change next-id`、`change diff` 与 `spec next-req-id`;`--compact-json` MUST 作为 `--json` 的成对修饰符
@@ -84,7 +84,7 @@
   @req:r77
   规则: 全局旗标面
     CLI 全局旗标面 MUST 提供 `--max-scan-depth <N>`(语义见 peripheral-commands r58);前代兼容的无交互效果全局旗标 MUST NOT
-    存在,调用之 MUST 得到 commander unknown option 且退出码 2;`config skills` 亦 MUST NOT 提供该兼容旗标(缺省即输出状态)。
+    存在,调用之 MUST 得到 commander unknown option 且退出码 2。
 
     场景: 全局兼容旗标为 unknown option
       假如 本仓库的真实 llmanspec 工作区

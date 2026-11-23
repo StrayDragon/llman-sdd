@@ -14,28 +14,6 @@
       "description": "Locale used for SDD templates and skills.",
       "type": "string"
     },
-    "extra_skills": {
-      "description": "Additional optional SDD skills to enable (extend candidates on init --update).",
-      "anyOf": [
-        {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "enum": [
-              "llman-sdd-continue",
-              "llman-sdd-ff",
-              "llman-sdd-validate",
-              "llman-sdd-arch-review",
-              "llman-sdd-wayfinder",
-              "llman-sdd-research"
-            ]
-          }
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
     "archive": {
       "description": "Archive behaviour settings (defer tracking, completion gates).",
       "anyOf": [

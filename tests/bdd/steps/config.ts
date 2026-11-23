@@ -27,8 +27,8 @@ import {
   runCli,
 } from './shared.ts';
 
-bdd.given('一个 config 内容 extra_skills 含 "{value}"', (ctx, value) => {
-  ctx.fixtures['config'] = { 源文本: `schema: spec-driven\nextra_skills:\n  - ${value}\n` };
+bdd.given('一个 config 内容 schema 为 "{value}"', (ctx, value) => {
+  ctx.fixtures['config'] = { 源文本: `schema: ${value}\n` };
   return ctx.fixtures['config'];
 });
 
@@ -90,43 +90,30 @@ bdd.when('运行 config 概览', (ctx) => {
   };
 });
 
-bdd.thenStep('概览五要素输出且文件未被修改', (ctx) => {
+bdd.thenStep('概览四要素输出且文件未被修改', (ctx) => {
   const { out, unchanged } = ctx.fixtures['概览结果'] as { out: string; unchanged: boolean };
-  for (const marker of [
-    'schema:',
-    'locale:',
-    'extra_skills (enabled/total): 1 / 6',
-    'specs: off',
-    'archive: default',
-  ]) {
+  for (const marker of ['schema:', 'locale:', 'specs: off', 'archive: default']) {
     if (!out.includes(marker)) throw new Error(`overview missing ${marker}:\n${out}`);
   }
+  if (out.includes('extra_skills'))
+    throw new Error(`overview still mentions extra_skills:\n${out}`);
   if (!unchanged) throw new Error('config overview modified config.yaml');
 });
 
-bdd.when('运行 config skills --json', (ctx) => {
+bdd.when('运行 config skills', (ctx) => {
   const { root } = ctx.fixtures['config工作区'] as ConfigFixture;
-  const proc = runCli(['config', 'skills', '--json'], root);
+  const proc = runCli(['config', 'skills'], root);
+  const after = readFileSync(join(root, 'llmanspec', 'config.yaml'), 'utf8');
   ctx.fixtures['skillsjson'] = {
     code: proc.status ?? 0,
-    out: proc.stdout ?? '',
-    err: proc.stderr ?? '',
+    unchanged: after === (ctx.fixtures['config工作区'] as ConfigFixture).original,
   };
 });
 
-bdd.thenStep('JSON 输出 {enabled, available} 且 --set 为未知选项', (ctx) => {
-  const { root, original } = ctx.fixtures['config工作区'] as ConfigFixture;
-  const r = ctx.fixtures['skillsjson'] as { code: number; out: string; err: string };
-  if (r.code !== 0) throw new Error(`config skills --json failed: ${r.err}`);
-  const parsed = JSON.parse(r.out) as { enabled: string[]; available: string[] };
-  if (!Array.isArray(parsed.enabled) || parsed.available.length !== 6)
-    throw new Error(`shape wrong: ${r.out}`);
-  // predecessor parity: --set/--unset are NOT part of the flag surface (clap rc=2).
-  const set = runCli(['config', 'skills', '--set', 'llman-sdd-validate'], root);
-  if (set.status !== 2)
-    throw new Error(`--set must be an unknown option (rc=2), got ${set.status}`);
-  const after = readFileSync(join(root, 'llmanspec', 'config.yaml'), 'utf8');
-  if (after !== original) throw new Error('--set must not write config');
+bdd.thenStep('退出码为 2 且 config 文件未被修改', (ctx) => {
+  const r = ctx.fixtures['skillsjson'] as { code: number; unchanged: boolean };
+  if (r.code !== 2) throw new Error(`expected exit 2, got ${r.code}`);
+  if (!r.unchanged) throw new Error('config skills wrote config.yaml');
 });
 
 // ---------------------------------------------------------------------------

@@ -72,24 +72,23 @@ describe('updateFileWithMarkers blank-line shape (formatter parity, 0.0.78)', ()
 describe('init managed-block output (CLI end-to-end)', () => {
   const runInit = (root: string, args: string[]) => runCli(['init', ...args], root);
 
-  test('insert: AGENTS.md gets blank lines on both block boundaries', () => {
+  test('root AGENTS.md without markers is left untouched; llmanspec block is written', () => {
     const root = mkdtempSync(join(tmpdir(), 'llman-initblank-'));
     writeFileSync(join(root, 'AGENTS.md'), '# My Project\n\nSome rules.\n');
     expect(runInit(root, ['--lang', 'zh-Hans']).status).toBe(0);
-    const agents = readFileSync(join(root, 'AGENTS.md'), 'utf8');
-    expect(agents).toContain('<!-- LLMANSPEC:START -->\n\n# ');
-    expect(agents).toContain('<!-- LLMANSPEC:END -->\n\n# My Project\n');
+    expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).toBe('# My Project\n\nSome rules.\n');
+    expect(readFileSync(join(root, 'llmanspec', 'AGENTS.md'), 'utf8')).toContain('LLMANSPEC:START');
   });
 
-  test('update: pre-existing blank lines survive, repeated runs are byte-identical', () => {
+  test('update strips a root managed block and keeps the suffix', () => {
     const root = mkdtempSync(join(tmpdir(), 'llman-initupd-'));
     const legacy =
       '<!-- LLMANSPEC:START -->\n\n# 旧标题\n\n<!-- LLMANSPEC:END -->\n\n# My Project\n\nSome rules.\n';
     writeFileSync(join(root, 'AGENTS.md'), legacy);
     expect(runInit(root, ['--lang', 'zh-Hans']).status).toBe(0);
     const afterUpdate = readFileSync(join(root, 'AGENTS.md'), 'utf8');
-    expect(afterUpdate).toContain('<!-- LLMANSPEC:START -->\n\n# ');
-    expect(afterUpdate).toContain('<!-- LLMANSPEC:END -->\n\n# My Project\n');
+    expect(afterUpdate).not.toContain('LLMANSPEC:START');
+    expect(afterUpdate).toContain('# My Project\n');
     expect(runInit(root, ['--update', '--lang', 'zh-Hans']).status).toBe(0);
     expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).toBe(afterUpdate);
   });
@@ -102,7 +101,7 @@ describe('init CLI compat (r49/r50)', () => {
     const proc = runCli(['init', 'sub/proj', '--lang', 'zh-Hans'], root);
     expect(proc.status).toBe(0);
     expect(existsSync(join(target, 'llmanspec', 'config.yaml'))).toBe(true);
-    expect(existsSync(join(target, 'AGENTS.md'))).toBe(true);
+    expect(existsSync(join(target, 'llmanspec', 'AGENTS.md'))).toBe(true);
   });
 
   test('--lang and --locale are exclusive aliases', () => {
@@ -130,7 +129,8 @@ describe('init per-root skills policy (r93)', () => {
     const sub = join(root, 'packages', 'tui');
     expect(runInit(sub, []).status).toBe(0);
     expect(existsSync(join(sub, 'llmanspec', 'config.yaml'))).toBe(true);
-    expect(readFileSync(join(sub, 'AGENTS.md'), 'utf8')).toContain('LLMANSPEC:START');
+    expect(readFileSync(join(sub, 'llmanspec', 'AGENTS.md'), 'utf8')).toContain('LLMANSPEC:START');
+    expect(existsSync(join(sub, 'AGENTS.md'))).toBe(false);
     expect(existsSync(join(sub, '.agents', 'skills'))).toBe(false);
     expect(runInit(sub, ['--skills']).status).toBe(0);
     expect(existsSync(join(sub, '.agents', 'skills'))).toBe(true);
@@ -147,8 +147,10 @@ describe('init per-root skills policy (r93)', () => {
     expect(runInit(root, ['--update']).status).toBe(0);
     expect(existsSync(join(root, '.agents', 'skills'))).toBe(true);
     const swept = readFileSync(join(root, 'packages', 'tui', 'AGENTS.md'), 'utf8');
-    expect(swept).toContain('LLMANSPEC:START');
-    expect(swept).toContain('# TUI notes');
+    expect(swept).toBe('# TUI notes\n');
+    expect(readFileSync(join(root, 'packages', 'tui', 'llmanspec', 'AGENTS.md'), 'utf8')).toContain(
+      'LLMANSPEC:START',
+    );
   });
 });
 
@@ -187,9 +189,13 @@ describe('init effective-locale precedence (r50)', () => {
 
   test('update: explicit config locale wins over --locale, no warning', () => {
     const root = seedZhWorkspace('llman-locprec-');
-    expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).toContain('LLMAN 规范驱动开发');
+    expect(readFileSync(join(root, 'llmanspec', 'AGENTS.md'), 'utf8')).toContain(
+      'llmanspec AGENTS.md',
+    );
     expect(runInit(root, ['--update', '--locale', 'en']).status).toBe(0);
-    expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).toContain('LLMAN 规范驱动开发');
+    expect(readFileSync(join(root, 'llmanspec', 'AGENTS.md'), 'utf8')).toContain(
+      'llmanspec AGENTS.md',
+    );
     expect(readFileSync(join(root, 'llmanspec', 'config.yaml'), 'utf8')).toContain(
       'locale: zh-Hans',
     );
@@ -202,7 +208,9 @@ describe('init effective-locale precedence (r50)', () => {
     expect(proc.status).toBe(0);
     expect(proc.stderr).toContain('WARNING');
     expect(proc.stderr).toContain("'zh-Hans'");
-    expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).toContain('LLMAN 规范驱动开发');
+    expect(readFileSync(join(root, 'llmanspec', 'AGENTS.md'), 'utf8')).toContain(
+      'llmanspec AGENTS.md',
+    );
   });
 
   test('update: missing key without option falls back to the built-in zh-Hans and warns', () => {
@@ -212,7 +220,9 @@ describe('init effective-locale precedence (r50)', () => {
     expect(proc.status).toBe(0);
     expect(proc.stderr).toContain('WARNING');
     expect(proc.stderr).toContain("'zh-Hans'");
-    expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).toContain('LLMAN 规范驱动开发');
+    expect(readFileSync(join(root, 'llmanspec', 'AGENTS.md'), 'utf8')).toContain(
+      'llmanspec AGENTS.md',
+    );
   });
 });
 

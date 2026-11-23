@@ -828,7 +828,7 @@ bdd.thenStep('根实例托管块被跨根刷新属显式豁免', (ctx) => {
   const { repo } = ctx.fixtures['双根仓库'] as { repo: TempRepo };
   const r = ctx.fixtures['子根update结果'] as { code: number; out: string };
   if (r.code !== 0) throw new Error(`sub-root init --update failed: ${r.out}`);
-  const rootAgents = readFileSync(join(repo.root, 'AGENTS.md'), 'utf8');
+  const rootAgents = readFileSync(join(repo.root, 'llmanspec', 'AGENTS.md'), 'utf8');
   if (rootAgents.includes('TAMPER-MARK')) {
     throw new Error('exempted cross-root managed-block refresh did not happen');
   }

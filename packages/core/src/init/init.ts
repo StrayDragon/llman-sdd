@@ -15,6 +15,8 @@ import { writeSddState } from '../context/sddState.ts';
 import { DEFAULT_LOCALE, localeFallbacks, normalizeLocale } from '../locale.ts';
 import { renderTemplate } from '../templates/engine.ts';
 import {
+  MANUAL_INVOCATION_SKILLS,
+  OPENAI_EXPLICIT_POLICY,
   buildTemplateVars,
   enforceEthicsGovernance,
   loadLocaleResource,
@@ -49,7 +51,32 @@ export function updateFileWithMarkers(content: string, body: string): string {
   return `${MARKER_START}\n\n${body}\n${MARKER_END}\n\n${content}`;
 }
 
-/** END-boundary suffix, guaranteed blank-line-separated from following content. */
+/** Drop a root AGENTS.md managed block. `null` means the file should be removed. */
+export function stripManagedBlock(content: string): string | null {
+  const start = content.indexOf(MARKER_START);
+  const end = content.indexOf(MARKER_END);
+  if (start === -1 && end === -1) return content;
+  if (start === -1 || end === -1 || end < start) {
+    if (start !== -1 && end !== -1 && end < start) {
+      throw new Error('Invalid marker state: end marker appears before start marker.');
+    }
+    return content;
+  }
+  const before = content.slice(0, start);
+  let after = content.slice(end + MARKER_END.length);
+  if (before === '') after = after.replace(/^(?:\r?\n)+/u, '');
+  else after = after.replace(/^(?:\r?\n)/u, '');
+  const rest = before + after;
+  if (rest.trim() === '') return null;
+  return rest.endsWith('\n') ? rest : `${rest}\n`;
+}
+
+function stripRootAgents(io: InitIo): void {
+  if (!io.exists('AGENTS.md')) return;
+  const next = stripManagedBlock(io.readText('AGENTS.md'));
+  if (next === null) io.remove('AGENTS.md');
+  else if (next !== io.readText('AGENTS.md')) io.writeText('AGENTS.md', next);
+}
 function separatorAfterEndMarker(suffix: string): string {
   const br = /^\r?\n/u.exec(suffix);
   if (br === null) return suffix === '' ? '\n' : `\n\n${suffix}`;
@@ -63,7 +90,7 @@ export const TEMPLATES_ROOT = join(import.meta.dirname, '..', '..', 'templates')
 /** Repo-root-relative filesystem effects needed by the init flow. */
 export type InitIo = Pick<
   FsPort,
-  'exists' | 'readText' | 'writeText' | 'mkdirp' | 'listDir' | 'removeDir'
+  'exists' | 'readText' | 'writeText' | 'mkdirp' | 'listDir' | 'removeDir' | 'remove'
 >;
 
 function writeDefaultConfig(io: InitIo, locale: string): void {
@@ -124,7 +151,7 @@ export interface InitResult {
 
 const SKILLS_BASE = '.agents/skills';
 
-/** Managed AGENTS.md marker blocks (root + llmanspec), content-preserving. */
+/** Managed llmanspec/AGENTS.md block, plus removal of a root AGENTS.md block. */
 function writeManagedBlocks(
   io: InitIo,
   templates: TemplateIo,
@@ -133,22 +160,22 @@ function writeManagedBlocks(
 ): void {
   const vars = buildTemplateVars(config, version);
   const locales = localeFallbacks(config.locale);
-  for (const [stubPath, agentsPath] of [
-    ['agents-root-stub.md', 'AGENTS.md'],
-    ['llmanspec-agents-stub.md', 'llmanspec/AGENTS.md'],
-  ] as const) {
-    const stubRaw = loadLocaleResource(templates, TEMPLATES_ROOT, locales, stubPath);
-    if (stubRaw === null) {
-      // r19/r18: a missing built-in resource is a broken installation, not a
-      // no-op — silent skips shipped AGENTS.md-less workspaces before.
-      throw new Error(
-        `template resource missing: ${stubPath} (locales tried: ${locales.join(', ')})`,
-      );
-    }
-    const existing = io.exists(agentsPath) ? io.readText(agentsPath) : '';
-    const body = renderTemplate(stubRaw, new Map(), vars);
-    io.writeText(agentsPath, updateFileWithMarkers(existing, body));
+  const stubRaw = loadLocaleResource(
+    templates,
+    TEMPLATES_ROOT,
+    locales,
+    'llmanspec-agents-stub.md',
+  );
+  if (stubRaw === null) {
+    throw new Error(
+      `template resource missing: llmanspec-agents-stub.md (locales tried: ${locales.join(', ')})`,
+    );
   }
+  const agentsPath = 'llmanspec/AGENTS.md';
+  const existing = io.exists(agentsPath) ? io.readText(agentsPath) : '';
+  const body = renderTemplate(stubRaw, new Map(), vars);
+  io.writeText(agentsPath, updateFileWithMarkers(existing, body));
+  stripRootAgents(io);
 }
 
 export function runInit(
@@ -187,7 +214,7 @@ export function runInit(
     io.writeText(`${CHANGES_DIR}/archive/.gitkeep`, '');
   }
 
-  // 3) AGENTS.md managed blocks (root + llmanspec), preserving content.
+  // 3) llmanspec/AGENTS.md managed block; strip a root AGENTS.md block if present.
   writeManagedBlocks(io, templates, config, opts.version);
   const vars = buildTemplateVars(config, opts.version);
   const skillTemplates = loadSkillTemplates(templates, TEMPLATES_ROOT, config, vars);
@@ -217,6 +244,10 @@ export function runInit(
     const dirName = t.name.replace(/\.md$/u, '');
     io.mkdirp(`${SKILLS_BASE}/${dirName}`);
     io.writeText(`${SKILLS_BASE}/${dirName}/SKILL.md`, `${t.content.trimEnd()}\n`);
+    if (MANUAL_INVOCATION_SKILLS.includes(dirName)) {
+      io.mkdirp(`${SKILLS_BASE}/${dirName}/agents`);
+      io.writeText(`${SKILLS_BASE}/${dirName}/agents/openai.yaml`, OPENAI_EXPLICIT_POLICY);
+    }
   }
 
   return { skills: skillTemplates.map((t) => t.name.replace(/\.md$/u, '')), removed, configPath };

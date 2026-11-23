@@ -1,6 +1,6 @@
 ---
 name: "llman-sdd-continue"
-description: "继续已有 change：补建下一个缺失工件。"
+description: "已有 change 缺工件时使用。补建下一个缺失工件。不用于从零开新变更。"
 metadata:
   version: "{{ llman_version }}"
 ---

@@ -1,6 +1,6 @@
 ---
 name: "llman-sdd-research"
-description: "委托后台 agent 查一手资料（官方文档/API/源码），产出带引用的调研文档。"
+description: "用户要求查官方文档、API 或源码时使用。产出带引用的调研。不用于改仓库代码。"
 metadata:
   version: "{{ llman_version }}"
 ---

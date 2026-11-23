@@ -1,6 +1,6 @@
 ---
 name: "llman-sdd-arch-review"
-description: "架构审查：扫描薄模块（接口≈实现），给出加深候选，改善可测性与 AI 可导航性。"
+description: "用户要求架构审查时使用。扫描薄模块并给出加深候选。"
 metadata:
   version: "{{ llman_version }}"
 ---

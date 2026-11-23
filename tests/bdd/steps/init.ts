@@ -178,7 +178,7 @@ bdd.thenStep('产物面完整落在该子目录下', (ctx) => {
   if (code !== 0) throw new Error('init to subdirectory failed');
   for (const rel of [
     'deep/nested/proj/llmanspec/config.yaml',
-    'deep/nested/proj/AGENTS.md',
+    'deep/nested/proj/llmanspec/AGENTS.md',
     'deep/nested/proj/.agents/skills',
   ]) {
     if (!existsSync(join(root, rel))) throw new Error(`missing: ${rel}`);
@@ -261,7 +261,7 @@ bdd.when('运行 init --update', (ctx) => {
   };
 });
 
-bdd.thenStep('根 AGENTS.md 托管块仍为 zh-Hans 渲染且 config locale 保持 zh-Hans', (ctx) => {
+bdd.thenStep('llmanspec/AGENTS.md 托管块仍为 zh-Hans 渲染且 config locale 保持 zh-Hans', (ctx) => {
   const { code, stderr, root } = ctx.fixtures['locale结果'] as {
     code: number;
     stderr: string;
@@ -269,15 +269,15 @@ bdd.thenStep('根 AGENTS.md 托管块仍为 zh-Hans 渲染且 config locale 保�
   };
   if (code !== 0) throw new Error(`update failed:\n${stderr}`);
   if (stderr.includes('WARNING')) throw new Error(`unexpected warning:\n${stderr}`);
-  if (!readFileSync(join(root, 'AGENTS.md'), 'utf8').includes('LLMAN 规范驱动开发')) {
-    throw new Error('root managed block is not zh-Hans rendered');
+  if (!readFileSync(join(root, 'llmanspec', 'AGENTS.md'), 'utf8').includes('llmanspec AGENTS.md')) {
+    throw new Error('llmanspec managed block is not zh-Hans rendered');
   }
   if (!/^locale: zh-Hans$/mu.test(readFileSync(join(root, 'llmanspec', 'config.yaml'), 'utf8'))) {
     throw new Error('config locale was overwritten by the option');
   }
 });
 
-bdd.thenStep('根 AGENTS.md 托管块为 zh-Hans 渲染且 stderr 含缺键 WARNING', (ctx) => {
+bdd.thenStep('llmanspec/AGENTS.md 托管块为 zh-Hans 渲染且 stderr 含缺键 WARNING', (ctx) => {
   const { code, stderr, root } = ctx.fixtures['locale结果'] as {
     code: number;
     stderr: string;
@@ -287,8 +287,8 @@ bdd.thenStep('根 AGENTS.md 托管块为 zh-Hans 渲染且 stderr 含缺键 WARN
   if (!stderr.includes('WARNING') || !stderr.includes("'zh-Hans'")) {
     throw new Error(`missing fallback WARNING:\n${stderr}`);
   }
-  if (!readFileSync(join(root, 'AGENTS.md'), 'utf8').includes('LLMAN 规范驱动开发')) {
-    throw new Error('root managed block is not zh-Hans rendered');
+  if (!readFileSync(join(root, 'llmanspec', 'AGENTS.md'), 'utf8').includes('llmanspec AGENTS.md')) {
+    throw new Error('llmanspec managed block is not zh-Hans rendered');
   }
 });
 

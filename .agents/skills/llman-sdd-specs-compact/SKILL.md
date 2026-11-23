@@ -1,8 +1,9 @@
 ---
 name: "llman-sdd-specs-compact"
-description: "压缩去重 specs：合并冗余 requirement/scenario，规范行为不变。仅用户明确要求时手动运行。"
+description: "仅手动。用户明确要求压缩去重规格时使用。不改变规范行为。"
 metadata:
   version: "0.10.1"
+disable-model-invocation: true
 ---
 
 # LLMAN SDD Specs Compact

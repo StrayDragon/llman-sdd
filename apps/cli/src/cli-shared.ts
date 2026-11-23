@@ -219,7 +219,7 @@ export function noteVersionDriftOnce(root: string = process.cwd()): void {
   if (state === null) return;
   if (!semverLt(state.cli_version, version)) return;
   console.error(
-    `[NOTE] this project was scaffolded with llman-sdd ${state.cli_version}; installed CLI is ${version}. Skill templates/behaviour may have changed — review the changelog and run \`llman-sdd init --update\`.`,
+    `[NOTE] this project was scaffolded with llman-sdd ${state.cli_version}; installed CLI is ${version}. Run \`llman-sdd init --check\` and, if it reports a mismatch, \`llman-sdd init --update\`.`,
   );
 }
 

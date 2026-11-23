@@ -1,7 +1,24 @@
 # v0.10 → v0.11 迁移
 
-本窗口只有一条:冻结平铺卡的 YAML 形态归一。目的是让 llman-sdd 的产物在**通用工具链**下
-开箱可用——不需要用户为它写钩子豁免。
+本窗口目前包含冻结平铺卡的 YAML 形态归一,以及技能发现面的调整。
+
+## 技能发现
+
+`extra_skills` 与 `config skills` 不再是配置合同。`llman-sdd init --update` 写入全部内置
+`llman-sdd-*` 技能,并删除根 `AGENTS.md` 里已有的 `LLMANSPEC` 标记段(标记外正文保留)。
+无此前缀的自定义技能不动。`llmanspec/AGENTS.md` 的托管块仍然刷新。
+
+```bash
+# 删掉 config.yaml 里的 extra_skills(留着也会被当作未知键忽略)
+llman-sdd init --update
+llman-sdd init --check
+```
+
+`--check` 要求已安装技能的主版本号与次版本号和当前 CLI 相同。不一致时按提示再跑 `--update`。
+
+## 冻结平铺卡
+
+目的是让 llman-sdd 的产物在**通用工具链**下开箱可用——不需要用户为它写钩子豁免。
 
 ## 破坏面
 

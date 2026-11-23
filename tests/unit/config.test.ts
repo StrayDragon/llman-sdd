@@ -74,10 +74,10 @@ describe('loadConfig', () => {
     expect(detail.config.specs?.check_command).toBe('x');
   });
 
-  test('invalid extra_skills value rejected with field path', () => {
-    expect(() => loadConfig(`${MINIMAL}extra_skills: [llman-sdd-unknown]\n`)).toThrow(
-      /extra_skills/,
-    );
+  test('leftover extra_skills key is tolerated', () => {
+    const cfg = loadConfig(`${MINIMAL}extra_skills:\n  - llman-sdd-unknown\n`);
+    expect(cfg.schema).toBe('spec-driven');
+    expect('extra_skills' in cfg).toBe(false);
   });
 
   test('wrong schema value rejected', () => {
@@ -161,11 +161,10 @@ describe('config command surface (r37/r38)', () => {
   const BASE =
     '# yaml-language-server: $schema=https://x/y.json\nschema: spec-driven\nlocale: en\n';
 
-  test('overview renders the five predecessor elements', () => {
+  test('overview renders the four elements', () => {
     expect(renderConfigOverview(BASE)).toEqual([
       'schema: spec-driven',
       'locale: en',
-      'extra_skills (enabled/total): 0 / 6',
       'specs: off',
       'archive: default',
     ]);
@@ -177,11 +176,11 @@ archive:
   strict_defer: true
 specs:
   framework: pytest-bdd
+  check_command: pytest
 `);
     expect(full).toEqual([
       'schema: spec-driven',
       'locale: zh-Hans',
-      'extra_skills (enabled/total): 1 / 6',
       'specs: on',
       'archive: configured',
     ]);
