@@ -3,9 +3,12 @@
 // `--directory`-only disambiguation surface and the default write target.
 import { spawnSync } from 'node:child_process';
 import {
+  closeSync,
   existsSync,
+  fsyncSync,
   mkdirSync,
   mkdtempSync,
+  openSync,
   readdirSync,
   readFileSync,
   rmSync,
@@ -1131,6 +1134,31 @@ const seedSubRootChangeDocs = (repo: TempRepo, id: string): void => {
 
 const LAND_RULE = '\n  @req:r6\n  规则: 落地规则\n    系统 MUST z\n';
 
+/** fsync so a later git add / CLI subprocess cannot observe the pre-write bytes. */
+function durableWrite(path: string, text: string): void {
+  writeFileSync(path, text);
+  const fd = openSync(path, 'r+');
+  fsyncSync(fd);
+  closeSync(fd);
+}
+
+function commitWorktreePath(repo: TempRepo, wt: string, rel: string, message: string): void {
+  const added = repo.run('git', ['-C', wt, 'add', '--', rel]);
+  if (added.code !== 0) throw new Error(added.stderr);
+  const committed = repo.run('git', [
+    '-C',
+    wt,
+    '-c',
+    'user.email=t@t',
+    '-c',
+    'user.name=t',
+    'commit',
+    '-qm',
+    message,
+  ]);
+  if (committed.code !== 0) throw new Error(committed.stderr || committed.stdout);
+}
+
 bdd.given('一个根与子根双实例且子根 change 已绑定分支并提交子根 specs 的临时仓库', (ctx) => {
   const repo = makeTempRepo();
   seedSubRoot(repo);
@@ -1307,54 +1335,31 @@ bdd.given(
     const wt = join(repo.root, '..', `${basename(repo.root)}-wt`);
     const added = repo.run('git', ['worktree', 'add', '-b', 'sdd/subland', wt]);
     if (added.code !== 0) throw new Error(`worktree add failed: ${added.stderr}`);
-    // 绑定写在分支上(该 worktree 持有分支);base_sha 仅审计,取分叉点
+    // 绑定写在分支上(该 worktree 持有分支);base_sha 仅审计,取分叉点。
+    // 显式 git add + fsync:CI 慢盘上 `commit -a` 会把同秒写入看成未改,
+    // HEAD 仍是无 branch 键的种子 blob,archive 随之误报 no branch binding。
     const sha = repo.run('git', ['rev-parse', '--short', 'HEAD']).stdout.trim();
-    writeFileSync(
-      join(wt, SUB, 'llmanspec', 'changes', 'subland', 'proposal.md'),
+    const proposalRel = `${SUB}/llmanspec/changes/subland/proposal.md`;
+    const proposalAbs = join(wt, proposalRel);
+    durableWrite(
+      proposalAbs,
       `---\ndepends_on: []\ntitle: 子根规格落地条目\nbranch: sdd/subland\nbase_branch: main\nbase_sha: ${sha}\n---\n\n## Why\nx\n\n## What Changes\n- y\n`,
     );
-    const bound = repo.run('git', [
-      '-C',
-      wt,
-      '-c',
-      'user.email=t@t',
-      '-c',
-      'user.name=t',
-      'commit',
-      '-aqm',
-      'bind',
-    ]);
-    if (bound.code !== 0) throw new Error(bound.stderr);
-    // CI 慢盘偶发根因护栏:绑定 commit 必须已落对象库再起 CLI 子进程,否则
-    // finalize 读到旧 blob(无 branch 键)而误报 no branch binding。
-    const boundHead = repo.run('git', ['-C', wt, 'rev-parse', 'HEAD']);
-    if (boundHead.code !== 0 || boundHead.stdout.trim() === '') {
-      throw new Error(`bind commit not persisted: ${boundHead.stderr}`);
-    }
-    const boundProposal = readFileSync(
-      join(wt, SUB, 'llmanspec', 'changes', 'subland', 'proposal.md'),
-      'utf8',
-    );
-    if (!boundProposal.includes('branch: sdd/subland')) {
-      throw new Error('bound proposal lost the branch frontmatter before finalize');
+    commitWorktreePath(repo, wt, proposalRel, 'bind');
+    const boundBlob = repo.run('git', ['-C', wt, 'show', `HEAD:${proposalRel}`]);
+    if (boundBlob.code !== 0 || !boundBlob.stdout.includes('branch: sdd/subland')) {
+      throw new Error(
+        `bind commit blob has no branch key:\n${boundBlob.stdout}${boundBlob.stderr}`,
+      );
     }
     // 在该 worktree 落地子根 specs(分支的 specs diff 即来自这里)
-    writeFileSync(
-      join(wt, SUB, 'llmanspec', 'specs', 'tuicap.feature'),
-      readFileSync(join(wt, SUB, 'llmanspec', 'specs', 'tuicap.feature'), 'utf8') + LAND_RULE,
-    );
-    const landed = repo.run('git', [
-      '-C',
-      wt,
-      '-c',
-      'user.email=t@t',
-      '-c',
-      'user.name=t',
-      'commit',
-      '-aqm',
-      'land specs',
-    ]);
-    if (landed.code !== 0) throw new Error(landed.stderr);
+    const featureRel = `${SUB}/llmanspec/specs/tuicap.feature`;
+    durableWrite(join(wt, featureRel), readFileSync(join(wt, featureRel), 'utf8') + LAND_RULE);
+    commitWorktreePath(repo, wt, featureRel, 'land specs');
+    const landedBlob = repo.run('git', ['-C', wt, 'show', `HEAD:${proposalRel}`]);
+    if (landedBlob.code !== 0 || !landedBlob.stdout.includes('branch: sdd/subland')) {
+      throw new Error(`land commit dropped the branch key:\n${landedBlob.stdout}`);
+    }
     ctx.fixtures['worktree 子根收口仓库'] = { repo, wt };
   },
 );
