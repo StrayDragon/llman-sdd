@@ -214,6 +214,29 @@ export const MIGRATIONS: readonly MigrationDoc[] = [
           '`llman-sdd freeze --help` and `llman-sdd thaw --help` succeed.',
         ],
       },
+      {
+        title: 'Skill discovery no longer uses extra_skills or a root AGENTS.md block',
+        steps: [
+          'Remove `extra_skills` from `llmanspec/config.yaml` if present. Leftover keys are ignored.',
+          'Run `llman-sdd init --update`. It writes every built-in `llman-sdd-*` skill, leaves unprefixed custom skills, and strips an existing `LLMANSPEC` marker block from the repository-root `AGENTS.md` while keeping text outside the markers. It does not create a root `AGENTS.md` when none exists. `llmanspec/AGENTS.md` stays managed.',
+          'Run `llman-sdd init --check`. Installed `llman-sdd-*` skills must share this CLI major and minor. On mismatch, run `llman-sdd init --update` again.',
+        ],
+        checks: [
+          '`llman-sdd init --check` exits 0.',
+          'The repository-root `AGENTS.md` has no `LLMANSPEC` markers. `llmanspec/AGENTS.md` still has its managed block.',
+        ],
+      },
+      {
+        title: 'Binary build defines use the DEV_BUILD prefix',
+        steps: [
+          'If a custom build script defines `process.env.LLMAN_SDD_VERSION`, `process.env.LLMAN_SDD_EMBEDDED_TEMPLATES`, or `process.env.LLMAN_SDD_EMBEDDED_7ZZ_WASM_B64`, rename those keys to `process.env.LLMAN_SDD_DEV_BUILD_VERSION`, `process.env.LLMAN_SDD_DEV_BUILD_EMBEDDED_TEMPLATES`, and `process.env.LLMAN_SDD_DEV_BUILD_EMBEDDED_7ZZ_WASM_B64`. The source literal must match the define key exactly.',
+          'Leave `LLMAN_SDD_HARNESS_ACTIVE` unchanged. It is a runtime nested-run guard, not a compile define.',
+        ],
+        checks: [
+          'A rebuilt binary reports this release from `llman-sdd --version`.',
+          '`llman-sdd init` from that binary still renders skills, and `freeze` / `thaw` still round-trip.',
+        ],
+      },
     ],
   },
 ];

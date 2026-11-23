@@ -2,7 +2,7 @@
 name: "llman-sdd-graph"
 description: "要看 change 依赖图时使用。任意阶段可用，不修改文件。"
 metadata:
-  version: "0.10.1"
+  version: "0.11.0"
 ---
 
 # LLMAN SDD 依赖图

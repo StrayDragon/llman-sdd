@@ -2,7 +2,7 @@
 name: "llman-sdd-apply"
 description: "提案已提交规格后使用。按 tasks 实现到门禁全绿。不用于还没绑定分支的变更。"
 metadata:
-  version: "0.10.1"
+  version: "0.11.0"
 ---
 
 # LLMAN SDD Apply

@@ -2,7 +2,7 @@
 name: "llman-sdd-apply-cycle"
 description: "仅手动。用户显式调用 /llman-sdd-apply-cycle 时使用。一轮做完单个 change 的实施到归档。"
 metadata:
-  version: "0.10.1"
+  version: "0.11.0"
 disable-model-invocation: true
 ---
 

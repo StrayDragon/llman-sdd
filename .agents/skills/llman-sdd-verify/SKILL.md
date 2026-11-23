@@ -2,7 +2,7 @@
 name: "llman-sdd-verify"
 description: "实施完成后使用。对照规格给出 CRITICAL、WARNING、SUGGESTION。未通过则不归档。"
 metadata:
-  version: "0.10.1"
+  version: "0.11.0"
 ---
 
 # LLMAN SDD Verify

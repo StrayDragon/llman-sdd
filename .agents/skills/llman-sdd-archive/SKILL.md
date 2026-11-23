@@ -2,7 +2,7 @@
 name: "llman-sdd-archive"
 description: "verify 通过后使用。把已完成 change 合并回基准分支并归档。不用于仍在实施的变更。"
 metadata:
-  version: "0.10.1"
+  version: "0.11.0"
 ---
 
 # LLMAN SDD 归档

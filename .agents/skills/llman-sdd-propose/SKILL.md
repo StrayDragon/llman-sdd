@@ -2,7 +2,7 @@
 name: "llman-sdd-propose"
 description: "行为合约要改时使用。创建提案、绑定分支并提交规格。小改动用 quick，只记想法用 draft。"
 metadata:
-  version: "0.10.1"
+  version: "0.11.0"
 ---
 
 # LLMAN SDD Propose

@@ -2,7 +2,7 @@
 name: "llman-sdd-ff"
 description: "仅手动。用户要求一趟走完提案、绑分支并提交规格时使用。不作为 propose 的自动替代。"
 metadata:
-  version: "0.10.1"
+  version: "0.11.0"
 disable-model-invocation: true
 ---
 

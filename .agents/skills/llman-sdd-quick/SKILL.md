@@ -2,7 +2,7 @@
 name: "llman-sdd-quick"
 description: "不改行为合约的小改动时使用。要改需求语义就停，改走 propose。"
 metadata:
-  version: "0.10.1"
+  version: "0.11.0"
 ---
 
 # LLMAN SDD Quick Path

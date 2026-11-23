@@ -2,7 +2,7 @@
 name: "llman-sdd-draft"
 description: "只把想法记成 proposal.md 时使用。不创建 tasks，不改规格。"
 metadata:
-  version: "0.10.1"
+  version: "0.11.0"
 ---
 
 # LLMAN SDD 草案（Draft）

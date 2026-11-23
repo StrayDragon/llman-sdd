@@ -2,7 +2,7 @@
 name: "llman-sdd-wayfinder"
 description: "仅手动。用户要把超出单会话的模糊工作拆成决策地图时使用。"
 metadata:
-  version: "0.10.1"
+  version: "0.11.0"
 disable-model-invocation: true
 ---
 

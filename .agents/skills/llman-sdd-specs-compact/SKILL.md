@@ -2,7 +2,7 @@
 name: "llman-sdd-specs-compact"
 description: "仅手动。用户明确要求压缩去重规格时使用。不改变规范行为。"
 metadata:
-  version: "0.10.1"
+  version: "0.11.0"
 disable-model-invocation: true
 ---
 

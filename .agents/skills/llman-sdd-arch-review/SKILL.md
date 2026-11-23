@@ -2,7 +2,7 @@
 name: "llman-sdd-arch-review"
 description: "用户要求架构审查时使用。扫描薄模块并给出加深候选。"
 metadata:
-  version: "0.10.1"
+  version: "0.11.0"
 ---
 
 # LLMAN SDD Architecture Review

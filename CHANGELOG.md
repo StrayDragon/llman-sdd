@@ -2,7 +2,32 @@
 
 本项目遵循语义化版本（SemVer）。breaking 变更随大版本/次版本标注迁移说明。
 
-## 0.10.1 (2026-10-19)
+## 0.11.0 (2026-11-23)
+
+**Breaking（需迁移）**。升级路径见 `migrations/v0.10-v0.11/README.md`，agent 手册见
+`llman-sdd project migrate prompt --from-version 0.10.0 --to-version 0.11.0`。
+被删掉的命令与旗标没有别名。
+
+- 技能发现：删除 `extra_skills` 与 `config skills`。`init --update` 写入全部内置
+  `llman-sdd-*` 技能，无此前缀的自定义技能保留；剥掉根 `AGENTS.md` 里已有的
+  `LLMANSPEC` 标记段（标记外正文保留），新建项目不再写根 `AGENTS.md`。
+  `llmanspec/AGENTS.md` 托管块仍刷新。新增 `init --check`：已安装技能的主版本号与
+  次版本号必须和当前 CLI 相同，否则非零退出并提示再跑 `init --update`。
+- 命令面：`change finalize` 并入 `change archive`（另要求干净工作区，没有 `--force`）。
+  `archive freeze` / `archive thaw` 升为顶层 `freeze` / `thaw`。`change attach` 并入
+  `change start`（默认分支创建 `sdd/<id>`，其他本地分支绑定当前检出）。`spec skeleton`
+  改名为 `spec new`。删除 `spec migrate-native`、`project migrate strip-legacy-headers`、
+  `project migrate --kind` 与 `--version-expr`。
+- 索引与检索：删除 `index` 与 `context`。`LLMAN_SDD_INDEX_*` 不再读取。定位规格用
+  `list --specs` 再直读 `.feature`。版本戳改到 `llmanspec/.sdd-state.json`；旧路径
+  `llmanspec/.context/sdd-state.json` 只读回退，`init --update` 不删除旧文件，也不删除
+  `llmanspec/.context/pageindex/`。
+- 构建期注入：三个 `bun build` define 改为 `LLMAN_SDD_DEV_BUILD_VERSION`、
+  `LLMAN_SDD_DEV_BUILD_EMBEDDED_TEMPLATES`、`LLMAN_SDD_DEV_BUILD_EMBEDDED_7ZZ_WASM_B64`。
+  源码里的 `process.env.<NAME>` 必须与 define 键逐字相同。`LLMAN_SDD_HARNESS_ACTIVE`
+  仍是运行时嵌套守卫。
+- 冻结平铺卡：`project migrate frozen-cards-unfence` 把存量 `---` 围栏卡归一为单文档
+  YAML。未迁移的卡仍可读取；跑完后 `title` / `depends_on` 与依赖边不变。
 
 change `freeze-gitignore-filter`（closes [#9](https://github.com/StrayDragon/llman-sdd/issues/9)）：
 `archive freeze` 不再整目录无过滤吸入冷备——打包前按 git 式层叠 `.gitignore` 求值，

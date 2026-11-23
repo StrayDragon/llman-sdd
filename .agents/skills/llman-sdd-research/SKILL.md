@@ -2,7 +2,7 @@
 name: "llman-sdd-research"
 description: "用户要求查官方文档、API 或源码时使用。产出带引用的调研。不用于改仓库代码。"
 metadata:
-  version: "0.10.1"
+  version: "0.11.0"
 ---
 
 # LLMAN SDD Research

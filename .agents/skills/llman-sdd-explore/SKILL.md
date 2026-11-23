@@ -2,7 +2,7 @@
 name: "llman-sdd-explore"
 description: "意图不明或要先分析时使用。只调查不改应用代码。不用于已经明确的实现任务。"
 metadata:
-  version: "0.10.1"
+  version: "0.11.0"
 ---
 
 # LLMAN SDD Explore
