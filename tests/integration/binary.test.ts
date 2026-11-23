@@ -9,7 +9,7 @@ import { FREEZE_ARCHIVE_NAME } from '@llman-sdd/core';
 // `bun build --compile` 产物冒烟:单文件二进制内 import.meta.url 指向 $bunfs
 // 虚拟路径,任何模块加载期的文件相对读取都会 ENOENT(版本读取曾在此崩溃)。
 // 模板同样无磁盘副本:build-binary.ts 把 packages/core/templates 以 define
-// 注入为 LLMAN_SDD_EMBEDDED_TEMPLATES(in-memory 表),init 与
+// 注入为 LLMAN_SDD_DEV_BUILD_EMBEDDED_TEMPLATES(in-memory 表),init 与
 // review --export-html 经同一 TemplateIo seam 解析——本文件断言该表在
 // 编译产物中真实可用。产物不随仓库存在,`just smoke-binary` 先构建再跑;
 // CI/qa 直接跳过。

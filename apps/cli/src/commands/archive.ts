@@ -28,14 +28,14 @@ function warnIfNotMainCheckout(git: ReturnType<typeof makeCliGit>): void {
 /**
  * Compiled binaries have no on-disk 7zz.wasm (Emscripten would probe $bunfs
  * and abort), so scripts/build-binary.ts injects it as base64 through the
- * literal define `process.env.LLMAN_SDD_EMBEDDED_7ZZ_WASM_B64` (define only
+ * literal define `process.env.LLMAN_SDD_DEV_BUILD_EMBEDDED_7ZZ_WASM_B64` (define only
  * rewrites literal member access — the read must stay here, not in core);
  * unset in source/npm/Node runs → the 7z-wasm glue loads the .wasm from disk.
  * Directory creation for extraction is likewise injected (core stays pure).
  */
 function makeEmbeddedSevenZip(): Promise<SevenZipPort> {
   return makeWasmSevenZip({
-    wasmB64: process.env.LLMAN_SDD_EMBEDDED_7ZZ_WASM_B64,
+    wasmB64: process.env.LLMAN_SDD_DEV_BUILD_EMBEDDED_7ZZ_WASM_B64,
     mkdirp: (dir) => mkdirSync(dir, { recursive: true }),
   });
 }

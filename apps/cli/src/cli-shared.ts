@@ -50,12 +50,12 @@ export function makeCliContext(cwd: string = process.cwd()): CliContext {
 
 // Version SSOT is this package's package.json (inlined at compile time — a
 // single-file binary has no on-disk package.json to read); binary builds
-// additionally override it through the LLMAN_SDD_VERSION define injected by
+// additionally override it through the LLMAN_SDD_DEV_BUILD_VERSION define injected by
 // scripts/build-binary.ts (git tag > package version).
 
 // Injected at binary build time by scripts/build-binary.ts; falls back to the
 // package version when running from source.
-const baseVersion = process.env.LLMAN_SDD_VERSION ?? pkg.version;
+const baseVersion = process.env.LLMAN_SDD_DEV_BUILD_VERSION ?? pkg.version;
 
 /**
  * Dev-tree marker (`+dirty.N`): appended when the checkout has uncommitted
@@ -92,12 +92,12 @@ export const version: string = baseVersion;
 
 // Compiled single-file binaries have no on-disk templates and Bun <= 1.4.x has
 // no embedding mechanism, so scripts/build-binary.ts injects the template
-// table through the literal define `process.env.LLMAN_SDD_EMBEDDED_TEMPLATES`
+// table through the literal define `process.env.LLMAN_SDD_DEV_BUILD_EMBEDDED_TEMPLATES`
 // (define only rewrites literal member access — the read must stay here, not
 // in core); every non-compiled run keeps reading the real filesystem (npm/
 // source/Node). Both init and `review --export-html` resolve through this one
 // seam.
-const embedded = embeddedTemplates(process.env.LLMAN_SDD_EMBEDDED_TEMPLATES);
+const embedded = embeddedTemplates(process.env.LLMAN_SDD_DEV_BUILD_EMBEDDED_TEMPLATES);
 export const templateIo: TemplateIo = embedded
   ? makeEmbeddedTemplateIo(embedded)
   : {

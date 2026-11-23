@@ -3,6 +3,9 @@ depends_on:
   - drop-index-and-context
 title: 构建期注入改用 DEV_BUILD 前缀
 needs_specs_change: false
+branch: sdd/prefix-build-defines
+base_branch: main
+base_sha: 8c19316494978a02f5d183475878ace2301da1ab
 ---
 
 # 构建期注入改用 DEV_BUILD 前缀

@@ -95,3 +95,15 @@ llman-sdd validate --all --strict
 | `title: "a --- b"` 这类值里含 `---`                             | 跳过(首行不是裸围栏) |
 | 去围栏后是多文档或语法错                                        | 跳过                 |
 | 含 `frozen:` 等超出 `title`/`depends_on` 的键                   | 跳过(留待人工判断)   |
+
+## 构建期注入
+
+下面三个名字只存在于 `bun build` 的 `define` 里，不是用户配置，也不是运行时环境变量。源码里的 `process.env.<NAME>` 必须和 define 键逐字相同。自定义构建脚本如果写死了旧键，要改成新键。`LLMAN_SDD_HARNESS_ACTIVE` 仍是运行时嵌套守卫，不在这张表里。
+
+| 旧 define 键                                  | 新 define 键                                            |
+| --------------------------------------------- | ------------------------------------------------------- |
+| `process.env.LLMAN_SDD_VERSION`               | `process.env.LLMAN_SDD_DEV_BUILD_VERSION`               |
+| `process.env.LLMAN_SDD_EMBEDDED_TEMPLATES`    | `process.env.LLMAN_SDD_DEV_BUILD_EMBEDDED_TEMPLATES`    |
+| `process.env.LLMAN_SDD_EMBEDDED_7ZZ_WASM_B64` | `process.env.LLMAN_SDD_DEV_BUILD_EMBEDDED_7ZZ_WASM_B64` |
+
+不经过 `apps/cli/scripts/build-binary.ts` 直接跑源码时，版本仍回退到包版本，模板仍从仓库目录读，wasm 仍按开发路径找。

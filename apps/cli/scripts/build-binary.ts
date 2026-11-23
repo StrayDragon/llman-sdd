@@ -1,15 +1,15 @@
 // Build the CLI into a single self-contained binary via Bun.compile.
 // Version SSOT is the git tag (vX.Y.Z); falls back to the package version for
 // local/dev builds. The value (leading `v` stripped) is injected as
-// process.env.LLMAN_SDD_VERSION at build time (see apps/cli/src/main.ts), so
+// process.env.LLMAN_SDD_DEV_BUILD_VERSION at build time (see apps/cli/src/main.ts), so
 // `--version` and init-rendered llman_version match the npm package version.
 //
 // Templates are embedded the same way: Bun <= 1.4.x offers no embedding that
 // survives our Node >= 24 dual-runtime constraint (`with { type: "text" }`
 // works on 1.4.2 but Node cannot load it; assets/?raw/?asset never land in
 // the bundle), so packages/core/templates is collected into a root-relative
-// path→content table injected as LLMAN_SDD_EMBEDDED_TEMPLATES. 7zz.wasm is
-// injected as base64 (LLMAN_SDD_EMBEDDED_7ZZ_WASM_B64) — Emscripten otherwise
+// path→content table injected as LLMAN_SDD_DEV_BUILD_EMBEDDED_TEMPLATES. 7zz.wasm is
+// injected as base64 (LLMAN_SDD_DEV_BUILD_EMBEDDED_7ZZ_WASM_B64) — Emscripten otherwise
 // probes $bunfs for the file and aborts. Compiled runs resolve through these
 // tables; source/npm/Node runs keep using the real filesystem
 // (see packages/core/src/templates/embedded.ts and archive/sevenzip.ts).
@@ -80,10 +80,10 @@ const result = await Bun.build({
   entrypoints: [fileURLToPath(new URL('../src/main.ts', import.meta.url))],
   target: 'bun',
   define: {
-    'process.env.LLMAN_SDD_VERSION': JSON.stringify(version),
-    'process.env.LLMAN_SDD_EMBEDDED_TEMPLATES': JSON.stringify(templates),
+    'process.env.LLMAN_SDD_DEV_BUILD_VERSION': JSON.stringify(version),
+    'process.env.LLMAN_SDD_DEV_BUILD_EMBEDDED_TEMPLATES': JSON.stringify(templates),
     ...(wasmB64 !== ''
-      ? { 'process.env.LLMAN_SDD_EMBEDDED_7ZZ_WASM_B64': JSON.stringify(wasmB64) }
+      ? { 'process.env.LLMAN_SDD_DEV_BUILD_EMBEDDED_7ZZ_WASM_B64': JSON.stringify(wasmB64) }
       : {}),
   },
   compile: {
