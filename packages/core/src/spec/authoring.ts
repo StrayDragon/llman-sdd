@@ -165,7 +165,11 @@ export function addScenario(
     `${givenLine}      ${kw.when} ${opts.when}\n      ${kw.thenText} ${opts.thenText}\n`;
   // insert with a leading blank separator so the file stays readable
   lines.splice(end, 0, '', scenarioBlock.trimEnd());
-  io.writeText(path, lines.join('\n'));
+  const joined = lines.join('\n');
+  // 末尾换行保真:插入落在文件尾时,split 产生的结尾空串不再是最后一项,
+  // join 会把原文件的尾换行吃掉;中段插入无此问题。缺行尾换行会让
+  // end-of-file-fixer 之类的钩子反复改写文件。
+  io.writeText(path, content.endsWith('\n') && !joined.endsWith('\n') ? `${joined}\n` : joined);
   return path;
 }
 

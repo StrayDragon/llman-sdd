@@ -1030,9 +1030,3 @@ Python 不进 `packages/`。`just eval` 未装 docker 则人读错误退出（�
 ### 18.7 和应付式单场景的关系
 
 单场景冒烟（如 S3）只验证编排（冷容器、制品、并行）。报告标 `smoke`。主线 = C1+C2 的 **base / new_version 对打** + Accept + 叙事/人视。
-
-
-
-
-
-

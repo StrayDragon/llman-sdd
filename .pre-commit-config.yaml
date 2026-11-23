@@ -25,9 +25,14 @@ repos:
     rev: v6.0.0
     hooks:
       - id: trailing-whitespace
-        exclude: ^\.agents/skills/
+        # docs/research/ 的 markdown 用行尾双空格作硬换行,删掉会改变渲染段落。
+        exclude: ^(\.agents/skills/|docs/research/)
       - id: end-of-file-fixer
         exclude: ^\.agents/skills/
       - id: check-yaml
+        # 冻结平铺卡存在双格式(见 review-freeze r24/r54):新卡是无围栏单文档
+        # YAML;存量前代卡为 `---` 围栏形态,按契约保留不迁移,单文档解析器
+        # 必然报多文档。归档卡由 check:schema 之外的 graph/archive 读取器覆盖。
+        exclude: ^llmanspec/changes/archive/[0-9]{4}-[0-9]{2}-[0-9]{2}-.*\.yaml$
       - id: check-added-large-files
         args: ['--maxkb=1000']

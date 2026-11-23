@@ -309,6 +309,23 @@ describe('spec authoring helpers (r41-r43, native v2)', () => {
     expect(resolveReq(entriesOf(doc), 'r1')?.harness).toEqual(['a.feature:s1']);
   });
 
+  test('addScenario keeps the file trailing newline when inserting at EOF', () => {
+    // 追加落在最后一个规则块的末尾时,原文件的尾换行必须保留,
+    // 否则 end-of-file-fixer 之类钩子会反复改写同一文件。
+    const src = `${HEAD}\n`;
+    const { io, store } = memIo({ 'llmanspec/specs/a.feature': src });
+    addScenario(io, 'llmanspec/specs', entriesOf(parse(src)), {
+      capability: 'a',
+      reqId: 'r1',
+      scenarioId: 'eof',
+      when: '执行动作',
+      thenText: '得到结果',
+    });
+    const out = store['llmanspec/specs/a.feature'] as string;
+    expect(out.endsWith('\n')).toBe(true);
+    expect(parseCapability(out, 'a.feature').errors).toHaveLength(0);
+  });
+
   test('write target resolution: directory-style entry hit, flat-first, miss errors', () => {
     const dirPath = 'llmanspec/specs/a/a.feature';
     // 仅目录式:写入 <cap>/<cap>.feature,不落扁平
