@@ -83,4 +83,12 @@ if (!preCommit.includes('name: oxfmt --write')) fail('pre-commit 缺 oxfmt --wri
 for (const hook of ['trailing-whitespace', 'end-of-file-fixer']) {
   if (!preCommit.includes(hook)) fail(`pre-commit 缺 whitespace 系检查 ${hook}`);
 }
+// 归档冻结卡双格式(review-freeze r24/r54)必须仍被 YAML 校验覆盖:严格条目
+// 排除卡路径、放宽条目只接卡路径。两条缺任一,卡就会整体漏检。
+if (!preCommit.includes('check-yaml-strict')) {
+  fail('pre-commit 缺 check-yaml 严格条目(非卡 YAML 需单文档校验)');
+}
+if (!preCommit.includes('check-yaml-cards') || !preCommit.includes('--allow-multiple-documents')) {
+  fail('pre-commit 缺 check-yaml 归档卡条目(围栏双格式需多文档放行)');
+}
 console.log('quality-gates: r2 contract ok');
