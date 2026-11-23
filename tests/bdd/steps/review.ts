@@ -1,7 +1,7 @@
 // Domain step definitions: review-freeze 能力 — 覆盖 r23/r25(review
 // 五类信号与 criticalCount 退出码一致、freeze → thaw 回置)与 r33
 // (review --capability 过滤:locked/validate 保持全局)。
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -140,8 +140,8 @@ bdd.thenStep('unbound 信号仅含该 capability 且 locked 与 validate 保持�
 
 bdd.when('运行 review --export-html 到 {path}', (ctx, relPath: string) => {
   // 输出到 TMPDIR,避免在仓库工作树留下待清理产物(oxfmt/卫生面)。
-  const outPath = join(tmpdir(), 'llman-review-export.html');
-  if (existsSync(outPath)) rmSync(outPath);
+  // 每次用独立临时目录,并发运行不互相覆盖同名文件。
+  const outPath = join(mkdtempSync(join(tmpdir(), 'llman-review-export-')), 'report.html');
   const proc = runCli(['review', '--export-html', outPath]);
   ctx.fixtures['导出HTML'] = { status: proc.status ?? 1, path: outPath };
 });

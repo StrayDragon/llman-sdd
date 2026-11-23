@@ -18,7 +18,9 @@ import { parse as parseYaml } from 'yaml';
 
 import { makeNodeIo } from '../helpers/nodeIo.ts';
 
-const DIR = join(tmpdir(), 'llman-sdd-7z-test');
+/** Per-run scratch dir: `mkdtempSync` so parallel/rerun invocations never
+ * share state (the repo rule forbids hardcoded temp paths). */
+const DIR = mkdtempSync(join(tmpdir(), 'llman-sdd-7z-test-'));
 
 /** Disk-backed deps: wasm unset (glue loads from disk) + recursive mkdir. */
 const deps = (): WasmSevenZipDeps => ({
