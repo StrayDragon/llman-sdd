@@ -319,20 +319,127 @@
       当 对该骨架 change 运行 validate
       那么 骨架自带的非空 title 占位通过本门（无 title 相关 ERROR）
   @req:r104
-  规则: 状态流转表 tag 定界发现与零逃逸 ERROR 门禁
-    validate MUST 对每个含例子(Examples)表的场景大纲按场景级 tag 次序判定纳管(不依赖任何配置开关):同一场景同时挂 @transitions 与 @no-transitions MUST 判 ERROR;仅挂 @no-transitions MUST 完全跳过校验(即使命中特征词,豁免即全豁免);仅挂 @transitions MUST 强制纳管(特征列不全由门禁 1 拦截);无 tag 时凡例子表头出现状态流转特征列(from/初始状态、event/事件、to/目标状态 三族至少两族)即自动识别为状态流转表。纳管后执行 4 道零逃逸 ERROR 门禁(挂载路径 <cap>/transitions/<req_id>):1)表结构与占位符绑定门禁——缺必填列(from/event/to 或 初始状态/事件/目标状态,如只写了 from/to 漏写 event)、行数<1、去重状态数<2、含空单元格、非 runnable,或 Given/When/Then 步骤未分别绑定 <from>/<event>/<to>(及有 guard 列时的 <guard>)占位符 MUST 判 ERROR;2)确定性门禁——同一 (from,event,guard) 重复或指向不同目标状态 MUST 判 ERROR;3)孤岛可达门禁——从首行初始状态不可达的孤岛状态 MUST 判 ERROR;4)死锁陷阱门禁——存在终态(出度为 0 的状态)时,无法到达任何终态的非终态状态 MUST 判 ERROR 且消息表述为无法到达终态,不存在终态时,无法回到初始状态的状态 MUST 判 ERROR 且消息表述为无法回到初始状态。
+  规则: 状态流转表按场景 tag 定界发现
+    validate MUST 对每个含例子表的场景大纲按场景级 tag 次序决定是否纳入状态流转校验,不依赖配置开关。
+    同一场景同时挂 @transitions 与 @no-transitions MUST 判 ERROR,消息含 conflicting @transitions and @no-transitions tags。
+    仅挂 @no-transitions MUST 整表跳过,即使表头命中特征词。
+    仅挂 @transitions MUST 强制纳入;特征列不全时由结构门禁拦截。
+    无 tag 时,例子表头出现 from/初始状态、event/事件、to/目标状态 三族中至少两族即纳入。
+    纳入之后的图论门禁见 @req:r124、@req:r125、@req:r126、@req:r127。issue 挂载路径为 <cap>/transitions/<req_id>。
 
-    场景: tag 定界四级判定
-      假如 一个分别含挂 @no-transitions 的孤岛缺陷特征词表、挂 @transitions 的残缺列表现、双 tag 同挂场景与无 tag 孤岛缺陷特征词表的临时仓库
+    场景: @no-transitions 整表跳过
+      假如 一个挂 @no-transitions 且含孤岛状态的流转表临时仓库
       当 运行 validate --specs --json
-      那么 @no-transitions 孤岛表不报错,@transitions 残缺表报缺必填列 ERROR,双 tag 同挂报冲突 ERROR,无 tag 孤岛表照常报 ERROR
+      那么 该 capability 通过且无状态流转 ERROR
 
-    场景: 四道门禁对嗅探路径逐类拦截
-      假如 一个无任何 tag 且分别含残缺表头漏列或假步骤未绑定占位符、非确定性冲突、孤岛不可达状态与死锁陷阱状态四类缺陷表的临时仓库
+    场景: @transitions 强制纳入残缺表
+      假如 一个挂 @transitions 且缺 event 列的流转表临时仓库
       当 运行 validate --specs --json
-      那么 四类状态流转缺陷均被自动发现并判 ERROR 且对应 capability valid 为 false 且退出码非零
+      那么 该流转表判 ERROR 且消息含 "requires a runnable non-empty Examples table"
 
-    场景: E4 死锁消息按实际违反不变式表述
-      假如 一个分别含无法到达终态的死锁表、无终态且无法回到初始状态的单向环区表与合法纯环表的临时仓库
+    场景: 双 tag 冲突
+      假如 一个同时挂 @transitions 与 @no-transitions 的合法流转表临时仓库
       当 运行 validate --specs --json
-      那么 死锁表消息含无法到达终态,单向环区表消息含无法回到初始状态,合法纯环表不报错
+      那么 该流转表判 ERROR 且消息含 "conflicting @transitions and @no-transitions tags"
+
+    场景: 无 tag 嗅探仍拦截孤岛
+      假如 一个无 tag 且含孤岛状态的流转表临时仓库
+      当 运行 validate --specs --json
+      那么 该流转表判 ERROR 且消息含 "unreachable state"
+
+  @req:r124
+  规则: 状态流转表结构与占位符门禁
+    已纳入的例子表 MUST 是可运行的非空表,并具备 from/event/to 三列(中文别名 初始状态/事件/目标状态 同等)、至少一行数据、from/event/to 无空单元格、以及至少两个不同状态。
+    任一不满足 MUST 判 ERROR,消息含 requires a runnable non-empty Examples table,并且不再执行后续门禁。
+    Given、When、Then MUST 分别绑定表头对应的 from、event、to 占位符。存在 guard/守卫 列时,Given 或 When MUST 再绑定该列占位符。
+    未绑定 MUST 判 ERROR,消息含 steps must bind placeholders。
+
+    场景: 缺事件列被结构门禁拒绝
+      假如 一个无 tag 且缺 event 列的流转表临时仓库
+      当 运行 validate --specs --json
+      那么 该流转表判 ERROR 且消息含 "requires a runnable non-empty Examples table"
+
+    场景: 步骤未绑定占位符被拒绝
+      假如 一个步骤未绑定 from/event/to 占位符的流转表临时仓库
+      当 运行 validate --specs --json
+      那么 该流转表判 ERROR 且消息含 "steps must bind placeholders"
+
+    场景: 空单元格被拒绝
+      假如 一个事件单元格为空的流转表临时仓库
+      当 运行 validate --specs --json
+      那么 该流转表判 ERROR 且消息含 "requires a runnable non-empty Examples table"
+
+    场景: 只有一个状态被拒绝
+      假如 一个只有一个状态的流转表临时仓库
+      当 运行 validate --specs --json
+      那么 该流转表判 ERROR 且消息含 "requires a runnable non-empty Examples table"
+
+    场景: 中文列名的合法流转表通过
+      假如 一个使用中文列名且来回切换的合法流转表临时仓库
+      当 运行 validate --specs --json
+      那么 该 capability 通过且无状态流转 ERROR
+
+    场景: 中文列缺事件列被结构门禁拒绝
+      假如 一个使用中文列名且缺事件列的流转表临时仓库
+      当 运行 validate --specs --json
+      那么 该流转表判 ERROR 且消息含 "requires a runnable non-empty Examples table"
+
+    场景: 守卫列未绑定占位符被拒绝
+      假如 一个含守卫列但步骤未绑定守卫占位符的流转表临时仓库
+      当 运行 validate --specs --json
+      那么 该流转表判 ERROR 且消息含 "steps must bind placeholders"
+
+  @req:r125
+  规则: 状态流转确定性门禁
+    同一 (from, event, guard) MUST 只出现一次。完全相同的重复行,或同一键指向不同目标状态,都 MUST 判 ERROR,消息含 non-deterministic or duplicate transition。
+    guard 不同的两行是不同转移,MUST 通过本门禁。
+
+    场景: 同一事件指向不同目标被拒绝
+      假如 一个同一事件指向两个目标状态的流转表临时仓库
+      当 运行 validate --specs --json
+      那么 该流转表判 ERROR 且消息含 "non-deterministic or duplicate transition"
+
+    场景: 完全相同的重复行被拒绝
+      假如 一个同一转移重复两行的流转表临时仓库
+      当 运行 validate --specs --json
+      那么 该流转表判 ERROR 且消息含 "non-deterministic or duplicate transition"
+
+    场景: 不同守卫的同一事件通过
+      假如 一个同一事件按不同守卫通往不同目标且都能回到初始状态的流转表临时仓库
+      当 运行 validate --specs --json
+      那么 该 capability 通过且无状态流转 ERROR
+
+  @req:r126
+  规则: 状态流转可达门禁
+    从例子表首行 from 出发,沿有向边不可达的状态 MUST 判 ERROR,消息含 unreachable state。
+
+    场景: 孤岛状态被拒绝
+      假如 一个无 tag 且含孤岛状态的流转表临时仓库
+      当 运行 validate --specs --json
+      那么 该流转表判 ERROR 且消息含 "unreachable state"
+
+  @req:r127
+  规则: 状态流转终态与回初态门禁
+    图上出度为 0 的状态是终态。存在终态时,到不了任何终态的非终态 MUST 判 ERROR,消息含 cannot reach any terminal state。
+    没有终态时,回不到首行初始状态的状态 MUST 判 ERROR,消息含 cannot return to the initial state。只指向自身的吸收态属于这一类。
+    每个状态都能回到初始状态的纯环 MUST 通过。
+
+    场景: 到不了终态被拒绝
+      假如 一个存在终态但有状态到不了终态的流转表临时仓库
+      当 运行 validate --specs --json
+      那么 该流转表判 ERROR 且消息含 "cannot reach any terminal state"
+
+    场景: 单向环区回不到初始状态被拒绝
+      假如 一个没有终态且存在回不到初始状态的环区的流转表临时仓库
+      当 运行 validate --specs --json
+      那么 该流转表判 ERROR 且消息含 "cannot return to the initial state"
+
+    场景: 自环吸收态回不到初始状态被拒绝
+      假如 一个进入后只指向自身的吸收态流转表临时仓库
+      当 运行 validate --specs --json
+      那么 该流转表判 ERROR 且消息含 "cannot return to the initial state"
+
+    场景: 合法纯环通过
+      假如 一个两个状态互相到达的合法流转表临时仓库
+      当 运行 validate --specs --json
+      那么 该 capability 通过且无状态流转 ERROR

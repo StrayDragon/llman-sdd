@@ -1,10 +1,9 @@
 /**
- * XState-powered transition-table validation (validation r104): tag-scoped
+ * Transition-table validation (validation r104, r124–r127): tag-scoped
  * discovery (@transitions force / @no-transitions escape / shape sniff),
- * Examples-table driven gates E1–E4. Pure — no I/O.
+ * Examples-table driven graph gates. The walk is @statelyai/graph. Pure — no I/O.
  */
 import { createGraph, addNode, addEdge, genBFS, hasPath } from '@statelyai/graph';
-import { createMachine } from 'xstate';
 
 import type { RuleIR, ScenarioIR } from '../spec/ir.ts';
 import type { ValidationItem } from './validate.ts';
@@ -227,15 +226,6 @@ export function validateTransitionScenario(
   }
 
   const initial = transitions[0]?.from ?? '';
-  try {
-    createMachine({
-      id: 'transitions',
-      initial,
-      states: Object.fromEntries([...states].map((s) => [s, {}])) as Record<string, object>,
-    });
-  } catch {
-    // createMachine structural sanity — transitions drive graph below
-  }
 
   const graph = createGraph();
   for (const s of states) addNode(graph, { id: s });
@@ -316,25 +306,4 @@ export function validateTransitionsForRule(cap: string, rule: RuleIR): Validatio
     items.push(...validateTransitionScenario(cap, rule, sc));
   }
   return items;
-}
-
-export function parseTransitionExpr(expr: string): TransitionEdge {
-  const trimmed = expr.trim();
-  const m = trimmed.match(/^([^:]+):([\w-]+)(?:\[([^\]]+)\])?->(.+)$/u);
-  if (!m) {
-    throw new Error(`invalid transition expression: ${expr}`);
-  }
-  const from = m[1];
-  const event = m[2];
-  const guard = m[3];
-  const to = m[4];
-  if (from === undefined || event === undefined || to === undefined) {
-    throw new Error(`invalid transition expression: ${expr}`);
-  }
-  return {
-    from: from.trim(),
-    event: event.trim(),
-    to: to.trim(),
-    guard: guard?.trim() === '' ? undefined : guard?.trim(),
-  };
 }

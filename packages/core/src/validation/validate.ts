@@ -128,7 +128,7 @@ export function validateCapability(
     );
   }
 
-  // Transition-table gates (r104) are tag-scoped per scenario — no config switch.
+  // Transition-table gates (r104, r124–r127) are tag-scoped per scenario — no config switch.
   for (const rule of rules) {
     for (const item of validateTransitionsForRule(cap, rule)) {
       push(item.level, item.id, item.message);
