@@ -93,6 +93,7 @@ llman-sdd validate <change-id>
 - **单轨**：每个 capability 只有一个 `<capability>.feature`。规范样式为原生 Gherkin 分层：`@req:<id>` 挂 `规则:` 块头，块内嵌套 `场景:`（假如/当/那么 步骤，绑定 runner 步骤代码并被执行——**默认首选形态**）；仅当需求无法程序化表达（抽象目标、架构决策、治理/人工约束）或暂不转写时，才留下无嵌套场景的 `规则:` 块（裸规则，描述自由文本）并在 proposal/design 记录理由。历史标签（@executable/@rule/@human/@manual）不再使用。
 - **描述可读性**：`规则:` 描述较长时拆成多行便于审查（官方解析器按行保留）；描述行不加 `- ` 列表前缀（会原样进入描述），也不得以 `假如/当/那么/而且`（en `Given/When/Then/And/But`）开头——会被 Gherkin 解析为步骤。
 - **结构化新增首选**：向既有 capability 追加规则/场景，优先 `llman-sdd spec next-req-id`（全局 rN 分配）+ `spec add-req`（追加 `规则:` 块）+ `spec add-scenario`（向规则块插入嵌套 `场景:`）。新建 capability 用 `spec new <capability>`；rN 反查用 `spec resolve-req <rN>`。手改 `.feature` 保留为逃生门（适合改既有条款）。
+- **Studio 草稿协商**：收到 Studio 草稿 ID 时，优先用 `llman-sdd studio diff`、`llman-sdd studio validate`、`llman-sdd studio comment reply` 与 `llman-sdd studio revise` 核验并回推建议；不得在默认分支直接改写 `llmanspec/specs/`，绑定特性分支后再运行 `llman-sdd studio apply` 语义写回 `.feature`（任意分支可先 `llman-sdd studio apply --dry-run` 预览）。
 - **可执行场景优先判据**（写新条款前先判定）：凡 GWT（假如/当/那么）可表达、绑定步骤代码的自动化判定行为 必须 落成嵌套 `场景:`——纯文字规则无行为守护。用例如下：行为可程序判定（如“当 运行 validate 后,那么 stdout 为 TOON 且退出码为 0”）→ 嵌套 `场景:`；抽象目标/架构决策暂不可程序判定 → 裸 `规则:` 块（无嵌套场景，聚合计数提示，交 specs-compact），并在 proposal/design 记录理由。
 
 {{ unit("spec/feature-contract") }}

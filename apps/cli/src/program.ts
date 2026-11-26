@@ -23,6 +23,7 @@ import { registerReview } from './commands/review.ts';
 import { registerSelf } from './commands/self.ts';
 import { registerShow } from './commands/show.ts';
 import { registerSpec } from './commands/spec.ts';
+import { registerStudio } from './commands/studio.ts';
 import { registerValidate } from './commands/validate.ts';
 
 export function createProgram(ctx: CliContext): Command {
@@ -60,19 +61,29 @@ export function createProgram(ctx: CliContext): Command {
   registerReview(program, ctx);
   registerConfig(program, ctx);
   registerSelf(program, ctx);
+  registerStudio(program, ctx);
 
   // cli r75: pure parent groups (no default action of their own) reject bare
   // calls as usage errors — commander's missing-action help on stderr, rc 2
   // via missingParameter/…; `config` keeps its default action (overview, rc 0).
-  for (const name of ['change', 'spec', 'project', 'self']) {
-    const group = program.commands.find((c) => c.name() === name);
-    if (group === undefined) continue;
+  const attachPureParentUsage = (group: Command): void => {
     group.action(() => {
       // commander's configureOutput silenced outputError; render the usage
       // line ourselves and exit through the shared CliError path (rc 2).
       group.outputHelp({ error: true });
       throw new CliError('', 2);
     });
+  };
+  for (const name of ['change', 'spec', 'project', 'self', 'studio']) {
+    const group = program.commands.find((c) => c.name() === name);
+    if (group === undefined) continue;
+    attachPureParentUsage(group);
+    if (name === 'studio') {
+      for (const subName of ['state', 'comment']) {
+        const subGroup = group.commands.find((c) => c.name() === subName);
+        if (subGroup !== undefined) attachPureParentUsage(subGroup);
+      }
+    }
   }
 
   return program;

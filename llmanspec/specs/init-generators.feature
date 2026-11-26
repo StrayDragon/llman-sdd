@@ -228,3 +228,12 @@
       假如 版本戳被挪到旧路径
       当 再运行 init --update
       那么 新路径写入版本且旧路径文件仍在
+
+  @req:r138
+  规则: Studio CLI 协商技能指引与基线同步
+    内置 zh-Hans 模板中的 `llman-sdd-explore` 与 `llman-sdd-propose` MUST 包含 Studio CLI 协商指引，提示 Agent 收到 Studio 草稿 ID 时优先通过 `llman-sdd studio diff`、`llman-sdd studio validate`、`llman-sdd studio comment reply` 与 `llman-sdd studio revise` 核验与回复，并重申不得在默认分支直接改写 `llmanspec/specs/`；改动模板后 MUST 同步刷新仓库 `.agents/skills/` 与 `tests/golden/` 基线以通过 `check:skills-template-render`。
+
+    场景: explore 与 propose 渲染产物含 Studio CLI 协商指引
+      假如 本仓库的等价 config(zh-Hans 与 bdd 配置)
+      当 渲染全部 skills
+      那么 explore 与 propose 技能均含 Studio CLI 协商指引且符合模板强度词与命令面门禁

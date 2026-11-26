@@ -114,6 +114,36 @@ bdd.thenStep('每个 SKILL.md 通过 ethics 治理门', (ctx) => {
   }
 });
 
+bdd.thenStep(
+  'explore 与 propose 技能均含 Studio CLI 协商指引且符合模板强度词与命令面门禁',
+  (ctx) => {
+    const root = (ctx.fixtures['init'] as { root: string }).root;
+    const explore = readFileSync(
+      join(root, '.agents', 'skills', 'llman-sdd-explore', 'SKILL.md'),
+      'utf8',
+    );
+    const propose = readFileSync(
+      join(root, '.agents', 'skills', 'llman-sdd-propose', 'SKILL.md'),
+      'utf8',
+    );
+    for (const [name, content] of [
+      ['llman-sdd-explore', explore],
+      ['llman-sdd-propose', propose],
+    ] as const) {
+      for (const marker of [
+        'llman-sdd studio diff',
+        'llman-sdd studio validate',
+        'llman-sdd studio comment reply',
+        'llman-sdd studio revise',
+      ]) {
+        if (!content.includes(marker)) {
+          throw new Error(`${name}/SKILL.md missing Studio CLI guidance marker: ${marker}`);
+        }
+      }
+    }
+  },
+);
+
 // ---------------------------------------------------------------------------
 // r80 — repo's own committed skills stay fresh against the golden baseline
 // ---------------------------------------------------------------------------

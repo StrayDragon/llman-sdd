@@ -10,7 +10,7 @@
     MUST 保持退出码 0;错误渲染逻辑 MUST 收敛在主入口统一出口,各命令 MUST NOT 自行散落 `process.exitCode = 1` 写退出码点。
     参数解析失败 MUST 一律以退出码 2 退出,口径覆盖缺必需参数、多余参数、非法枚举值与非法旗标组合(前代对 handler 级校验如 `--format`
     以退出码 1 退出,本仓统一为 2,属有意 divergence)。不带子命令的根裸调用(含只给根级选项的情形)MUST 等同 `--help`:帮助文本写
-    stdout 且退出码 0;四个纯父分组 `change`/`spec`/`project`/`self` 缺必需子命令 MUST 报用法错误到 stderr 且退出码 2;
+    stdout 且退出码 0;五个纯父分组 `change`/`spec`/`project`/`self`/`studio` 缺必需子命令 MUST 报用法错误到 stderr 且退出码 2;
     `config` MUST 保留其默认 action(裸调用输出概览且退出码 0)。
 
     场景: 未知命令单一前缀与退出码

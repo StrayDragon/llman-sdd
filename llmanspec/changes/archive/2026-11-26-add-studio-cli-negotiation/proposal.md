@@ -2,6 +2,9 @@
 depends_on:
   - add-studio-domain-core
 title: 补齐 Studio CLI-first 双向协商子命令与 Skill 引导
+branch: sdd/add-studio-cli-negotiation
+base_branch: main
+base_sha: c7374187bd72c5cd94acad0e514aae8a7f191457
 ---
 
 # 补齐 Studio CLI-first 双向协商子命令与 Skill 引导

@@ -46,9 +46,13 @@ flowchart LR
    - 完成判据：每个待定决策都已解决或显式推迟。未触发时保持默认（问 1–3 个问题）。
 4. 涉及某个 change id 时，读 `llmanspec/changes/<id>/` 下的工件。
    - 诊断校验错误先跑 `llman-sdd validate <spec> --strict` 过结构门禁（Gherkin / `@req` 链接 / 双写 / req_id 唯一性）；配置了 `specs.check_command` 时 validate 仅经显式 `--check` 执行该 harness（缺省跳过）。失败项在缺省 TOON 输出的 `items[].issues[]` 逐条指明；`--output human` 输出人读 `FAIL <item_type>/<id>` 行。
-5. 探索 2–3 个选项与权衡。
-6. 判断变更规模，确定是否走完整 SDD。
-7. 结论清晰时宜请用户确认记录（勿自动写）：
+5. 收到 Studio 草稿 ID 时，优先经 CLI 完成双向协商：
+   - 用 `llman-sdd studio diff` 与 `llman-sdd studio validate` 查看语义差异、未解决评论与 E1–E4 图校验结果。
+   - 用 `llman-sdd studio comment reply` 回复评论，用 `llman-sdd studio revise` 回推修订建议（仅写入建议层，不覆盖人类草稿）。
+   - 不得在默认分支直接改写 `llmanspec/specs/`；需预览落盘差异时可运行 `llman-sdd studio apply --dry-run`。
+6. 探索 2–3 个选项与权衡。
+7. 判断变更规模，确定是否走完整 SDD。
+8. 结论清晰时宜请用户确认记录（勿自动写）：
    - 范围/设计/工作项 → 规划文档（`proposal.md` / `design.md` / `tasks.md`）
    - 约束/可执行 harness → 仅宜写入 `llmanspec/specs/**`；实际编辑须先绑定分支。未绑定时只记 proposal。
 
