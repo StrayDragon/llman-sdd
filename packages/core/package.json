@@ -29,6 +29,7 @@
     "@cucumber/messages": "^35.0.0",
     "@statelyai/graph": "^2.6.0",
     "@toon-format/toon": "^4.4.0",
+    "diff": "^8.0.3",
     "ignore": "^7.0.16",
     "nunjucks": "^3.2.4",
     "yaml": "^2.9.1",

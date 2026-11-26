@@ -32,6 +32,7 @@ const ALLOWED: Readonly<Record<string, readonly string[]>> = {
   report: ['archive', 'change', 'git', 'render', 'root', 'spec', 'util', 'validation'],
   review: ['report', 'spec', 'validation'],
   self: [],
+  studio: ['spec', 'util', 'validation'],
   util: [],
   validation: ['change', 'git', 'spec', 'util'],
   templates: ['config', 'root'],

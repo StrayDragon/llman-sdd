@@ -1,6 +1,9 @@
 ---
 depends_on: []
 title: 沉淀 Studio 纯域图模型、语义 Diff 与本地草稿会话底座
+branch: sdd/add-studio-domain-core
+base_branch: main
+base_sha: 40d7a9e07da3962392359f87e967d61d09a046fd
 ---
 
 # 沉淀 Studio 纯域图模型、语义 Diff 与本地草稿会话底座

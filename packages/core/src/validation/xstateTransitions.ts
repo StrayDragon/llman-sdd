@@ -124,7 +124,7 @@ function stepBindsPlaceholder(text: string, col: string): boolean {
   return placeholderVariants(col).some((v) => text.includes(v));
 }
 
-function extractTransitions(sc: ScenarioIR): TransitionEdge[] {
+export function extractTransitions(sc: ScenarioIR): TransitionEdge[] {
   const transitions: TransitionEdge[] = [];
   for (const block of sc.examples ?? []) {
     const cols = resolveTransitionColumns(block.headers);

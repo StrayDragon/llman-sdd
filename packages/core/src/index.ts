@@ -99,7 +99,11 @@ export { validateAllSpecs, validateCapability } from './validation/validate.ts';
 export { buildDuplicatesFor, formatTotals } from './validation/validate.ts';
 export {
   TRANSITIONS_INTROSPECTION,
+  extractTransitions,
   isTransitionOutline,
+  resolveTransitionColumns,
+  resolveTransitionDecision,
+  type ColumnMap,
   type TransitionDecision,
   type TransitionEdge,
 } from './validation/xstateTransitions.ts';
@@ -331,3 +335,96 @@ export {
   type CompletionCommandSpec,
   type CompletionShell,
 } from './self/completion.ts';
+export {
+  cloneMachineDraft,
+  cloneMachineIR,
+  makeMachineKey,
+  nextPrefixedUid,
+  type MachineDraft,
+  type MachineDraftMode,
+  type MachineTimeline,
+  type NodePosition,
+  type RevisionOp,
+  type SemanticAnchor,
+  type StudioComment,
+  type StudioMachineColumns,
+  type StudioMachineIR,
+  type StudioRevisionProposal,
+  type StudioStateDoc,
+  type StudioStateNode,
+  type StudioTransitionEdge,
+  type TimelineEntry,
+} from './studio/model.ts';
+export {
+  createMachineDraft,
+  extractStudioMachines,
+  markMachineRemoved,
+  type CreateMachineDraftInput,
+  type ExtractedStudioMachine,
+} from './studio/extract.ts';
+export {
+  STUDIO_LINTER_RULES,
+  hasBlockingDiagnostics,
+  validateMachineGraph,
+  type DiagnosticFixKind,
+  type DiagnosticSeverity,
+  type DiagnosticTargetKind,
+  type MachineDiagnostic,
+  type StudioLinterRuleMeta,
+} from './studio/validate.ts';
+export {
+  computeMachineDiff,
+  formatSemanticDiff,
+  type MachineSemanticDiff,
+  type StateRenameDiff,
+  type TransitionChangedField,
+  type TransitionModifiedDiff,
+} from './studio/diff.ts';
+export {
+  StudioRevisionError,
+  acceptRevisionProposal,
+  addStudioComment,
+  applyRevisionOpsToMachine,
+  previewRevisionProposal,
+  proposeRevision,
+  rejectRevisionProposal,
+  replyStudioComment,
+  resolveStudioComment,
+  type AddCommentInput,
+  type ProposeRevisionInput,
+  type RevisionPreviewResult,
+} from './studio/revisions.ts';
+export {
+  STUDIO_STATES_REL,
+  StudioStateError,
+  buildInitialTimeline,
+  createStudioStateDoc,
+  deleteStudioState,
+  listStudioStates,
+  parseStudioStateDoc,
+  previewTimelineEntry,
+  readStudioState,
+  recordTimelineCommit,
+  redoTimeline,
+  rollbackTimeline,
+  studioStateDocSchema,
+  studioStateRelPath,
+  undoTimeline,
+  validateStateId,
+  writeStudioState,
+  type CreateStudioStateDocInput,
+  type StudioStateIo,
+  type StudioStateSummary,
+} from './studio/store.ts';
+export {
+  buildDemoJobRunnerDraft,
+  buildDemoReimbursementDraft,
+  buildDemoStudioDrafts,
+} from './studio/demos.ts';
+export {
+  StudioSyncError,
+  buildProposalDraft,
+  previewFeatureUnifiedDiff,
+  renderUpdatedFeatureSource,
+  type BuildProposalDraftInput,
+} from './studio/featureSync.ts';
