@@ -29,6 +29,7 @@ import './steps/meta-foundation.ts';
 import './steps/freeze-filter.ts';
 import './steps/studio-core.ts';
 import './steps/studio-cli.ts';
+import './steps/studio-mcp.ts';
 
 const FEATURES_DIR = join(import.meta.dirname, 'features');
 // Capability specs (nested 场景: scenarios drive the real core APIs).

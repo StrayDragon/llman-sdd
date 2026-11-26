@@ -2,6 +2,9 @@
 depends_on:
   - add-studio-cli-negotiation
 title: 提供超薄 Studio MCP 包装壳与有状态扩展入口
+branch: sdd/add-studio-mcp-bridge
+base_branch: main
+base_sha: e555d405e1d4b9bcbf48db7cccce276c3991d39d
 ---
 
 # 提供超薄 Studio MCP 包装壳与有状态扩展入口
