@@ -51,12 +51,12 @@ llman-sdd studio drift [options]
 
 ## D4 Studio Web 逻辑漂移校准与反向红绿对账裁决
 
-- 统一使用正式产品术语 **「逻辑漂移校准」**（严禁在界面与文档中出现口语化表述）。
-- 当 Studio Web（C3）通过 SSE 监听到外部变更触发的逻辑漂移校准事件或带 `source: 'drift-trace'` 的建议层时，就近弹出可拖拽的对账通知卡与顶部引导提示：*「代码运行中观测到 N 条未登记状态转移，请团队裁决」*；
-- 画布上以虚线绿色边与新状态直观展示代码侧观测到的实际行为，侧栏列出每条转移的 Trace 命中证据；
+- 统一使用正式产品术语 **「逻辑漂移校准」**（严禁在界面与文档中出现口语化表述）；演示触发入口仅收口于 `⌘K`，绝不污染正常用户画布右键菜单。
+- **遵循注意力就近原则（Spatial Locality）**：当 Studio Web（C3）通过 SSE 监听到外部变更触发的逻辑漂移校准事件或带 `source: 'drift-trace'` 的建议层时，在触发点附近就近弹出可拖拽的对账通知卡与顶部引导提示：*「代码运行中观测到 N 条未登记状态转移，请团队裁决」*；
+- 画布上以虚线绿色边与新状态直观展示代码侧观测到的实际行为，进入「对比 & 协商」抽屉列出每条转移的 Trace 命中证据；
 - 人类（产品/研发）显式二选一：
-  1. **真理胜出（修代码）**：点击「真理胜出」打开**可视化 Prompt 预编辑大窗**（零盲复制，附 Trace 证据，允许补充上下文后确认复制），让 Agent 删掉违规代码直到 `--fail-on-shadow` 变绿；
-  2. **追认新意图（补录 Change）**：点击「采纳进草稿」（自动记入变更时间线）→ 自动跑 C1 可扩展 Linter 体检 → 走绑定分支 `studio apply`（或 `main` 写保护三出口引导）与测试补齐，重新对齐 SSOT。
+  1. **真理胜出（修代码）**：点击「真理胜出」打开**可视化 Prompt 预编辑大窗**（零盲复制，附 Trace 证据与精确对象锚点，允许补充上下文后确认复制），让 Agent 删掉违规代码直到 `--fail-on-shadow` 变绿；
+  2. **追认新意图（补录 Change）**：点击「追认新意图」（自动记入 Git 式变更时间线与防抖自动保存）→ 自动跑对应图方言 Linter 体检 → 点底栏 **「保存变更」** 走绑定分支 `studio apply`（或默认分支写保护三出口向导）与测试补齐，重新对齐 SSOT。
 
 ---
 
@@ -76,4 +76,4 @@ llman-sdd studio drift [options]
 C6 的验收 seam 覆盖纯域、CLI 子进程与 Studio 反向裁决三层：
 1. **纯域 Seam（`tests/unit/studio/drift.test.ts`）**：验证 JSONL Trace 对账（Shadow / Uncovered / 坏行报错）、TS/Rust/Python 注释中的 `@llmanspec:` 锚点扫描与最小切片构建、以及 Shadow → `StudioRevisionProposal (source: 'drift-trace')` 转换；
 2. **CLI 子进程 Seam**：临时仓库跑真实 `llman-sdd studio drift --trace ... --since ... --write-state --fail-on-shadow`，验证退出码、`llmanspec/specs/` 零改写与 `.llman-sdd/studio/states/` 原子落盘；
-3. **Web 渲染与 Skill Golden Seam**：Studio 服务端与前端单测覆盖 `source: 'drift-trace'` 反向建议展示与拒绝/采纳闭环，验证 `llman-sdd-studio-drift` 渲染对齐 `tests/golden/` 及全仓 `just qa` 全绿。
+3. **Web 渲染与 Skill Golden Seam**：Studio 服务端与前端单测覆盖 `source: 'drift-trace'` 反向建议展示、就近通知卡与「真理胜出（零盲复制 Prompt）/ 追认新意图（方言 Linter + 保存变更）」闭环，验证 `llman-sdd-studio-drift` 渲染对齐 `tests/golden/` 及全仓 `just qa` 全绿。

@@ -1,11 +1,11 @@
 # Tasks: add-studio-forest-tabs
 
-> 验收 Seam：① `packages/core` 纯域森林投影与交叉桥算法单测（含跨能力 `@req:rXX` 引用与共享事件、`views.json` zod 校验）；② `/api/views` 原子读写集成测试 + 前端多 Tab 切片/面包屑下钻/边界邻居气泡预览/`d3-force` 静态排布单测 + `rsbuild build` 与全仓 `just qa`。
+> 验收 Seam：① `packages/core` 纯域 4 类规格森林投影、交叉桥算法、`W3` 孤立检查与 `views.json` zod 校验单测；② `/api/views` 按实例隔离原子读写集成测试 + 前端默认单 Tab、动态工作区 `+ 新标签页` 与空态兜底、`Shift+拖框` 领域分组/建 Tab、1 跳外部接口、外部契约门户、`d3-force` 静态排布单测 + `rsbuild build` 与全仓 `just qa`。
 
-- [ ] T1 实现纯域宏观森林投影、交叉桥算法与视图存储契约：在 `packages/core/src/studio/forest.ts` 实现 `buildForestGraph(entries)`（0-Token 扫描权重、跨能力 `@req:rXX` 引用与共享状态机事件生成自动实线与 `evidence[]`）、`computeCrossForestBridges(graph, groups)` 与 `.llman-sdd/studio/views.json` 的 `zod` schema / 端口接口（聚焦对已有 `llmanspec/` 双向映射，不做外部格式导出），在 `packages/core/src/index.ts` 导出并补齐 `tests/unit/studio/forest.test.ts`。
+- [ ] T1 实现纯域宏观森林投影、交叉桥算法与视图存储契约：在 `packages/core/src/studio/forest.ts` 实现 `buildForestGraph(entries)`（0-Token 识别 `machine`/`flow`/`decision`/`doc` 4 类规格、权重与 `tags[]`，扫描跨能力 `@req:rXX` 引用与共享事件生成自动实线与 `evidence[]`）、`computeCrossForestBridges(graph, groups)`、`W3` 孤立规格检查与 `.llman-sdd/studio/views.json` 的 `zod` schema / 端口接口（聚焦对已有 `llmanspec/` 双向映射，不做外部格式导出），在 `packages/core/src/index.ts` 导出并补齐 `tests/unit/studio/forest.test.ts`。
 
-- [ ] T2 `[blocked-by: T1]` 实现服务端视图路由与多 Tab 状态管理：在 C3 本地回环服务挂接 `GET/PUT /api/views`（临时文件 + 原子 `rename` 写盘）并接入现有 SSE 刷新；在前端 Zustand store 与顶栏实现 `[ 默认全景 ]` `[ 自定义组合 N ]` `[ + ]` Tab 栏、拉入业务森林子集、人工参考虚线与视觉分组（绝不污染 `llmanspec/specs/`），补齐服务端与 store 单测。
+- [ ] T2 `[blocked-by: T1]` 实现按实例隔离的服务端视图路由与浏览器级多 Tab 管理：在 C3 本地回环服务挂接 `GET/PUT /api/views`（防抖自动保存 + 临时文件原子 `rename`，按 `llmanspec/` 实例隔离）并接入 SSE 刷新；在前端实现默认单置顶 **`📌 全景`** Tab、浏览器级右键 Tab 菜单、按当前工作区动态生成的 `+ 新标签页`（动态聚合真实规格与 `#tag (count)`，绝不跨仓串味）及 0 命中空态恢复卡，补齐服务端与 store 单测。
 
-- [ ] T3 `[blocked-by: T2]` 实现宏观星图（`d3-force`）与跨森林交叉桥高亮：挂载 `ForestMacroCanvas` 至 C3 `CanvasAdapter` 插槽，使用 `d3-force` 做一次性静置排布并尊重人类手拖 `macroPositions`，按权重渲染圆球尺寸、实/虚线区分规格事实与个人参考标注，提供「只看交叉桥」开关淡化非桥接元素并支持对交叉边挂锚定评论，补齐排布无 NaN 与交叉桥过滤单测。
+- [ ] T3 `[blocked-by: T2]` 实现宏观拓扑画布（`d3-force`）、领域分组框选建 Tab 与跨森林交叉桥：挂载 `ForestMacroCanvas` 至 C3 `CanvasAdapter` 插槽，使用 `d3-force` 做一次性静置排布并尊重 `macroPositions`；实现最低层级（`z-index: 0`）可拖拽/折叠/重命名领域分组容器、`Shift+拖拽`（或 `V`）框选批量操作条（`打包分组 (G)` / `新建 Tab 视图 (T)` / `打 Tag`）、自定义 Tab 的 `+ 显示外部 1 跳接口` 开关、大图「聚焦邻接」、实/虚线区分、拖端口至空白 5 选 1 选建圆盘与「交叉桥」高亮；卡片右键严格遵循无重复契约（`重命名` / `加入多选或打包` / `删除规格`），补齐排布与分组/交叉桥单测。
 
-- [ ] T4 `[blocked-by: T3]` 实现上下文边界保留下钻与全仓门禁验证：双击业务圆球切入 C3 确定性 `elkjs` 状态机画布并维护顶部面包屑返回栈；在容器外围渲染外部邻居气泡与出入箭头，点击气泡先弹交叉 `evidence` 轻预览再提供「拉入当前 Tab 对比 / 跳转」双动作；验证 `rsbuild build` 与全仓 `just qa` 变绿。
+- [ ] T4 `[blocked-by: T3]` 实现外部契约门户联动、全景聚合 Prompt 与全仓门禁验证：在 C3 状态机/流程图画布外围渲染自动提取的外部上游约束/下游契约门户与跨界虚线，点击门户就近弹出 `evidence` 预览并提供「新 Tab 打开 / 回到全景」双动作；联调全景时间线净 Diff 聚合 Prompt（带精确对象 `uid` 锚点与方言门禁提示）；验证 `rsbuild build` 与全仓 `just qa` 全部变绿。
