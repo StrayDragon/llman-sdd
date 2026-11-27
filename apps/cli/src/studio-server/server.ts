@@ -81,6 +81,7 @@ import { Hono, type Context } from 'hono';
 import { streamSSE } from 'hono/streaming';
 
 import { makeNodeStudioStateIo } from '../commands/studioShared.ts';
+import { loadWorkspaceTheorems } from '../commands/theorem.ts';
 import { makeIo } from '../io.ts';
 import {
   defaultHubFilePath,
@@ -665,6 +666,10 @@ export function createStudioHubApp(options: StudioHubOptions): CreatedStudioHubA
       staleFiles,
       peerWorktrees,
       graphMermaid: mermaid,
+      ...(() => {
+        const th = loadWorkspaceTheorems(rec.item.instanceRoot);
+        return { theorems: th.theorems, theoremLockStatus: th.lockStatus };
+      })(),
     };
   };
 
@@ -1163,7 +1168,8 @@ export function createStudioHubApp(options: StudioHubOptions): CreatedStudioHubA
     } catch {
       activeStateDoc = null;
     }
-    const docs = buildWorkspaceSearchDocuments(parsedSpecs, activeStateDoc);
+    const th = loadWorkspaceTheorems(rec.item.instanceRoot);
+    const docs = buildWorkspaceSearchDocuments(parsedSpecs, activeStateDoc, th.theorems);
 
     const ragUrl = endpoint ?? process.env.LLMAN_SDD_STUDIO_RAG_URL;
     let degradedReason: string | undefined;
@@ -1213,7 +1219,8 @@ export function createStudioHubApp(options: StudioHubOptions): CreatedStudioHubA
                 h.targetKind === 'edge' ||
                 h.targetKind === 'decision' ||
                 h.targetKind === 'comment' ||
-                h.targetKind === 'timeline'
+                h.targetKind === 'timeline' ||
+                h.targetKind === 'theorem'
                   ? h.targetKind
                   : 'spec';
               const targetId =

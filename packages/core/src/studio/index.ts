@@ -15,3 +15,4 @@ export * from './demos.ts';
 export * from './drift.ts';
 export * from './forest.ts';
 export * from './search.ts';
+export * from '../theorems/theorems.ts';

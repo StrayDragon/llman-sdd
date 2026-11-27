@@ -8,6 +8,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  rmSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -459,3 +460,47 @@ bdd.thenStep('gitignore 含 eval-local-results 与 groups-yaml 两行', (ctx) =>
     problems.push('.gitignore 缺 eval/groups.yaml(明文密钥合法落点)');
   if (problems.length > 0) throw new Error(problems.join('; '));
 });
+
+// ── r163: Human Theorems global read-only injection & lean core skills ──
+
+bdd.when('渲染全部 skills 与 llmanspec AGENTS 模板', (ctx) => {
+  const cfg =
+    (ctx.fixtures['init'] as { cfg?: string } | undefined)?.cfg ??
+    'schema: spec-driven\nlocale: zh-Hans\n';
+  const root = mkdtempSync(join(tmpdir(), 'llman-sdd-r163-'));
+  mkdirSync(join(root, 'llmanspec'), { recursive: true });
+  writeFileSync(join(root, 'llmanspec', 'config.yaml'), cfg);
+  runCli(['init', '--update', root], root);
+  ctx.fixtures['r163Root'] = root;
+});
+
+bdd.thenStep(
+  'AGENTS 模板与核心技能均含 llmanspec/theorems 只读遵循约束且通过 ethics 门禁',
+  (ctx) => {
+    const root = ctx.fixtures['r163Root'] as string;
+    try {
+      const agents = readFileSync(join(root, 'llmanspec', 'AGENTS.md'), 'utf8');
+      if (!agents.includes('llmanspec/theorems/')) {
+        throw new Error('llmanspec/AGENTS.md missing llmanspec/theorems/ read-only guidance');
+      }
+      for (const skill of [
+        'llman-sdd-propose',
+        'llman-sdd-apply',
+        'llman-sdd-verify',
+        'llman-sdd-archive',
+      ]) {
+        const content = readFileSync(join(root, '.agents', 'skills', skill, 'SKILL.md'), 'utf8');
+        if (!content.includes('llmanspec/theorems/')) {
+          throw new Error(`${skill}/SKILL.md missing llmanspec/theorems/ read-only constraint`);
+        }
+        for (const key of ETHICS_KEYS) {
+          if (!content.includes(key)) {
+            throw new Error(`${skill}/SKILL.md missing ethics key ${key}`);
+          }
+        }
+      }
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  },
+);

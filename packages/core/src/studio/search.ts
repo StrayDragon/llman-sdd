@@ -3,6 +3,7 @@
  * Zero I/O, zero node:*, zero wall-clock calls, zero external dependencies.
  */
 import type { CapabilityDoc } from '../spec/ir.ts';
+import type { TheoremItem } from '../theorems/theorems.ts';
 import { extractDecisionTables } from './decisionTree.ts';
 import type { StudioStateDoc } from './model.ts';
 
@@ -13,7 +14,8 @@ export type StudioSearchTargetKind =
   | 'edge'
   | 'decision'
   | 'comment'
-  | 'timeline';
+  | 'timeline'
+  | 'theorem';
 
 export interface WorkspaceSearchDocument {
   id: string;
@@ -96,10 +98,11 @@ export interface SearchableSpecInput {
   doc: CapabilityDoc;
 }
 
-/** Build workspace-isolated search documents from parsed specs and active Studio stateDoc. */
+/** Build workspace-isolated search documents from parsed specs, active stateDoc, and Human Theorems. */
 export function buildWorkspaceSearchDocuments(
   specs: readonly SearchableSpecInput[],
   stateDoc?: StudioStateDoc | null,
+  theorems?: readonly TheoremItem[],
 ): WorkspaceSearchDocument[] {
   const docs: WorkspaceSearchDocument[] = [];
 
@@ -207,6 +210,28 @@ export function buildWorkspaceSearchDocuments(
         ...(machineKey ? { machineKey } : {}),
         title: `评论 (${comment.status === 'open' ? '待处理' : '已解决'}) · ${capId}`,
         body: comment.body,
+      });
+    }
+  }
+
+  if (theorems) {
+    for (const th of theorems) {
+      docs.push({
+        id: `theorem:${th.id}`,
+        targetKind: 'theorem',
+        targetId: th.id,
+        capId: th.file,
+        title: `人类定理 · ${th.id} · ${th.title}`,
+        body: [
+          th.title,
+          th.statement,
+          th.rationale ?? '',
+          th.gate ?? '',
+          th.scope ?? '',
+          ...th.tags,
+        ]
+          .filter(Boolean)
+          .join('\n'),
       });
     }
   }

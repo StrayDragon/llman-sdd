@@ -1659,3 +1659,60 @@ bdd.thenStep('各 capability 均 valid 为 true 且无 spec id 失配 ERROR', (c
     );
   }
 });
+
+// ── r161: Human Theorems lock sealing & tamper rejection ──
+
+bdd.given('一个包含人类定理文档的临时仓库', (ctx) => {
+  const dir = mkdtempSync(join(tmpdir(), 'llman-sdd-bdd-theorems-'));
+  mkdirSync(join(dir, 'llmanspec', 'specs'), { recursive: true });
+  mkdirSync(join(dir, 'llmanspec', 'theorems'), { recursive: true });
+  writeFileSync(join(dir, 'llmanspec', 'config.yaml'), 'schema: spec-driven\nlocale: zh-Hans\n');
+  const file = join(dir, 'llmanspec', 'theorems', 'core.md');
+  writeFileSync(
+    file,
+    [
+      '---',
+      'title: "核心不变量"',
+      'owner: human',
+      '---',
+      '',
+      '## theorem:no-silent-drop — 禁止静默丢弃事件',
+      '- **statement**: 所有关键事件写入失败时必须显式报错。',
+      '- **gate**: `true`',
+      '',
+    ].join('\n'),
+  );
+  ctx.fixtures['r161Repo'] = { dir, file };
+});
+
+bdd.when('依次运行 theorem lock、theorem check，再篡改定理正文后再次运行 theorem check', (ctx) => {
+  const { dir, file } = ctx.fixtures['r161Repo'] as { dir: string; file: string };
+  try {
+    const lockRes = runCli(['theorem', 'lock', '-d', dir], dir);
+    const checkSealed = runCli(['theorem', 'check', '-d', dir], dir);
+    runCli(['theorem', 'unlock', '-d', dir], dir);
+    writeFileSync(file, `${readFileSync(file, 'utf8')}\n# tampered\n`);
+    const checkTampered = runCli(['theorem', 'check', '-d', dir], dir);
+    ctx.fixtures['r161Res'] = { lockRes, checkSealed, checkTampered };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+bdd.thenStep('封签后 check 退出码为 0 且篡改后 check 退出码非零并指明篡改文件', (ctx) => {
+  const { lockRes, checkSealed, checkTampered } = ctx.fixtures['r161Res'] as {
+    lockRes: { status: number };
+    checkSealed: { status: number };
+    checkTampered: { status: number; stderr: string };
+  };
+  if (lockRes.status !== 0 || checkSealed.status !== 0) {
+    throw new Error(
+      `expected lock & sealed check rc 0, got ${lockRes.status} / ${checkSealed.status}`,
+    );
+  }
+  if (checkTampered.status === 0 || !checkTampered.stderr.includes('core.md')) {
+    throw new Error(
+      `expected tampered check non-zero mentioning core.md, got rc=${checkTampered.status} stderr=${checkTampered.stderr}`,
+    );
+  }
+});

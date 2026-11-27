@@ -443,3 +443,13 @@
       假如 一个两个状态互相到达的合法流转表临时仓库
       当 运行 validate --specs --json
       那么 该 capability 通过且无状态流转 ERROR
+
+  @req:r161
+  规则: 人类定理（Human Theorems）纯域解析、哈希封签门禁与只读权限锁
+    项目 MAY 在 `llmanspec/theorems/*.md` 沉淀少量由人类维护的硬不变量（每条以 `## theorem:<id>` 声明，含必填 `statement` 与可选 `rationale`/`gate`/`scope`）；缺失该目录时 MUST 保持零报错向后兼容。
+    纯域 MUST 提供 `parseTheoremFile`、`validateTheoremSet`、`buildTheoremLockManifest` 与 `verifyTheoremLockManifest`（零 I/O）；CLI MUST 提供 `llman-sdd theorem list/check/lock/unlock`：`lock` 计算并写入 `llmanspec/theorems/.theorems.lock.json` 且设为只读（`--root` 打印 `sudo chown` 加固命令而不静默阻塞），`unlock` 恢复可写供人类修改，`check` 检出语法错误、重复 ID 或未经重新封签的篡改并以退出码 1 拒绝（`--run-gates` 额外顺序执行关联门禁命令）。
+
+    场景: 人类定理封签校验通过且未经重签的篡改被 check 以非零退出码拦截
+      假如 一个包含人类定理文档的临时仓库
+      当 依次运行 theorem lock、theorem check，再篡改定理正文后再次运行 theorem check
+      那么 封签后 check 退出码为 0 且篡改后 check 退出码非零并指明篡改文件

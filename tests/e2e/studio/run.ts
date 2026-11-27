@@ -4,7 +4,7 @@
 // this repo's llmanspec/, drives headless Chromium via playwright-core, collects DOM/SVG
 // geometry and hands it to the pure judge in ./invariants.ts.
 import { spawnSync } from 'node:child_process';
-import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -51,6 +51,11 @@ function makeFixtureRepo(name: string, withRepoSpecs: boolean): string {
       recursive: true,
     });
     cpSync(join(REPO_ROOT, 'llmanspec', 'config.yaml'), join(dir, 'llmanspec', 'config.yaml'));
+    if (existsSync(join(REPO_ROOT, 'llmanspec', 'theorems'))) {
+      cpSync(join(REPO_ROOT, 'llmanspec', 'theorems'), join(dir, 'llmanspec', 'theorems'), {
+        recursive: true,
+      });
+    }
   } else {
     mkdirSync(join(dir, 'llmanspec', 'specs'), { recursive: true });
     writeFileSync(
@@ -243,7 +248,9 @@ async function runViewport(
       return ev.defaultPrevented;
     });
     if (!ctxPrevented) fail('main-view', 'native browser context menu is not suppressed');
+    await settle(page, 150);
     await page.keyboard.press('Escape');
+    await settle(page, 150);
 
     // ── ? shortcut cheat sheet modal opens cleanly and closes on Escape (r157) ──
     await page.keyboard.press('Shift+/');
@@ -272,6 +279,18 @@ async function runViewport(
       await judge('main-view+find');
       await page.keyboard.press('Escape');
       await settle(page, 150);
+    }
+
+    // ── Read-only Human Theorems drawer opens right-side cleanly without overlapping minimap (r162) ──
+    const theoremBtn = page.locator('button[title*="人类定理"]').first();
+    if ((await theoremBtn.count()) > 0) {
+      await theoremBtn.click();
+      await settle(page, 250);
+      if ((await page.locator('aside[aria-label="人类定理抽屉"]').count()) !== 1) {
+        fail('theorems-drawer', 'Theorems drawer did not open');
+      }
+      await page.keyboard.press('Escape');
+      await settle(page, 200);
     }
 
     // ── Drag a node right (React #185 regression) + persistence across refresh ──

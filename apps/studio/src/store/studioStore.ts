@@ -36,7 +36,9 @@ import {
   type StudioSearchHit,
   type StudioStateDoc,
   type StudioTabView,
+  type StudioTheoremDto,
   type StudioViewsDoc,
+  type TheoremLockStatus,
   type WorkspaceItem,
 } from '@llman-sdd/core/studio';
 import { create } from 'zustand';
@@ -122,6 +124,9 @@ export interface StudioStoreState {
   specs: SpecIndexItem[];
   edges: SpecIndexEdge[];
   staleFiles: string[];
+  theorems: StudioTheoremDto[];
+  theoremLockStatus: TheoremLockStatus;
+  theoremsOpen: boolean;
   specDetails: Record<string, SpecDetailResponse>;
   graphMermaid: string;
 
@@ -248,6 +253,7 @@ export interface StudioStoreState {
   switchWorldlineTo: (machineKey: string, idx: number) => void;
   toggleWorldlineCompare: (entryId: string) => void;
   setWorldlineOpen: (open: boolean) => void;
+  setTheoremsOpen: (open: boolean) => void;
   undoActiveMachine: () => void;
   redoActiveMachine: () => void;
   decideRevision: (revId: string, action: 'accept' | 'reject') => Promise<void>;
@@ -516,6 +522,8 @@ function applyBootstrapToState(
     specs: boot.specs,
     edges: boot.edges,
     staleFiles: boot.staleFiles,
+    theorems: boot.theorems ?? [],
+    theoremLockStatus: boot.theoremLockStatus ?? 'none',
     specDetails: {},
     graphMermaid: boot.graphMermaid,
     tabs: initialTabs,
@@ -606,6 +614,9 @@ export const useStudioStore = create<StudioStoreState>((set, get) => {
     specs: [],
     edges: [],
     staleFiles: [],
+    theorems: [],
+    theoremLockStatus: 'none',
+    theoremsOpen: false,
     specDetails: {},
     graphMermaid: 'flowchart TD\n',
 
@@ -722,6 +733,8 @@ export const useStudioStore = create<StudioStoreState>((set, get) => {
           specs: boot.specs,
           edges: boot.edges,
           staleFiles: boot.staleFiles,
+          theorems: boot.theorems ?? [],
+          theoremLockStatus: boot.theoremLockStatus ?? 'none',
           graphMermaid: boot.graphMermaid,
           ...(!cur.dirtyViews && viewsRes?.viewsDoc ? { viewsDoc: viewsRes.viewsDoc } : {}),
           ...(cur.dirtyState
@@ -1491,7 +1504,20 @@ export const useStudioStore = create<StudioStoreState>((set, get) => {
       }
       set({
         worldlineOpen: open,
-        ...(open ? {} : { worldlineComparing: false, worldlineCompareAId: null }),
+        ...(open
+          ? { theoremsOpen: false }
+          : { worldlineComparing: false, worldlineCompareAId: null }),
+      });
+    },
+    setTheoremsOpen: (open) => {
+      if (typeof document !== 'undefined') {
+        document.body.classList.toggle('wl-open', open);
+      }
+      set({
+        theoremsOpen: open,
+        ...(open
+          ? { worldlineOpen: false, worldlineComparing: false, worldlineCompareAId: null }
+          : {}),
       });
     },
 
@@ -1710,6 +1736,10 @@ export const useStudioStore = create<StudioStoreState>((set, get) => {
       set({ panelFindMatchIds, panelFindActiveId }),
     openSearchHit: (hit) => {
       const s = get();
+      if (hit.targetKind === 'theorem') {
+        s.setTheoremsOpen(true);
+        return;
+      }
       if (hit.machineKey) {
         s.openMachineTab(hit.machineKey, hit.capId);
         if (hit.targetKind === 'state' || hit.targetKind === 'edge') {

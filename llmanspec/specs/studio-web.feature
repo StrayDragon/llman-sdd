@@ -139,3 +139,13 @@
       假如 一个已启动的随机端口 Studio 本地服务
       当 先以中文关键词请求 /api/search，再传入非回环与不可达回环 RAG 地址
       那么 本地 BM25 返回带片段的排序命中、非回环 RAG 地址返回 400 且不可达回环 RAG 无感降级回 local-bm25
+
+  @req:r162
+  规则: Studio 人类定理只读加载、深度检索召回与右锚预览抽屉
+    Studio 本地回环服务 MUST 在 `/api/bootstrap` 返回当前工作区 `llmanspec/theorems/` 的只读定理列表与封签状态，并在 `/api/search` 将定理正文与关联 `gate` 纳入本地 BM25 索引（`targetKind: 'theorem'`）；服务 MUST NOT 暴露任何修改或覆盖定理文件的写入端点。
+    Studio Web MUST 提供与世界线抽屉互斥的右锚只读「人类定理」预览抽屉（遵守真言 1 同侧展开且小地图左让），展示只读锁状态、条目筛选、statement/rationale/gate 与人类命令行解锁提示。
+
+    场景: /api/bootstrap 返回只读人类定理且 /api/search 可召回定理条目
+      假如 一个含人类定理与封签的随机端口 Studio 本地服务
+      当 请求 /api/bootstrap 与以定理关键词请求 /api/search
+      那么 bootstrap 包含该定理与封签状态且 search 返回 targetKind 为 theorem 的命中结果

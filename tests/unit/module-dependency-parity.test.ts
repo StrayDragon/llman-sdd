@@ -32,7 +32,9 @@ const ALLOWED: Readonly<Record<string, readonly string[]>> = {
   report: ['archive', 'change', 'git', 'render', 'root', 'spec', 'util', 'validation'],
   review: ['report', 'spec', 'validation'],
   self: [],
-  studio: ['spec', 'util', 'validation'],
+  // studio -> theorems (add-human-theorems-and-lean-skills): Studio contracts & BM25 search consume read-only Human Theorems DTOs (leaf module).
+  studio: ['spec', 'theorems', 'util', 'validation'],
+  theorems: [],
   util: [],
   validation: ['change', 'git', 'spec', 'util'],
   templates: ['config', 'root'],

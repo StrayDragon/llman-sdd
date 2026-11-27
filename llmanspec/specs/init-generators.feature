@@ -256,3 +256,13 @@
       假如 本仓库的等价 config(zh-Hans 与 bdd 配置)
       当 渲染全部 skills
       那么 studio-onboard 与 studio-collab 技能含反向提炼与协商回执指引且通过 ethics 门禁
+
+  @req:r163
+  规则: 人类定理全域只读注入与核心技能轻量化精简
+    内置 zh-Hans 模板的 `llmanspec-agents-stub.md` 与共享单元 `units/skills/structured-protocol.md` MUST 注入人类定理（`llmanspec/theorems/`）只读硬不变量遵循约束，明确要求 Agent 会话先查并遵守且不得擅自修改或绕过。
+    核心 4 份技能模板（`llman-sdd-propose`、`llman-sdd-apply`、`llman-sdd-verify`、`llman-sdd-archive`）MUST 保持精简聚焦（不复读共享单元与教材式套话），同时完整保留 r70/r66/r138/r19 全部契约标记并通过 check:stc 与 golden 一致性门禁。
+
+    场景: 渲染产物含人类定理只读注入且精简后的核心技能通过全部门禁
+      假如 本仓库的等价 config(zh-Hans 与 bdd 配置)
+      当 渲染全部 skills 与 llmanspec AGENTS 模板
+      那么 AGENTS 模板与核心技能均含 llmanspec/theorems 只读遵循约束且通过 ethics 门禁

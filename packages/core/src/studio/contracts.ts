@@ -5,6 +5,7 @@
  */
 import { z } from 'zod';
 
+import { theoremItemSchema } from '../theorems/theorems.ts';
 import { forestEdgeEvidenceSchema, studioViewsDocSchema } from './forest.ts';
 import { studioStateDocSchema } from './store.ts';
 
@@ -92,6 +93,14 @@ export const viewsResponseSchema = z.object({
 });
 export type ViewsResponse = z.infer<typeof viewsResponseSchema>;
 
+export const studioTheoremSchema = theoremItemSchema.extend({
+  readOnly: z.boolean(),
+});
+export type StudioTheoremDto = z.infer<typeof studioTheoremSchema>;
+
+export const theoremLockStatusSchema = z.enum(['none', 'sealed', 'unsealed', 'tampered']);
+export type TheoremLockStatus = z.infer<typeof theoremLockStatusSchema>;
+
 export const bootstrapResponseSchema = z.object({
   workspace: workspaceItemSchema,
   demoMode: z.boolean(),
@@ -103,6 +112,8 @@ export const bootstrapResponseSchema = z.object({
   staleFiles: z.array(z.string()),
   peerWorktrees: z.array(workspaceItemSchema),
   graphMermaid: z.string(),
+  theorems: z.array(studioTheoremSchema).optional(),
+  theoremLockStatus: theoremLockStatusSchema.optional(),
 });
 export type BootstrapResponse = z.infer<typeof bootstrapResponseSchema>;
 
@@ -282,6 +293,7 @@ export const studioSearchTargetKindSchema = z.enum([
   'decision',
   'comment',
   'timeline',
+  'theorem',
 ]);
 
 export const studioSearchRequestSchema = z.object({

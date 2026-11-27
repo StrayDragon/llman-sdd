@@ -21,6 +21,7 @@ import {
 import { NewTabQuickPage } from './components/NewTabQuickPage.tsx';
 import { SpecDocCanvas } from './components/SpecDocCanvas.tsx';
 import { StateMachineCanvas } from './components/StateMachineCanvas.tsx';
+import { TheoremsDrawer } from './components/TheoremsDrawer.tsx';
 import { TopChrome } from './components/TopChrome.tsx';
 import { WorldlineDrawer } from './components/WorldlineDrawer.tsx';
 import { useStudioStore } from './store/studioStore.ts';
@@ -81,6 +82,7 @@ export function App() {
     setCmdkOpen,
     setPanelFindOpen,
     setShortcutsOpen,
+    setTheoremsOpen,
     closeTour,
     navBack,
     navForward,
@@ -161,6 +163,7 @@ export function App() {
         setCmdkOpen(false);
         setPanelFindOpen(false);
         setShortcutsOpen(false);
+        setTheoremsOpen(false);
         closeTour();
         setSettingsOpen(false);
         setLinterOpen(false);
@@ -205,6 +208,7 @@ export function App() {
     setCmdkOpen,
     setPanelFindOpen,
     setShortcutsOpen,
+    setTheoremsOpen,
     closeTour,
     navBack,
     navForward,
@@ -248,6 +252,7 @@ export function App() {
 
       <BottomChrome />
       <WorldlineDrawer />
+      <TheoremsDrawer />
       <RevisionDrawer />
       <CommentPopover />
       <ChangeDagPanel />

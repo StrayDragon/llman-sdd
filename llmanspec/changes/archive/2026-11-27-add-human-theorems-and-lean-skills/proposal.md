@@ -4,6 +4,9 @@ depends_on:
   - add-studio-search-recall
   - add-studio-agent-skills
 title: "[Post-Studio] 建立人类定理（Human Theorems）只读不变量层与轻量精简 Skill 演进"
+branch: sdd/add-human-theorems-and-lean-skills
+base_branch: main
+base_sha: 1f0ea3c16549008c154bdeee4a0b792fcb8c9d29
 ---
 
 # 建立人类定理（Human Theorems）只读不变量层与轻量精简 Skill 演进

@@ -24,6 +24,7 @@ import {
   RotateCcw,
   Share2,
   Shield,
+  ShieldCheck,
   Table2,
   Undo2,
   Wrench,
@@ -61,6 +62,8 @@ export function TopChrome() {
     worldlineOpen,
     worldlineComparing,
     worldlineCompareAId,
+    theorems,
+    theoremsOpen,
     linterOpen,
     mode,
     demoMode,
@@ -76,6 +79,7 @@ export function TopChrome() {
     navForward,
     switchWorkspace,
     setWorldlineOpen,
+    setTheoremsOpen,
     toggleWorldlineCompare,
     setLinterOpen,
     setFocusStateUid,
@@ -831,9 +835,32 @@ export function TopChrome() {
           )}
         </div>
 
-        {/* Worldline Trigger (Axiom 1 Right-Anchor) + Undo/Redo + ⌘K — omitted on + Start Page (demo parity!) */}
+        {/* Worldline & Read-Only Theorems Triggers (Axiom 1 Right-Anchor) + Undo/Redo + ⌘K */}
         {!isStartPage && (
           <div className="studio-island flex items-center gap-0.5 p-[3px] text-xs">
+            {theorems.length > 0 && (
+              <button
+                type="button"
+                title="只读预览项目人类定理（llmanspec/theorems/）"
+                onClick={() => setTheoremsOpen(!theoremsOpen)}
+                className="inline-flex items-center gap-1 h-7 rounded-md px-2 text-[12px] font-medium cursor-pointer transition-colors"
+                style={{
+                  background: theoremsOpen ? 'var(--ink)' : 'transparent',
+                  color: theoremsOpen ? '#ffffff' : 'var(--ink)',
+                }}
+              >
+                <ShieldCheck size={13} />
+                <span>定理</span>
+                <span
+                  className="font-mono text-[10px] rounded px-1"
+                  style={{
+                    background: theoremsOpen ? 'rgba(255,255,255,0.2)' : 'var(--surface-subtle)',
+                  }}
+                >
+                  {theorems.length}
+                </span>
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setWorldlineOpen(!worldlineOpen)}

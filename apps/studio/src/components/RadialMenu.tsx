@@ -4,7 +4,7 @@ import { X } from 'lucide-react';
  * Renders a crisp monochrome dashed halo ring, dark central dismiss core,
  * and evenly distributed animated action petals clamped inside viewport edges.
  */
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 
 export interface RadialMenuItem {
   id: string;
@@ -22,6 +22,14 @@ interface RadialMenuProps {
 }
 
 export function RadialMenu({ x, y, items, onClose }: RadialMenuProps) {
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
+  }, [onClose]);
+
   if (items.length === 0) return null;
 
   const radius = items.length <= 3 ? 74 : items.length <= 5 ? 88 : 98;

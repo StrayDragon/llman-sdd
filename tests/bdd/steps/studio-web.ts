@@ -864,3 +864,78 @@ bdd.thenStep(
     expect(Boolean(res.fallbackJson.degradedReason)).toBe(true);
   },
 );
+
+// ── r162: Studio read-only Human Theorems bootstrap & BM25 recall ──
+
+bdd.given('一个含人类定理与封签的随机端口 Studio 本地服务', (ctx) => {
+  const { dir, hub } = createTempStudioApp();
+  mkdirSync(join(dir, 'llmanspec', 'theorems'), { recursive: true });
+  const thContent = [
+    '---',
+    'title: "边界定理"',
+    'owner: human',
+    '---',
+    '',
+    '## theorem:readonly-spec — 主干规格只读保护',
+    '- **statement**: 默认分支不得静默改写规格文件。',
+    '',
+  ].join('\n');
+  writeFileSync(join(dir, 'llmanspec', 'theorems', 'guard.md'), thContent);
+  const hash = new Bun.CryptoHasher('sha256').update(thContent).digest('hex');
+  writeFileSync(
+    join(dir, 'llmanspec', 'theorems', '.theorems.lock.json'),
+    JSON.stringify(
+      {
+        version: 1,
+        sealedAt: '2026-11-27T00:00:00.000Z',
+        files: { 'llmanspec/theorems/guard.md': hash },
+      },
+      null,
+      2,
+    ),
+  );
+  ctx.fixtures['r162App'] = { dir, hub };
+});
+
+bdd.when('请求 /api/bootstrap 与以定理关键词请求 /api/search', async (ctx) => {
+  const { dir, hub } = ctx.fixtures['r162App'] as { dir: string; hub: CreatedStudioHubApp };
+  try {
+    const bootRes = await hub.app.fetch(
+      new Request(`http://127.0.0.1:4710/api/p/${encodeURIComponent(hub.activeWsKey)}/bootstrap`, {
+        headers: { host: '127.0.0.1:4710' },
+      }),
+    );
+    const boot = bootstrapResponseSchema.parse(await bootRes.json());
+    const searchRes = await hub.app.fetch(
+      new Request(`http://127.0.0.1:4710/api/p/${encodeURIComponent(hub.activeWsKey)}/search`, {
+        method: 'POST',
+        headers: {
+          host: '127.0.0.1:4710',
+          'content-type': 'application/json',
+          'x-studio-token': hub.token,
+        },
+        body: JSON.stringify({ query: '静默改写' }),
+      }),
+    );
+    const search = studioSearchResponseSchema.parse(await searchRes.json());
+    ctx.fixtures['r162Res'] = { boot, search };
+  } finally {
+    hub.cleanup();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+bdd.thenStep(
+  'bootstrap 包含该定理与封签状态且 search 返回 targetKind 为 theorem 的命中结果',
+  (ctx) => {
+    const { boot, search } = ctx.fixtures['r162Res'] as {
+      boot: ReturnType<typeof bootstrapResponseSchema.parse>;
+      search: ReturnType<typeof studioSearchResponseSchema.parse>;
+    };
+    expect(boot.theoremLockStatus).toBe('sealed');
+    expect(boot.theorems?.some((t) => t.id === 'readonly-spec')).toBe(true);
+    expect(
+      search.hits.some((h) => h.targetKind === 'theorem' && h.targetId === 'readonly-spec'),
+    ).toBe(true);
+  },
+);
