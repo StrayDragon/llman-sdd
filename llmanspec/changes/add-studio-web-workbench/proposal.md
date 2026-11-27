@@ -1,7 +1,7 @@
 ---
 depends_on:
   - add-studio-domain-core
-title: 落地 Studio Web 单状态机交互工作台与实时依赖图视图
+title: "[MVP] 落地 Studio Web 自举交互工作台、方言引擎与实时依赖图视图"
 ---
 
 # 落地 Studio Web 单状态机交互工作台与实时依赖图视图
@@ -13,10 +13,10 @@ title: 落地 Studio Web 单状态机交互工作台与实时依赖图视图
 ## What Changes
 
 - **Web 工程底座（`apps/studio/`）**：按 `llmanspec/AGENTS.md` 约定使用 `rsbuild` + React + TypeScript，采用现代低认知负担前端架构（Zustand + `zundo` 单一状态库、TS 判别联合类型约束 5 态 UI、坐标与领域数据冷热拆表、3 层防丢态自动保存、Tailwind CSS v4 + 无头原语 + 共享 `SearchProvider` 的 `⌘K` 与 `+ 新标签页` 并预留 RAG 语义检索槽位）。
-- **自举 3 层 `studio-web` 模型与双图方言交互画布**：`studio-web` 作为首个全面拥抱本系统的自举规范样例（3 层盒中盒嵌套状态机，0 错 0 警），同时完整支撑状态机 / 流程图 / 决策真值表 / 规则文档 4 类规格闭环（0 状态表仓库默认提供友好空态引导与 `--demo` 内置自举样例）；采用极简单一纯画布 + Tab 模型、`elkjs` 布局与手拖坐标独立持久化、自环/平行边分离、时间线 `BASE→HEAD` 净 Diff 语义对冲消元与子树脏状态冒泡。
-- **全站统一 3 层交互契约、统一就近评论浮窗与方言隔离 Linter**：严格区分 Hover（只读路标）/ Left-Click（干净选中与跨重绘双击就地编辑）/ Right-Click（唯一方言动作圆盘）；所有 5 类对象（全景节点、全景连线、状态/步骤节点、下钻连线、规则/决策文档）共享同一个可拖拽的**就近评论浮窗**（统一经 `右键 → 留评论` 或点 `(N)` 角标唤起，支持新增 / 就地编辑 / 解决与重开 / 删除），右侧抽屉严格收口为 `对比 & 协商`；配套状态机（`E1–E4 + W1–W2`）与流程图（`F1–F4`）独立 Linter、TextFold 双层语义折展（内置 0-Token AST 兜底 + 可选外部 TextFold serve 代理转发）、全产品零盲复制 Prompt 预编辑工作台以及底栏「保存变更」分支写保护三出口向导。
-- **实时 `llman-sdd graph`「变更依赖」侧栏视图**：在 Studio 内提供只读、可拖拽、可独占全屏的实时「变更依赖」视图（自动反映 `llmanspec/changes/` 下的 `depends_on` 变更），采用 MIT 开源零运行时依赖的 **`obsidianmd/pele`** 直接同步渲染 Mermaid SVG 并支持 4 套亮色皮肤适配。
-- **本地按需单实例 Hub 与实时联动**：`llman-sdd studio open / serve --foreground / stop` 启动本地回环服务（`127.0.0.1`），复用 `discoverRoots()` 实现多仓 / 多 Worktree / 子项目 `llmanspec/` 隔离，通过 SSE 实时同步 `llmanspec/` 变更以及 Agent 经 CLI/MCP 写回 `.llman-sdd/studio/states/` 的评论回复与虚线红绿修订建议。
+- **自举 3 层 `studio-web` 模型、统一 `@xyflow/react` 底座与混合规格容器**：`studio-web` 作为首个全面拥抱本系统的自举规范样例（3 层盒中盒嵌套状态机，0 错 0 警），同时完整支撑状态机 / 流程图 / 决策树与真值表（0-LLM 确定性双视图）/ 规则文档 4 类规格闭环（兼容单个 `.feature` 同时含决策表与数十条规则的混合容器，0 状态表仓库默认提供友好空态引导与 `--demo` 内置自举样例）；全站交互节点图统一基于 `@xyflow/react` + `elkjs` 避障通道路由与手拖坐标独立持久化，配备双层多叉「世界线」（Git 分支/Worktree + 非破坏 `parentId`/`actor` 微树）与真实画布 1:1 实时叠加对比、时间线净 Diff 语义对冲消元及子树脏状态冒泡。
+- **人类优先交互、5 条设计真言与全站统一就近评论浮窗**：Web 界面 100% 面向人类交互，固化 **5 条可机检设计真言**（触点同侧展开、顶栏浮层单槽互斥、默认连线零穿卡、连线与标签互斥且支持手拖微调、领域分组排他隔离）；坚持做减法（2 套亮色皮肤、3 种连线、2 个界面开关、可选 TextFold 外部服务收口于设置，无左侧竖条工具栏与缩放自动变密度）；严格区分 Hover / Left-Click / Right-Click；5 类对象（主视图卡片、主视图连线、状态/步骤节点、下钻连线、规则/决策文档）共享统一可拖拽就近评论浮窗（`右键 → 留评论` 或点 `(N)` 角标唤起）；配套方言隔离 Linter、验证硬度分级（`仅文档 / 已绑测试 / 防漂移 / 形式化`）、Scheme C 统一草稿保存分流、全产品零盲复制「生成调整 Prompt」预编辑工作台以及底栏「保存变更」分支写保护三出口向导。
+- **实时 `llman-sdd graph`「变更依赖」侧栏视图**：在 Studio 内提供只读、可拖拽、可独占全屏的实时「变更依赖」视图（自动反映 `llmanspec/changes/` 下的 `depends_on` 变更），采用 MIT 开源零运行时依赖的 **`obsidianmd/pele`** 直接同步渲染 Mermaid SVG 并适配 2 套亮色皮肤。
+- **本地按需单实例 Hub、HTTP `GET` 内容协商与实时联动**：`llman-sdd studio open / serve --foreground / stop` 启动本地回环服务（`127.0.0.1`），复用 `discoverRoots()` 实现多仓 / 多 Worktree / 子项目 `llmanspec/` 隔离；`/p/:wsKey/...` Deep-Link 原生支持透明 HTTP `GET` 内容协商（浏览器返回 SPA + 内嵌 `<script id="studio-focus-context">`，非浏览器 Agent `fetch`/`curl` 默认返回精简 Markdown + `?format=json` 路由提示），保持 Agent 侧轻量 `fetch` + CLI + Skills 交互通道，并通过 SSE 实时同步 `llmanspec/` 与 `.llman-sdd/studio/states/` 变更。
 
 ## Capabilities
 

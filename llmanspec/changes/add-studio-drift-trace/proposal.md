@@ -2,7 +2,7 @@
 depends_on:
   - add-studio-domain-core
   - add-studio-web-workbench
-title: 建立跨语言 Runtime Trace 漂移对账与反向建议 Diff 闭环
+title: "[MVP] 建立跨语言 Runtime Trace 漂移对账与反向建议 Diff 闭环"
 ---
 
 # 建立跨语言 Runtime Trace 漂移对账与反向建议 Diff 闭环
