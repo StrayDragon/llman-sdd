@@ -177,3 +177,24 @@ flowchart LR
 - 同批并行 change 的 `llmanspec/specs/` 必须两两不相交;触碰同一代码文件的改动不得并行
 - worktree 内 `just qa`;合并顺序由 main worktree 串行执行
 - 多 agent 拉起:`wt switch sdd/<id> -x <agent-cli>`;监控 `wt list` / `wt step for-each`
+
+## 演进路线:人类定理与轻量技能
+
+核心目标:增强开发者体验(DX)。随着模型变强,技能减少微观步骤规定,重心收敛到**什么必须成立**与**什么不得被擅自改变**;能自动化的约束下沉到类型、测试、脚本或合并门禁,不把 AI 自检当作唯一保证。
+
+```mermaid
+flowchart LR
+  HT["人类定理(只读硬不变量)"] -->|"OS 权限锁 / 只读注入"| Agent["Agent 会话与轻量 Skills"]
+  SP["llmanspec/specs/(随需求演进)"] --> Agent
+  Agent --> Gate["类型 / 测试 / 脚本 / 合并门禁"]
+  HT --> Studio["Studio 交互预览与高召回检索"]
+  SP --> Studio
+```
+
+| 层 | 变更权 | 定位 | 约束落点 |
+| --- | --- | --- | --- |
+| 人类定理(Human Theorems) | 仅人类(可选只读/`root` 权限锁) | 迭代沉淀的少量高杠杆硬不变量(数据归属、接口兼容、模块边界、资源底线) | 文档宣言 + 可选可执行门禁;全员只读注入与 Studio 预览 |
+| 行为规格(`llmanspec/specs/`) | 人类与 Agent 协作演进 | 顺应需求迭代的可执行行为合约与活产品说明 | Gherkin 规格 + BDD/单测 + Studio 可视化协商 |
+| 轻量技能(`llman-sdd-*`) | 随强模型持续瘦身 | 少管过程细枝末节,守住不变量、事实来源与验证门禁 | `packages/core/templates/` 精简迭代 |
+
+- 人类定理与精简技能的具体落地排在 Studio 体系完善之后(见 `llman-sdd list` 中 `add-human-theorems-and-lean-skills` 草案)
