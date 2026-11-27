@@ -5,6 +5,7 @@
  */
 import { z } from 'zod';
 
+import { forestEdgeEvidenceSchema, studioViewsDocSchema } from './forest.ts';
 import { studioStateDocSchema } from './store.ts';
 
 export const studioGraphKindSchema = z.enum(['machine', 'flow']);
@@ -76,8 +77,20 @@ export const specIndexEdgeSchema = z.object({
   to: z.string().min(1),
   label: z.string(),
   kind: z.enum(['spec-ref', 'manual']),
+  evidence: z.array(forestEdgeEvidenceSchema).optional(),
 });
 export type SpecIndexEdge = z.infer<typeof specIndexEdgeSchema>;
+
+export const putViewsRequestSchema = z.object({
+  viewsDoc: studioViewsDocSchema,
+});
+export type PutViewsRequest = z.infer<typeof putViewsRequestSchema>;
+
+export const viewsResponseSchema = z.object({
+  ok: z.literal(true),
+  viewsDoc: studioViewsDocSchema,
+});
+export type ViewsResponse = z.infer<typeof viewsResponseSchema>;
 
 export const bootstrapResponseSchema = z.object({
   workspace: workspaceItemSchema,
@@ -237,6 +250,11 @@ export const studioSseEventSchema = z.discriminatedUnion('type', [
     wsKey: z.string(),
     branch: z.string(),
     protected: z.boolean(),
+  }),
+  z.object({
+    type: z.literal('views-updated'),
+    wsKey: z.string(),
+    originClientId: z.string().nullable(),
   }),
   z.object({
     type: z.literal('ping'),

@@ -11,6 +11,7 @@ import {
   specDetailResponseSchema,
   studioSseEventSchema,
   textfoldResponseSchema,
+  viewsResponseSchema,
   workspacesResponseSchema,
   type BootstrapResponse,
   type EdgeBendOffset,
@@ -22,7 +23,9 @@ import {
   type SpecDetailResponse,
   type StudioSseEvent,
   type StudioStateDoc,
+  type StudioViewsDoc,
   type TextfoldResponse,
+  type ViewsResponse,
   type WorkspacesResponse,
 } from '@llman-sdd/core/studio';
 
@@ -196,15 +199,38 @@ export class StudioApiClient {
     return textfoldResponseSchema.parse(await res.json());
   }
 
+  async fetchViews(wsKey?: string): Promise<ViewsResponse> {
+    const url = wsKey ? `/api/p/${encodeURIComponent(wsKey)}/views` : '/api/views';
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`GET ${url} failed (${String(res.status)})`);
+    return viewsResponseSchema.parse(await res.json());
+  }
+
+  async putViews(
+    viewsDoc: StudioViewsDoc,
+    wsKey?: string,
+    opts?: { keepalive?: boolean },
+  ): Promise<ViewsResponse> {
+    const url = wsKey ? `/api/p/${encodeURIComponent(wsKey)}/views` : '/api/views';
+    const res = await fetch(url, {
+      method: 'PUT',
+      headers: this.writeHeaders(),
+      body: JSON.stringify({ viewsDoc }),
+      keepalive: opts?.keepalive === true,
+    });
+    if (!res.ok) throw new Error(`PUT ${url} failed (${String(res.status)})`);
+    return viewsResponseSchema.parse(await res.json());
+  }
+
   subscribeEvents(onEvent: (event: StudioSseEvent) => void): () => void {
     const es = new EventSource('/api/events');
     const handle = (ev: MessageEvent<string>): void => {
       try {
         const parsed = studioSseEventSchema.safeParse(JSON.parse(ev.data));
         if (!parsed.success) return;
-        // Self-echo suppression: ignore our own state write echo
+        // Self-echo suppression: ignore our own state/views write echo
         if (
-          parsed.data.type === 'state-updated' &&
+          (parsed.data.type === 'state-updated' || parsed.data.type === 'views-updated') &&
           parsed.data.originClientId === STUDIO_CLIENT_ID
         ) {
           return;
@@ -215,6 +241,7 @@ export class StudioApiClient {
       }
     };
     es.addEventListener('state-updated', handle as EventListener);
+    es.addEventListener('views-updated', handle as EventListener);
     es.addEventListener('specs-changed', handle as EventListener);
     es.addEventListener('git-head-changed', handle as EventListener);
     return () => es.close();

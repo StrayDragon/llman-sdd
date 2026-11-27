@@ -24,8 +24,8 @@ import {
   acceptRevisionProposal,
   buildDemoStudioDrafts,
   buildDemoStudioWebDrafts,
+  buildForestGraph,
   buildProposalDraft,
-  buildReqRegistry,
   computeMachineDiff,
   createStudioStateDoc,
   currentBranch,
@@ -46,7 +46,9 @@ import {
   previewFeatureUnifiedDiff,
   putLayoutRequestSchema,
   putStateRequestSchema,
+  putViewsRequestSchema,
   readStudioState,
+  readStudioViews,
   registerWorkspaceRequestSchema,
   rejectRevisionProposal,
   renderUpdatedFeatureSource,
@@ -57,6 +59,7 @@ import {
   validateStateId,
   worktreeList,
   writeStudioState,
+  writeStudioViews,
   type BootstrapResponse,
   type HealthResponse,
   type SpecDetailResponse,
@@ -229,99 +232,39 @@ function buildSpecIndex(
   edges: SpecIndexEdge[];
   staleFiles: string[];
 } {
-  const extracted = extractStudioMachines(entries);
-  const machinesByCap = new Map<string, string[]>();
-  for (const m of extracted) {
-    const cap = m.machine.capability;
-    const list = machinesByCap.get(cap) ?? [];
-    list.push(m.machine.machineKey);
-    machinesByCap.set(cap, list);
-  }
-
-  const registry = buildReqRegistry(entries);
-  const reqToCap = new Map<string, string>();
-  for (const [reqId, occs] of registry.byId.entries()) {
-    const first = occs[0];
-    if (!first) continue;
-    const owner = entries.find((e) => e.fileName === first.fileName);
-    if (owner) reqToCap.set(reqId, specIdOf(owner));
-  }
-
-  const specs: SpecIndexItem[] = [];
-  const edges: SpecIndexEdge[] = [];
+  const forest = buildForestGraph(entries);
   const staleFiles: string[] = [];
-  const seenEdges = new Set<string>();
-  let edgeSeq = 0;
 
-  for (const entry of entries) {
-    const id = specIdOf(entry);
-    const machineKeys = machinesByCap.get(id) ?? [];
-    const decisionTables = extractDecisionTables(entry.doc);
-    const kind: SpecIndexItem['kind'] =
-      machineKeys.length > 0 ? 'machine' : decisionTables.length > 0 ? 'decision' : 'doc';
-
-    const ruleCount = entry.doc.rules.length;
-    const scenarioCount =
-      entry.doc.rules.reduce((sum, r) => sum + r.scenarios.length, 0) + entry.doc.orphans.length;
-    const runnableRules = entry.doc.rules.filter((r) => ruleHasRunnableScenario(r)).length;
-    const hardness: SpecIndexItem['hardness'] =
-      machineKeys.length > 0 ? 'drift-guarded' : runnableRules > 0 ? 'tested' : 'doc';
-
-    const levels = foldFeatureAst(entry.doc);
-    const reqPreview = entry.doc.rules
-      .map((r) => `@req:${r.reqId}`)
-      .filter((x) => x !== '@req:')
-      .slice(0, 3);
-    const tags = Array.from(
-      new Set(entry.doc.rules.flatMap((r) => r.tags.map((t) => (t.startsWith('#') ? t : `#${t}`)))),
-    ).slice(0, 6);
-
-    const rawSource = readSpecSource(instanceRoot, entry.fileName);
-    const expectedHash = stateDoc.baseHashes?.[entry.fileName];
+  const specs: SpecIndexItem[] = forest.nodes.map((node) => {
+    const rawSource = readSpecSource(instanceRoot, node.file);
+    const expectedHash = stateDoc.baseHashes?.[node.file];
     const stale = expectedHash !== undefined && expectedHash !== sha256Hex(rawSource);
-    if (stale) staleFiles.push(entry.fileName);
-
-    specs.push({
-      id,
-      title: id,
-      file: entry.fileName,
-      kind,
-      hardness,
-      ruleCount,
-      scenarioCount,
-      decisionTableCount: decisionTables.length,
-      machineKeys,
-      summary: levels[3],
-      reqPreview,
-      tags,
+    if (stale) staleFiles.push(node.file);
+    return {
+      id: node.id,
+      title: node.title,
+      file: node.file,
+      kind: node.kind,
+      hardness: node.hardness,
+      ruleCount: node.ruleCount,
+      scenarioCount: node.scenarioCount,
+      decisionTableCount: node.decisionTableCount,
+      machineKeys: node.machineKeys,
+      summary: node.summary,
+      reqPreview: node.reqPreview,
+      tags: node.tags,
       stale,
-    });
+    };
+  });
 
-    // Cross-spec @req:<id> edges (0-Token, upstream-clause aware: "前置/依赖 ... @req:id" -> targetCap -> id)
-    const bodyText = entry.doc.rules.map((r) => `${r.title}\n${r.description}`).join('\n');
-    for (const clause of bodyText.split(/[。；;\n]/u)) {
-      const isUpstreamClause = /(前置|依赖|上游|based on|depends on|upstream)/iu.test(clause);
-      for (const match of clause.matchAll(/@req:([a-zA-Z0-9_-]+)/gu)) {
-        const targetReq = match[1];
-        if (!targetReq) continue;
-        const targetCap = reqToCap.get(targetReq);
-        if (!targetCap || targetCap === id) continue;
-        const fromCap = isUpstreamClause ? targetCap : id;
-        const toCap = isUpstreamClause ? id : targetCap;
-        const dedupeKey = `${fromCap}->${toCap}:${targetReq}`;
-        if (seenEdges.has(dedupeKey)) continue;
-        seenEdges.add(dedupeKey);
-        edgeSeq += 1;
-        edges.push({
-          id: `ref_${String(edgeSeq)}`,
-          from: fromCap,
-          to: toCap,
-          label: `@req:${targetReq}`,
-          kind: 'spec-ref',
-        });
-      }
-    }
-  }
+  const edges: SpecIndexEdge[] = forest.edges.map((e) => ({
+    id: e.id,
+    from: e.from,
+    to: e.to,
+    label: e.label,
+    kind: e.kind,
+    evidence: e.evidence,
+  }));
 
   return { specs, edges, staleFiles };
 }
@@ -950,6 +893,72 @@ export function createStudioHubApp(options: StudioHubOptions): CreatedStudioHubA
     );
     renameSync(tmp, target);
     return c.json({ ok: true, machineKey: key });
+  });
+
+  // --- Workspace-Isolated Custom Forest Tab Views (.llman-sdd/studio/views.json, studio-web r154) ---
+  const handleGetViews = (wsKeyParam?: string) => {
+    const rec = resolveWs(wsKeyParam);
+    if (!rec) return { status: 404 as const, body: { error: 'workspace not found' } };
+    const viewsIo = makeNodeStudioStateIo(rec.item.instanceRoot);
+    try {
+      const viewsDoc = readStudioViews(viewsIo);
+      return { status: 200 as const, body: { ok: true as const, viewsDoc } };
+    } catch (error) {
+      return {
+        status: 400 as const,
+        body: { error: error instanceof Error ? error.message : String(error) },
+      };
+    }
+  };
+
+  app.get('/api/views', (c) => {
+    const res = handleGetViews(c.req.query('wsKey'));
+    return c.json(res.body, res.status);
+  });
+
+  app.get('/api/p/:wsKey/views', (c) => {
+    const res = handleGetViews(c.req.param('wsKey'));
+    return c.json(res.body, res.status);
+  });
+
+  const handlePutViews = (
+    wsKeyParam: string | undefined,
+    rawBody: unknown,
+    clientIdHeader: string | undefined,
+  ) => {
+    const rec = resolveWs(wsKeyParam);
+    if (!rec) return { status: 404 as const, body: { error: 'workspace not found' } };
+    const parsed = putViewsRequestSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return {
+        status: 400 as const,
+        body: { error: 'invalid StudioViewsDoc payload', issues: parsed.error.issues },
+      };
+    }
+    const viewsIo = makeNodeStudioStateIo(rec.item.instanceRoot);
+    const nextDoc = {
+      ...parsed.data.viewsDoc,
+      updatedAt: new Date().toISOString(),
+    };
+    writeStudioViews(viewsIo, nextDoc);
+    broadcastEvent({
+      type: 'views-updated',
+      wsKey: rec.item.wsKey,
+      originClientId: clientIdHeader ?? null,
+    });
+    return { status: 200 as const, body: { ok: true as const, viewsDoc: nextDoc } };
+  };
+
+  app.put('/api/views', async (c) => {
+    const raw = (await c.req.json().catch(() => null)) as unknown;
+    const res = handlePutViews(c.req.query('wsKey'), raw, c.req.header('x-studio-client-id'));
+    return c.json(res.body, res.status);
+  });
+
+  app.put('/api/p/:wsKey/views', async (c) => {
+    const raw = (await c.req.json().catch(() => null)) as unknown;
+    const res = handlePutViews(c.req.param('wsKey'), raw, c.req.header('x-studio-client-id'));
+    return c.json(res.body, res.status);
   });
 
   // --- Agent Revision Accept / Reject ---

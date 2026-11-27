@@ -2,7 +2,12 @@
  * Exclusive Domain Group classifier & spatial band packer for Main View (Axiom 5).
  * Ensures every spec belongs to at most ONE visual domain group with zero overlapping frames.
  */
-import type { SpecIndexItem } from '@llman-sdd/core/studio';
+import type {
+  ForestEdgeEvidence,
+  SpecIndexEdge,
+  SpecIndexItem,
+  StudioManualGroup,
+} from '@llman-sdd/core/studio';
 
 export type GroupTone = 'blue' | 'teal' | 'violet' | 'amber';
 
@@ -220,5 +225,137 @@ export function layoutMainViewWithGroups(
     };
   });
 
+  // Enforce Exclusive Space Guard (Axiom 5 / r155): guarantee NO group box ever encloses a non-member!
+  enforceExclusiveGroupSpaces(specPositions, groupBoxes, cardW, cardH);
+
   return { specPositions, groupBoxes };
+}
+
+/**
+ * Merge workspace manual groups with auto-detected exclusive domain groups (manual groups win first).
+ */
+export function buildExclusiveDomainGroupsWithManual(
+  specs: SpecIndexItem[],
+  manualGroups: readonly StudioManualGroup[],
+  ungroupedDomains: Set<string>,
+): {
+  groups: VisualDomainGroup[];
+  ungroupedIds: string[];
+} {
+  const specIds = new Set(specs.map((s) => s.id));
+  const assigned = new Set<string>();
+  const custom: VisualDomainGroup[] = [];
+
+  manualGroups.forEach((mg, idx) => {
+    const members = mg.capabilities.filter((id) => specIds.has(id) && !assigned.has(id));
+    if (members.length === 0) return;
+    for (const id of members) assigned.add(id);
+    const tone: GroupTone =
+      mg.tone === 'blue' || mg.tone === 'teal' || mg.tone === 'violet' || mg.tone === 'amber'
+        ? mg.tone
+        : FALLBACK_TONES[idx % FALLBACK_TONES.length]!;
+    if (!ungroupedDomains.has(mg.id)) {
+      custom.push({ id: mg.id, title: mg.title, tone, memberIds: members });
+    }
+  });
+
+  const remainingSpecs = specs.filter((s) => !assigned.has(s.id));
+  const auto = buildExclusiveDomainGroups(remainingSpecs, ungroupedDomains);
+  return {
+    groups: [...custom, ...auto.groups],
+    ungroupedIds: auto.ungroupedIds,
+  };
+}
+
+/**
+ * Exclusive Space Guard (studio-web r155):
+ * Ensures no domain group bounding box ever overlaps or mistakenly encloses any non-member spec card.
+ * Displaces offending non-member cards cleanly below all conflicting group frames.
+ */
+export function enforceExclusiveGroupSpaces(
+  specPositions: Record<string, { x: number; y: number }>,
+  groupBoxes: GroupLayoutResult['groupBoxes'],
+  cardW: number,
+  cardH: number,
+  margin = 20,
+): void {
+  const expandedBoxes = groupBoxes.filter((gb) => !gb.collapsed);
+  if (expandedBoxes.length === 0) return;
+
+  const overlapsBox = (
+    pos: { x: number; y: number },
+    gb: GroupLayoutResult['groupBoxes'][number],
+  ): boolean =>
+    pos.x < gb.x + gb.width + margin &&
+    pos.x + cardW > gb.x - margin &&
+    pos.y < gb.y + gb.height + margin &&
+    pos.y + cardH > gb.y - margin;
+
+  for (const [specId, pos] of Object.entries(specPositions)) {
+    let cur = { ...pos };
+    for (let pass = 0; pass < 6; pass += 1) {
+      const hit = expandedBoxes.find(
+        (gb) => !gb.group.memberIds.includes(specId) && overlapsBox(cur, gb),
+      );
+      if (!hit) break;
+      cur = { x: cur.x, y: Math.round(hit.y + hit.height + margin + 12) };
+    }
+    specPositions[specId] = cur;
+  }
+}
+
+/**
+ * Compute 1-hop external capability ids connected to a custom Forest Tab's included subset.
+ */
+export function computeOneHopExternalCaps(
+  includedIds: readonly string[],
+  macroEdges: readonly SpecIndexEdge[],
+): string[] {
+  const base = new Set(includedIds);
+  const ext = new Set<string>();
+  for (const e of macroEdges) {
+    if (base.has(e.from) && !base.has(e.to)) ext.add(e.to);
+    if (base.has(e.to) && !base.has(e.from)) ext.add(e.from);
+  }
+  return Array.from(ext);
+}
+
+/**
+ * Compute direct 1-hop adjacency set around a focal capability for large-graph Focus Adjacency mode.
+ */
+export function computeFocusAdjacencySet(
+  focalCapId: string,
+  macroEdges: readonly SpecIndexEdge[],
+): Set<string> {
+  const set = new Set<string>([focalCapId]);
+  for (const e of macroEdges) {
+    if (e.from === focalCapId) set.add(e.to);
+    if (e.to === focalCapId) set.add(e.from);
+  }
+  return set;
+}
+
+/**
+ * Extract cross-spec contract evidence list for an upstream/downstream Boundary Portal pill.
+ */
+export function extractPortalEvidence(
+  currentCapId: string,
+  direction: 'upstream' | 'downstream',
+  portalCapId: string,
+  macroEdges: readonly SpecIndexEdge[],
+): ForestEdgeEvidence[] {
+  const matched = macroEdges.filter((e) =>
+    direction === 'upstream'
+      ? e.from === portalCapId && e.to === currentCapId
+      : e.from === currentCapId && e.to === portalCapId,
+  );
+  const out: ForestEdgeEvidence[] = [];
+  for (const edge of matched) {
+    if (edge.evidence && edge.evidence.length > 0) {
+      out.push(...edge.evidence);
+    } else {
+      out.push({ summary: `${edge.from} -> ${edge.to} (${edge.label})` });
+    }
+  }
+  return out;
 }

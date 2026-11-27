@@ -1,16 +1,20 @@
 // BDD acceptance steps for llmanspec/specs/studio-core.feature (r128-r133).
 import {
   STUDIO_STATES_REL,
+  STUDIO_VIEWS_REL,
   acceptRevisionProposal,
   applyDriftProposalsToStateDoc,
   buildDemoReimbursementDraft,
   buildDemoStudioDrafts,
   buildDriftSlicePacket,
+  buildForestGraph,
   buildProposalDraft,
   cloneMachineIR,
+  computeCrossForestBridges,
   computeMachineDiff,
   createMachineDraft,
   createStudioStateDoc,
+  defaultStudioViewsDoc,
   extractStudioMachines,
   formatSemanticDiff,
   hasBlockingDiagnostics,
@@ -21,13 +25,16 @@ import {
   previewRevisionProposal,
   proposeRevision,
   readStudioState,
+  readStudioViews,
   reconcileRuntimeTrace,
   recordTimelineCommit,
   renderUpdatedFeatureSource,
   rollbackTimeline,
   validateCapability,
+  validateForestIsolation,
   validateMachineGraph,
   writeStudioState,
+  writeStudioViews,
   type MachineDiagnostic,
   type MachineDraft,
   type MachineSemanticDiff,
@@ -35,6 +42,7 @@ import {
   type StudioMachineIR,
   type StudioStateDoc,
   type StudioStateIo,
+  type StudioViewsIo,
 } from '@llman-sdd/core';
 
 import { bdd } from '../runner.ts';
@@ -583,5 +591,113 @@ bdd.thenStep('最小切片仅包含命中 @llmanspec: 锚点的 hunk 与对应�
     slice.impactedSpecs[0]?.reqId !== 'r12'
   ) {
     throw new Error(`unexpected drift slice packet: ${JSON.stringify(slice)}`);
+  }
+});
+
+// --- r153 ---
+bdd.given(
+  '包含状态机、决策表、规则文档与孤立规格的 spec 集合及内存态 StudioViewsIo 夹具',
+  (ctx) => {
+    const entries: SpecEntry[] = [
+      {
+        specId: 'order',
+        fileName: 'llmanspec/specs/order.feature',
+        doc: parseCapability(
+          `# language: zh-CN\n# purpose: 订单状态机\n功能: order\n  @req:r10\n  规则: 订单\n    前置依赖 @req:r20。\n    @transitions\n    场景大纲: 流程\n      假如 <from>\n      当 <event>\n      那么 <to>\n      例子:\n        | from | event | to |\n        | 待支付 | 支付 | 已支付 |\n`,
+          'llmanspec/specs/order.feature',
+        ),
+      },
+      {
+        specId: 'risk',
+        fileName: 'llmanspec/specs/risk.feature',
+        doc: parseCapability(
+          `# language: zh-CN\n# purpose: 风控决策表\n功能: risk\n  @req:r20\n  规则: 风控\n    判定。\n    场景大纲: 表\n      假如 <c>\n      当 判\n      那么 <r>\n      例子:\n        | c | r |\n        | 高 | 通过 |\n        | 低 | 拦截 |\n`,
+          'llmanspec/specs/risk.feature',
+        ),
+      },
+      {
+        specId: 'orphan',
+        fileName: 'llmanspec/specs/orphan.feature',
+        doc: parseCapability(
+          `# language: zh-CN\n# purpose: 孤立规则\n功能: orphan\n  @req:r30\n  规则: 孤立\n    无跨能力引用。\n`,
+          'llmanspec/specs/orphan.feature',
+        ),
+      },
+    ];
+    const files = new Map<string, string>();
+    const renames: Array<{ from: string; to: string }> = [];
+    const io: StudioViewsIo = {
+      exists: (p) => files.has(p),
+      readText: (p) => files.get(p) ?? '',
+      writeText: (p, t) => {
+        files.set(p, t);
+      },
+      rename: (from, to) => {
+        files.set(to, files.get(from) ?? '');
+        files.delete(from);
+        renames.push({ from, to });
+      },
+      mkdirp: () => {},
+      currentPid: () => 2026,
+      now: () => new Date('2026-11-27T00:00:00Z'),
+    };
+    ctx.fixtures['r153Input'] = { entries, io, renames };
+  },
+);
+
+bdd.when(
+  '运行 buildForestGraph、computeCrossForestBridges、validateForestIsolation 与原子写入 views.json',
+  (ctx) => {
+    const { entries, io } = ctx.fixtures['r153Input'] as {
+      entries: SpecEntry[];
+      io: StudioViewsIo;
+    };
+    const graph = buildForestGraph(entries);
+    const bridges = computeCrossForestBridges(graph, [
+      { id: 'g1', capabilities: ['order'] },
+      { id: 'g2', capabilities: ['risk'] },
+    ]);
+    const diags = validateForestIsolation(graph);
+    const doc = defaultStudioViewsDoc('2026-11-27T00:00:00Z');
+    const savedRel = writeStudioViews(io, doc);
+    const reloaded = readStudioViews(io);
+    ctx.fixtures['r153Result'] = { graph, bridges, diags, savedRel, reloaded };
+  },
+);
+
+bdd.thenStep('节点分类权重与自动实线 evidence 准确提取且交叉桥仅命中跨组契约边', (ctx) => {
+  const { graph, bridges } = ctx.fixtures['r153Result'] as {
+    graph: ReturnType<typeof buildForestGraph>;
+    bridges: ReturnType<typeof computeCrossForestBridges>;
+  };
+  const byId = new Map(graph.nodes.map((n) => [n.id, n]));
+  if (byId.get('order')?.kind !== 'machine' || byId.get('risk')?.kind !== 'decision') {
+    throw new Error(`unexpected node kinds: ${JSON.stringify(graph.nodes)}`);
+  }
+  if (graph.edges.length !== 1 || graph.edges[0]?.evidence[0]?.targetReqId !== 'r20') {
+    throw new Error(`missing evidence on forest edge: ${JSON.stringify(graph.edges)}`);
+  }
+  if (bridges.bridges.length !== 1 || bridges.bridges[0]?.from !== 'risk') {
+    throw new Error(`unexpected bridges: ${JSON.stringify(bridges)}`);
+  }
+});
+
+bdd.thenStep('孤立规格产出 W3 警告且 views.json 经临时文件原子替换校验通过', (ctx) => {
+  const { renames } = ctx.fixtures['r153Input'] as { renames: Array<{ from: string; to: string }> };
+  const { diags, savedRel, reloaded } = ctx.fixtures['r153Result'] as {
+    diags: ReturnType<typeof validateForestIsolation>;
+    savedRel: string;
+    reloaded: ReturnType<typeof readStudioViews>;
+  };
+  if (diags.length !== 1 || diags[0]?.code !== 'W3' || diags[0]?.capability !== 'orphan') {
+    throw new Error(`expected W3 on orphan, got ${JSON.stringify(diags)}`);
+  }
+  if (
+    savedRel !== STUDIO_VIEWS_REL ||
+    renames.length !== 1 ||
+    !renames[0]?.from.includes('.views.tmp.') ||
+    reloaded.views.length !== 1
+  ) {
+    throw new Error('views.json atomic write/read verification failed');
   }
 });

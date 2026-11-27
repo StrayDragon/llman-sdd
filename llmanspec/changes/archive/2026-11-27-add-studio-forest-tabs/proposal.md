@@ -2,6 +2,9 @@
 depends_on:
   - add-studio-web-workbench
 title: "[MVP] 扩展多工作区隔离全景森林、领域分组框选与多 Tab 视图"
+branch: sdd/add-studio-forest-tabs
+base_branch: main
+base_sha: 0e290b473830c68138a0ca51fdfe3912ffcf176f
 ---
 
 # 扩展多 Tab 业务森林组合、宏观星图与边界保留下钻

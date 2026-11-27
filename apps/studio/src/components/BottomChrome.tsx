@@ -59,6 +59,7 @@ export function BottomChrome() {
     mode,
     simSession,
     simGuards,
+    focusAdjacencyCapId,
     setTier,
     setSkin,
     setEdgePreset,
@@ -79,12 +80,17 @@ export function BottomChrome() {
     toggleSimGuard,
     openPromptWorkbench,
     buildNegotiationPrompt,
+    updateActiveForestView,
+    setFocusAdjacencyCapId,
+    getActiveForestView,
     getActiveMachineKey,
   } = useStudioStore();
 
   const [tfMode, setTfMode] = useState<'local' | 'serve'>(textfoldEndpoint ? 'serve' : 'local');
 
   const activeTab = tabs.find((t) => t.id === activeTabId);
+  const isForestView = activeTab?.kind === 'macro' || activeTab?.kind === 'forest';
+  const activeForestView = getActiveForestView();
   const activeMachineKey = getActiveMachineKey();
   const pendingRevisions = (stateDoc?.revisions ?? []).filter((r) => r.status === 'pending');
   const openCommentsCount = (stateDoc?.comments ?? []).filter((c) => c.status === 'open').length;
@@ -110,7 +116,7 @@ export function BottomChrome() {
     <>
       {/* Bottom-Left Stack: Tinted Legend + Integrated Zoom/Fit + Tier + Settings SSOT */}
       <div className="fixed bottom-3 left-3 z-30 flex flex-col items-start gap-2">
-        {showLegend && activeTab?.kind === 'macro' && (
+        {showLegend && isForestView && (
           <div className="studio-island flex items-center gap-1 px-2 py-1 text-[11px]">
             {legendItems.map(({ kind, label, Icon, count }) => {
               const on = legendKindFilter.has(kind);
@@ -568,9 +574,68 @@ export function BottomChrome() {
               <span>保存变更</span>
             </button>
           </>
+        ) : activeTab?.kind === 'new-tab' ? (
+          <span className="px-2 py-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>
+            按当前工作区实时检索规格与标签
+          </span>
         ) : (
-          /* Clean Main View Dock */
+          /* Clean Main / Custom Forest View Dock */
           <>
+            {activeTab?.kind === 'forest' && (
+              <>
+                <button
+                  type="button"
+                  onClick={() =>
+                    updateActiveForestView({
+                      showExternalHops: !activeForestView.showExternalHops,
+                    })
+                  }
+                  className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11.5px] cursor-pointer"
+                  style={{
+                    borderColor: activeForestView.showExternalHops
+                      ? 'var(--accent)'
+                      : 'var(--border)',
+                    background: activeForestView.showExternalHops
+                      ? 'var(--accent-soft)'
+                      : 'transparent',
+                    color: activeForestView.showExternalHops
+                      ? 'var(--accent)'
+                      : 'var(--text-secondary)',
+                  }}
+                >
+                  <span>+ 外部 1 跳接口</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    updateActiveForestView({ bridgeOnly: !activeForestView.bridgeOnly })
+                  }
+                  className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11.5px] cursor-pointer"
+                  style={{
+                    borderColor: activeForestView.bridgeOnly ? 'var(--ink)' : 'var(--border)',
+                    background: activeForestView.bridgeOnly ? 'var(--ink)' : 'transparent',
+                    color: activeForestView.bridgeOnly ? '#ffffff' : 'var(--text-secondary)',
+                  }}
+                >
+                  <span>交叉桥</span>
+                </button>
+                <div className="w-px h-4 mx-0.5" style={{ background: 'var(--border)' }} />
+              </>
+            )}
+            {focusAdjacencyCapId && (
+              <button
+                type="button"
+                onClick={() => setFocusAdjacencyCapId(null)}
+                className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11.5px] cursor-pointer"
+                style={{
+                  borderColor: 'var(--accent)',
+                  background: 'var(--accent-soft)',
+                  color: 'var(--accent)',
+                }}
+              >
+                <span>+ 展开其余非邻接节点</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setDagPanelOpen(true)}

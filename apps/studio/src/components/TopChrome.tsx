@@ -17,6 +17,7 @@ import {
   Crosshair,
   FileText,
   GitBranch,
+  Layers,
   Pin,
   Plus,
   Redo2,
@@ -86,6 +87,7 @@ export function TopChrome() {
     decideRevision,
     openPromptWorkbench,
     openMachineTab,
+    openNewTabPage,
     getActiveMachineKey,
     getDiagnosticsForMachine,
   } = useStudioStore();
@@ -354,9 +356,13 @@ export function TopChrome() {
                 ? Pin
                 : tab.kind === 'machine'
                   ? Workflow
-                  : tab.title.includes('lifecycle')
-                    ? Table2
-                    : FileText;
+                  : tab.kind === 'forest'
+                    ? Layers
+                    : tab.kind === 'new-tab'
+                      ? Plus
+                      : tab.title.includes('lifecycle')
+                        ? Table2
+                        : FileText;
               const dropCls =
                 dropIndicator?.id === tab.id
                   ? dropIndicator.before
@@ -433,8 +439,8 @@ export function TopChrome() {
             })}
             <button
               type="button"
-              title="打开新规格标签页 (⌘K)"
-              onClick={() => setCmdkOpen(true)}
+              title="打开新标签页（按当前工作区动态聚合规格与标签）"
+              onClick={openNewTabPage}
               className="w-7 h-7 inline-flex items-center justify-center rounded-md hover:bg-black/5 cursor-pointer shrink-0"
               style={{ color: 'var(--text-secondary)' }}
             >

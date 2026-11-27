@@ -12,6 +12,7 @@ import {
   addStudioComment,
   cloneMachineIR,
   computeMachineDiff,
+  defaultStudioViewsDoc,
   deleteStudioComment,
   editStudioComment,
   formatSemanticDiff,
@@ -33,6 +34,8 @@ import {
   type SpecIndexItem,
   type StudioMachineIR,
   type StudioStateDoc,
+  type StudioTabView,
+  type StudioViewsDoc,
   type WorkspaceItem,
 } from '@llman-sdd/core/studio';
 import { create } from 'zustand';
@@ -47,7 +50,7 @@ import {
 
 export type StudioSkin = 'linear' | 'washi';
 export type CardTier = 'glyph' | 'map' | 'detail';
-export type StudioViewKind = 'macro' | 'machine' | 'doc';
+export type StudioViewKind = 'macro' | 'machine' | 'doc' | 'forest' | 'new-tab';
 export type StudioMode = 'explore' | 'simulate';
 
 export interface OpenTab {
@@ -158,6 +161,11 @@ export interface StudioStoreState {
   collapsedGroups: Set<string>;
   ungroupedDomains: Set<string>;
   stickyNotes: StickyNoteItem[];
+  viewsDoc: StudioViewsDoc;
+  dirtyViews: boolean;
+  localTagsByCap: Record<string, string[]>;
+  macroDraftNotes: string[];
+  focusAdjacencyCapId: string | null;
 
   // Doc view 5-level TextFold & Per-View Viewport Memory (never surprise-resets user zoom/pan!)
   docFoldLevel: 0 | 1 | 2 | 3 | 4;
@@ -188,6 +196,20 @@ export interface StudioStoreState {
   flushPendingSaves: (opts?: { keepalive?: boolean }) => Promise<boolean>;
   openSpecTab: (spec: SpecIndexItem) => Promise<void>;
   openMachineTab: (machineKey: string, title?: string) => void;
+  openNewTabPage: () => void;
+  createForestTab: (
+    title: string,
+    includedCapabilities: string[],
+    tagFilter?: string | null,
+  ) => string;
+  updateActiveForestView: (patch: Partial<StudioTabView>) => void;
+  addManualGroup: (title: string, capabilities: string[]) => void;
+  addManualLink: (fromCap: string, toCap: string, label?: string) => void;
+  removeManualLink: (linkId: string) => void;
+  addLocalTagToCapabilities: (capIds: string[], tag: string) => void;
+  recordMacroDraftNote: (note: string) => void;
+  setFocusAdjacencyCapId: (capId: string | null) => void;
+  getActiveForestView: () => StudioTabView;
   activateTab: (tabId: string) => void;
   closeTab: (tabId: string, force?: boolean) => void;
   togglePinTab: (tabId: string) => void;
@@ -544,6 +566,16 @@ export const useStudioStore = create<StudioStoreState>((set, get) => {
     }, 400);
   };
 
+  let viewsSaveTimer: ReturnType<typeof setTimeout> | null = null;
+  const scheduleViewsSave = (): void => {
+    set({ dirtyViews: true });
+    if (viewsSaveTimer) clearTimeout(viewsSaveTimer);
+    viewsSaveTimer = setTimeout(() => {
+      viewsSaveTimer = null;
+      void get().flushPendingSaves();
+    }, 400);
+  };
+
   return {
     loading: true,
     error: null,
@@ -596,6 +628,11 @@ export const useStudioStore = create<StudioStoreState>((set, get) => {
     collapsedGroups: new Set(),
     ungroupedDomains: new Set(),
     stickyNotes: [],
+    viewsDoc: defaultStudioViewsDoc(),
+    dirtyViews: false,
+    localTagsByCap: {},
+    macroDraftNotes: [],
+    focusAdjacencyCapId: null,
 
     docFoldLevel: 0,
     zoomPercent: 100,
@@ -619,12 +656,20 @@ export const useStudioStore = create<StudioStoreState>((set, get) => {
     init: async (wsKey?: string) => {
       set({ loading: true, error: null });
       try {
-        const [wsRes, boot] = await Promise.all([
+        const [wsRes, boot, viewsRes] = await Promise.all([
           studioApi.fetchWorkspaces(),
           studioApi.fetchBootstrap(wsKey),
+          studioApi.fetchViews(wsKey).catch(() => null),
         ]);
         const nextSlice = applyBootstrapToState(boot, wsRes.workspaces);
-        set(nextSlice);
+        set({
+          ...nextSlice,
+          viewsDoc: viewsRes?.viewsDoc ?? defaultStudioViewsDoc(),
+          dirtyViews: false,
+          localTagsByCap: {},
+          macroDraftNotes: [],
+          focusAdjacencyCapId: null,
+        });
         // If restored active tab is a doc tab, eagerly lazy-load its spec detail
         const st = get();
         const activeTab = st.tabs.find((t) => t.id === st.activeTabId);
@@ -643,9 +688,10 @@ export const useStudioStore = create<StudioStoreState>((set, get) => {
     refreshInPlace: async (wsKey?: string) => {
       try {
         const targetWs = wsKey ?? get().activeWorkspace?.wsKey;
-        const [wsRes, boot] = await Promise.all([
+        const [wsRes, boot, viewsRes] = await Promise.all([
           studioApi.fetchWorkspaces(),
           studioApi.fetchBootstrap(targetWs),
+          studioApi.fetchViews(targetWs).catch(() => null),
         ]);
         const cur = get();
         set({
@@ -656,6 +702,7 @@ export const useStudioStore = create<StudioStoreState>((set, get) => {
           edges: boot.edges,
           staleFiles: boot.staleFiles,
           graphMermaid: boot.graphMermaid,
+          ...(!cur.dirtyViews && viewsRes?.viewsDoc ? { viewsDoc: viewsRes.viewsDoc } : {}),
           ...(cur.dirtyState
             ? {}
             : {
@@ -721,6 +768,14 @@ export const useStudioStore = create<StudioStoreState>((set, get) => {
         }
         if (allOk) set({ dirtyLayoutKeys: new Set() });
       }
+      if (s.dirtyViews) {
+        try {
+          const vRes = await studioApi.putViews(s.viewsDoc, wsKey, opts);
+          set({ viewsDoc: vRes.viewsDoc, dirtyViews: false });
+        } catch {
+          allOk = false;
+        }
+      }
       return allOk;
     },
 
@@ -735,11 +790,19 @@ export const useStudioStore = create<StudioStoreState>((set, get) => {
       get().setWorldlineOpen(false);
       set({ loading: true, commentPopover: null });
       try {
-        const [wsRes, boot] = await Promise.all([
+        const [wsRes, boot, viewsRes] = await Promise.all([
           studioApi.fetchWorkspaces(),
           studioApi.fetchBootstrap(wsKey),
+          studioApi.fetchViews(wsKey).catch(() => null),
         ]);
-        set(applyBootstrapToState(boot, wsRes.workspaces));
+        set({
+          ...applyBootstrapToState(boot, wsRes.workspaces),
+          viewsDoc: viewsRes?.viewsDoc ?? defaultStudioViewsDoc(),
+          dirtyViews: false,
+          localTagsByCap: {},
+          macroDraftNotes: [],
+          focusAdjacencyCapId: null,
+        });
         get().showToast(`已切换工作区：${boot.workspace.repo} (${boot.workspace.branch})`);
       } catch (error) {
         set({ loading: false, error: error instanceof Error ? error.message : String(error) });
@@ -796,6 +859,159 @@ export const useStudioStore = create<StudioStoreState>((set, get) => {
       });
     },
 
+    openNewTabPage: () => {
+      const s = get();
+      const tabId = 'new-tab';
+      const exists = s.tabs.some((t) => t.id === tabId);
+      const tabs = exists
+        ? s.tabs
+        : [
+            ...s.tabs,
+            { id: tabId, kind: 'new-tab' as const, title: '新标签页', targetId: 'new-tab' },
+          ];
+      const nextNav = s.navHistory.slice(0, s.navIdx + 1);
+      nextNav.push({ tabId, nestStack: [] });
+      set({
+        tabs,
+        activeTabId: tabId,
+        nestStack: [],
+        navHistory: nextNav,
+        navIdx: nextNav.length - 1,
+      });
+    },
+
+    createForestTab: (title, includedCapabilities, tagFilter = null) => {
+      const s = get();
+      const viewId = `view-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+      const cleanTitle = title.trim() || '自定义视图';
+      const newView: StudioTabView = {
+        id: viewId,
+        title: cleanTitle,
+        pinned: false,
+        includedCapabilities: [...new Set(includedCapabilities)],
+        tagFilter,
+        showExternalHops: false,
+        bridgeOnly: false,
+        manualLinks: [],
+        manualGroups: [],
+        macroPositions: {},
+      };
+      const nextViewsDoc: StudioViewsDoc = {
+        ...s.viewsDoc,
+        updatedAt: new Date().toISOString(),
+        views: [...s.viewsDoc.views, newView],
+      };
+      const tabId = `forest:${viewId}`;
+      const nextTabs = [
+        ...s.tabs.filter((t) => t.id !== 'new-tab'),
+        { id: tabId, kind: 'forest' as const, title: cleanTitle, targetId: viewId },
+      ];
+      const nextNav = s.navHistory.slice(0, s.navIdx + 1);
+      nextNav.push({ tabId, nestStack: [] });
+      set({
+        viewsDoc: nextViewsDoc,
+        tabs: nextTabs,
+        activeTabId: tabId,
+        nestStack: [],
+        navHistory: nextNav,
+        navIdx: nextNav.length - 1,
+      });
+      scheduleViewsSave();
+      get().showToast(`已新建视图 Tab「${cleanTitle}」`);
+      return viewId;
+    },
+
+    getActiveForestView: () => {
+      const s = get();
+      const tab = s.tabs.find((t) => t.id === s.activeTabId);
+      const targetViewId = tab?.kind === 'forest' ? tab.targetId : 'main';
+      return (
+        s.viewsDoc.views.find((v) => v.id === targetViewId) ??
+        s.viewsDoc.views[0] ??
+        defaultStudioViewsDoc().views[0]!
+      );
+    },
+
+    updateActiveForestView: (patch) => {
+      const s = get();
+      const activeView = s.getActiveForestView();
+      const exists = s.viewsDoc.views.some((v) => v.id === activeView.id);
+      const nextViews = exists
+        ? s.viewsDoc.views.map((v) => (v.id === activeView.id ? { ...v, ...patch } : v))
+        : [...s.viewsDoc.views, { ...activeView, ...patch }];
+      set({
+        viewsDoc: {
+          ...s.viewsDoc,
+          updatedAt: new Date().toISOString(),
+          views: nextViews,
+        },
+      });
+      scheduleViewsSave();
+    },
+
+    addManualGroup: (title, capabilities) => {
+      const s = get();
+      const unique = [...new Set(capabilities)];
+      if (unique.length === 0) return;
+      const activeView = s.getActiveForestView();
+      const gid = `mg-${Date.now().toString(36)}`;
+      const tones = ['blue', 'teal', 'violet', 'amber'];
+      const tone = tones[activeView.manualGroups.length % tones.length]!;
+      s.updateActiveForestView({
+        manualGroups: [
+          ...activeView.manualGroups,
+          { id: gid, title: title.trim() || '自定义分组', tone, capabilities: unique },
+        ],
+      });
+      get().showToast(
+        `已打包领域分组「${title.trim() || '自定义分组'}」(${String(unique.length)} 项)`,
+      );
+    },
+
+    addManualLink: (fromCap, toCap, label = '人工参考') => {
+      if (fromCap === toCap) return;
+      const s = get();
+      const activeView = s.getActiveForestView();
+      if (activeView.manualLinks.some((l) => l.fromCap === fromCap && l.toCap === toCap)) return;
+      const id = `ml-${Date.now().toString(36)}`;
+      s.updateActiveForestView({
+        manualLinks: [...activeView.manualLinks, { id, fromCap, toCap, label }],
+      });
+      get().showToast('已添加本地参考虚线（仅存 views.json，不修改 specs）');
+    },
+
+    removeManualLink: (linkId) => {
+      const s = get();
+      const activeView = s.getActiveForestView();
+      s.updateActiveForestView({
+        manualLinks: activeView.manualLinks.filter((l) => l.id !== linkId),
+      });
+    },
+
+    addLocalTagToCapabilities: (capIds, rawTag) => {
+      const cleaned = rawTag.trim().replace(/^#+/u, '');
+      if (!cleaned || capIds.length === 0) return;
+      const tag = `#${cleaned}`;
+      set((s) => {
+        const next = { ...s.localTagsByCap };
+        for (const id of capIds) {
+          const cur = next[id] ?? [];
+          if (!cur.includes(tag)) next[id] = [...cur, tag];
+        }
+        return { localTagsByCap: next };
+      });
+      get().showToast(`已为 ${String(capIds.length)} 个规格打上本地标签 ${tag}`);
+    },
+
+    recordMacroDraftNote: (note) => {
+      const trimmed = note.trim();
+      if (!trimmed) return;
+      set((s) => ({ macroDraftNotes: [...s.macroDraftNotes, trimmed] }));
+      get().showToast('已记录至协商草稿（遵守红线：不直改 llmanspec/specs/*.feature）');
+    },
+
+    setFocusAdjacencyCapId: (capId) => set({ focusAdjacencyCapId: capId }),
+
     activateTab: (tabId) => {
       const s = get();
       if (s.activeTabId === tabId) return;
@@ -825,14 +1041,13 @@ export const useStudioStore = create<StudioStoreState>((set, get) => {
       if (target.pinned && !force) return;
       const nextTabs = s.tabs.filter((t) => t.id !== tabId);
       if (nextTabs.length === 0) {
-        const mainTab: OpenTab = {
-          id: 'main',
-          kind: 'macro',
-          title: '主视图',
-          targetId: 'main',
-          pinned: true,
+        const quickTab: OpenTab = {
+          id: 'new-tab',
+          kind: 'new-tab',
+          title: '新标签页',
+          targetId: 'new-tab',
         };
-        set({ tabs: [mainTab], activeTabId: 'main', nestStack: [] });
+        set({ tabs: [quickTab], activeTabId: 'new-tab', nestStack: [] });
         return;
       }
       const nextActive =
@@ -1386,10 +1601,16 @@ export const useStudioStore = create<StudioStoreState>((set, get) => {
         if (!draft) continue;
         const diff = computeMachineDiff(draft);
         if (!diff.hasChanges) continue;
+        const diags = draft.current ? validateMachineGraph(draft.current) : [];
+        const lintNote =
+          diags.length > 0
+            ? `\n门禁提醒：${diags.map((d) => `[${d.code}] ${d.message}`).join('；')}`
+            : '\n门禁状态：E1–E4 / W1–W2 全绿';
         diffBlocks.push(
-          `### ${mk} (${draft.sourceFile})\n\`\`\`diff\n${formatSemanticDiff(diff, draft)}\n\`\`\``,
+          `### ${mk} (${draft.sourceFile})\n\`\`\`diff\n${formatSemanticDiff(diff, draft)}\n\`\`\`${lintNote}`,
         );
       }
+      const macroDraftLines = s.macroDraftNotes.map((n) => `- [全景结构草稿意图] ${n}`);
       const openComments = doc.comments.filter((c) => c.status === 'open');
       const commentLines = openComments.map((c) => {
         const loc =
@@ -1415,7 +1636,10 @@ export const useStudioStore = create<StudioStoreState>((set, get) => {
         '## 1. 语义变更摘要',
         diffBlocks.length > 0
           ? diffBlocks.join('\n\n')
-          : '- 暂无结构增删，请结合下方锚定评论处理。',
+          : '- 暂无状态机净差异，请结合下方全景结构草稿与锚定评论处理。',
+        ...(macroDraftLines.length > 0
+          ? ['', '## 1.5 全景结构草稿意图（经提案/特性分支落盘）', ...macroDraftLines]
+          : []),
         '',
         '## 2. 未解决评论',
         commentLines.length > 0 ? commentLines.join('\n') : '- 无',

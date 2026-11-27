@@ -68,3 +68,14 @@
       当 调用纯域解析对账、生成反向建议层与构建最小切片裁决包
       那么 损坏行精确报出行号、后门转移与未覆盖边准确检出且反向建议带 drift-trace 标记
       而且 最小切片仅包含命中 @llmanspec: 锚点的 hunk 与对应规则原文
+
+  @req:r153
+  规则: 宏观业务森林纯域投影、交叉桥识别、W3 孤立诊断与 views.json 原子存储
+    Studio 纯域 MUST 提供 `buildForestGraph(entries)`（0 Token、零 I/O），将真实 `llmanspec/specs/` 归类为 `machine`/`flow`/`decision`/`doc` 4 类节点并计算权重 `ruleCount + scenarioCount * 0.5 + machineCount * 3`、提取 `tags[]` 与跨能力 `@req:<id>` 自动实线及其 `evidence[]`。
+    纯域 MUST 提供 `computeCrossForestBridges(graph, groups)` 识别横跨不同领域分组的自动实线与边界节点，提供 `validateForestIsolation(graph)` 报告 `W3` 孤立规格警告，并提供 `.llman-sdd/studio/views.json` 的 `zod` 契约与原子临时文件读写函数（仅存双向语义视图映射，绝不导出外部双向格式且绝不污染 `llmanspec/specs/`）。
+
+    场景: 纯域森林投影识别四类节点、跨能力证据边、交叉桥与 W3 孤立警告并原子读写 views.json
+      假如 包含状态机、决策表、规则文档与孤立规格的 spec 集合及内存态 StudioViewsIo 夹具
+      当 运行 buildForestGraph、computeCrossForestBridges、validateForestIsolation 与原子写入 views.json
+      那么 节点分类权重与自动实线 evidence 准确提取且交叉桥仅命中跨组契约边
+      而且 孤立规格产出 W3 警告且 views.json 经临时文件原子替换校验通过

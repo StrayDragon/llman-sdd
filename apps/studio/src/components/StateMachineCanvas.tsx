@@ -10,8 +10,10 @@
  * - Obstacle-aware corridor edge routing, self-loop arc, parallel edge spread, draggable edge bends
  */
 import {
+  computeCrossForestBridges,
   computeWorldlineOverlayDiff,
   type EdgeBendOffset,
+  type ForestEdgeEvidence,
   type SemanticAnchor,
   type SpecIndexItem,
   type StudioMachineIR,
@@ -69,7 +71,10 @@ import {
   getPendingDriftProposals,
 } from '../drift/reconcileOverlay.ts';
 import {
-  buildExclusiveDomainGroups,
+  buildExclusiveDomainGroupsWithManual,
+  computeFocusAdjacencySet,
+  computeOneHopExternalCaps,
+  extractPortalEvidence,
   layoutMainViewWithGroups,
   type GroupTone,
 } from '../routing/domainGroups.ts';
@@ -102,6 +107,8 @@ interface SpecNodeData extends Record<string, unknown> {
   spec: SpecIndexItem;
   tier: CardTier;
   commentCount: number;
+  dimmed?: boolean;
+  externalHop?: boolean;
   onOpen: () => void;
   onComment: (x: number, y: number) => void;
 }
@@ -125,7 +132,7 @@ interface PortalPillNodeData extends Record<string, unknown> {
   direction: 'upstream' | 'downstream';
   capId: string;
   label: string;
-  onOpen: () => void;
+  onPreview: (x: number, y: number) => void;
 }
 
 interface StateNodeData extends Record<string, unknown> {
@@ -504,7 +511,7 @@ function PortalPillNode({ data }: NodeProps<Node<PortalPillNodeData>>) {
       type="button"
       onClick={(e) => {
         e.stopPropagation();
-        data.onOpen();
+        data.onPreview(e.clientX, e.clientY);
       }}
       className="nodrag nopan pointer-events-auto rounded-lg border border-dashed px-3 py-2 flex items-center gap-2 text-xs cursor-pointer transition-all hover:border-solid hover:scale-[1.02]"
       style={{
@@ -513,7 +520,7 @@ function PortalPillNode({ data }: NodeProps<Node<PortalPillNodeData>>) {
         borderColor: 'var(--border-strong)',
         boxShadow: 'var(--shadow-card)',
       }}
-      title={`点击打开关联规格 ${data.capId}`}
+      title={`点击查看与 ${data.capId} 的跨能力契约证据`}
     >
       <Handle type="target" position={Position.Left} className="opacity-0 pointer-events-none" />
       <Handle type="source" position={Position.Right} className="opacity-0 pointer-events-none" />
@@ -949,11 +956,22 @@ function StateMachineCanvasInner() {
     collapsedGroups,
     ungroupedDomains,
     stickyNotes,
+    viewsDoc,
+    focusAdjacencyCapId,
     zoomTrigger,
     focusStateUid,
     setViewportForView,
     clearViewportForView,
     openSpecTab,
+    createForestTab,
+    addManualGroup,
+    addManualLink,
+    removeManualLink,
+    addLocalTagToCapabilities,
+    recordMacroDraftNote,
+    setFocusAdjacencyCapId,
+    restoreDefaultTabs,
+    getActiveForestView,
     diveSubMachine,
     jumpNestLevel,
     updateNodePosition,
@@ -990,13 +1008,27 @@ function StateMachineCanvasInner() {
   const [inlineEditor, setInlineEditor] = useState<InlineEditorState | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const [selectedMacroIds, setSelectedMacroIds] = useState<string[]>([]);
+  const [batchTagInput, setBatchTagInput] = useState<string | null>(null);
+  const [portalPopover, setPortalPopover] = useState<{
+    capId: string;
+    direction: 'upstream' | 'downstream';
+    x: number;
+    y: number;
+    evidence: ForestEdgeEvidence[];
+  } | null>(null);
   const connectingFromRef = useRef<string | null>(null);
 
   const activeTab = tabs.find((t) => t.id === activeTabId);
-  const isMacro = !activeTab || activeTab.kind === 'macro';
+  const isMacro = !activeTab || activeTab.kind === 'macro' || activeTab.kind === 'forest';
+  const activeForestView = getActiveForestView();
   const activeMachineKey = getActiveMachineKey();
   const machine = activeMachineKey ? (stateDoc?.machines[activeMachineKey]?.current ?? null) : null;
-  const viewKey = isMacro ? 'macro' : `machine:${activeMachineKey ?? activeTabId}`;
+  const viewKey = isMacro
+    ? activeTab?.kind === 'forest'
+      ? `forest:${activeTab.targetId}`
+      : 'macro'
+    : `machine:${activeMachineKey ?? activeTabId}`;
 
   const viewKeyRef = useRef(viewKey);
   viewKeyRef.current = viewKey;
@@ -1118,10 +1150,34 @@ function StateMachineCanvasInner() {
   const { flowNodes, flowEdges } = useMemo(() => {
     if (!stateDoc) return { flowNodes: [] as Node[], flowEdges: [] as Edge[] };
 
-    // ==================== MAIN VIEW (EXCLUSIVE DOMAIN GROUPS + SPEC CARDS) ====================
+    // ==================== MAIN & CUSTOM FOREST VIEW (EXCLUSIVE DOMAIN GROUPS + SPEC CARDS) ====================
     if (isMacro) {
-      const visibleSpecs = specs.filter((s) => legendKindFilter.has(s.kind));
-      const { groups, ungroupedIds } = buildExclusiveDomainGroups(visibleSpecs, ungroupedDomains);
+      let baseSpecs = specs.filter((s) => legendKindFilter.has(s.kind));
+      const externalHopSet = new Set<string>();
+      if (activeTab?.kind === 'forest' && activeForestView.includedCapabilities.length > 0) {
+        const inc = new Set(activeForestView.includedCapabilities);
+        if (activeForestView.showExternalHops) {
+          for (const extId of computeOneHopExternalCaps(
+            activeForestView.includedCapabilities,
+            macroEdges,
+          )) {
+            externalHopSet.add(extId);
+            inc.add(extId);
+          }
+        }
+        baseSpecs = baseSpecs.filter((s) => inc.has(s.id));
+      }
+      if (focusAdjacencyCapId) {
+        const adj = computeFocusAdjacencySet(focusAdjacencyCapId, macroEdges);
+        baseSpecs = baseSpecs.filter((s) => adj.has(s.id));
+      }
+
+      const visibleSpecs = baseSpecs;
+      const { groups, ungroupedIds } = buildExclusiveDomainGroupsWithManual(
+        visibleSpecs,
+        activeForestView.manualGroups,
+        ungroupedDomains,
+      );
       const savedPos = stateDoc.layouts.__macro__ ?? {};
       const layout = layoutMainViewWithGroups(
         visibleSpecs,
@@ -1131,6 +1187,24 @@ function StateMachineCanvasInner() {
         savedPos,
         tier,
       );
+
+      // Cross-Forest Bridge Highlight (when bridgeOnly is active and >= 2 groups exist)
+      const bridgeResult =
+        activeForestView.bridgeOnly && groups.length >= 2
+          ? computeCrossForestBridges(
+              {
+                nodes: visibleSpecs.map((s) => ({ ...s, weight: 1 })),
+                edges: macroEdges.map((e) => ({
+                  ...e,
+                  kind: 'spec-ref' as const,
+                  evidence: e.evidence ?? [],
+                })),
+              },
+              groups.map((g) => ({ id: g.id, capabilities: g.memberIds })),
+            )
+          : null;
+      const bridgeNodeSet = bridgeResult ? new Set(bridgeResult.bridgeNodeIds) : null;
+      const bridgeEdgeSet = bridgeResult ? new Set(bridgeResult.bridgeEdgeIds) : null;
 
       const hiddenByCollapse = new Set(
         layout.groupBoxes.filter((g) => g.collapsed).flatMap((g) => g.group.memberIds),
@@ -1172,6 +1246,7 @@ function StateMachineCanvasInner() {
             (c) =>
               c.status === 'open' && c.anchor.kind === 'forest' && c.anchor.capability === sp.id,
           ).length;
+          const dimmed = bridgeNodeSet !== null && !bridgeNodeSet.has(sp.id);
           return {
             id: sp.id,
             type: 'specCard',
@@ -1179,10 +1254,13 @@ function StateMachineCanvasInner() {
             width: cardW,
             height: cardH,
             zIndex: 4,
+            style: dimmed ? { opacity: 0.22 } : undefined,
             data: {
               spec: sp,
               tier,
               commentCount: cCount,
+              dimmed,
+              externalHop: externalHopSet.has(sp.id),
               onOpen: () => void openSpecTab(sp),
               onComment: (x, y) =>
                 openCommentPopover({ kind: 'forest', capability: sp.id }, sp.title, x, y),
@@ -1208,7 +1286,18 @@ function StateMachineCanvasInner() {
       const placedSegments: Segment2D[] = [];
       const placedLabels: RectBox[] = [];
       const flowE: Edge<ObstacleEdgeData>[] = [];
-      for (const me of macroEdges) {
+      const combinedMacroEdges = [
+        ...macroEdges.map((me) => ({ ...me, isManual: false })),
+        ...activeForestView.manualLinks.map((ml) => ({
+          id: ml.id,
+          from: ml.fromCap,
+          to: ml.toCap,
+          label: ml.label ?? '人工参考',
+          kind: 'manual' as const,
+          isManual: true,
+        })),
+      ];
+      for (const me of combinedMacroEdges) {
         if (hiddenByCollapse.has(me.from) || hiddenByCollapse.has(me.to)) continue;
         const aPos = layout.specPositions[me.from];
         const bPos = layout.specPositions[me.to];
@@ -1255,17 +1344,21 @@ function StateMachineCanvasInner() {
           placedLabels,
           obs,
         );
+        const isBridge = bridgeEdgeSet !== null && bridgeEdgeSet.has(me.id);
+        const edgeDimmed = bridgeEdgeSet !== null && !isBridge;
         flowE.push({
           id: me.id,
           source: me.from,
           target: me.to,
           type: 'obstacleEdge',
+          style: edgeDimmed ? { opacity: 0.18 } : undefined,
           data: {
             label: me.label,
             dPath: geom.d,
             lx: lp.lx,
             ly: lp.ly,
-            stroke: '#9aa4b4',
+            stroke: isBridge ? '#2f54eb' : me.isManual ? '#64748b' : '#9aa4b4',
+            dashed: me.isManual,
             bendOffset,
             onBendDrag: (next) => updateEdgeBend('__macro__', me.id, next),
           },
@@ -1388,10 +1481,14 @@ function StateMachineCanvasInner() {
           direction: 'upstream' as const,
           capId: cap,
           label: cap,
-          onOpen: () => {
-            const sp = specs.find((x) => x.id === cap);
-            if (sp) void openSpecTab(sp);
-          },
+          onPreview: (x: number, y: number) =>
+            setPortalPopover({
+              capId: cap,
+              direction: 'upstream',
+              x,
+              y,
+              evidence: extractPortalEvidence(machine.capability, 'upstream', cap, macroEdges),
+            }),
         },
       })),
       ...downstreamCaps.map((cap, idx) => ({
@@ -1410,10 +1507,14 @@ function StateMachineCanvasInner() {
           direction: 'downstream' as const,
           capId: cap,
           label: cap,
-          onOpen: () => {
-            const sp = specs.find((x) => x.id === cap);
-            if (sp) void openSpecTab(sp);
-          },
+          onPreview: (x: number, y: number) =>
+            setPortalPopover({
+              capId: cap,
+              direction: 'downstream',
+              x,
+              y,
+              evidence: extractPortalEvidence(machine.capability, 'downstream', cap, macroEdges),
+            }),
         },
       })),
     ];
@@ -1688,6 +1789,10 @@ function StateMachineCanvasInner() {
     collapsedGroups,
     ungroupedDomains,
     stickyNotes,
+    viewsDoc,
+    activeTab?.kind,
+    activeForestView,
+    focusAdjacencyCapId,
     nestStack.length,
     focusStateUid,
     openSpecTab,
@@ -1767,18 +1872,23 @@ function StateMachineCanvasInner() {
   const onConnect = useCallback(
     (conn: Connection) => {
       connectingFromRef.current = null;
-      if (isMacro || !activeMachineKey || !conn.source || !conn.target) return;
+      if (!conn.source || !conn.target) return;
+      if (isMacro) {
+        addManualLink(conn.source, conn.target, '人工参考');
+        return;
+      }
+      if (!activeMachineKey) return;
       connectStates(activeMachineKey, conn.source, conn.target, '流转');
     },
-    [isMacro, activeMachineKey, connectStates],
+    [isMacro, activeMachineKey, connectStates, addManualLink],
   );
 
-  // Drag-to-Empty-Canvas Dialect-Isolated Radial Spawn
+  // Drag-to-Empty-Canvas Dialect-Isolated Radial Spawn (5-in-1 in Macro, 3-in-1 in Machine/Flow)
   const onConnectEnd = useCallback(
     (event: globalThis.MouseEvent | TouchEvent) => {
       const fromUid = connectingFromRef.current;
       connectingFromRef.current = null;
-      if (!fromUid || isMacro || !activeMachineKey || !machine) return;
+      if (!fromUid) return;
       const targetEl = event.target as HTMLElement | null;
       if (!targetEl?.classList.contains('react-flow__pane')) return;
       const clientX =
@@ -1786,6 +1896,46 @@ function StateMachineCanvasInner() {
       const clientY =
         'clientY' in event ? event.clientY : (event.changedTouches[0]?.clientY ?? 300);
       const flowPos = rf.screenToFlowPosition({ x: clientX, y: clientY });
+      if (isMacro) {
+        setRadialMenu({
+          x: clientX,
+          y: clientY,
+          items: [
+            {
+              id: 'draft-machine',
+              label: '+ 状态机草稿',
+              icon: <Workflow size={12} />,
+              onSelect: () => recordMacroDraftNote(`新建状态机规格草稿（由 ${fromUid} 关联引出）`),
+            },
+            {
+              id: 'draft-flow',
+              label: '+ 流程图草稿',
+              icon: <GitMerge size={12} />,
+              onSelect: () => recordMacroDraftNote(`新建流程图规格草稿（由 ${fromUid} 关联引出）`),
+            },
+            {
+              id: 'draft-decision',
+              label: '+ 决策表草稿',
+              icon: <Table2 size={12} />,
+              onSelect: () => recordMacroDraftNote(`新建决策表规格草稿（由 ${fromUid} 关联引出）`),
+            },
+            {
+              id: 'draft-doc',
+              label: '+ 规则草稿',
+              icon: <FileText size={12} />,
+              onSelect: () => recordMacroDraftNote(`新建规则文档草稿（由 ${fromUid} 关联引出）`),
+            },
+            {
+              id: 'draft-note',
+              label: '+ 贴便签',
+              icon: <StickyNote size={12} />,
+              onSelect: () => addStickyNote(Math.round(flowPos.x), Math.round(flowPos.y)),
+            },
+          ],
+        });
+        return;
+      }
+      if (!activeMachineKey || !machine) return;
       const isFlow = machine.graphKind === 'flow';
       setRadialMenu({
         x: clientX,
@@ -1859,7 +2009,7 @@ function StateMachineCanvasInner() {
             ],
       });
     },
-    [isMacro, activeMachineKey, machine, rf, spawnStateAt],
+    [isMacro, activeMachineKey, machine, rf, spawnStateAt, recordMacroDraftNote, addStickyNote],
   );
 
   // Open Concentric Radial Pie Menu on Blank Pane Right-Click
@@ -2022,8 +2172,18 @@ function StateMachineCanvasInner() {
         onConnectEnd={onConnectEnd}
         onPaneClick={() => {
           setRadialMenu(null);
+          setPortalPopover(null);
           setSelectedNodeId(null);
           setSelectedEdgeId(null);
+        }}
+        selectionKeyCode="Shift"
+        onSelectionChange={({ nodes: selNodes }) => {
+          if (!isMacro) {
+            setSelectedMacroIds([]);
+            return;
+          }
+          const ids = selNodes.filter((n) => n.type === 'specCard').map((n) => n.id);
+          setSelectedMacroIds(ids);
         }}
         onPaneContextMenu={handlePaneContextMenu}
         onMove={(ev, vp) => {
@@ -2060,15 +2220,23 @@ function StateMachineCanvasInner() {
           if (isMacro) {
             const sp = specs.find((s) => s.id === node.id);
             if (!sp) return;
+            // Strictly zero duplication with card's explicit 「进入 Tab」 button (C5 D3)
             setRadialMenu({
               x: e.clientX,
               y: e.clientY,
               items: [
                 {
-                  id: 'enter-tab',
-                  label: '进入 Tab',
-                  icon: <ExternalLink size={12} />,
-                  onSelect: () => void openSpecTab(sp),
+                  id: 'focus-adj',
+                  label: focusAdjacencyCapId === sp.id ? '取消聚焦邻接' : '聚焦邻接 (1跳)',
+                  icon: <Layers size={12} />,
+                  onSelect: () =>
+                    setFocusAdjacencyCapId(focusAdjacencyCapId === sp.id ? null : sp.id),
+                },
+                {
+                  id: 'new-tab-from-card',
+                  label: '建为 Tab 视图',
+                  icon: <Folder size={12} />,
+                  onSelect: () => createForestTab(sp.title, [sp.id]),
                 },
                 {
                   id: 'comment-spec',
@@ -2092,6 +2260,19 @@ function StateMachineCanvasInner() {
                       targetId: sp.machineKeys[0] ?? sp.id,
                       title: sp.title,
                     }),
+                },
+                {
+                  id: 'draft-rename',
+                  label: '建议重命名',
+                  icon: <Pencil size={12} />,
+                  onSelect: () => recordMacroDraftNote(`建议重命名规格「${sp.id}」`),
+                },
+                {
+                  id: 'draft-delete',
+                  label: '标记移除草稿',
+                  icon: <Trash2 size={12} />,
+                  danger: true,
+                  onSelect: () => recordMacroDraftNote(`建议下线/移除规格「${sp.id}」`),
                 },
               ],
             });
@@ -2176,6 +2357,7 @@ function StateMachineCanvasInner() {
           e.stopPropagation();
           const label = String((edge.data as ObstacleEdgeData | undefined)?.label ?? edge.id);
           if (isMacro) {
+            const isManual = activeForestView.manualLinks.some((l) => l.id === edge.id);
             setRadialMenu({
               x: e.clientX,
               y: e.clientY,
@@ -2198,6 +2380,17 @@ function StateMachineCanvasInner() {
                   icon: <RotateCcw size={12} />,
                   onSelect: () => resetEdgeBend('__macro__', edge.id),
                 },
+                ...(isManual
+                  ? [
+                      {
+                        id: 'del-manual-link',
+                        label: '删除参考虚线',
+                        icon: <Trash2 size={12} />,
+                        danger: true,
+                        onSelect: () => removeManualLink(edge.id),
+                      },
+                    ]
+                  : []),
               ],
             });
           } else if (activeMachineKey) {
@@ -2327,6 +2520,151 @@ function StateMachineCanvasInner() {
           items={radialMenu.items}
           onClose={() => setRadialMenu(null)}
         />
+      )}
+
+      {/* Shift+Drag Batch Selection Action Bar (Macro / Forest views, C5 D2) */}
+      {isMacro && selectedMacroIds.length >= 2 && (
+        <div className="fixed top-[92px] left-1/2 -translate-x-1/2 z-40 studio-float px-3 py-1.5 flex items-center gap-2 text-xs">
+          <span className="font-semibold">已选中 {selectedMacroIds.length} 项规格</span>
+          <button
+            type="button"
+            onClick={() => {
+              addManualGroup(`自定义域 (${selectedMacroIds.length})`, selectedMacroIds);
+              setSelectedMacroIds([]);
+            }}
+            className="rounded-md border px-2 py-0.5 cursor-pointer hover:bg-black/5"
+            style={{ borderColor: 'var(--border)' }}
+          >
+            打包分组 (G)
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              createForestTab(`组合视图 (${selectedMacroIds.length})`, selectedMacroIds);
+              setSelectedMacroIds([]);
+            }}
+            className="rounded-md px-2 py-0.5 font-medium cursor-pointer"
+            style={{ background: 'var(--ink)', color: '#ffffff' }}
+          >
+            新建 Tab 视图 (T)
+          </button>
+          {batchTagInput !== null ? (
+            <div className="inline-flex items-center gap-1">
+              <input
+                autoFocus
+                value={batchTagInput}
+                onChange={(e) => setBatchTagInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    addLocalTagToCapabilities(selectedMacroIds, batchTagInput);
+                    setBatchTagInput(null);
+                  } else if (e.key === 'Escape') {
+                    setBatchTagInput(null);
+                  }
+                }}
+                placeholder="输入 #tag"
+                className="w-24 rounded border px-1.5 py-0.5 font-mono text-[11px] outline-none"
+                style={{ borderColor: 'var(--border)' }}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  addLocalTagToCapabilities(selectedMacroIds, batchTagInput);
+                  setBatchTagInput(null);
+                }}
+                className="rounded border px-1.5 py-0.5 text-[10px] cursor-pointer"
+                style={{ borderColor: 'var(--border)' }}
+              >
+                确定
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setBatchTagInput('')}
+              className="rounded-md border px-2 py-0.5 cursor-pointer hover:bg-black/5"
+              style={{ borderColor: 'var(--border)' }}
+            >
+              打 Tag
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Boundary Portal Contract Evidence Popover (C5 D3 / T4) */}
+      {portalPopover && (
+        <div
+          className="fixed z-50 studio-float w-80 p-3 flex flex-col gap-2 text-xs"
+          style={{
+            left: Math.min(window.innerWidth - 340, Math.max(12, portalPopover.x + 12)),
+            top: Math.min(window.innerHeight - 240, Math.max(60, portalPopover.y - 20)),
+          }}
+        >
+          <div className="flex items-center justify-between gap-2">
+            <div className="font-mono font-semibold text-[11.5px]">
+              {portalPopover.direction === 'upstream' ? '← 上游约束门户' : '下游契约门户 →'} ·{' '}
+              {portalPopover.capId}
+            </div>
+            <button
+              type="button"
+              onClick={() => setPortalPopover(null)}
+              className="p-0.5 rounded hover:bg-black/5 cursor-pointer"
+            >
+              <X size={12} />
+            </button>
+          </div>
+          <div className="flex flex-col gap-1 max-h-36 overflow-y-auto">
+            {portalPopover.evidence.length === 0 ? (
+              <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                通过跨能力规格关联建立上下文门户。
+              </div>
+            ) : (
+              portalPopover.evidence.map((ev, idx) => (
+                <div
+                  key={`${ev.targetReqId ?? 'ev'}-${String(idx)}`}
+                  className="rounded border px-2 py-1.5 text-[11px] leading-snug"
+                  style={{ borderColor: 'var(--border)', background: 'var(--surface-subtle)' }}
+                >
+                  {ev.targetReqId && (
+                    <span
+                      className="font-mono font-semibold mr-1.5"
+                      style={{ color: 'var(--accent)' }}
+                    >
+                      @req:{ev.targetReqId}
+                    </span>
+                  )}
+                  <span>{ev.summary}</span>
+                </div>
+              ))
+            )}
+          </div>
+          <div className="flex items-center justify-end gap-1.5 pt-1">
+            <button
+              type="button"
+              onClick={() => {
+                setPortalPopover(null);
+                restoreDefaultTabs();
+              }}
+              className="rounded border px-2.5 py-1 text-[11px] cursor-pointer hover:bg-black/5"
+              style={{ borderColor: 'var(--border)' }}
+            >
+              回到全景
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const sp = specs.find((x) => x.id === portalPopover.capId);
+                setPortalPopover(null);
+                if (sp) void openSpecTab(sp);
+              }}
+              className="inline-flex items-center gap-1 rounded px-2.5 py-1 text-[11px] font-medium cursor-pointer"
+              style={{ background: 'var(--ink)', color: '#ffffff' }}
+            >
+              <ExternalLink size={11} />
+              <span>新 Tab 打开</span>
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Floating Inline Node / Edge Editor (Zero window.prompt!) */}

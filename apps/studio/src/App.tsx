@@ -16,6 +16,7 @@ import {
   SearchPaletteModal,
   ShareDeepLinkModal,
 } from './components/Modals.tsx';
+import { NewTabQuickPage } from './components/NewTabQuickPage.tsx';
 import { SpecDocCanvas } from './components/SpecDocCanvas.tsx';
 import { StateMachineCanvas } from './components/StateMachineCanvas.tsx';
 import { TopChrome } from './components/TopChrome.tsx';
@@ -110,7 +111,11 @@ export function App() {
       if (ev.type === 'git-head-changed') {
         showToast(`检测到分支切换至 ${ev.branch}，正在刷新工作区状态`);
         void init(activeWs.wsKey);
-      } else if (ev.type === 'specs-changed' || ev.type === 'state-updated') {
+      } else if (
+        ev.type === 'specs-changed' ||
+        ev.type === 'state-updated' ||
+        ev.type === 'views-updated'
+      ) {
         void refreshInPlace(activeWs.wsKey);
       }
     });
@@ -205,6 +210,8 @@ export function App() {
             <div style={{ color: 'var(--text-secondary)' }}>{error}</div>
           </div>
         </div>
+      ) : activeTab?.kind === 'new-tab' ? (
+        <NewTabQuickPage />
       ) : activeTab?.kind === 'doc' ? (
         <SpecDocCanvas capId={activeTab.targetId} />
       ) : (

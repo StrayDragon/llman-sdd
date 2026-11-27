@@ -12,8 +12,10 @@ import {
   buildDemoStudioWebDrafts,
   cloneMachineIR,
   compileDecisionTableToTree,
+  computeCrossForestBridges,
   computeMachineDiff,
   createStudioStateDoc,
+  defaultStudioViewsDoc,
   deleteStudioComment,
   editStudioComment,
   extractDecisionTables,
@@ -25,6 +27,9 @@ import {
   specDetailResponseSchema,
   switchWorldlineHead,
   textfoldResponseSchema,
+  viewsResponseSchema,
+  type SpecIndexEdge,
+  type SpecIndexItem,
   type StudioStateDoc,
 } from '@llman-sdd/core';
 
@@ -42,6 +47,11 @@ import {
   computeDriftCalibrationOverlay,
   getPendingDriftProposals,
 } from '../../../apps/studio/src/drift/reconcileOverlay.ts';
+import {
+  buildExclusiveDomainGroupsWithManual,
+  extractPortalEvidence,
+  layoutMainViewWithGroups,
+} from '../../../apps/studio/src/routing/domainGroups.ts';
 import {
   countPolyObstacleHits,
   rectsOverlap,
@@ -512,4 +522,172 @@ bdd.thenStep('追认新意图原子写入草稿与 agent 世界线节点且标�
   expect(
     r.accepted.machines[r.machineKey]!.current!.states.some((s) => s.name === '旁路状态'),
   ).toBe(true);
+});
+
+// --- r154 ---
+bdd.when(
+  '先读取默认视图配置再经 PUT /api/views 写入自定义领域 Tab 与人工虚线并重读',
+  async (ctx) => {
+    const hub = ctx.fixtures['r145Hub'] as CreatedStudioHubApp;
+    const req = (p: string, init?: RequestInit) =>
+      hub.app.request(`http://127.0.0.1:4710${p}`, init);
+    const v1 = viewsResponseSchema.parse(await (await req('/api/views')).json());
+    const badRes = await req('/api/views', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', 'x-studio-token': hub.token },
+      body: JSON.stringify({ viewsDoc: { bad: true } }),
+    });
+    const nextDoc = defaultStudioViewsDoc('2026-11-27T02:00:00Z');
+    nextDoc.views.push({
+      id: 'view-custom',
+      title: '自定义切片',
+      includedCapabilities: ['bdd-sample'],
+      showExternalHops: true,
+      bridgeOnly: false,
+      manualLinks: [{ id: 'ml1', fromCap: 'bdd-sample', toCap: 'other', label: '参考虚线' }],
+      manualGroups: [],
+      macroPositions: {},
+    });
+    await req('/api/views', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', 'x-studio-token': hub.token },
+      body: JSON.stringify({ viewsDoc: nextDoc }),
+    });
+    const v2 = viewsResponseSchema.parse(await (await req('/api/views')).json());
+    ctx.fixtures['r154Res'] = { v1, badStatus: badRes.status, v2 };
+  },
+);
+
+bdd.thenStep('默认视图仅含主视图且自定义视图原子落盘、非法载荷返回 400 且 specs 零修改', (ctx) => {
+  const dir = ctx.fixtures['r145Dir'] as string;
+  const hub = ctx.fixtures['r145Hub'] as CreatedStudioHubApp;
+  const r = ctx.fixtures['r154Res'] as {
+    v1: { viewsDoc: { views: Array<{ id: string }> } };
+    badStatus: number;
+    v2: { viewsDoc: { views: Array<{ id: string }> } };
+  };
+  expect(r.v1.viewsDoc.views.length).toBe(1);
+  expect(r.v1.viewsDoc.views[0]!.id).toBe('main');
+  expect(r.badStatus).toBe(400);
+  expect(r.v2.viewsDoc.views.length).toBe(2);
+  expect(readFileSync(join(dir, 'llmanspec', 'specs', 'bdd-sample.feature'), 'utf8')).toBe(
+    BDD_SPEC,
+  );
+  hub.cleanup();
+  rmSync(dir, { recursive: true, force: true });
+});
+
+// --- r155 ---
+bdd.given('包含领域分组、跨组契约边与非成员节点的宏观森林布局', (ctx) => {
+  const specs: SpecIndexItem[] = [
+    {
+      id: 'order',
+      title: 'order',
+      file: 'llmanspec/specs/order.feature',
+      kind: 'machine',
+      hardness: 'drift-guarded',
+      ruleCount: 2,
+      scenarioCount: 2,
+      decisionTableCount: 0,
+      machineKeys: ['order/r10/main'],
+      summary: '订单',
+      reqPreview: ['@req:r10'],
+      tags: ['#commerce'],
+      stale: false,
+    },
+    {
+      id: 'risk',
+      title: 'risk',
+      file: 'llmanspec/specs/risk.feature',
+      kind: 'decision',
+      hardness: 'tested',
+      ruleCount: 1,
+      scenarioCount: 1,
+      decisionTableCount: 1,
+      machineKeys: [],
+      summary: '风控',
+      reqPreview: ['@req:r20'],
+      tags: ['#risk'],
+      stale: false,
+    },
+    {
+      id: 'intruder',
+      title: 'intruder',
+      file: 'llmanspec/specs/intruder.feature',
+      kind: 'doc',
+      hardness: 'doc',
+      ruleCount: 1,
+      scenarioCount: 0,
+      decisionTableCount: 0,
+      machineKeys: [],
+      summary: '外部说明',
+      reqPreview: ['@req:r30'],
+      tags: [],
+      stale: false,
+    },
+  ];
+  const edges: SpecIndexEdge[] = [
+    {
+      id: 'ref_1',
+      from: 'risk',
+      to: 'order',
+      label: '@req:r20',
+      kind: 'spec-ref',
+      evidence: [{ sourceReqId: 'r10', targetReqId: 'r20', summary: '前置依赖 @req:r20' }],
+    },
+  ];
+  ctx.fixtures['r155Input'] = { specs, edges };
+});
+
+bdd.when('执行排他空间守卫、交叉桥计算与外部契约门户证据解析', (ctx) => {
+  const { specs, edges } = ctx.fixtures['r155Input'] as {
+    specs: SpecIndexItem[];
+    edges: SpecIndexEdge[];
+  };
+  const { groups, ungroupedIds } = buildExclusiveDomainGroupsWithManual(
+    specs,
+    [
+      { id: 'g1', title: '交易', tone: 'blue', capabilities: ['order'] },
+      { id: 'g2', title: '风控', tone: 'teal', capabilities: ['risk'] },
+    ],
+    new Set(),
+  );
+  const layout = layoutMainViewWithGroups(
+    specs,
+    groups,
+    ungroupedIds,
+    new Set(),
+    { intruder: { x: 80, y: 110 } },
+    'map',
+  );
+  const bridges = computeCrossForestBridges(
+    {
+      nodes: specs.map((s) => ({ ...s, weight: 1 })),
+      edges: edges.map((e) => ({ ...e, kind: 'spec-ref', evidence: e.evidence ?? [] })),
+    },
+    groups.map((g) => ({ id: g.id, capabilities: g.memberIds })),
+  );
+  const portalEv = extractPortalEvidence('order', 'upstream', 'risk', edges);
+  ctx.fixtures['r155Res'] = { layout, bridges, portalEv };
+});
+
+bdd.thenStep('任意分组包围盒零误包非成员节点且交叉桥与外部门户证据列表完整准确', (ctx) => {
+  const { layout, bridges, portalEv } = ctx.fixtures['r155Res'] as {
+    layout: ReturnType<typeof layoutMainViewWithGroups>;
+    bridges: ReturnType<typeof computeCrossForestBridges>;
+    portalEv: ReturnType<typeof extractPortalEvidence>;
+  };
+  const pos = layout.specPositions['intruder']!;
+  for (const gb of layout.groupBoxes) {
+    if (gb.group.memberIds.includes('intruder')) continue;
+    const hit =
+      pos.x < gb.x + gb.width &&
+      pos.x + 254 > gb.x &&
+      pos.y < gb.y + gb.height &&
+      pos.y + 158 > gb.y;
+    expect(hit).toBe(false);
+  }
+  expect(bridges.bridges.length).toBe(1);
+  expect(portalEv.length).toBe(1);
+  expect(portalEv[0]!.targetReqId).toBe('r20');
 });

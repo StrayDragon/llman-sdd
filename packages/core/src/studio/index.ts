@@ -13,3 +13,4 @@ export * from './decisionTree.ts';
 export * from './textfold.ts';
 export * from './demos.ts';
 export * from './drift.ts';
+export * from './forest.ts';
