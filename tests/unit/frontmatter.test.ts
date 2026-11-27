@@ -308,6 +308,14 @@ describe('B2 characterization: frontmatter extraction per consume point', () => 
       ).toEqual({ branch: 'sdd/x', baseBranch: 'main', baseSha: 'abc' });
     });
 
+    test('digit-only base_sha: YAML number scalar still binds (short-SHA guard)', () => {
+      expect(
+        readBinding(
+          '---\ndepends_on: []\ntitle: t\nbranch: sdd/x\nbase_branch: main\nbase_sha: 1234567\n---\n\nbody\n',
+        ),
+      ).toEqual({ branch: 'sdd/x', baseBranch: 'main', baseSha: '1234567' });
+    });
+
     test('CRLF line endings: no binding', () => {
       expect(
         readBinding(

@@ -106,14 +106,25 @@ export function specsLanded(
   return touched.split('\n').some((line) => line.startsWith(specsPrefix));
 }
 
+/**
+ * YAML types a digit-only scalar (e.g. a short commit SHA) as a number; a
+ * binding key is textual. Accept finite number scalars spelled back as
+ * decimals; booleans/null stay unbound.
+ */
+function scalarText(value: unknown): string | null {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return null;
+}
+
 export function readBinding(proposal: string): ChangeBinding | null {
   const { frontmatter } = splitFrontmatter(proposal);
   if (frontmatter === null) return null;
   const doc = parseDocument(frontmatter);
-  const branch = doc.get('branch');
-  const baseBranch = doc.get('base_branch');
-  const baseSha = doc.get('base_sha');
-  if (typeof branch !== 'string' || typeof baseBranch !== 'string' || typeof baseSha !== 'string') {
+  const branch = scalarText(doc.get('branch'));
+  const baseBranch = scalarText(doc.get('base_branch'));
+  const baseSha = scalarText(doc.get('base_sha'));
+  if (branch === null || baseBranch === null || baseSha === null) {
     return null;
   }
   return { branch, baseBranch, baseSha };
