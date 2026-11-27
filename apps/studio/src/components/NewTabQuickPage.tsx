@@ -6,7 +6,7 @@
  * - Dynamic workspace `#tag (count)` chips + quick workspace actions (zero cross-repo leaks)
  * - Explicit 0-hit empty state recovery card instead of a blank screen
  */
-import type { SpecIndexItem } from '@llman-sdd/core/studio';
+import type { SpecIndexItem, StudioSearchHit } from '@llman-sdd/core/studio';
 import {
   ChevronDown,
   ChevronUp,
@@ -20,8 +20,9 @@ import {
   Table2,
   Workflow,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
+import { studioApi } from '../api/client.ts';
 import { useStudioStore } from '../store/studioStore.ts';
 
 export interface WorkspaceTagCount {
@@ -92,6 +93,7 @@ export function NewTabQuickPage() {
     specs,
     localTagsByCap,
     openSpecTab,
+    openSearchHit,
     createForestTab,
     activateTab,
     restoreDefaultTabs,
@@ -101,6 +103,33 @@ export function NewTabQuickPage() {
   const [query, setQuery] = useState('');
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [showAllSpecs, setShowAllSpecs] = useState(false);
+  const [deepHits, setDeepHits] = useState<StudioSearchHit[]>([]);
+  const [recallProvider, setRecallProvider] = useState<'local-bm25' | 'rag-serve'>('local-bm25');
+
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) {
+      setDeepHits([]);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      void studioApi
+        .searchWorkspace(q, { wsKey: activeWorkspace?.wsKey, topK: 6 })
+        .then((res) => {
+          if (cancelled) return;
+          setDeepHits(res.hits);
+          setRecallProvider(res.provider);
+        })
+        .catch(() => {
+          if (!cancelled) setDeepHits([]);
+        });
+    }, 180);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [query, activeWorkspace?.wsKey]);
 
   const tagCounts = useMemo(
     () => aggregateWorkspaceTags(specs, localTagsByCap),
@@ -200,6 +229,52 @@ export function NewTabQuickPage() {
             </button>
           )}
         </div>
+
+        {/* Deep Full-Text / RAG Recall Hits */}
+        {deepHits.length > 0 && (
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between gap-2">
+              <span
+                className="font-mono text-[10.5px] font-semibold uppercase tracking-wider"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                工作区深度召回（{deepHits.length}）
+              </span>
+              <span
+                className="font-mono text-[10px] rounded-full border px-2 py-0.5"
+                style={{
+                  borderColor:
+                    recallProvider === 'rag-serve' ? 'var(--accent-border)' : 'var(--border)',
+                  background:
+                    recallProvider === 'rag-serve' ? 'var(--accent-soft)' : 'var(--surface-subtle)',
+                  color: recallProvider === 'rag-serve' ? 'var(--accent)' : 'var(--text-secondary)',
+                }}
+              >
+                {recallProvider === 'rag-serve' ? 'RAG 语义' : '本地全文'}
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {deepHits.map((hit) => (
+                <button
+                  key={hit.id}
+                  type="button"
+                  onClick={() => openSearchHit(hit)}
+                  className="studio-card p-2.5 text-left flex flex-col gap-1 cursor-pointer hover:border-[var(--ink)]"
+                >
+                  <div className="font-semibold text-xs truncate">{hit.title}</div>
+                  {hit.snippet && (
+                    <div
+                      className="text-[11px] leading-relaxed studio-clamp-2"
+                      style={{ color: 'var(--text-secondary)' }}
+                    >
+                      {hit.snippet}
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Section 1: QUICK OPEN (Compact 2-Column Grid matching studio-demo.html) */}
         <div className="flex flex-col gap-2.5">

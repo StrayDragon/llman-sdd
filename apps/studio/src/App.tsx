@@ -10,6 +10,7 @@ import { BottomChrome } from './components/BottomChrome.tsx';
 import { ChangeDagPanel } from './components/ChangeDagPanel.tsx';
 import { CommentPopover } from './components/CommentPopover.tsx';
 import { GuidedTourOverlay, ShortcutCheatSheetModal } from './components/ErgonomicsModals.tsx';
+import { InPanelFindBar } from './components/InPanelFindBar.tsx';
 import {
   PromptWorkbenchModal,
   RevisionDrawer,
@@ -78,6 +79,7 @@ export function App() {
     refreshInPlace,
     flushPendingSaves,
     setCmdkOpen,
+    setPanelFindOpen,
     setShortcutsOpen,
     closeTour,
     navBack,
@@ -150,8 +152,14 @@ export function App() {
         setCmdkOpen(true);
         return;
       }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        setPanelFindOpen(true);
+        return;
+      }
       if (e.key === 'Escape') {
         setCmdkOpen(false);
+        setPanelFindOpen(false);
         setShortcutsOpen(false);
         closeTour();
         setSettingsOpen(false);
@@ -195,6 +203,7 @@ export function App() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [
     setCmdkOpen,
+    setPanelFindOpen,
     setShortcutsOpen,
     closeTour,
     navBack,
@@ -246,6 +255,7 @@ export function App() {
       <SaveGuardModal />
       <ShareDeepLinkModal />
       <SearchPaletteModal />
+      <InPanelFindBar />
       <ShortcutCheatSheetModal />
       <GuidedTourOverlay />
 

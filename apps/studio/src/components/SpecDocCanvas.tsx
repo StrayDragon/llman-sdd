@@ -354,6 +354,8 @@ export function SpecDocCanvas({ capId }: { capId: string }) {
     specDetails,
     stateDoc,
     docFoldLevel,
+    panelFindOpen,
+    panelFindQuery,
     openCommentPopover,
     openShareModal,
     openPromptWorkbench,
@@ -377,10 +379,12 @@ export function SpecDocCanvas({ capId }: { capId: string }) {
     );
   }
 
+  const effectiveRuleQuery =
+    panelFindOpen && panelFindQuery.trim() !== '' ? panelFindQuery : ruleQuery;
   const filteredRules = detail.rules.filter((r) => {
     if (hardnessFilter === 'doc-only' && r.hardness !== 'doc') return false;
-    if (ruleQuery.trim() === '') return true;
-    const q = ruleQuery.toLowerCase();
+    if (effectiveRuleQuery.trim() === '') return true;
+    const q = effectiveRuleQuery.toLowerCase();
     return (
       r.title.toLowerCase().includes(q) ||
       r.description.toLowerCase().includes(q) ||

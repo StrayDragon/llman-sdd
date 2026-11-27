@@ -9,6 +9,7 @@ import {
   buildDriftSlicePacket,
   buildForestGraph,
   buildProposalDraft,
+  buildWorkspaceSearchDocuments,
   cloneMachineIR,
   computeCrossForestBridges,
   computeMachineDiff,
@@ -30,6 +31,7 @@ import {
   recordTimelineCommit,
   renderUpdatedFeatureSource,
   rollbackTimeline,
+  searchWorkspaceBm25,
   validateCapability,
   validateForestIsolation,
   validateMachineGraph,
@@ -699,5 +701,79 @@ bdd.thenStep('孤立规格产出 W3 警告且 views.json 经临时文件原子�
     reloaded.views.length !== 1
   ) {
     throw new Error('views.json atomic write/read verification failed');
+  }
+});
+
+// ── r158: Studio pure CJK-bigram + BM25 workspace full-text search ──
+
+bdd.given('包含中文规则正文、转移守卫与业务评论的 Studio 工作区文档集', (ctx) => {
+  const src = `# language: zh-CN
+# purpose: 支付幂等锁与超时退回规格
+
+功能: payment-lock
+
+  @req:r401
+  规则: 幂等锁超时退回
+    当下游 30 秒无响应时 MUST 释放幂等锁并触发超时退回。
+
+    @transitions
+    场景大纲: 支付流转
+      假如 处于 <from>
+      当 触发 <event>
+      那么 进入 <to>
+
+      例子:
+        | from   | event    | guard    | to     |
+        | 锁定中 | 超时退回 | 超过30秒 | 已退回 |
+`;
+  const doc = parseCapability(src, 'payment-lock.feature');
+  let stateDoc = createStudioStateDoc({
+    id: 'bdd-search',
+    title: 'BDD Search',
+    drafts: [],
+    createdAt: '2026-11-27T00:00:00.000Z',
+  });
+  stateDoc = {
+    ...stateDoc,
+    comments: [
+      {
+        id: 'c_1',
+        anchor: { kind: 'doc', capability: 'payment-lock' },
+        author: 'human',
+        body: '讨论分布式幂等锁续租机制',
+        status: 'open',
+        createdAt: '2026-11-27T00:00:00.000Z',
+      },
+    ],
+  };
+  ctx.fixtures['r158Docs'] = buildWorkspaceSearchDocuments(
+    [{ capId: 'payment-lock', doc }],
+    stateDoc,
+  );
+});
+
+bdd.when('分别以中文短语与英文标识符执行 searchWorkspaceBm25', (ctx) => {
+  const docs = ctx.fixtures['r158Docs'] as ReturnType<typeof buildWorkspaceSearchDocuments>;
+  ctx.fixtures['r158Res'] = {
+    cnHits: searchWorkspaceBm25(docs, '幂等锁'),
+    enHits: searchWorkspaceBm25(docs, '@req:r401'),
+  };
+});
+
+bdd.thenStep('命中条目按相关性降序返回且携带对应目标锚点与非空命中片段摘要', (ctx) => {
+  const { cnHits, enHits } = ctx.fixtures['r158Res'] as {
+    cnHits: ReturnType<typeof searchWorkspaceBm25>;
+    enHits: ReturnType<typeof searchWorkspaceBm25>;
+  };
+  if (cnHits.length < 2 || !cnHits.some((h) => h.targetKind === 'comment')) {
+    throw new Error(`expected cnHits including comment, got ${JSON.stringify(cnHits)}`);
+  }
+  for (let i = 1; i < cnHits.length; i += 1) {
+    if (cnHits[i - 1]!.score < cnHits[i]!.score) {
+      throw new Error('BM25 hits not sorted descending by score');
+    }
+  }
+  if (enHits.length === 0 || enHits[0]?.targetId !== 'r401' || enHits[0]!.snippet.length === 0) {
+    throw new Error(`unexpected enHits: ${JSON.stringify(enHits)}`);
   }
 });

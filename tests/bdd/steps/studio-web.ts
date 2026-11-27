@@ -25,6 +25,7 @@ import {
   reopenStudioComment,
   resolveStudioComment,
   specDetailResponseSchema,
+  studioSearchResponseSchema,
   switchWorldlineHead,
   textfoldResponseSchema,
   viewsResponseSchema,
@@ -804,5 +805,62 @@ bdd.thenStep(
     for (const ratio of Object.values(res.contrasts)) {
       expect(ratio).toBeGreaterThanOrEqual(MIN_NON_TEXT_CONTRAST);
     }
+  },
+);
+
+// ── r159: /api/search workspace-isolated BM25, SSRF guard & RAG fallback ──
+
+bdd.when('先以中文关键词请求 /api/search，再传入非回环与不可达回环 RAG 地址', async (ctx) => {
+  const hub = ctx.fixtures['r145Hub'] as CreatedStudioHubApp;
+  const dir = ctx.fixtures['r145Dir'] as string;
+  try {
+    const post = (body: unknown) =>
+      hub.app.fetch(
+        new Request(`http://127.0.0.1:4710/api/p/${encodeURIComponent(hub.activeWsKey)}/search`, {
+          method: 'POST',
+          headers: {
+            host: '127.0.0.1:4710',
+            'content-type': 'application/json',
+            'x-studio-token': hub.token,
+          },
+          body: JSON.stringify(body),
+        }),
+      );
+    const localRes = await post({ query: '样例规则' });
+    const localJson = studioSearchResponseSchema.parse(await localRes.json());
+    const ssrfRes = await post({ query: '样例规则', endpoint: 'https://evil.example.com' });
+    const fallbackRes = await post({ query: '样例规则', endpoint: 'http://127.0.0.1:1' });
+    const fallbackJson = studioSearchResponseSchema.parse(await fallbackRes.json());
+    ctx.fixtures['r159Res'] = {
+      localStatus: localRes.status,
+      localJson,
+      ssrfStatus: ssrfRes.status,
+      fallbackStatus: fallbackRes.status,
+      fallbackJson,
+    };
+  } finally {
+    hub.cleanup();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+bdd.thenStep(
+  '本地 BM25 返回带片段的排序命中、非回环 RAG 地址返回 400 且不可达回环 RAG 无感降级回 local-bm25',
+  (ctx) => {
+    const res = ctx.fixtures['r159Res'] as {
+      localStatus: number;
+      localJson: ReturnType<typeof studioSearchResponseSchema.parse>;
+      ssrfStatus: number;
+      fallbackStatus: number;
+      fallbackJson: ReturnType<typeof studioSearchResponseSchema.parse>;
+    };
+    expect(res.localStatus).toBe(200);
+    expect(res.localJson.provider).toBe('local-bm25');
+    expect(res.localJson.hits.length).toBeGreaterThan(0);
+    expect(res.localJson.hits[0]!.snippet.length).toBeGreaterThan(0);
+    expect(res.ssrfStatus).toBe(400);
+    expect(res.fallbackStatus).toBe(200);
+    expect(res.fallbackJson.provider).toBe('local-bm25');
+    expect(Boolean(res.fallbackJson.degradedReason)).toBe(true);
   },
 );

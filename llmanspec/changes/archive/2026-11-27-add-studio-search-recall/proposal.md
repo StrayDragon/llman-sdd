@@ -3,6 +3,9 @@ depends_on:
   - add-studio-web-workbench
   - add-studio-forest-tabs
 title: "[Post-MVP] 扩展 Studio 面板内搜索与工作区深度搜索召回（含 RAG 语义槽位）"
+branch: sdd/add-studio-search-recall
+base_branch: main
+base_sha: 33addbc5340623e560f0a5cdd2e79ad1f38a2a16
 ---
 
 # 扩展 Studio 面板内搜索与工作区深度搜索召回（含 RAG 语义槽位）

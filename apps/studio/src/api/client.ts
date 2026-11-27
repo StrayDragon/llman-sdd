@@ -9,6 +9,7 @@ import {
   previewDiffResponseSchema,
   putStateResponseSchema,
   specDetailResponseSchema,
+  studioSearchResponseSchema,
   studioSseEventSchema,
   textfoldResponseSchema,
   viewsResponseSchema,
@@ -21,6 +22,7 @@ import {
   type PreviewDiffResponse,
   type PutStateResponse,
   type SpecDetailResponse,
+  type StudioSearchResponse,
   type StudioSseEvent,
   type StudioStateDoc,
   type StudioViewsDoc,
@@ -220,6 +222,24 @@ export class StudioApiClient {
     });
     if (!res.ok) throw new Error(`PUT ${url} failed (${String(res.status)})`);
     return viewsResponseSchema.parse(await res.json());
+  }
+
+  async searchWorkspace(
+    query: string,
+    opts?: { wsKey?: string; topK?: number; endpoint?: string },
+  ): Promise<StudioSearchResponse> {
+    const url = opts?.wsKey ? `/api/p/${encodeURIComponent(opts.wsKey)}/search` : '/api/search';
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: this.writeHeaders(),
+      body: JSON.stringify({
+        query,
+        ...(opts?.topK ? { topK: opts.topK } : {}),
+        ...(opts?.endpoint ? { endpoint: opts.endpoint } : {}),
+      }),
+    });
+    if (!res.ok) throw new Error(`POST ${url} failed (${String(res.status)})`);
+    return studioSearchResponseSchema.parse(await res.json());
   }
 
   subscribeEvents(onEvent: (event: StudioSseEvent) => void): () => void {

@@ -974,6 +974,9 @@ function StateMachineCanvasInner() {
     focusAdjacencyCapId,
     zoomTrigger,
     focusStateUid,
+    panelFindOpen,
+    panelFindQuery,
+    panelFindActiveId,
     setViewportForView,
     clearViewportForView,
     openSpecTab,
@@ -1093,6 +1096,18 @@ function StateMachineCanvasInner() {
     const t = setTimeout(() => setFocusStateUid(null), 2200);
     return () => clearTimeout(t);
   }, [focusStateUid, isMacro, rf, setFocusStateUid]);
+
+  // Smooth-pan to active ⌘F In-Panel Find match on macro / machine canvas
+  useEffect(() => {
+    if (!panelFindOpen || !panelFindActiveId || !panelFindQuery.trim()) return;
+    const node = rf.getNode(panelFindActiveId);
+    if (!node) return;
+    void rf.setCenter(
+      node.position.x + (node.measured?.width ?? 220) / 2,
+      node.position.y + (node.measured?.height ?? 120) / 2,
+      { zoom: Math.max(0.75, rf.getZoom()), duration: 220 },
+    );
+  }, [panelFindOpen, panelFindActiveId, panelFindQuery, rf]);
 
   // Keyboard direct manipulation: Tab quick-create, Delete/Enter, G/T batch macro, Arrow-key cold-table nudge
   useEffect(() => {

@@ -260,6 +260,20 @@ async function runViewport(
       fail('shortcuts', 'Escape did not close shortcut cheat sheet modal');
     }
 
+    // ── Ctrl+F in-panel find bar opens cleanly, matches cards, and does not violate top-slot exclusivity (r159) ──
+    await page.keyboard.press('Control+f');
+    await settle(page, 250);
+    const findBar = page.locator('div[role="search"][aria-label="面板内搜索"]');
+    if ((await findBar.count()) !== 1) {
+      fail('in-panel-find', 'Ctrl+F did not open in-panel find bar');
+    } else {
+      await findBar.locator('input').fill('studio');
+      await settle(page, 200);
+      await judge('main-view+find');
+      await page.keyboard.press('Escape');
+      await settle(page, 150);
+    }
+
     // ── Drag a node right (React #185 regression) + persistence across refresh ──
     const card = page.locator('.react-flow__node:not(.react-flow__node-domainGroup)').last();
     const cardId = await card.getAttribute('data-id');

@@ -499,7 +499,24 @@ export {
   type ViewsResponse,
   type WorkspaceItem,
   type WorkspacesResponse,
+  studioSearchHitSchema,
+  studioSearchRequestSchema,
+  studioSearchResponseSchema,
+  studioSearchTargetKindSchema,
+  type StudioSearchHit,
+  type StudioSearchRequest,
+  type StudioSearchResponse,
 } from './studio/contracts.ts';
+export {
+  buildWorkspaceSearchDocuments,
+  extractHighlightSnippet,
+  searchWorkspaceBm25,
+  tokenizeSearchText,
+  type SearchableSpecInput,
+  type StudioSearchTargetKind,
+  type WorkspaceSearchDocument,
+  type WorkspaceSearchHit,
+} from './studio/search.ts';
 export {
   STUDIO_VIEWS_REL,
   StudioViewsError,

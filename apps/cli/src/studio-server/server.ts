@@ -26,6 +26,7 @@ import {
   buildDemoStudioWebDrafts,
   buildForestGraph,
   buildProposalDraft,
+  buildWorkspaceSearchDocuments,
   computeMachineDiff,
   createStudioStateDoc,
   currentBranch,
@@ -54,7 +55,9 @@ import {
   renderUpdatedFeatureSource,
   resolveInstanceRoot,
   ruleHasRunnableScenario,
+  searchWorkspaceBm25,
   specIdOf,
+  studioSearchRequestSchema,
   textfoldRequestSchema,
   validateStateId,
   worktreeList,
@@ -63,6 +66,8 @@ import {
   type BootstrapResponse,
   type HealthResponse,
   type SpecDetailResponse,
+  type StudioSearchHit,
+  type StudioSearchResponse,
   type SpecEntry,
   type SpecIndexEdge,
   type SpecIndexItem,
@@ -1130,6 +1135,145 @@ export function createStudioHubApp(options: StudioHubOptions): CreatedStudioHubA
     cache[digest] = { provider: 'local-ast', levels };
     writeTextfoldCache(rec.item.instanceRoot, cache);
     return c.json({ provider: 'local-ast', cached: false, sha256: digest, levels });
+  });
+
+  // --- Tier 0 Local BM25 + Optional Tier 1 Loopback RAG Semantic Search Proxy (r159) ---
+  const ragCache = new Map<string, { expiresAt: number; response: StudioSearchResponse }>();
+
+  const handleWorkspaceSearch = async (wsKeyParam: string | undefined, rawBody: unknown) => {
+    const rec = resolveWs(wsKeyParam);
+    if (!rec) return { status: 404 as const, body: { error: 'workspace not found' } };
+    const parsed = studioSearchRequestSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return {
+        status: 400 as const,
+        body: { error: 'invalid search payload', issues: parsed.error.issues },
+      };
+    }
+    const { query, topK = 20, endpoint } = parsed.data;
+    const entries = discoverSpecs('llmanspec/specs', makeIo(rec.item.instanceRoot));
+    const parsedSpecs = entries.map((entry) => ({ capId: specIdOf(entry), doc: entry.doc }));
+    let activeStateDoc = null;
+    try {
+      const stateIo = makeNodeStudioStateIo(rec.item.instanceRoot);
+      const summaries = listStudioStates(stateIo);
+      if (summaries.length > 0) {
+        activeStateDoc = readStudioState(stateIo, summaries[0]!.id);
+      }
+    } catch {
+      activeStateDoc = null;
+    }
+    const docs = buildWorkspaceSearchDocuments(parsedSpecs, activeStateDoc);
+
+    const ragUrl = endpoint ?? process.env.LLMAN_SDD_STUDIO_RAG_URL;
+    let degradedReason: string | undefined;
+    if (ragUrl) {
+      let parsedUrl: URL;
+      try {
+        parsedUrl = new URL(ragUrl);
+      } catch {
+        return { status: 400 as const, body: { error: 'invalid external RAG endpoint URL' } };
+      }
+      if (!isLoopbackHost(parsedUrl.hostname)) {
+        return {
+          status: 400 as const,
+          body: {
+            error: 'external RAG endpoint must target a loopback host (127.0.0.1 / localhost)',
+          },
+        };
+      }
+      const cacheKey = `${rec.item.wsKey}|${ragUrl}|${query}|${String(topK)}`;
+      const cached = ragCache.get(cacheKey);
+      if (cached && cached.expiresAt > Date.now()) {
+        return { status: 200 as const, body: { ...cached.response, cached: true } };
+      }
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 4000);
+      try {
+        const headers: Record<string, string> = { 'content-type': 'application/json' };
+        const bearer = process.env.LLMAN_SDD_STUDIO_RAG_TOKEN;
+        if (bearer) headers['authorization'] = `Bearer ${bearer}`;
+        const res = await fetch(`${ragUrl.replace(/\/+$/u, '')}/search`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ query, workspaceKey: rec.item.wsKey, topK }),
+          signal: controller.signal,
+        });
+        if (res.ok) {
+          const ext = (await res.json()) as { hits?: unknown };
+          if (Array.isArray(ext.hits)) {
+            const mapped: StudioSearchHit[] = [];
+            for (const [idx, rawHit] of ext.hits.entries()) {
+              if (!rawHit || typeof rawHit !== 'object') continue;
+              const h = rawHit as Record<string, unknown>;
+              const targetKind =
+                h.targetKind === 'spec' ||
+                h.targetKind === 'rule' ||
+                h.targetKind === 'state' ||
+                h.targetKind === 'edge' ||
+                h.targetKind === 'decision' ||
+                h.targetKind === 'comment' ||
+                h.targetKind === 'timeline'
+                  ? h.targetKind
+                  : 'spec';
+              const targetId =
+                typeof h.targetId === 'string' && h.targetId ? h.targetId : `hit-${String(idx)}`;
+              const capId = typeof h.capId === 'string' && h.capId ? h.capId : targetId;
+              mapped.push({
+                id: `rag:${targetKind}:${targetId}:${String(idx)}`,
+                targetKind,
+                targetId,
+                capId,
+                ...(typeof h.machineKey === 'string' && h.machineKey
+                  ? { machineKey: h.machineKey }
+                  : {}),
+                title: typeof h.title === 'string' && h.title ? h.title : `${capId} · ${targetId}`,
+                snippet: typeof h.snippet === 'string' ? h.snippet : '',
+                score: typeof h.score === 'number' ? h.score : 1,
+                source: 'rag-serve',
+              });
+            }
+            const response: StudioSearchResponse = {
+              provider: 'rag-serve',
+              cached: false,
+              totalIndexed: docs.length,
+              hits: mapped.slice(0, topK),
+            };
+            ragCache.set(cacheKey, { expiresAt: Date.now() + 30_000, response });
+            return { status: 200 as const, body: response };
+          }
+          degradedReason = 'external RAG payload missing hits array';
+        } else {
+          degradedReason = `external RAG returned HTTP ${String(res.status)}`;
+        }
+      } catch (error) {
+        degradedReason = error instanceof Error ? error.message : 'external RAG unreachable';
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+
+    const hits = searchWorkspaceBm25(docs, query, topK);
+    const fallback: StudioSearchResponse = {
+      provider: 'local-bm25',
+      cached: false,
+      ...(degradedReason ? { degradedReason } : {}),
+      totalIndexed: docs.length,
+      hits,
+    };
+    return { status: 200 as const, body: fallback };
+  };
+
+  app.post('/api/search', async (c) => {
+    const raw = (await c.req.json().catch(() => null)) as unknown;
+    const res = await handleWorkspaceSearch(c.req.query('wsKey'), raw);
+    return c.json(res.body, res.status);
+  });
+
+  app.post('/api/p/:wsKey/search', async (c) => {
+    const raw = (await c.req.json().catch(() => null)) as unknown;
+    const res = await handleWorkspaceSearch(c.req.param('wsKey'), raw);
+    return c.json(res.body, res.status);
   });
 
   // --- SSE Real-Time Event Stream ---

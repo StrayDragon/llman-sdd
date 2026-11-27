@@ -79,3 +79,13 @@
       当 运行 buildForestGraph、computeCrossForestBridges、validateForestIsolation 与原子写入 views.json
       那么 节点分类权重与自动实线 evidence 准确提取且交叉桥仅命中跨组契约边
       而且 孤立规格产出 W3 警告且 views.json 经临时文件原子替换校验通过
+
+  @req:r158
+  规则: Studio 纯域中英双字分词与 BM25 工作区深度全文检索引擎
+    Studio 纯域 MUST 提供 `tokenizeSearchText`、`buildWorkspaceSearchDocuments`、`searchWorkspaceBm25` 与 `extractHighlightSnippet`（零 I/O、0 Token、100% 离线确定性）。
+    分词器 MUST 保留 ASCII 标识符与 `@req:rN` 词元，并对中文连续片段产出 unigram 与 bigram 词元；索引构建 MUST 覆盖当前工作区规则正文、Scenario 步骤、转移事件与守卫、决策表单元格、评论内容及世界线提交摘要，按 BM25 相关性降序返回带命中片段与精确锚点的检索结果。
+
+    场景: 纯域中英双字 BM25 准确召回规则正文、守卫与评论并生成命中摘要
+      假如 包含中文规则正文、转移守卫与业务评论的 Studio 工作区文档集
+      当 分别以中文短语与英文标识符执行 searchWorkspaceBm25
+      那么 命中条目按相关性降序返回且携带对应目标锚点与非空命中片段摘要

@@ -20,6 +20,13 @@ export const STUDIO_SHORTCUT_REGISTRY: readonly ShortcutEntry[] = [
     scope: 'global',
   },
   {
+    id: 'in-panel-find',
+    keys: ['⌘', 'F'],
+    label: '面板内查找定位',
+    detail: '在当前画布、L2/L3 嵌套子图或规则文档内逐条高亮定位',
+    scope: 'global',
+  },
+  {
     id: 'help',
     keys: ['?'],
     label: '快捷键速查卡',

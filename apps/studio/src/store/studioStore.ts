@@ -33,6 +33,7 @@ import {
   type SpecIndexEdge,
   type SpecIndexItem,
   type StudioMachineIR,
+  type StudioSearchHit,
   type StudioStateDoc,
   type StudioTabView,
   type StudioViewsDoc,
@@ -150,6 +151,10 @@ export interface StudioStoreState {
   dagPanelOpen: boolean;
   dagFullscreen: boolean;
   cmdkOpen: boolean;
+  panelFindOpen: boolean;
+  panelFindQuery: string;
+  panelFindMatchIds: string[];
+  panelFindActiveId: string | null;
   shortcutsOpen: boolean;
   tourStep: number | null;
   saveModalOpen: boolean;
@@ -326,6 +331,10 @@ export interface StudioStoreState {
   setDagPanelOpen: (open: boolean) => void;
   setDagFullscreen: (full: boolean) => void;
   setCmdkOpen: (open: boolean) => void;
+  setPanelFindOpen: (open: boolean) => void;
+  setPanelFindQuery: (query: string) => void;
+  setPanelFindMatches: (ids: string[], activeId: string | null) => void;
+  openSearchHit: (hit: StudioSearchHit) => void;
   setShortcutsOpen: (open: boolean) => void;
   startTour: () => void;
   stepTour: (delta: number) => void;
@@ -624,6 +633,10 @@ export const useStudioStore = create<StudioStoreState>((set, get) => {
     dagPanelOpen: false,
     dagFullscreen: false,
     cmdkOpen: false,
+    panelFindOpen: false,
+    panelFindQuery: '',
+    panelFindMatchIds: [],
+    panelFindActiveId: null,
     shortcutsOpen: false,
     tourStep: null,
     saveModalOpen: false,
@@ -1686,6 +1699,29 @@ export const useStudioStore = create<StudioStoreState>((set, get) => {
     setDagPanelOpen: (dagPanelOpen) => set({ dagPanelOpen }),
     setDagFullscreen: (dagFullscreen) => set({ dagFullscreen }),
     setCmdkOpen: (cmdkOpen) => set({ cmdkOpen }),
+    setPanelFindOpen: (panelFindOpen) =>
+      set((s) => ({
+        panelFindOpen,
+        ...(panelFindOpen ? {} : { panelFindMatchIds: [], panelFindActiveId: null }),
+        panelFindQuery: panelFindOpen ? s.panelFindQuery : '',
+      })),
+    setPanelFindQuery: (panelFindQuery) => set({ panelFindQuery }),
+    setPanelFindMatches: (panelFindMatchIds, panelFindActiveId) =>
+      set({ panelFindMatchIds, panelFindActiveId }),
+    openSearchHit: (hit) => {
+      const s = get();
+      if (hit.machineKey) {
+        s.openMachineTab(hit.machineKey, hit.capId);
+        if (hit.targetKind === 'state' || hit.targetKind === 'edge') {
+          s.setFocusStateUid(hit.targetId);
+        }
+        return;
+      }
+      const sp = s.specs.find((item) => item.id === hit.capId);
+      if (sp) {
+        void s.openSpecTab(sp);
+      }
+    },
     setShortcutsOpen: (shortcutsOpen) => set({ shortcutsOpen }),
     startTour: () => set({ tourStep: 0, settingsOpen: false }),
     stepTour: (delta) =>

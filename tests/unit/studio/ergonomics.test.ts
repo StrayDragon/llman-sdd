@@ -26,7 +26,7 @@ describe('studio onboarding, shortcuts, layout tidy & contrast (r157)', () => {
     expect(ids.has('cmdk')).toBe(true);
     expect(ids.has('macro-group')).toBe(true);
     expect(ids.has('macro-tab')).toBe(true);
-    expect(ids.has('in-panel-find')).toBe(false);
+    expect(ids.has('in-panel-find')).toBe(true);
 
     const macroList = filterShortcutsByView('macro');
     expect(macroList.some((s) => s.id === 'macro-group')).toBe(true);

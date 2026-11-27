@@ -6,6 +6,7 @@
  * - SearchPaletteModal: scope tabs (全部 | 规格与图 | 操作命令) + state-level indexing
  * - RevisionDrawer: Agent negotiation proposal accept / reject panel
  */
+import type { StudioSearchHit } from '@llman-sdd/core/studio';
 import { Command } from 'cmdk';
 import {
   Check,
@@ -559,17 +560,48 @@ export function RevisionDrawer() {
 export function SearchPaletteModal() {
   const {
     cmdkOpen,
+    activeWorkspace,
     specs,
     stateDoc,
     setCmdkOpen,
     openSpecTab,
     openMachineTab,
+    openSearchHit,
     setFocusStateUid,
     setDagPanelOpen,
     setWorldlineOpen,
     setSkin,
   } = useStudioStore();
   const [scope, setScope] = useState<'all' | 'specs' | 'commands'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [deepHits, setDeepHits] = useState<StudioSearchHit[]>([]);
+  const [recallProvider, setRecallProvider] = useState<'local-bm25' | 'rag-serve'>('local-bm25');
+
+  useEffect(() => {
+    if (!cmdkOpen) return;
+    const q = searchQuery.trim();
+    if (q.length < 2) {
+      setDeepHits([]);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      void studioApi
+        .searchWorkspace(q, { wsKey: activeWorkspace?.wsKey, topK: 8 })
+        .then((res) => {
+          if (cancelled) return;
+          setDeepHits(res.hits);
+          setRecallProvider(res.provider);
+        })
+        .catch(() => {
+          if (!cancelled) setDeepHits([]);
+        });
+    }, 160);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [cmdkOpen, searchQuery, activeWorkspace?.wsKey]);
 
   if (!cmdkOpen) return null;
 
@@ -587,7 +619,9 @@ export function SearchPaletteModal() {
         <Command label="全局搜索与命令">
           <Command.Input
             autoFocus
-            placeholder="搜索规格、状态机节点、或工作台命令..."
+            value={searchQuery}
+            onValueChange={setSearchQuery}
+            placeholder="搜索规格、规则正文、守卫、评论或工作台命令..."
             className="w-full px-4 py-3 text-sm border-b outline-none"
             style={{ borderColor: 'var(--border)' }}
           />
@@ -622,6 +656,48 @@ export function SearchPaletteModal() {
             </Command.Empty>
             {scope !== 'commands' && (
               <>
+                {deepHits.length > 0 && (
+                  <Command.Group
+                    heading={`工作区深度召回 · ${recallProvider === 'rag-serve' ? 'RAG 语义' : '本地全文'}`}
+                  >
+                    {deepHits.map((hit) => (
+                      <Command.Item
+                        key={hit.id}
+                        value={`${searchQuery} ${hit.title} ${hit.snippet}`}
+                        onSelect={() => {
+                          setCmdkOpen(false);
+                          openSearchHit(hit);
+                        }}
+                        className="flex flex-col gap-0.5 rounded-md px-3 py-1.5 cursor-pointer aria-selected:bg-black/5"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-medium truncate">{hit.title}</span>
+                          <span
+                            className="font-mono text-[10px] shrink-0 rounded px-1.5 py-0.5"
+                            style={{
+                              background:
+                                hit.source === 'rag-serve'
+                                  ? 'var(--accent-soft)'
+                                  : 'var(--surface-subtle)',
+                              color:
+                                hit.source === 'rag-serve' ? 'var(--accent)' : 'var(--text-muted)',
+                            }}
+                          >
+                            {hit.source === 'rag-serve' ? 'RAG 语义' : '本地全文'}
+                          </span>
+                        </div>
+                        {hit.snippet && (
+                          <span
+                            className="text-[11px] truncate"
+                            style={{ color: 'var(--text-secondary)' }}
+                          >
+                            {hit.snippet}
+                          </span>
+                        )}
+                      </Command.Item>
+                    ))}
+                  </Command.Group>
+                )}
                 <Command.Group heading="规格文档与决策表">
                   {specs.map((sp) => (
                     <Command.Item

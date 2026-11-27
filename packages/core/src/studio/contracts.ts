@@ -273,3 +273,42 @@ export const studioFocusContextSchema = z.object({
   summary: z.string(),
 });
 export type StudioFocusContext = z.infer<typeof studioFocusContextSchema>;
+
+export const studioSearchTargetKindSchema = z.enum([
+  'spec',
+  'rule',
+  'state',
+  'edge',
+  'decision',
+  'comment',
+  'timeline',
+]);
+
+export const studioSearchRequestSchema = z.object({
+  query: z.string().trim().min(1),
+  topK: z.number().int().min(1).max(50).optional(),
+  endpoint: z.string().url().optional(),
+});
+export type StudioSearchRequest = z.infer<typeof studioSearchRequestSchema>;
+
+export const studioSearchHitSchema = z.object({
+  id: z.string().min(1),
+  targetKind: studioSearchTargetKindSchema,
+  targetId: z.string().min(1),
+  capId: z.string().min(1),
+  machineKey: z.string().optional(),
+  title: z.string().min(1),
+  snippet: z.string(),
+  score: z.number(),
+  source: z.enum(['local-bm25', 'rag-serve']),
+});
+export type StudioSearchHit = z.infer<typeof studioSearchHitSchema>;
+
+export const studioSearchResponseSchema = z.object({
+  provider: z.enum(['local-bm25', 'rag-serve']),
+  cached: z.boolean(),
+  degradedReason: z.string().optional(),
+  totalIndexed: z.number().int().nonnegative(),
+  hits: z.array(studioSearchHitSchema),
+});
+export type StudioSearchResponse = z.infer<typeof studioSearchResponseSchema>;
