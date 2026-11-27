@@ -37,6 +37,7 @@ import {
   countShadowEdgesInProposals,
   getPendingDriftProposals,
 } from '../drift/reconcileOverlay.ts';
+import { readTourCompleted } from '../ergonomics/guidedTour.ts';
 import { useStudioStore } from '../store/studioStore.ts';
 
 const TIPS = [
@@ -62,6 +63,7 @@ export function TopChrome() {
     worldlineCompareAId,
     linterOpen,
     mode,
+    demoMode,
     showTips,
     tipIdx,
     activateTab,
@@ -84,6 +86,7 @@ export function TopChrome() {
     setCmdkOpen,
     setShowTips,
     stepTip,
+    startTour,
     decideRevision,
     openPromptWorkbench,
     openMachineTab,
@@ -284,6 +287,16 @@ export function TopChrome() {
           小贴士 {tipIdx + 1}/{TIPS.length}
         </span>
         <span className="truncate flex-1">{TIPS[tipIdx]}</span>
+        {demoMode && !readTourCompleted() && (
+          <button
+            type="button"
+            onClick={startTour}
+            className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold cursor-pointer"
+            style={{ background: 'var(--ink)', color: '#ffffff' }}
+          >
+            6 步向导
+          </button>
+        )}
         <div className="inline-flex items-center gap-0.5 shrink-0">
           <button
             type="button"

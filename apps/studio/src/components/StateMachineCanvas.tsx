@@ -70,6 +70,16 @@ import {
   computeDriftCalibrationOverlay,
   getPendingDriftProposals,
 } from '../drift/reconcileOverlay.ts';
+import { STUDIO_CONTRAST_PALETTES } from '../ergonomics/contrast.ts';
+import {
+  alignSelectedNodes,
+  distributeSelectedNodes,
+  nudgeCoord,
+  tidySelectedGrid,
+  type AlignMode,
+  type DistributeAxis,
+  type NodeBoxInput,
+} from '../ergonomics/layoutTidy.ts';
 import {
   buildExclusiveDomainGroupsWithManual,
   computeFocusAdjacencySet,
@@ -784,7 +794,8 @@ function ObstacleStateEdge({ id, data }: EdgeProps<Edge<ObstacleEdgeData>>) {
         d={dPath}
         fill="none"
         stroke={stroke}
-        strokeWidth={simClickable ? 2.4 : 1.7}
+        strokeWidth={simClickable ? 2.5 : 1.85}
+        shapeRendering="geometricPrecision"
         strokeDasharray={dashed ? '6 4' : undefined}
         markerEnd="url(#studio-arrow)"
       />
@@ -948,6 +959,7 @@ function StateMachineCanvasInner() {
     edges: macroEdges,
     stateDoc,
     tier,
+    skin,
     edgePreset,
     showMinimap,
     legendKindFilter,
@@ -1006,6 +1018,7 @@ function StateMachineCanvasInner() {
   } = useStudioStore();
 
   const rf = useReactFlow();
+  const contrastPalette = STUDIO_CONTRAST_PALETTES[skin];
   const [radialMenu, setRadialMenu] = useState<RadialContextState | null>(null);
   const [inlineEditor, setInlineEditor] = useState<InlineEditorState | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -1081,15 +1094,57 @@ function StateMachineCanvasInner() {
     return () => clearTimeout(t);
   }, [focusStateUid, isMacro, rf, setFocusStateUid]);
 
-  // Keyboard direct manipulation: Tab quick-create downstream, Delete/Backspace delete, Enter inline edit
+  // Keyboard direct manipulation: Tab quick-create, Delete/Enter, G/T batch macro, Arrow-key cold-table nudge
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent): void => {
-      if (isMacro || !activeMachineKey || !machine || inlineEditor) return;
+      if (inlineEditor) return;
       if (
         e.target instanceof HTMLElement &&
         ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)
       ) {
         return;
+      }
+      if (isMacro) {
+        if (selectedMacroIds.length >= 2 && !e.metaKey && !e.ctrlKey && !e.altKey) {
+          if (e.key.toLowerCase() === 'g') {
+            e.preventDefault();
+            addManualGroup(`自定义域 (${selectedMacroIds.length})`, selectedMacroIds);
+            setSelectedMacroIds([]);
+            return;
+          }
+          if (e.key.toLowerCase() === 't') {
+            e.preventDefault();
+            createForestTab(`组合视图 (${selectedMacroIds.length})`, selectedMacroIds);
+            setSelectedMacroIds([]);
+            return;
+          }
+        }
+        if (selectedMacroIds.length > 0 && !e.metaKey && !e.ctrlKey && !e.altKey) {
+          const sample = nudgeCoord({ x: 0, y: 0 }, e.key, e.shiftKey);
+          if (sample) {
+            e.preventDefault();
+            for (const id of selectedMacroIds) {
+              const cur = rf.getNode(id)?.position ?? stateDoc?.layouts.__macro__?.[id];
+              if (!cur) continue;
+              const next = nudgeCoord(cur, e.key, e.shiftKey);
+              if (next) updateNodePosition('__macro__', id, next, true);
+            }
+            return;
+          }
+        }
+        return;
+      }
+      if (!activeMachineKey || !machine) return;
+      if (selectedNodeId && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        const cur =
+          stateDoc?.layouts[activeMachineKey]?.[selectedNodeId] ??
+          defaultMachineLayout(machine)[selectedNodeId];
+        const next = cur ? nudgeCoord(cur, e.key, e.shiftKey) : null;
+        if (next) {
+          e.preventDefault();
+          updateNodePosition(activeMachineKey, selectedNodeId, next, true);
+          return;
+        }
       }
       if (e.key === 'Tab' && selectedNodeId) {
         e.preventDefault();
@@ -1134,7 +1189,12 @@ function StateMachineCanvasInner() {
     inlineEditor,
     selectedNodeId,
     selectedEdgeId,
+    selectedMacroIds,
     stateDoc,
+    rf,
+    addManualGroup,
+    createForestTab,
+    updateNodePosition,
     spawnStateAt,
     deleteEdge,
     deleteState,
@@ -1365,7 +1425,11 @@ function StateMachineCanvasInner() {
             dPath: geom.d,
             lx: lp.lx,
             ly: lp.ly,
-            stroke: isBridge ? '#2f54eb' : me.isManual ? '#64748b' : '#9aa4b4',
+            stroke: isBridge
+              ? '#2f54eb'
+              : me.isManual
+                ? contrastPalette.edgeManual
+                : contrastPalette.edgeDefault,
             dashed: me.isManual,
             bendOffset,
             onBendDrag: (next) => updateEdgeBend('__macro__', me.id, next),
@@ -1545,7 +1609,7 @@ function StateMachineCanvasInner() {
             dPath: `M ${Math.round(sx)} ${Math.round(py)} L ${Math.round(tx)} ${Math.round(py)}`,
             lx: (sx + tx) / 2,
             ly: py,
-            stroke: '#94a3b8',
+            stroke: contrastPalette.edgeDefault,
             dashed: true,
           },
         };
@@ -1569,7 +1633,7 @@ function StateMachineCanvasInner() {
             dPath: `M ${Math.round(sx)} ${Math.round(py)} L ${Math.round(tx)} ${Math.round(py)}`,
             lx: (sx + tx) / 2,
             ly: py,
-            stroke: '#94a3b8',
+            stroke: contrastPalette.edgeDefault,
             dashed: true,
           },
         };
@@ -1750,7 +1814,7 @@ function StateMachineCanvasInner() {
               ? '#15803d'
               : simClickable
                 ? '#2f54eb'
-                : '#7c8799',
+                : contrastPalette.edgeDefault,
           dashed: t._removed || t._drift,
           machineKey: activeMachineKey,
           edgeUid: t.uid,
@@ -1788,6 +1852,7 @@ function StateMachineCanvasInner() {
     macroEdges,
     legendKindFilter,
     tier,
+    skin,
     edgePreset,
     machine,
     activeMachineKey,
@@ -2484,7 +2549,7 @@ function StateMachineCanvasInner() {
               markerHeight="7"
               orient="auto-start-reverse"
             >
-              <path d="M 0 1 L 10 5 L 0 9 z" fill="#7c8799" />
+              <path d="M 0 1 L 10 5 L 0 9 z" fill={contrastPalette.edgeDefault} />
             </marker>
           </defs>
         </svg>
@@ -2534,9 +2599,9 @@ function StateMachineCanvasInner() {
         />
       )}
 
-      {/* Shift+Drag Batch Selection Action Bar (Macro / Forest views, C5 D2) */}
+      {/* Shift+Drag Batch Selection Action Bar (Macro / Forest views, C5 D2 + r157 Alignment/Tidy) */}
       {isMacro && selectedMacroIds.length >= 2 && (
-        <div className="fixed top-[92px] left-1/2 -translate-x-1/2 z-40 studio-float px-3 py-1.5 flex items-center gap-2 text-xs">
+        <div className="fixed top-[92px] left-1/2 -translate-x-1/2 z-40 studio-float px-3 py-1.5 flex items-center gap-2 text-xs flex-wrap justify-center max-w-[92vw]">
           <span className="font-semibold">已选中 {selectedMacroIds.length} 项规格</span>
           <button
             type="button"
@@ -2559,6 +2624,91 @@ function StateMachineCanvasInner() {
             style={{ background: 'var(--ink)', color: '#ffffff' }}
           >
             新建 Tab 视图 (T)
+          </button>
+          <div className="w-px h-3.5" style={{ background: 'var(--border)' }} />
+          {(
+            [
+              ['left', '左对齐'],
+              ['top', '顶对齐'],
+              ['centerY', '水平居中'],
+            ] as Array<[AlignMode, string]>
+          ).map(([alignMode, label]) => (
+            <button
+              key={alignMode}
+              type="button"
+              title="仅更新冷表坐标，不污染语义 Diff"
+              onClick={() => {
+                const cardW = tier === 'glyph' ? 148 : tier === 'detail' ? 304 : 254;
+                const cardH = tier === 'glyph' ? 132 : tier === 'detail' ? 218 : 158;
+                const boxes: NodeBoxInput[] = selectedMacroIds
+                  .map((id) => {
+                    const p = rf.getNode(id)?.position ?? stateDoc?.layouts.__macro__?.[id];
+                    return p ? { id, x: p.x, y: p.y, width: cardW, height: cardH } : null;
+                  })
+                  .filter((x): x is NodeBoxInput => x !== null);
+                const updated = alignSelectedNodes(boxes, alignMode);
+                for (const [id, pos] of Object.entries(updated)) {
+                  updateNodePosition('__macro__', id, pos, true);
+                }
+              }}
+              className="rounded-md border px-2 py-0.5 cursor-pointer hover:bg-black/5"
+              style={{ borderColor: 'var(--border)' }}
+            >
+              {label}
+            </button>
+          ))}
+          {selectedMacroIds.length >= 3 &&
+            (
+              [
+                ['horizontal', '水平等距'],
+                ['vertical', '垂直等距'],
+              ] as Array<[DistributeAxis, string]>
+            ).map(([axis, label]) => (
+              <button
+                key={axis}
+                type="button"
+                title="仅更新冷表坐标，不污染语义 Diff"
+                onClick={() => {
+                  const cardW = tier === 'glyph' ? 148 : tier === 'detail' ? 304 : 254;
+                  const cardH = tier === 'glyph' ? 132 : tier === 'detail' ? 218 : 158;
+                  const boxes: NodeBoxInput[] = selectedMacroIds
+                    .map((id) => {
+                      const p = rf.getNode(id)?.position ?? stateDoc?.layouts.__macro__?.[id];
+                      return p ? { id, x: p.x, y: p.y, width: cardW, height: cardH } : null;
+                    })
+                    .filter((x): x is NodeBoxInput => x !== null);
+                  const updated = distributeSelectedNodes(boxes, axis);
+                  for (const [id, pos] of Object.entries(updated)) {
+                    updateNodePosition('__macro__', id, pos, true);
+                  }
+                }}
+                className="rounded-md border px-2 py-0.5 cursor-pointer hover:bg-black/5"
+                style={{ borderColor: 'var(--border)' }}
+              >
+                {label}
+              </button>
+            ))}
+          <button
+            type="button"
+            title="局部网格整理（仅冷表坐标）"
+            onClick={() => {
+              const cardW = tier === 'glyph' ? 148 : tier === 'detail' ? 304 : 254;
+              const cardH = tier === 'glyph' ? 132 : tier === 'detail' ? 218 : 158;
+              const boxes: NodeBoxInput[] = selectedMacroIds
+                .map((id) => {
+                  const p = rf.getNode(id)?.position ?? stateDoc?.layouts.__macro__?.[id];
+                  return p ? { id, x: p.x, y: p.y, width: cardW, height: cardH } : null;
+                })
+                .filter((x): x is NodeBoxInput => x !== null);
+              const updated = tidySelectedGrid(boxes);
+              for (const [id, pos] of Object.entries(updated)) {
+                updateNodePosition('__macro__', id, pos, true);
+              }
+            }}
+            className="rounded-md border px-2 py-0.5 cursor-pointer hover:bg-black/5"
+            style={{ borderColor: 'var(--border)' }}
+          >
+            整理网格
           </button>
           {batchTagInput !== null ? (
             <div className="inline-flex items-center gap-1">

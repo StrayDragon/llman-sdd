@@ -3,6 +3,9 @@ depends_on:
   - add-studio-web-workbench
   - add-studio-forest-tabs
 title: "[Post-MVP] 完善 Studio 交互式向导、快捷键体系与画布排版导出体验"
+branch: sdd/add-studio-onboarding-and-ergonomics
+base_branch: main
+base_sha: 3d8c912fba5a4a279fb17eebb21a9fc543cf6616
 ---
 
 # 完善 Studio 交互式向导、快捷键体系与画布排版导出体验

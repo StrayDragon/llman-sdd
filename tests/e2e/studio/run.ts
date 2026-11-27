@@ -245,6 +245,21 @@ async function runViewport(
     if (!ctxPrevented) fail('main-view', 'native browser context menu is not suppressed');
     await page.keyboard.press('Escape');
 
+    // ── ? shortcut cheat sheet modal opens cleanly and closes on Escape (r157) ──
+    await page.keyboard.press('Shift+/');
+    await settle(page, 250);
+    const shortcutDialogCount = await page
+      .locator('div[role="dialog"][aria-label="快捷键速查卡"]')
+      .count();
+    if (shortcutDialogCount !== 1) {
+      fail('shortcuts', '? key did not open shortcut cheat sheet modal');
+    }
+    await page.keyboard.press('Escape');
+    await settle(page, 200);
+    if ((await page.locator('div[role="dialog"][aria-label="快捷键速查卡"]').count()) !== 0) {
+      fail('shortcuts', 'Escape did not close shortcut cheat sheet modal');
+    }
+
     // ── Drag a node right (React #185 regression) + persistence across refresh ──
     const card = page.locator('.react-flow__node:not(.react-flow__node-domainGroup)').last();
     const cardId = await card.getAttribute('data-id');

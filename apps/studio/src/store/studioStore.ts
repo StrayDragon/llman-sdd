@@ -150,6 +150,8 @@ export interface StudioStoreState {
   dagPanelOpen: boolean;
   dagFullscreen: boolean;
   cmdkOpen: boolean;
+  shortcutsOpen: boolean;
+  tourStep: number | null;
   saveModalOpen: boolean;
   sharePopoverOpen: boolean;
   shareTarget: ShareTargetState | null;
@@ -324,6 +326,10 @@ export interface StudioStoreState {
   setDagPanelOpen: (open: boolean) => void;
   setDagFullscreen: (full: boolean) => void;
   setCmdkOpen: (open: boolean) => void;
+  setShortcutsOpen: (open: boolean) => void;
+  startTour: () => void;
+  stepTour: (delta: number) => void;
+  closeTour: () => void;
   setSaveModalOpen: (open: boolean) => void;
   setSharePopoverOpen: (open: boolean) => void;
   setShowTips: (show: boolean) => void;
@@ -618,6 +624,8 @@ export const useStudioStore = create<StudioStoreState>((set, get) => {
     dagPanelOpen: false,
     dagFullscreen: false,
     cmdkOpen: false,
+    shortcutsOpen: false,
+    tourStep: null,
     saveModalOpen: false,
     sharePopoverOpen: false,
     shareTarget: null,
@@ -1678,6 +1686,15 @@ export const useStudioStore = create<StudioStoreState>((set, get) => {
     setDagPanelOpen: (dagPanelOpen) => set({ dagPanelOpen }),
     setDagFullscreen: (dagFullscreen) => set({ dagFullscreen }),
     setCmdkOpen: (cmdkOpen) => set({ cmdkOpen }),
+    setShortcutsOpen: (shortcutsOpen) => set({ shortcutsOpen }),
+    startTour: () => set({ tourStep: 0, settingsOpen: false }),
+    stepTour: (delta) =>
+      set((s) => {
+        if (s.tourStep === null) return s;
+        const next = Math.max(0, Math.min(5, s.tourStep + delta));
+        return { tourStep: next };
+      }),
+    closeTour: () => set({ tourStep: null }),
     setSaveModalOpen: (saveModalOpen) => set({ saveModalOpen }),
     setSharePopoverOpen: (sharePopoverOpen) => set({ sharePopoverOpen }),
     setShowTips: (showTips) => set({ showTips }),

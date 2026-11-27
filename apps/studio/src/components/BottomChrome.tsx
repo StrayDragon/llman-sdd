@@ -9,10 +9,13 @@
  */
 import {
   CircleDot,
+  Compass,
   Diamond,
+  Download,
   FileText,
   GitMerge,
   GitPullRequest,
+  Keyboard,
   Maximize2,
   Minus,
   Network,
@@ -29,6 +32,11 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 
+import {
+  exportStudioCanvasSnapshot,
+  type SnapshotFormat,
+  type SnapshotScope,
+} from '../ergonomics/exportSnapshot.ts';
 import type { EdgePreset } from '../routing/obstacleRouter.ts';
 import { useStudioStore, type CardTier, type StudioSkin } from '../store/studioStore.ts';
 
@@ -68,6 +76,9 @@ export function BottomChrome() {
     toggleLegendKind,
     setTextfoldEndpoint,
     setSettingsOpen,
+    setShortcutsOpen,
+    startTour,
+    showToast,
     setDocFoldLevel,
     triggerZoom,
     setDagPanelOpen,
@@ -87,6 +98,29 @@ export function BottomChrome() {
   } = useStudioStore();
 
   const [tfMode, setTfMode] = useState<'local' | 'serve'>(textfoldEndpoint ? 'serve' : 'local');
+  const [exportScope, setExportScope] = useState<SnapshotScope>('canvas');
+  const [exportHeader, setExportHeader] = useState<boolean>(true);
+  const [exporting, setExporting] = useState<boolean>(false);
+
+  const handleExport = async (format: SnapshotFormat): Promise<void> => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const active = tabs.find((t) => t.id === activeTabId);
+      const res = await exportStudioCanvasSnapshot({
+        format,
+        scope: exportScope,
+        includeHeader: exportHeader,
+        skin,
+        title: active?.title ?? '主视图',
+      });
+      showToast(`已导出只读快照：${res.filename}`);
+    } catch (error) {
+      showToast(`导出失败：${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const activeTab = tabs.find((t) => t.id === activeTabId);
   // Context-Aware Chrome (matching studio-demo.html): hide all bottom canvas controls on + New Tab page!
@@ -414,6 +448,103 @@ export function BottomChrome() {
                       style={{ borderColor: 'var(--border)', background: 'var(--surface-subtle)' }}
                     />
                   )}
+                </div>
+
+                {activeTab?.kind !== 'doc' && (
+                  <div
+                    className="pt-2 border-t flex flex-col gap-2"
+                    style={{ borderColor: 'var(--border)' }}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                        只读快照导出
+                      </span>
+                      <div
+                        className="inline-flex rounded p-0.5 text-[10.5px]"
+                        style={{ background: 'var(--surface-subtle)' }}
+                      >
+                        {(
+                          [
+                            ['canvas', '整张画布'],
+                            ['selected', '当前选中'],
+                          ] as const
+                        ).map(([sc, lbl]) => (
+                          <button
+                            key={sc}
+                            type="button"
+                            onClick={() => setExportScope(sc)}
+                            className="rounded px-2 py-0.5 cursor-pointer"
+                            style={{
+                              background: exportScope === sc ? 'var(--surface)' : 'transparent',
+                              fontWeight: exportScope === sc ? 600 : 400,
+                            }}
+                          >
+                            {lbl}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <label
+                      className="inline-flex items-center gap-1.5 text-[11px] cursor-pointer"
+                      style={{ color: 'var(--text-secondary)' }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={exportHeader}
+                        onChange={(e) => setExportHeader(e.target.checked)}
+                      />
+                      <span>附带标题栏</span>
+                    </label>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button
+                        type="button"
+                        disabled={exporting}
+                        onClick={() => void handleExport('svg')}
+                        className="inline-flex items-center justify-center gap-1 rounded-md border px-2 py-1.5 cursor-pointer hover:bg-black/5"
+                        style={{ borderColor: 'var(--border)' }}
+                      >
+                        <Download size={11} />
+                        <span>导出 SVG</span>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={exporting}
+                        onClick={() => void handleExport('png')}
+                        className="inline-flex items-center justify-center gap-1 rounded-md border px-2 py-1.5 cursor-pointer hover:bg-black/5"
+                        style={{ borderColor: 'var(--border)' }}
+                      >
+                        <Download size={11} />
+                        <span>导出 PNG</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div
+                  className="pt-2 border-t grid grid-cols-2 gap-1.5"
+                  style={{ borderColor: 'var(--border)' }}
+                >
+                  <button
+                    type="button"
+                    onClick={startTour}
+                    className="inline-flex items-center justify-center gap-1 rounded-md border px-2 py-1.5 cursor-pointer hover:bg-black/5"
+                    style={{ borderColor: 'var(--border)' }}
+                  >
+                    <Compass size={11} />
+                    <span>交互式向导</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSettingsOpen(false);
+                      setShortcutsOpen(true);
+                    }}
+                    className="inline-flex items-center justify-center gap-1 rounded-md border px-2 py-1.5 cursor-pointer hover:bg-black/5"
+                    style={{ borderColor: 'var(--border)' }}
+                  >
+                    <Keyboard size={11} />
+                    <span>快捷键 (?)</span>
+                  </button>
                 </div>
               </div>
             )}

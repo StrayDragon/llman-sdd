@@ -48,6 +48,20 @@ import {
   getPendingDriftProposals,
 } from '../../../apps/studio/src/drift/reconcileOverlay.ts';
 import {
+  contrastRatio,
+  MIN_NON_TEXT_CONTRAST,
+  STUDIO_CONTRAST_PALETTES,
+} from '../../../apps/studio/src/ergonomics/contrast.ts';
+import {
+  alignSelectedNodes,
+  distributeSelectedNodes,
+  type NodeBoxInput,
+} from '../../../apps/studio/src/ergonomics/layoutTidy.ts';
+import {
+  filterShortcutsByView,
+  STUDIO_SHORTCUT_REGISTRY,
+} from '../../../apps/studio/src/ergonomics/shortcuts.ts';
+import {
   buildExclusiveDomainGroupsWithManual,
   extractPortalEvidence,
   layoutMainViewWithGroups,
@@ -739,3 +753,56 @@ bdd.thenStep('justfile 提供独立 qa-studio-e2e 门禁且日常 qa 不依赖�
   };
   expect(pkg.scripts['qa']).not.toContain('e2e');
 });
+
+// ── r157: onboarding, shortcut registry, multi-select tidy & zoom-out contrast ──
+
+bdd.given('Studio 快捷键注册表、多选节点坐标集合与双皮肤颜色令牌', (ctx) => {
+  const boxes: NodeBoxInput[] = [
+    { id: 'n1', x: 80, y: 40, width: 200, height: 100 },
+    { id: 'n2', x: 240, y: 120, width: 200, height: 100 },
+    { id: 'n3', x: 680, y: 200, width: 200, height: 100 },
+  ];
+  ctx.fixtures['r157Input'] = { boxes, palettes: STUDIO_CONTRAST_PALETTES };
+});
+
+bdd.when('按视图过滤快捷键、执行多选对齐与等距分布并计算双皮肤边框连线对比度', (ctx) => {
+  const { boxes, palettes } = ctx.fixtures['r157Input'] as {
+    boxes: NodeBoxInput[];
+    palettes: typeof STUDIO_CONTRAST_PALETTES;
+  };
+  ctx.fixtures['r157Res'] = {
+    macroShortcuts: filterShortcutsByView('macro', STUDIO_SHORTCUT_REGISTRY),
+    machineShortcuts: filterShortcutsByView('machine', STUDIO_SHORTCUT_REGISTRY),
+    aligned: alignSelectedNodes(boxes, 'left'),
+    distributed: distributeSelectedNodes(boxes, 'horizontal'),
+    contrasts: {
+      linearEdge: contrastRatio(palettes.linear.edgeDefault, palettes.linear.canvasBg),
+      linearBorder: contrastRatio(palettes.linear.borderStrong, palettes.linear.canvasBg),
+      washiEdge: contrastRatio(palettes.washi.edgeDefault, palettes.washi.canvasBg),
+      washiBorder: contrastRatio(palettes.washi.borderStrong, palettes.washi.canvasBg),
+    },
+  };
+});
+
+bdd.thenStep(
+  '仅返回已接线快捷键、多选坐标精确对齐分布且双皮肤默认连线与强边框对比度均不低于 3.0',
+  (ctx) => {
+    const res = ctx.fixtures['r157Res'] as {
+      macroShortcuts: ReturnType<typeof filterShortcutsByView>;
+      machineShortcuts: ReturnType<typeof filterShortcutsByView>;
+      aligned: ReturnType<typeof alignSelectedNodes>;
+      distributed: ReturnType<typeof distributeSelectedNodes>;
+      contrasts: Record<string, number>;
+    };
+    expect(res.macroShortcuts.some((s) => s.id === 'macro-group')).toBe(true);
+    expect(res.macroShortcuts.some((s) => s.id === 'tab-spawn')).toBe(false);
+    expect(res.machineShortcuts.some((s) => s.id === 'tab-spawn')).toBe(true);
+    expect(res.aligned['n1']!.x).toBe(80);
+    expect(res.aligned['n2']!.x).toBe(80);
+    expect(res.aligned['n3']!.x).toBe(80);
+    expect(res.distributed['n2']!.x).toBe(380);
+    for (const ratio of Object.values(res.contrasts)) {
+      expect(ratio).toBeGreaterThanOrEqual(MIN_NON_TEXT_CONTRAST);
+    }
+  },
+);

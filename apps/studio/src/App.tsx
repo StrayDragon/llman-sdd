@@ -9,6 +9,7 @@ import { studioApi } from './api/client.ts';
 import { BottomChrome } from './components/BottomChrome.tsx';
 import { ChangeDagPanel } from './components/ChangeDagPanel.tsx';
 import { CommentPopover } from './components/CommentPopover.tsx';
+import { GuidedTourOverlay, ShortcutCheatSheetModal } from './components/ErgonomicsModals.tsx';
 import {
   PromptWorkbenchModal,
   RevisionDrawer,
@@ -77,6 +78,8 @@ export function App() {
     refreshInPlace,
     flushPendingSaves,
     setCmdkOpen,
+    setShortcutsOpen,
+    closeTour,
     navBack,
     navForward,
     jumpNestLevel,
@@ -149,12 +152,26 @@ export function App() {
       }
       if (e.key === 'Escape') {
         setCmdkOpen(false);
+        setShortcutsOpen(false);
+        closeTour();
         setSettingsOpen(false);
         setLinterOpen(false);
         closeCommentPopover();
         return;
       }
       if (isEditableElement(e.target)) return;
+
+      if (
+        (e.key === '?' || e.key === '？' || (e.shiftKey && e.code === 'Slash')) &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.altKey
+      ) {
+        e.preventDefault();
+        const cur = useStudioStore.getState().shortcutsOpen;
+        setShortcutsOpen(!cur);
+        return;
+      }
 
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
@@ -178,6 +195,8 @@ export function App() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [
     setCmdkOpen,
+    setShortcutsOpen,
+    closeTour,
     navBack,
     navForward,
     jumpNestLevel,
@@ -227,6 +246,8 @@ export function App() {
       <SaveGuardModal />
       <ShareDeepLinkModal />
       <SearchPaletteModal />
+      <ShortcutCheatSheetModal />
+      <GuidedTourOverlay />
 
       {toastMsg && (
         <div
