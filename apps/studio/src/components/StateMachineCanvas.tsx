@@ -1869,6 +1869,17 @@ function StateMachineCanvasInner() {
     [isMacro, activeMachineKey, updateNodePosition],
   );
 
+  // Memoized & shallow-compared selection handler so React Flow's SelectionListener NEVER loops (fixes React #185!)
+  const handleSelectionChange = useCallback(
+    ({ nodes: selNodes }: { nodes: Node[]; edges: Edge[] }) => {
+      const next = isMacro ? selNodes.filter((n) => n.type === 'specCard').map((n) => n.id) : [];
+      setSelectedMacroIds((prev) =>
+        prev.length === next.length && prev.every((id, idx) => id === next[idx]) ? prev : next,
+      );
+    },
+    [isMacro],
+  );
+
   const onConnect = useCallback(
     (conn: Connection) => {
       connectingFromRef.current = null;
@@ -2177,14 +2188,7 @@ function StateMachineCanvasInner() {
           setSelectedEdgeId(null);
         }}
         selectionKeyCode="Shift"
-        onSelectionChange={({ nodes: selNodes }) => {
-          if (!isMacro) {
-            setSelectedMacroIds([]);
-            return;
-          }
-          const ids = selNodes.filter((n) => n.type === 'specCard').map((n) => n.id);
-          setSelectedMacroIds(ids);
-        }}
+        onSelectionChange={handleSelectionChange}
         onPaneContextMenu={handlePaneContextMenu}
         onMove={(ev, vp) => {
           setZoomPercent(Math.round(vp.zoom * 100));
