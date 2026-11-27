@@ -3,6 +3,9 @@ depends_on:
   - add-studio-web-workbench
   - add-studio-forest-tabs
 title: "[Post-MVP] 建立面向新项目接入、陌生仓库反向学习与 Agent 协作的 Studio Skill 套件"
+branch: sdd/add-studio-agent-skills
+base_branch: main
+base_sha: db642b1b949815bde74011ddb18a66fe3e7739ba
 ---
 
 # 建立面向新项目与编码 Agent 的高效 Studio 协作 Skill 套件

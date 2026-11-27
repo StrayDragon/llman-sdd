@@ -166,6 +166,37 @@ bdd.thenStep(
   },
 );
 
+bdd.thenStep(
+  'studio-onboard 与 studio-collab 技能含反向提炼与协商回执指引且通过 ethics 门禁',
+  (ctx) => {
+    const root = (ctx.fixtures['init'] as { root: string }).root;
+    const onboard = readFileSync(
+      join(root, '.agents', 'skills', 'llman-sdd-studio-onboard', 'SKILL.md'),
+      'utf8',
+    );
+    const collab = readFileSync(
+      join(root, '.agents', 'skills', 'llman-sdd-studio-collab', 'SKILL.md'),
+      'utf8',
+    );
+    for (const marker of ['llman-sdd studio open', 'llman-sdd studio validate', ...ETHICS_KEYS]) {
+      if (!onboard.includes(marker)) {
+        throw new Error(`llman-sdd-studio-onboard/SKILL.md missing marker: ${marker}`);
+      }
+    }
+    for (const marker of [
+      'llman-sdd studio diff',
+      'llman-sdd studio comment reply',
+      'llman-sdd studio revise',
+      'llman-sdd studio apply',
+      ...ETHICS_KEYS,
+    ]) {
+      if (!collab.includes(marker)) {
+        throw new Error(`llman-sdd-studio-collab/SKILL.md missing marker: ${marker}`);
+      }
+    }
+  },
+);
+
 // ---------------------------------------------------------------------------
 // r80 — repo's own committed skills stay fresh against the golden baseline
 // ---------------------------------------------------------------------------

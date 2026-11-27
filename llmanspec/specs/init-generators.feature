@@ -246,3 +246,13 @@
       假如 本仓库的等价 config(zh-Hans 与 bdd 配置)
       当 渲染全部 skills
       那么 studio-drift 技能包含四类直改代码分流法则与 studio drift 命令指引且通过 ethics 门禁
+
+  @req:r160
+  规则: Studio 接入与协商精简技能套件与基线同步
+    内置 zh-Hans 模板 MUST 新增两份精炼技能 `llman-sdd-studio-onboard`（新项目接入与陌生仓库反向提炼图谱）与 `llman-sdd-studio-collab`（消费 Studio Prompt/深链、结构化不可达回执、图规格体检与写保护三出口），随 `init` / `init --update` 渲染至 `.agents/skills/`。
+    两份模板 MUST 仅引用真实存在的 Studio CLI 命令面（不得虚构子命令），严格通过 ethics 治理门、模板强度词门禁（r97）、check:stc（基线 0）与 golden 基线一致性比对。
+
+    场景: studio-onboard 与 studio-collab 技能渲染含真实 CLI 指引并通过门禁
+      假如 本仓库的等价 config(zh-Hans 与 bdd 配置)
+      当 渲染全部 skills
+      那么 studio-onboard 与 studio-collab 技能含反向提炼与协商回执指引且通过 ethics 门禁
