@@ -10,6 +10,8 @@ import { useStudioStore } from '../store/studioStore.ts';
 
 export function WorldlineDrawer() {
   const {
+    tabs,
+    activeTabId,
     worldlineOpen,
     worldlineComparing,
     worldlineCompareAId,
@@ -28,7 +30,8 @@ export function WorldlineDrawer() {
     getDiagnosticsForMachine,
   } = useStudioStore();
 
-  if (!worldlineOpen || !stateDoc || !activeWorkspace) return null;
+  const activeTab = tabs.find((t) => t.id === activeTabId);
+  if (!worldlineOpen || !stateDoc || !activeWorkspace || activeTab?.kind === 'new-tab') return null;
 
   const machineKey = getActiveMachineKey() ?? Object.keys(stateDoc.machines)[0] ?? null;
   const timeline = machineKey ? stateDoc.timelines[machineKey] : undefined;

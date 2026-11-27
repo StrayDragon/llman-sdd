@@ -816,10 +816,12 @@ export const useStudioStore = create<StudioStoreState>((set, get) => {
       }
       const tabId = `doc:${spec.id}`;
       const s = get();
-      const exists = s.tabs.some((t) => t.id === tabId);
+      const baseTabs =
+        s.activeTabId === 'new-tab' ? s.tabs.filter((t) => t.id !== 'new-tab') : s.tabs;
+      const exists = baseTabs.some((t) => t.id === tabId);
       const tabs = exists
-        ? s.tabs
-        : [...s.tabs, { id: tabId, kind: 'doc' as const, title: spec.title, targetId: spec.id }];
+        ? baseTabs
+        : [...baseTabs, { id: tabId, kind: 'doc' as const, title: spec.title, targetId: spec.id }];
       const nextNav = s.navHistory.slice(0, s.navIdx + 1);
       nextNav.push({ tabId, nestStack: [] });
       set({
@@ -844,10 +846,15 @@ export const useStudioStore = create<StudioStoreState>((set, get) => {
       const s = get();
       const tabId = `machine:${machineKey}`;
       const label = title ?? s.stateDoc?.machines[machineKey]?.current?.capability ?? machineKey;
-      const exists = s.tabs.some((t) => t.id === tabId);
+      const baseTabs =
+        s.activeTabId === 'new-tab' ? s.tabs.filter((t) => t.id !== 'new-tab') : s.tabs;
+      const exists = baseTabs.some((t) => t.id === tabId);
       const tabs = exists
-        ? s.tabs
-        : [...s.tabs, { id: tabId, kind: 'machine' as const, title: label, targetId: machineKey }];
+        ? baseTabs
+        : [
+            ...baseTabs,
+            { id: tabId, kind: 'machine' as const, title: label, targetId: machineKey },
+          ];
       const nextNav = s.navHistory.slice(0, s.navIdx + 1);
       nextNav.push({ tabId, nestStack: [] });
       set({

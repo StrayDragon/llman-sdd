@@ -89,6 +89,9 @@ export function BottomChrome() {
   const [tfMode, setTfMode] = useState<'local' | 'serve'>(textfoldEndpoint ? 'serve' : 'local');
 
   const activeTab = tabs.find((t) => t.id === activeTabId);
+  // Context-Aware Chrome (matching studio-demo.html): hide all bottom canvas controls on + New Tab page!
+  if (activeTab?.kind === 'new-tab') return null;
+
   const isForestView = activeTab?.kind === 'macro' || activeTab?.kind === 'forest';
   const activeForestView = getActiveForestView();
   const activeMachineKey = getActiveMachineKey();
@@ -574,10 +577,6 @@ export function BottomChrome() {
               <span>保存变更</span>
             </button>
           </>
-        ) : activeTab?.kind === 'new-tab' ? (
-          <span className="px-2 py-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>
-            按当前工作区实时检索规格与标签
-          </span>
         ) : (
           /* Clean Main / Custom Forest View Dock */
           <>

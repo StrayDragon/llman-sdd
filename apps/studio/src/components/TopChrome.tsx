@@ -98,6 +98,9 @@ export function TopChrome() {
   const [dropIndicator, setDropIndicator] = useState<{ id: string; before: boolean } | null>(null);
   const [tabCtx, setTabCtx] = useState<{ tabId: string; x: number; y: number } | null>(null);
 
+  const activeTab = tabs.find((t) => t.id === activeTabId);
+  const isStartPage = activeTab?.kind === 'new-tab';
+  const isDocPage = activeTab?.kind === 'doc';
   const activeMachineKey = getActiveMachineKey();
   const activeDraft = activeMachineKey ? stateDoc?.machines[activeMachineKey] : undefined;
   const diags = activeMachineKey ? getDiagnosticsForMachine(activeMachineKey) : [];
@@ -135,7 +138,9 @@ export function TopChrome() {
   const driftShadowCount = countShadowEdgesInProposals(hudDriftProposals);
 
   // Single-Slot Top-Center HUD Exclusivity (Axiom 2): CompareBanner > DriftCalibrationBanner > SimulateBanner > Tips Capsule
+  // Context-Aware Chrome (matching studio-demo.html): hide Tips & graph banners on + New Tab & Doc pages to prevent overlap!
   const renderTopCenterHud = () => {
+    if (isStartPage) return null;
     if (worldlineComparing && worldlineCompareAId) {
       return (
         <div
@@ -262,7 +267,7 @@ export function TopChrome() {
         </div>
       );
     }
-    if (!showTips) return null;
+    if (!showTips || isDocPage) return null;
     return (
       <div
         className="fixed top-[54px] left-1/2 -translate-x-1/2 z-20 studio-island inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-xs"
@@ -632,8 +637,8 @@ export function TopChrome() {
             </div>
           )}
 
-          {/* Save Status Indicator */}
-          {saveStatus !== 'idle' && (
+          {/* Save Status Indicator (hidden on + Start Page) */}
+          {!isStartPage && saveStatus !== 'idle' && (
             <span
               className="text-[10px] font-mono px-1.5 py-0.5 rounded"
               style={{
@@ -809,62 +814,64 @@ export function TopChrome() {
           )}
         </div>
 
-        {/* Worldline Trigger (Axiom 1 Right-Anchor) + Undo/Redo + ⌘K */}
-        <div className="studio-island flex items-center gap-0.5 p-[3px] text-xs">
-          <button
-            type="button"
-            onClick={() => setWorldlineOpen(!worldlineOpen)}
-            className="inline-flex items-center gap-1.5 h-7 rounded-md px-2.5 text-[12px] font-medium cursor-pointer transition-colors"
-            style={{
-              background: worldlineOpen ? 'var(--ink)' : 'transparent',
-              color: worldlineOpen ? '#ffffff' : 'var(--ink)',
-            }}
-          >
-            <Clock size={13} />
-            <span>世界线</span>
-            {wlCount > 0 && (
-              <span
-                className="font-mono text-[10px] rounded px-1"
-                style={{
-                  background: worldlineOpen ? 'rgba(255,255,255,0.2)' : 'var(--surface-subtle)',
-                }}
-              >
-                {wlCount}
-              </span>
-            )}
-          </button>
+        {/* Worldline Trigger (Axiom 1 Right-Anchor) + Undo/Redo + ⌘K — omitted on + Start Page (demo parity!) */}
+        {!isStartPage && (
+          <div className="studio-island flex items-center gap-0.5 p-[3px] text-xs">
+            <button
+              type="button"
+              onClick={() => setWorldlineOpen(!worldlineOpen)}
+              className="inline-flex items-center gap-1.5 h-7 rounded-md px-2.5 text-[12px] font-medium cursor-pointer transition-colors"
+              style={{
+                background: worldlineOpen ? 'var(--ink)' : 'transparent',
+                color: worldlineOpen ? '#ffffff' : 'var(--ink)',
+              }}
+            >
+              <Clock size={13} />
+              <span>世界线</span>
+              {wlCount > 0 && (
+                <span
+                  className="font-mono text-[10px] rounded px-1"
+                  style={{
+                    background: worldlineOpen ? 'rgba(255,255,255,0.2)' : 'var(--surface-subtle)',
+                  }}
+                >
+                  {wlCount}
+                </span>
+              )}
+            </button>
 
-          <button
-            type="button"
-            title="撤销 (⌘Z)"
-            disabled={!canUndo}
-            onClick={undoActiveMachine}
-            className="w-7 h-7 inline-flex items-center justify-center rounded-md disabled:opacity-35 hover:bg-black/5 cursor-pointer"
-          >
-            <Undo2 size={13} />
-          </button>
-          <button
-            type="button"
-            title="重做 (⌘⇧Z)"
-            disabled={!canRedo}
-            onClick={redoActiveMachine}
-            className="w-7 h-7 inline-flex items-center justify-center rounded-md disabled:opacity-35 hover:bg-black/5 cursor-pointer"
-          >
-            <Redo2 size={13} />
-          </button>
+            <button
+              type="button"
+              title="撤销 (⌘Z)"
+              disabled={!canUndo}
+              onClick={undoActiveMachine}
+              className="w-7 h-7 inline-flex items-center justify-center rounded-md disabled:opacity-35 hover:bg-black/5 cursor-pointer"
+            >
+              <Undo2 size={13} />
+            </button>
+            <button
+              type="button"
+              title="重做 (⌘⇧Z)"
+              disabled={!canRedo}
+              onClick={redoActiveMachine}
+              className="w-7 h-7 inline-flex items-center justify-center rounded-md disabled:opacity-35 hover:bg-black/5 cursor-pointer"
+            >
+              <Redo2 size={13} />
+            </button>
 
-          <div className="w-px h-3.5 mx-0.5" style={{ background: 'var(--border)' }} />
+            <div className="w-px h-3.5 mx-0.5" style={{ background: 'var(--border)' }} />
 
-          <button
-            type="button"
-            onClick={() => setCmdkOpen(true)}
-            title="全局搜索与命令 (⌘K)"
-            className="inline-flex items-center gap-1 h-7 rounded-md px-2 font-mono text-[11px] font-semibold cursor-pointer hover:bg-black/5"
-            style={{ color: 'var(--text-secondary)' }}
-          >
-            <span>⌘K</span>
-          </button>
-        </div>
+            <button
+              type="button"
+              onClick={() => setCmdkOpen(true)}
+              title="全局搜索与命令 (⌘K)"
+              className="inline-flex items-center gap-1 h-7 rounded-md px-2 font-mono text-[11px] font-semibold cursor-pointer hover:bg-black/5"
+              style={{ color: 'var(--text-secondary)' }}
+            >
+              <span>⌘K</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {renderTopCenterHud()}
