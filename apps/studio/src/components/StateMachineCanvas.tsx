@@ -994,31 +994,43 @@ function StateMachineCanvasInner() {
   const machine = activeMachineKey ? (stateDoc?.machines[activeMachineKey]?.current ?? null) : null;
   const viewKey = isMacro ? 'macro' : `machine:${activeMachineKey ?? activeTabId}`;
 
-  // Bridge BottomChrome Zoom / Fit buttons cleanly to React Flow
-  useEffect(() => {
-    if (!zoomTrigger) return;
-    if (zoomTrigger.action === 'in') void rf.zoomIn({ duration: 160 });
-    else if (zoomTrigger.action === 'out') void rf.zoomOut({ duration: 160 });
-    else {
-      clearViewportForView(viewKey);
-      void rf.fitView({ padding: 0.18, duration: 220 });
-    }
-  }, [zoomTrigger, rf, clearViewportForView, viewKey]);
+  const viewKeyRef = useRef(viewKey);
+  viewKeyRef.current = viewKey;
+  const lastHandledZoomSeqRef = useRef<number>(useStudioStore.getState().zoomTrigger?.seq ?? 0);
+  const fittedInitialViewRef = useRef<string | null>(null);
+  const pendingUserViewportRef = useRef<{
+    viewKey: string;
+    vp: { x: number; y: number; zoom: number };
+  } | null>(null);
+  const [initialViewport] = useState(
+    () => useStudioStore.getState().viewports[viewKey] ?? { x: 0, y: 0, zoom: 1 },
+  );
 
-  // First-open auto-center + Per-Tab Viewport Memory:
-  // If user already adjusted pan/zoom for this tab, restore their exact viewport cleanly (zero surprise jump!).
+  // Bridge BottomChrome Zoom / Fit buttons cleanly to React Flow (seq-guarded so tab switches / remounts never replay stale triggers)
   useEffect(() => {
-    const saved = useStudioStore.getState().viewports[viewKey];
-    const raf = requestAnimationFrame(() => {
-      if (saved) {
-        void rf.setViewport(saved, { duration: 0 });
-        setZoomPercent(Math.round(saved.zoom * 100));
-      } else {
-        void rf.fitView({ padding: 0.2, duration: 220 });
-      }
-    });
-    return () => cancelAnimationFrame(raf);
-  }, [viewKey, rf, setZoomPercent]);
+    if (!zoomTrigger || zoomTrigger.seq <= lastHandledZoomSeqRef.current) return;
+    lastHandledZoomSeqRef.current = zoomTrigger.seq;
+    const curKey = viewKeyRef.current;
+    if (zoomTrigger.action === 'in') {
+      void rf.zoomIn({ duration: 160 }).then(() => {
+        const vp = rf.getViewport();
+        setZoomPercent(Math.round(vp.zoom * 100));
+        setViewportForView(curKey, { x: vp.x, y: vp.y, zoom: vp.zoom });
+      });
+    } else if (zoomTrigger.action === 'out') {
+      void rf.zoomOut({ duration: 160 }).then(() => {
+        const vp = rf.getViewport();
+        setZoomPercent(Math.round(vp.zoom * 100));
+        setViewportForView(curKey, { x: vp.x, y: vp.y, zoom: vp.zoom });
+      });
+    } else {
+      clearViewportForView(curKey);
+      fittedInitialViewRef.current = curKey;
+      void rf.fitView({ padding: 0.18, duration: 220 }).then(() => {
+        setZoomPercent(Math.round(rf.getViewport().zoom * 100));
+      });
+    }
+  }, [zoomTrigger, rf, clearViewportForView, setViewportForView, setZoomPercent]);
 
   // Smoothly focus node when selected from Linter or ⌘K
   useEffect(() => {
@@ -1670,6 +1682,40 @@ function StateMachineCanvasInner() {
     deleteStickyNote,
   ]);
 
+  // First-open auto-center + Per-Tab Viewport Memory (survives Doc-tab unmount/remount & browser reload)
+  const hasNodes = flowNodes.length > 0;
+  useEffect(() => {
+    if (!hasNodes) return;
+    let raf1 = 0;
+    let raf2 = 0;
+    const saved = useStudioStore.getState().viewports[viewKey];
+    if (saved) {
+      fittedInitialViewRef.current = viewKey;
+      raf1 = requestAnimationFrame(() => {
+        void rf.setViewport(saved, { duration: 0 });
+        setZoomPercent(Math.round(saved.zoom * 100));
+      });
+    } else if (fittedInitialViewRef.current !== viewKey) {
+      fittedInitialViewRef.current = viewKey;
+      raf1 = requestAnimationFrame(() => {
+        raf2 = requestAnimationFrame(() => {
+          void rf.fitView({ padding: 0.18, duration: 220 }).then(() => {
+            setZoomPercent(Math.round(rf.getViewport().zoom * 100));
+          });
+        });
+      });
+    }
+    return () => {
+      if (raf1) cancelAnimationFrame(raf1);
+      if (raf2) cancelAnimationFrame(raf2);
+      const pending = pendingUserViewportRef.current;
+      if (pending && pending.viewKey === viewKey) {
+        pendingUserViewportRef.current = null;
+        setViewportForView(viewKey, pending.vp);
+      }
+    };
+  }, [viewKey, hasNodes, rf, setZoomPercent, setViewportForView]);
+
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
       const scopeKey = isMacro ? '__macro__' : activeMachineKey;
@@ -1960,9 +2006,21 @@ function StateMachineCanvasInner() {
           setSelectedEdgeId(null);
         }}
         onPaneContextMenu={handlePaneContextMenu}
-        onMoveEnd={(_ev, vp) => {
+        onMove={(ev, vp) => {
           setZoomPercent(Math.round(vp.zoom * 100));
-          setViewportForView(viewKey, { x: vp.x, y: vp.y, zoom: vp.zoom });
+          if (ev) {
+            pendingUserViewportRef.current = {
+              viewKey,
+              vp: { x: vp.x, y: vp.y, zoom: vp.zoom },
+            };
+          }
+        }}
+        onMoveEnd={(ev, vp) => {
+          setZoomPercent(Math.round(vp.zoom * 100));
+          if (ev) {
+            pendingUserViewportRef.current = null;
+            setViewportForView(viewKey, { x: vp.x, y: vp.y, zoom: vp.zoom });
+          }
         }}
         onEdgeClick={(_ev, edge) => {
           setSelectedEdgeId(edge.id);
@@ -2185,8 +2243,7 @@ function StateMachineCanvasInner() {
             });
           }
         }}
-        fitView
-        fitViewOptions={{ padding: 0.16 }}
+        defaultViewport={initialViewport}
         minZoom={0.28}
         maxZoom={1.9}
         proOptions={{ hideAttribution: true }}
