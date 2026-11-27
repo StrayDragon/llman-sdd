@@ -43,6 +43,14 @@ import {
   resolveRootSpecsDir,
   type CliContext,
 } from '../cli-shared.ts';
+import {
+  defaultHubFilePath,
+  formatLoopbackUrl,
+  isLoopbackHost,
+  removeHubInfoFile,
+  resolveLiveHub,
+} from '../studio-server/hub.ts';
+import { startStudioHub } from '../studio-server/server.ts';
 import { registerStudioMcp } from './studioMcp.ts';
 import { makeNodeStudioStateIo, resolveStateIdOrThrow } from './studioShared.ts';
 
@@ -259,7 +267,10 @@ function readInputText(cwd: string, filePath?: string): string {
 function formatAnchor(anchor: SemanticAnchor): string {
   if (anchor.kind === 'machine') return `machine:${anchor.machineKey}`;
   if (anchor.kind === 'state') return `state:${anchor.machineKey}#${anchor.stateUid}`;
-  return `edge:${anchor.machineKey}#${anchor.edgeUid}`;
+  if (anchor.kind === 'edge') return `edge:${anchor.machineKey}#${anchor.edgeUid}`;
+  if (anchor.kind === 'forest') return `forest:${anchor.capability}`;
+  if (anchor.kind === 'macro-edge') return `macro-edge:${anchor.edgeId}`;
+  return `doc:${anchor.capability}${anchor.reqId ? `#${anchor.reqId}` : ''}`;
 }
 
 function tryCopyToClipboard(text: string): boolean {
@@ -863,6 +874,130 @@ export function registerStudio(program: Command, ctx: CliContext): void {
     }
     console.log("Next: run 'llman-sdd validate' and commit the updated specs.");
   });
+
+  // --- studio open / serve / stop ---
+  const openInBrowser = (targetUrl: string): void => {
+    const cmd =
+      process.platform === 'darwin'
+        ? ['open', targetUrl]
+        : process.platform === 'win32'
+          ? ['cmd', '/c', 'start', '', targetUrl]
+          : ['xdg-open', targetUrl];
+    const [bin, ...args] = cmd;
+    if (bin) spawnSync(bin, args, { stdio: 'ignore' });
+  };
+
+  const registerServeOpts = (cmd: Command): Command =>
+    cmd
+      .option('--port <port>', 'port to listen on (default: 4710)', '4710')
+      .option('--host <addr>', 'loopback host address (default: 127.0.0.1)', '127.0.0.1')
+      .option('--no-open', 'do not open browser automatically')
+      .option('--foreground', 'run server in the foreground')
+      .option('--demo', 'load built-in self-hosting studio-web and sample drafts')
+      .option('--directory <path>', 'target project directory');
+
+  interface ServeCliOpts {
+    port?: string;
+    host?: string;
+    open?: boolean;
+    foreground?: boolean;
+    demo?: boolean;
+    directory?: string;
+  }
+
+  const parseServeBind = (options: ServeCliOpts): { host: string; port: number; dir: string } => {
+    const port = Number(options.port ?? '4710');
+    if (!Number.isInteger(port) || port < 0 || port > 65535) {
+      throw new CliError(`invalid --port value: ${String(options.port)}`, 2);
+    }
+    const host = options.host ?? '127.0.0.1';
+    if (!isLoopbackHost(host)) {
+      throw new CliError(
+        'studio server only binds to loopback addresses (127.0.0.1 / localhost)',
+        2,
+      );
+    }
+    return { host, port, dir: options.directory ?? ctx.cwd };
+  };
+
+  const runStudioHubForeground = async (options: ServeCliOpts): Promise<void> => {
+    const { host, port, dir } = parseServeBind(options);
+    const hub = await startStudioHub({
+      initialDirectory: dir,
+      host,
+      port,
+      demo: options.demo === true,
+    });
+    const wsUrl = `${hub.url}/p/${encodeURIComponent(hub.activeWsKey)}`;
+    console.log(`llman-sdd Studio listening at ${wsUrl}`);
+    if (options.open !== false) openInBrowser(wsUrl);
+    const shutdown = (): void => {
+      void hub.close().finally(() => process.exit(0));
+    };
+    process.once('SIGINT', shutdown);
+    process.once('SIGTERM', shutdown);
+    await new Promise<void>(() => {
+      // Keep process alive until SIGINT / SIGTERM
+    });
+  };
+
+  registerServeOpts(
+    studio.command('serve').description('Start the local Studio Web workbench server on 127.0.0.1'),
+  ).action(async (options: ServeCliOpts) => {
+    await runStudioHubForeground(options);
+  });
+
+  registerServeOpts(
+    studio
+      .command('open')
+      .description('Open Studio Web in the browser (reuses running local Hub if available)'),
+  ).action(async (options: ServeCliOpts) => {
+    const { dir } = parseServeBind(options);
+    const live = await resolveLiveHub(defaultHubFilePath());
+    if (live) {
+      const liveBase = formatLoopbackUrl(live.info.host, live.info.port);
+      try {
+        const res = await fetch(`${liveBase}/api/workspaces`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'x-studio-token': live.info.token,
+          },
+          body: JSON.stringify({ directory: dir }),
+        });
+        if (res.ok) {
+          const payload = (await res.json()) as { activeWsKey: string };
+          const wsUrl = `${liveBase}/p/${encodeURIComponent(payload.activeWsKey)}`;
+          console.log(`Reusing running llman-sdd Studio Hub at ${wsUrl}`);
+          if (options.open !== false) openInBrowser(wsUrl);
+          return;
+        }
+      } catch {
+        // Fall through to starting a fresh Hub
+      }
+    }
+    await runStudioHubForeground(options);
+  });
+
+  studio
+    .command('stop')
+    .description('Stop the running local Studio Hub')
+    .option('-d, --directory <dir>', 'Project root directory')
+    .action(async () => {
+      const hubFile = defaultHubFilePath();
+      const live = await resolveLiveHub(hubFile);
+      if (!live) {
+        console.log('No running llman-sdd Studio Hub found.');
+        return;
+      }
+      try {
+        process.kill(live.info.pid, 'SIGTERM');
+      } catch {
+        // Already exited
+      }
+      removeHubInfoFile(hubFile);
+      console.log(`Stopped llman-sdd Studio Hub (pid ${String(live.info.pid)}).`);
+    });
 
   // --- studio mcp ---
   registerStudioMcp(studio, ctx);

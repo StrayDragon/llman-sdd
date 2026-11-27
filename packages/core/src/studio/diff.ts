@@ -124,12 +124,39 @@ export function computeMachineDiff(draft: MachineDraft): MachineSemanticDiff {
     if (!curEdges.has(e.uid)) transitionsRemoved.push(e);
   }
 
+  // Semantic edge signature cancellation (studio-web r146):
+  // If an edge was deleted and recreated with the exact same (fromUid, event, guard, toUid),
+  // cancel the pair to eliminate false -1 / +1 uid churn.
+  const edgeSig = (e: StudioTransitionEdge): string =>
+    `${e.fromUid}\0${e.event.trim()}\0${(e.guard ?? '').trim()}\0${e.toUid}`;
+  const removedBySig = new Map<string, number[]>();
+  transitionsRemoved.forEach((e, idx) => {
+    const sig = edgeSig(e);
+    const list = removedBySig.get(sig) ?? [];
+    list.push(idx);
+    removedBySig.set(sig, list);
+  });
+  const cancelledAdded = new Set<number>();
+  const cancelledRemoved = new Set<number>();
+  transitionsAdded.forEach((e, idx) => {
+    const list = removedBySig.get(edgeSig(e));
+    if (list && list.length > 0) {
+      const remIdx = list.shift();
+      if (remIdx !== undefined) {
+        cancelledAdded.add(idx);
+        cancelledRemoved.add(remIdx);
+      }
+    }
+  });
+  const netTransitionsAdded = transitionsAdded.filter((_, idx) => !cancelledAdded.has(idx));
+  const netTransitionsRemoved = transitionsRemoved.filter((_, idx) => !cancelledRemoved.has(idx));
+
   const hasChanges =
     statesAdded.length +
       statesRemoved.length +
       statesRenamed.length +
-      transitionsAdded.length +
-      transitionsRemoved.length +
+      netTransitionsAdded.length +
+      netTransitionsRemoved.length +
       transitionsModified.length >
     0;
 
@@ -139,10 +166,53 @@ export function computeMachineDiff(draft: MachineDraft): MachineSemanticDiff {
     statesAdded,
     statesRemoved,
     statesRenamed,
-    transitionsAdded,
-    transitionsRemoved,
+    transitionsAdded: netTransitionsAdded,
+    transitionsRemoved: netTransitionsRemoved,
     transitionsModified,
   };
+}
+
+export interface WorldlineOverlayDiff {
+  addedStateUids: string[];
+  changedStateUids: string[];
+  removedStates: StudioStateNode[];
+  addedEdgeUids: string[];
+  removedEdges: StudioTransitionEdge[];
+}
+
+/** Pure 1:1 live canvas overlay diff between two Worldline snapshots (A baseline vs B head). */
+export function computeWorldlineOverlayDiff(
+  snapshotA: StudioMachineIR | null,
+  snapshotB: StudioMachineIR | null,
+): WorldlineOverlayDiff {
+  const statesA = snapshotA?.states ?? [];
+  const statesB = snapshotB?.states ?? [];
+  const edgesA = snapshotA?.transitions ?? [];
+  const edgesB = snapshotB?.transitions ?? [];
+
+  const aStateMap = new Map(statesA.map((s) => [s.uid, s]));
+  const bStateMap = new Map(statesB.map((s) => [s.uid, s]));
+  const addedStateUids: string[] = [];
+  const changedStateUids: string[] = [];
+  const removedStates: StudioStateNode[] = [];
+
+  for (const s of statesB) {
+    const prev = aStateMap.get(s.uid);
+    if (!prev) addedStateUids.push(s.uid);
+    else if (prev.name !== s.name) changedStateUids.push(s.uid);
+  }
+  for (const s of statesA) {
+    if (!bStateMap.has(s.uid)) removedStates.push(s);
+  }
+
+  const edgeKey = (e: StudioTransitionEdge): string =>
+    `${e.fromUid}\0${e.event.trim()}\0${(e.guard ?? '').trim()}\0${e.toUid}`;
+  const aEdgeKeys = new Set(edgesA.map(edgeKey));
+  const bEdgeKeys = new Set(edgesB.map(edgeKey));
+  const addedEdgeUids = edgesB.filter((e) => !aEdgeKeys.has(edgeKey(e))).map((e) => e.uid);
+  const removedEdges = edgesA.filter((e) => !bEdgeKeys.has(edgeKey(e)));
+
+  return { addedStateUids, changedStateUids, removedStates, addedEdgeUids, removedEdges };
 }
 
 function resolveStateLabel(

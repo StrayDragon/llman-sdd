@@ -2,6 +2,9 @@
 depends_on:
   - add-studio-domain-core
 title: "[MVP] 落地 Studio Web 自举交互工作台、方言引擎与实时依赖图视图"
+branch: sdd/add-studio-web-workbench
+base_branch: main
+base_sha: 7e85d030467d1b785f86f624407a9332850cf545
 ---
 
 # 落地 Studio Web 单状态机交互工作台与实时依赖图视图

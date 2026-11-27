@@ -6,7 +6,7 @@
   @req:r1
   规则: 工作区布局
     仓库 MUST 采用 Bun workspaces 单仓布局:根 package.json 声明 workspaces 且 MUST 包含 packages/core 与 apps/cli
-    两个工作区(包 exports 直指 .ts 源码,core 无构建步骤)。packages/core MUST NOT 依赖任何 apps/* 工作区。.bun-version MUST 存在且
+    两个工作区(包 exports 直指 .ts 源码,core 无构建步骤);可选引入基于 rsbuild 的 Web 工作区 apps/studio(构建静态产物 apps/studio/dist)。packages/core MUST NOT 依赖任何 apps/* 工作区。.bun-version MUST 存在且
     CI MUST 以同一文件钉版(bun-version-file);bun.lock MUST 入库并使用 --frozen-lockfile 安装。
 
     场景: 工作区布局合约对账通过

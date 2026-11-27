@@ -3,11 +3,17 @@
  * Pure types and deterministic helpers — zero filesystem I/O, zero wall-clock calls.
  */
 
+export type StudioGraphKind = 'machine' | 'flow';
+
 export interface StudioStateNode {
   /** Stable draft-scoped identifier used for rename tracking and edge binding. */
   uid: string;
-  /** Business state name written to .feature Examples tables. */
+  /** Business state or flowchart step name written to .feature Examples tables. */
   name: string;
+  /** Optional flowchart condition gateway marker (used by F3 linter). */
+  isGateway?: boolean;
+  /** Optional nested sub-machine/sub-flow key for 3-layer box-in-box drilldown. */
+  subMachineKey?: string;
 }
 
 export interface StudioTransitionEdge {
@@ -31,6 +37,8 @@ export interface StudioMachineIR {
   reqId: string | null;
   ruleTitle: string;
   scenarioName: string;
+  /** Optional graph dialect ('machine' default, or 'flow' for flowchart). */
+  graphKind?: StudioGraphKind;
   /** Initial state uid (corresponds to first Examples row's `from`). */
   initialStateUid: string | null;
   /** Preserved column header family (English or Chinese). */
@@ -52,7 +60,10 @@ export interface MachineDraft {
 export type SemanticAnchor =
   | { kind: 'machine'; machineKey: string }
   | { kind: 'state'; machineKey: string; stateUid: string }
-  | { kind: 'edge'; machineKey: string; edgeUid: string };
+  | { kind: 'edge'; machineKey: string; edgeUid: string }
+  | { kind: 'forest'; capability: string }
+  | { kind: 'macro-edge'; edgeId: string }
+  | { kind: 'doc'; capability: string; reqId?: string };
 
 export interface StudioComment {
   id: string;
@@ -87,6 +98,8 @@ export interface StudioRevisionProposal {
   status: 'pending' | 'accepted' | 'rejected';
 }
 
+export type TimelineActor = 'human' | 'agent';
+
 export interface TimelineEntry {
   seq: number;
   id: string;
@@ -95,6 +108,12 @@ export interface TimelineEntry {
   isBase: boolean;
   mode: MachineDraftMode;
   snapshot: StudioMachineIR | null;
+  /** Parent entry id for non-destructive multi-branch Worldline trees (null for BASE). */
+  parentId?: string | null;
+  /** Who created this snapshot node ('human' or 'agent'). */
+  actor?: TimelineActor;
+  /** Optional Git branch/worktree label associated with this snapshot. */
+  branchRef?: string;
 }
 
 export interface MachineTimeline {
@@ -107,16 +126,38 @@ export interface NodePosition {
   y: number;
 }
 
+export interface EdgeBendOffset {
+  dx: number;
+  dy: number;
+}
+
+export type DocDraftChangeKind = 'wording' | 'semantic';
+
+export interface StudioDocDraft {
+  sourceFile: string;
+  baseHash: string;
+  currentText: string;
+  changeKind: DocDraftChangeKind;
+}
+
 export interface StudioStateDoc {
   version: 1;
   id: string;
   title: string;
   createdAt: string;
   updatedAt: string;
+  /** Monotonic optimistic-lock revision number for concurrent multi-tab & Agent writes. */
+  revision?: number;
+  /** Source file SHA-256 baseline hashes for stale-baseline detection. */
+  baseHashes?: Record<string, string>;
   machines: Record<string, MachineDraft>;
+  /** Non-state-machine spec drafts (rules / decision tables) for unified Scheme C drafting. */
+  docDrafts?: Record<string, StudioDocDraft>;
   timelines: Record<string, MachineTimeline>;
   /** Cold layout coordinates decoupled from semantic MachineDraft (zero diff noise). */
   layouts: Record<string, Record<string, NodePosition>>;
+  /** Cold manual edge bend offsets per machine/scope (zero diff noise). */
+  edgeBends?: Record<string, Record<string, EdgeBendOffset>>;
   comments: StudioComment[];
   revisions: StudioRevisionProposal[];
 }
@@ -137,6 +178,7 @@ export function cloneMachineIR(machine: StudioMachineIR): StudioMachineIR {
     reqId: machine.reqId,
     ruleTitle: machine.ruleTitle,
     scenarioName: machine.scenarioName,
+    ...(machine.graphKind !== undefined ? { graphKind: machine.graphKind } : {}),
     initialStateUid: machine.initialStateUid,
     columns: {
       from: machine.columns.from,
@@ -144,7 +186,12 @@ export function cloneMachineIR(machine: StudioMachineIR): StudioMachineIR {
       to: machine.columns.to,
       ...(machine.columns.guard !== undefined ? { guard: machine.columns.guard } : {}),
     },
-    states: machine.states.map((s) => ({ uid: s.uid, name: s.name })),
+    states: machine.states.map((s) => ({
+      uid: s.uid,
+      name: s.name,
+      ...(s.isGateway !== undefined ? { isGateway: s.isGateway } : {}),
+      ...(s.subMachineKey !== undefined ? { subMachineKey: s.subMachineKey } : {}),
+    })),
     transitions: machine.transitions.map((t) => ({
       uid: t.uid,
       fromUid: t.fromUid,

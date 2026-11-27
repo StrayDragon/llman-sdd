@@ -27,9 +27,11 @@
     "build": "bun run ./scripts/build-binary.ts"
   },
   "dependencies": {
+    "@hono/node-server": "^1.19.6",
     "@llman-sdd/core": "workspace:*",
     "@modelcontextprotocol/server": "^2.4.0",
     "commander": "^15.1.0",
+    "hono": "^4.10.6",
     "zod": "^4.6.7"
   },
   "engines": {

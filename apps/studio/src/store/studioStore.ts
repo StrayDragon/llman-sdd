@@ -1,0 +1,1242 @@
+/**
+ * Studio Web Zustand store (hot semantic state vs cold layout state) with:
+ * - 400ms debounced autosave + synchronous `flushPendingSaves()` barrier before workspace switches
+ * - `pagehide` keepalive flush + localStorage crash-recovery snapshot per wsKey
+ * - 409 optimistic revision reconciliation
+ * - Multi-branch Worldline + 1:1 live canvas overlay compare
+ * - 3-layer Box-in-Box nestStack + symmetric bidirectional navHistory
+ * - 5-kind unified near-cursor CommentPopover
+ * - 4-group Settings SSOT (2 skins, 3 edges, 2 UI toggles, optional TextFold service URL)
+ */
+import {
+  addStudioComment,
+  cloneMachineIR,
+  computeMachineDiff,
+  deleteStudioComment,
+  editStudioComment,
+  formatSemanticDiff,
+  nextPrefixedUid,
+  recordWorldlineCommit,
+  redoTimeline,
+  reopenStudioComment,
+  resolveStudioComment,
+  switchWorldlineHead,
+  undoTimeline,
+  validateMachineGraph,
+  type BootstrapResponse,
+  type EdgeBendOffset,
+  type MachineDiagnostic,
+  type NodePosition,
+  type SemanticAnchor,
+  type SpecDetailResponse,
+  type SpecIndexEdge,
+  type SpecIndexItem,
+  type StudioMachineIR,
+  type StudioStateDoc,
+  type WorkspaceItem,
+} from '@llman-sdd/core/studio';
+import { create } from 'zustand';
+
+import { studioApi, StudioConflictError } from '../api/client.ts';
+import type { EdgePreset } from '../routing/obstacleRouter.ts';
+import {
+  createMachineSimulationSession,
+  type CompiledSimulationSession,
+  type SimulationStepRecord,
+} from '../simulate/xstateCompiler.ts';
+
+export type StudioSkin = 'linear' | 'washi';
+export type CardTier = 'glyph' | 'map' | 'detail';
+export type StudioViewKind = 'macro' | 'machine' | 'doc';
+export type StudioMode = 'explore' | 'simulate';
+
+export interface OpenTab {
+  id: string;
+  kind: StudioViewKind;
+  title: string;
+  targetId: string;
+  pinned?: boolean;
+}
+
+export interface NestStep {
+  machineKey: string;
+  label: string;
+}
+
+export interface CommentPopoverState {
+  anchor: SemanticAnchor;
+  title: string;
+  x: number;
+  y: number;
+}
+
+export interface PromptModalState {
+  title: string;
+  subtitle: string;
+  body: string;
+  fullscreen: boolean;
+}
+
+export interface StickyNoteItem {
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+}
+
+export interface ShareTargetState {
+  kind: 'macro' | 'machine' | 'doc' | 'state' | 'edge';
+  targetId: string;
+  title: string;
+}
+
+export interface SearchProviderItem {
+  id: string;
+  kind: 'spec' | 'state' | 'command';
+  title: string;
+  subtitle: string;
+  onSelect: () => void;
+}
+
+export interface SearchProvider {
+  id: string;
+  search: (query: string) => SearchProviderItem[];
+}
+
+export interface StudioStoreState {
+  loading: boolean;
+  error: string | null;
+  saveStatus: 'idle' | 'saving' | 'saved' | 'conflict' | 'error';
+  toastMsg: string | null;
+
+  workspaces: WorkspaceItem[];
+  activeWorkspace: WorkspaceItem | null;
+  peerWorktrees: WorkspaceItem[];
+  demoMode: boolean;
+
+  stateDoc: StudioStateDoc | null;
+  specs: SpecIndexItem[];
+  edges: SpecIndexEdge[];
+  staleFiles: string[];
+  specDetails: Record<string, SpecDetailResponse>;
+  graphMermaid: string;
+
+  tabs: OpenTab[];
+  activeTabId: string;
+  navHistory: Array<{ tabId: string; nestStack: NestStep[] }>;
+  navIdx: number;
+  nestStack: NestStep[];
+
+  mode: StudioMode;
+  simSession: CompiledSimulationSession | null;
+  simActiveUid: string | null;
+  simTrace: SimulationStepRecord[];
+  simGuards: Record<string, boolean>;
+
+  // Right-side Worldline drawer & 1:1 live canvas overlay diff
+  worldlineOpen: boolean;
+  worldlineComparing: boolean;
+  worldlineCompareAId: string | null;
+
+  // Single-slot HUD & transient popovers
+  showTips: boolean;
+  tipIdx: number;
+  settingsOpen: boolean;
+  linterOpen: boolean;
+  revisionDrawerOpen: boolean;
+  dagPanelOpen: boolean;
+  dagFullscreen: boolean;
+  cmdkOpen: boolean;
+  saveModalOpen: boolean;
+  sharePopoverOpen: boolean;
+  shareTarget: ShareTargetState | null;
+  commentPopover: CommentPopoverState | null;
+  promptModal: PromptModalState | null;
+  focusStateUid: string | null;
+
+  // Main view domain groups (strictly workspace-isolated, Axiom 5) & drafting sticky notes
+  collapsedGroups: Set<string>;
+  ungroupedDomains: Set<string>;
+  stickyNotes: StickyNoteItem[];
+
+  // Doc view 5-level TextFold & Canvas zoom bridge
+  docFoldLevel: 0 | 1 | 2 | 3 | 4;
+  zoomPercent: number;
+  zoomTrigger: { action: 'in' | 'out' | 'fit'; seq: number } | null;
+
+  // Settings SSOT (4 groups: 2 skins, 3 edge presets, 2 toggles, optional TextFold URL)
+  skin: StudioSkin;
+  edgePreset: EdgePreset;
+  tier: CardTier;
+  showMinimap: boolean;
+  showLegend: boolean;
+  legendKindFilter: Set<SpecIndexItem['kind']>;
+  textfoldEndpoint: string;
+
+  // Dirty tracking & server-synced optimistic revision lock
+  dirtyState: boolean;
+  stateEditSeq: number;
+  syncedRevision: number;
+  dirtyLayoutKeys: Set<string>;
+  customSearchProviders: SearchProvider[];
+
+  // Actions
+  init: (wsKey?: string) => Promise<void>;
+  refreshInPlace: (wsKey?: string) => Promise<void>;
+  switchWorkspace: (wsKey: string) => Promise<void>;
+  flushPendingSaves: (opts?: { keepalive?: boolean }) => Promise<boolean>;
+  openSpecTab: (spec: SpecIndexItem) => Promise<void>;
+  openMachineTab: (machineKey: string, title?: string) => void;
+  activateTab: (tabId: string) => void;
+  closeTab: (tabId: string) => void;
+  navBack: () => void;
+  navForward: () => void;
+  diveSubMachine: (machineKey: string, label: string) => void;
+  jumpNestLevel: (idx: number) => void;
+
+  mutateMachine: (
+    machineKey: string,
+    label: string,
+    mutator: (draft: StudioMachineIR) => void,
+    actor?: 'human' | 'agent',
+  ) => void;
+  updateNodePosition: (
+    machineKey: string,
+    nodeUid: string,
+    pos: NodePosition,
+    persist?: boolean,
+  ) => void;
+  updateEdgeBend: (machineKey: string, edgeUid: string, bend: EdgeBendOffset) => void;
+  resetEdgeBend: (machineKey: string, edgeUid: string) => void;
+  resetLayoutForScope: (scopeKey: string) => void;
+  switchWorldlineTo: (machineKey: string, idx: number) => void;
+  toggleWorldlineCompare: (entryId: string) => void;
+  setWorldlineOpen: (open: boolean) => void;
+  undoActiveMachine: () => void;
+  redoActiveMachine: () => void;
+  decideRevision: (revId: string, action: 'accept' | 'reject') => Promise<void>;
+
+  // Direct manipulation graph ops (zero window.prompt)
+  connectStates: (
+    machineKey: string,
+    fromUid: string,
+    toUid: string,
+    event?: string,
+    guard?: string,
+  ) => void;
+  spawnStateAt: (
+    machineKey: string,
+    name: string,
+    pos: NodePosition,
+    opts?: {
+      initial?: boolean;
+      isGateway?: boolean;
+      connectFromUid?: string;
+      event?: string;
+      guard?: string;
+    },
+  ) => string | null;
+  insertStateOnEdge: (machineKey: string, edgeUid: string, pos: NodePosition) => void;
+  reverseEdge: (machineKey: string, edgeUid: string) => void;
+  setInitialState: (machineKey: string, stateUid: string) => void;
+  renameState: (machineKey: string, stateUid: string, nextName: string) => void;
+  editEdge: (machineKey: string, edgeUid: string, event: string, guard?: string) => void;
+  deleteEdge: (machineKey: string, edgeUid: string) => void;
+  deleteState: (machineKey: string, stateUid: string) => void;
+  toggleGateway: (machineKey: string, stateUid: string) => void;
+
+  // Domain groups, sticky notes, TextFold, zoom, popovers
+  toggleCollapseGroup: (groupId: string) => void;
+  ungroupDomain: (groupId: string) => void;
+  addStickyNote: (x: number, y: number) => void;
+  updateStickyNote: (id: string, text: string) => void;
+  deleteStickyNote: (id: string) => void;
+  setDocFoldLevel: (level: 0 | 1 | 2 | 3 | 4) => void;
+  setZoomPercent: (pct: number) => void;
+  triggerZoom: (action: 'in' | 'out' | 'fit') => void;
+  setLinterOpen: (open: boolean) => void;
+  setRevisionDrawerOpen: (open: boolean) => void;
+  setFocusStateUid: (uid: string | null) => void;
+  openShareModal: (target?: ShareTargetState | null) => void;
+
+  // Simulation (XState v5)
+  startSimulation: (machineKey: string) => void;
+  stopSimulation: () => void;
+  triggerSimEvent: (eventName: string) => void;
+  toggleSimGuard: (guardName: string) => void;
+
+  // Unified 5-kind comments CRUD
+  openCommentPopover: (anchor: SemanticAnchor, title: string, x: number, y: number) => void;
+  closeCommentPopover: () => void;
+  addComment: (anchor: SemanticAnchor, body: string) => void;
+  editComment: (commentId: string, body: string) => void;
+  resolveComment: (commentId: string) => void;
+  reopenComment: (commentId: string) => void;
+  deleteComment: (commentId: string) => void;
+
+  // Doc wording/semantic draft update (Scheme C)
+  updateDocDraft: (capId: string, nextText: string, changeKind: 'wording' | 'semantic') => void;
+
+  // Prompts & Proposals
+  openPromptWorkbench: (title: string, subtitle: string, body: string) => void;
+  closePromptWorkbench: () => void;
+  togglePromptFullscreen: () => void;
+  buildNegotiationPrompt: (machineKey?: string) => string;
+
+  // Settings & Chrome
+  setSkin: (skin: StudioSkin) => void;
+  setEdgePreset: (preset: EdgePreset) => void;
+  setTier: (tier: CardTier) => void;
+  setShowMinimap: (show: boolean) => void;
+  setShowLegend: (show: boolean) => void;
+  toggleLegendKind: (kind: SpecIndexItem['kind']) => void;
+  setTextfoldEndpoint: (url: string) => void;
+  setSettingsOpen: (open: boolean) => void;
+  setDagPanelOpen: (open: boolean) => void;
+  setDagFullscreen: (full: boolean) => void;
+  setCmdkOpen: (open: boolean) => void;
+  setSaveModalOpen: (open: boolean) => void;
+  setSharePopoverOpen: (open: boolean) => void;
+  setShowTips: (show: boolean) => void;
+  stepTip: (delta: number) => void;
+  showToast: (msg: string) => void;
+  getDiagnosticsForMachine: (machineKey: string) => MachineDiagnostic[];
+  getActiveMachineKey: () => string | null;
+}
+
+let stateSaveTimer: ReturnType<typeof setTimeout> | null = null;
+let layoutSaveTimer: ReturnType<typeof setTimeout> | null = null;
+let toastTimer: ReturnType<typeof setTimeout> | null = null;
+
+function recoveryStorageKey(wsKey: string, stateId: string): string {
+  return `llman_sdd_studio_recovery:${wsKey}:${stateId}`;
+}
+
+function saveRecoverySnapshot(wsKey: string, doc: StudioStateDoc): void {
+  try {
+    localStorage.setItem(recoveryStorageKey(wsKey, doc.id), JSON.stringify(doc));
+  } catch {
+    // Ignore storage quota errors
+  }
+}
+
+function applyBootstrapToState(
+  boot: BootstrapResponse,
+  workspaces: WorkspaceItem[],
+): Partial<StudioStoreState> {
+  const mainTab: OpenTab = {
+    id: 'main',
+    kind: 'macro',
+    title: '主视图',
+    targetId: 'main',
+    pinned: true,
+  };
+  const firstMachineKey = Object.keys(boot.stateDoc.machines)[0];
+  const initialTabs: OpenTab[] =
+    boot.specs.length === 0 && firstMachineKey
+      ? [
+          mainTab,
+          {
+            id: `machine:${firstMachineKey}`,
+            kind: 'machine',
+            title: boot.stateDoc.machines[firstMachineKey]?.current?.capability ?? firstMachineKey,
+            targetId: firstMachineKey,
+          },
+        ]
+      : [mainTab];
+  const activeTabId = initialTabs[initialTabs.length - 1]!.id;
+  return {
+    loading: false,
+    error: null,
+    workspaces,
+    activeWorkspace: boot.workspace,
+    peerWorktrees: boot.peerWorktrees,
+    demoMode: boot.demoMode,
+    stateDoc: boot.stateDoc,
+    specs: boot.specs,
+    edges: boot.edges,
+    staleFiles: boot.staleFiles,
+    specDetails: {},
+    graphMermaid: boot.graphMermaid,
+    tabs: initialTabs,
+    activeTabId,
+    navHistory: [{ tabId: activeTabId, nestStack: [] }],
+    navIdx: 0,
+    nestStack: [],
+    worldlineComparing: false,
+    worldlineCompareAId: null,
+    collapsedGroups: new Set(),
+    ungroupedDomains: new Set(),
+    stickyNotes: [],
+    linterOpen: false,
+    revisionDrawerOpen: false,
+    focusStateUid: null,
+    dirtyState: false,
+    stateEditSeq: 0,
+    syncedRevision: boot.stateDoc.revision ?? 0,
+    dirtyLayoutKeys: new Set(),
+    saveStatus: 'saved',
+  };
+}
+
+export const useStudioStore = create<StudioStoreState>((set, get) => {
+  const scheduleStateSave = (): void => {
+    set((prev) => ({
+      dirtyState: true,
+      stateEditSeq: prev.stateEditSeq + 1,
+      saveStatus: 'saving',
+    }));
+    const s = get();
+    if (s.activeWorkspace && s.stateDoc) {
+      saveRecoverySnapshot(s.activeWorkspace.wsKey, s.stateDoc);
+    }
+    if (stateSaveTimer) clearTimeout(stateSaveTimer);
+    stateSaveTimer = setTimeout(() => {
+      void get().flushPendingSaves();
+    }, 400);
+  };
+
+  const scheduleLayoutSave = (machineKey: string): void => {
+    const nextKeys = new Set(get().dirtyLayoutKeys);
+    nextKeys.add(machineKey);
+    set({ dirtyLayoutKeys: nextKeys });
+    if (layoutSaveTimer) clearTimeout(layoutSaveTimer);
+    layoutSaveTimer = setTimeout(() => {
+      void get().flushPendingSaves();
+    }, 400);
+  };
+
+  return {
+    loading: true,
+    error: null,
+    saveStatus: 'idle',
+    toastMsg: null,
+
+    workspaces: [],
+    activeWorkspace: null,
+    peerWorktrees: [],
+    demoMode: false,
+
+    stateDoc: null,
+    specs: [],
+    edges: [],
+    staleFiles: [],
+    specDetails: {},
+    graphMermaid: 'flowchart TD\n',
+
+    tabs: [{ id: 'main', kind: 'macro', title: '主视图', targetId: 'main', pinned: true }],
+    activeTabId: 'main',
+    navHistory: [{ tabId: 'main', nestStack: [] }],
+    navIdx: 0,
+    nestStack: [],
+
+    mode: 'explore',
+    simSession: null,
+    simActiveUid: null,
+    simTrace: [],
+    simGuards: {},
+
+    worldlineOpen: false,
+    worldlineComparing: false,
+    worldlineCompareAId: null,
+
+    showTips: true,
+    tipIdx: 0,
+    settingsOpen: false,
+    linterOpen: false,
+    revisionDrawerOpen: false,
+    dagPanelOpen: false,
+    dagFullscreen: false,
+    cmdkOpen: false,
+    saveModalOpen: false,
+    sharePopoverOpen: false,
+    shareTarget: null,
+    commentPopover: null,
+    promptModal: null,
+    focusStateUid: null,
+
+    collapsedGroups: new Set(),
+    ungroupedDomains: new Set(),
+    stickyNotes: [],
+
+    docFoldLevel: 0,
+    zoomPercent: 100,
+    zoomTrigger: null,
+
+    skin: 'linear',
+    edgePreset: 'bezier',
+    tier: 'map',
+    showMinimap: true,
+    showLegend: true,
+    legendKindFilter: new Set(['machine', 'flow', 'decision', 'doc']),
+    textfoldEndpoint: '',
+
+    dirtyState: false,
+    stateEditSeq: 0,
+    syncedRevision: 0,
+    dirtyLayoutKeys: new Set(),
+    customSearchProviders: [],
+
+    init: async (wsKey?: string) => {
+      set({ loading: true, error: null });
+      try {
+        const [wsRes, boot] = await Promise.all([
+          studioApi.fetchWorkspaces(),
+          studioApi.fetchBootstrap(wsKey),
+        ]);
+        set(applyBootstrapToState(boot, wsRes.workspaces));
+      } catch (error) {
+        set({
+          loading: false,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    },
+
+    refreshInPlace: async (wsKey?: string) => {
+      try {
+        const targetWs = wsKey ?? get().activeWorkspace?.wsKey;
+        const [wsRes, boot] = await Promise.all([
+          studioApi.fetchWorkspaces(),
+          studioApi.fetchBootstrap(targetWs),
+        ]);
+        const cur = get();
+        set({
+          workspaces: wsRes.workspaces,
+          activeWorkspace: boot.workspace,
+          peerWorktrees: boot.peerWorktrees,
+          specs: boot.specs,
+          edges: boot.edges,
+          staleFiles: boot.staleFiles,
+          graphMermaid: boot.graphMermaid,
+          ...(cur.dirtyState
+            ? {}
+            : {
+                stateDoc: boot.stateDoc,
+                syncedRevision: boot.stateDoc.revision ?? 0,
+              }),
+        });
+      } catch {
+        // Ignore transient SSE background refresh errors
+      }
+    },
+
+    flushPendingSaves: async (opts) => {
+      if (stateSaveTimer) {
+        clearTimeout(stateSaveTimer);
+        stateSaveTimer = null;
+      }
+      if (layoutSaveTimer) {
+        clearTimeout(layoutSaveTimer);
+        layoutSaveTimer = null;
+      }
+      const s = get();
+      const wsKey = s.activeWorkspace?.wsKey;
+      if (!wsKey || !s.stateDoc) return true;
+
+      let allOk = true;
+      if (s.dirtyState) {
+        const sentSeq = s.stateEditSeq;
+        try {
+          const res = await studioApi.putState(s.stateDoc, s.syncedRevision, wsKey, opts);
+          const latest = get();
+          if (latest.stateDoc) {
+            const noNewEdits = latest.stateEditSeq === sentSeq;
+            set({
+              stateDoc: { ...latest.stateDoc, revision: res.revision, updatedAt: res.updatedAt },
+              syncedRevision: res.revision,
+              dirtyState: !noNewEdits,
+              saveStatus: noNewEdits ? 'saved' : 'saving',
+            });
+          }
+        } catch (error) {
+          if (error instanceof StudioConflictError) {
+            set({ saveStatus: 'conflict', syncedRevision: error.currentRevision });
+            get().showToast('检测到其他窗口或 Agent 更新了草稿，请刷新合并');
+          } else {
+            set({ saveStatus: 'error' });
+            get().showToast('自动保存失败，草稿已暂存于本地缓存');
+          }
+          allOk = false;
+        }
+      }
+
+      if (s.dirtyLayoutKeys.size > 0 && s.stateDoc) {
+        const keys = [...s.dirtyLayoutKeys];
+        for (const mk of keys) {
+          const positions = s.stateDoc.layouts[mk] ?? {};
+          const edgeBends = s.stateDoc.edgeBends?.[mk];
+          try {
+            await studioApi.putLayout(mk, positions, edgeBends, wsKey, opts);
+          } catch {
+            allOk = false;
+          }
+        }
+        if (allOk) set({ dirtyLayoutKeys: new Set() });
+      }
+      return allOk;
+    },
+
+    switchWorkspace: async (wsKey: string) => {
+      // Flush-Before-Switch Barrier: NEVER drop last 400ms edits when changing workspace!
+      const flushed = await get().flushPendingSaves();
+      if (!flushed) {
+        get().showToast('当前工作区尚有未保存改动，请先解决冲突后再切换');
+        return;
+      }
+      get().stopSimulation();
+      get().setWorldlineOpen(false);
+      set({ loading: true, commentPopover: null });
+      try {
+        const [wsRes, boot] = await Promise.all([
+          studioApi.fetchWorkspaces(),
+          studioApi.fetchBootstrap(wsKey),
+        ]);
+        set(applyBootstrapToState(boot, wsRes.workspaces));
+        get().showToast(`已切换工作区：${boot.workspace.repo} (${boot.workspace.branch})`);
+      } catch (error) {
+        set({ loading: false, error: error instanceof Error ? error.message : String(error) });
+      }
+    },
+
+    openSpecTab: async (spec) => {
+      if (spec.kind === 'machine' && spec.machineKeys[0]) {
+        get().openMachineTab(spec.machineKeys[0], spec.title);
+        return;
+      }
+      const tabId = `doc:${spec.id}`;
+      const s = get();
+      const exists = s.tabs.some((t) => t.id === tabId);
+      const tabs = exists
+        ? s.tabs
+        : [...s.tabs, { id: tabId, kind: 'doc' as const, title: spec.title, targetId: spec.id }];
+      const nextNav = s.navHistory.slice(0, s.navIdx + 1);
+      nextNav.push({ tabId, nestStack: [] });
+      set({
+        tabs,
+        activeTabId: tabId,
+        nestStack: [],
+        navHistory: nextNav,
+        navIdx: nextNav.length - 1,
+      });
+
+      if (!s.specDetails[spec.id]) {
+        try {
+          const detail = await studioApi.fetchSpecDetail(spec.id, s.activeWorkspace?.wsKey);
+          set({ specDetails: { ...get().specDetails, [spec.id]: detail } });
+        } catch {
+          get().showToast(`加载规格 ${spec.id} 详情失败`);
+        }
+      }
+    },
+
+    openMachineTab: (machineKey, title) => {
+      const s = get();
+      const tabId = `machine:${machineKey}`;
+      const label = title ?? s.stateDoc?.machines[machineKey]?.current?.capability ?? machineKey;
+      const exists = s.tabs.some((t) => t.id === tabId);
+      const tabs = exists
+        ? s.tabs
+        : [...s.tabs, { id: tabId, kind: 'machine' as const, title: label, targetId: machineKey }];
+      const nextNav = s.navHistory.slice(0, s.navIdx + 1);
+      nextNav.push({ tabId, nestStack: [] });
+      set({
+        tabs,
+        activeTabId: tabId,
+        nestStack: [],
+        navHistory: nextNav,
+        navIdx: nextNav.length - 1,
+      });
+    },
+
+    activateTab: (tabId) => {
+      const s = get();
+      if (s.activeTabId === tabId) return;
+      get().stopSimulation();
+      const nextNav = s.navHistory.slice(0, s.navIdx + 1);
+      nextNav.push({ tabId, nestStack: [] });
+      set({ activeTabId: tabId, nestStack: [], navHistory: nextNav, navIdx: nextNav.length - 1 });
+    },
+
+    closeTab: (tabId) => {
+      const s = get();
+      const target = s.tabs.find((t) => t.id === tabId);
+      if (!target || target.pinned) return;
+      const nextTabs = s.tabs.filter((t) => t.id !== tabId);
+      const nextActive =
+        s.activeTabId === tabId ? (nextTabs[nextTabs.length - 1]?.id ?? 'main') : s.activeTabId;
+      set({ tabs: nextTabs, activeTabId: nextActive, nestStack: [] });
+    },
+
+    navBack: () => {
+      const s = get();
+      if (s.navIdx <= 0) return;
+      const prev = s.navHistory[s.navIdx - 1];
+      if (!prev) return;
+      set({ activeTabId: prev.tabId, nestStack: prev.nestStack, navIdx: s.navIdx - 1 });
+    },
+
+    navForward: () => {
+      const s = get();
+      if (s.navIdx >= s.navHistory.length - 1) return;
+      const next = s.navHistory[s.navIdx + 1];
+      if (!next) return;
+      set({ activeTabId: next.tabId, nestStack: next.nestStack, navIdx: s.navIdx + 1 });
+    },
+
+    diveSubMachine: (machineKey, label) => {
+      const s = get();
+      const nextStack = [...s.nestStack, { machineKey, label }];
+      const nextNav = s.navHistory.slice(0, s.navIdx + 1);
+      nextNav.push({ tabId: s.activeTabId, nestStack: nextStack });
+      set({ nestStack: nextStack, navHistory: nextNav, navIdx: nextNav.length - 1 });
+    },
+
+    jumpNestLevel: (idx) => {
+      const s = get();
+      const nextStack = idx < 0 ? [] : s.nestStack.slice(0, idx + 1);
+      const nextNav = s.navHistory.slice(0, s.navIdx + 1);
+      nextNav.push({ tabId: s.activeTabId, nestStack: nextStack });
+      set({ nestStack: nextStack, navHistory: nextNav, navIdx: nextNav.length - 1 });
+    },
+
+    mutateMachine: (machineKey, label, mutator, actor = 'human') => {
+      const s = get();
+      const doc = s.stateDoc;
+      const draft = doc?.machines[machineKey];
+      if (!doc || !draft?.current) return;
+      const nextIr = cloneMachineIR(draft.current);
+      mutator(nextIr);
+      const nextDoc = recordWorldlineCommit(doc, machineKey, nextIr, {
+        label,
+        createdAt: new Date().toISOString(),
+        actor,
+        branchRef: s.activeWorkspace?.branch,
+      });
+      set({ stateDoc: nextDoc });
+      scheduleStateSave();
+    },
+
+    updateNodePosition: (machineKey, nodeUid, pos, persist = true) => {
+      const doc = get().stateDoc;
+      if (!doc) return;
+      const curMap = doc.layouts[machineKey] ?? {};
+      const nextDoc: StudioStateDoc = {
+        ...doc,
+        layouts: { ...doc.layouts, [machineKey]: { ...curMap, [nodeUid]: pos } },
+      };
+      set({ stateDoc: nextDoc });
+      if (persist) scheduleLayoutSave(machineKey);
+    },
+
+    updateEdgeBend: (machineKey, edgeUid, bend) => {
+      const doc = get().stateDoc;
+      if (!doc) return;
+      const curMap = doc.edgeBends?.[machineKey] ?? {};
+      const nextDoc: StudioStateDoc = {
+        ...doc,
+        edgeBends: { ...doc.edgeBends, [machineKey]: { ...curMap, [edgeUid]: bend } },
+      };
+      set({ stateDoc: nextDoc });
+      scheduleLayoutSave(machineKey);
+    },
+
+    resetEdgeBend: (machineKey, edgeUid) => {
+      const doc = get().stateDoc;
+      if (!doc?.edgeBends?.[machineKey]) return;
+      const curMap = { ...doc.edgeBends[machineKey] };
+      delete curMap[edgeUid];
+      set({ stateDoc: { ...doc, edgeBends: { ...doc.edgeBends, [machineKey]: curMap } } });
+      scheduleLayoutSave(machineKey);
+    },
+
+    resetLayoutForScope: (scopeKey) => {
+      const doc = get().stateDoc;
+      if (!doc) return;
+      const nextLayouts = { ...doc.layouts };
+      nextLayouts[scopeKey] = {};
+      const nextBends = { ...doc.edgeBends };
+      nextBends[scopeKey] = {};
+      set({ stateDoc: { ...doc, layouts: nextLayouts, edgeBends: nextBends } });
+      scheduleLayoutSave(scopeKey);
+      get().showToast('已按默认拓扑自动整理画布布局');
+    },
+
+    switchWorldlineTo: (machineKey, idx) => {
+      const doc = get().stateDoc;
+      if (!doc) return;
+      const nextDoc = switchWorldlineHead(doc, machineKey, idx, new Date().toISOString());
+      set({ stateDoc: nextDoc });
+      scheduleStateSave();
+    },
+
+    undoActiveMachine: () => {
+      const mk = get().getActiveMachineKey();
+      const doc = get().stateDoc;
+      if (!mk || !doc) return;
+      const tl = doc.timelines[mk];
+      if (!tl || tl.headIdx <= 0) return;
+      const nextDoc = undoTimeline(doc, mk, new Date().toISOString());
+      set({ stateDoc: nextDoc });
+      scheduleStateSave();
+      get().showToast('已撤销上一步变更');
+    },
+
+    redoActiveMachine: () => {
+      const mk = get().getActiveMachineKey();
+      const doc = get().stateDoc;
+      if (!mk || !doc) return;
+      const tl = doc.timelines[mk];
+      if (!tl || tl.headIdx >= tl.entries.length - 1) return;
+      const nextDoc = redoTimeline(doc, mk, new Date().toISOString());
+      set({ stateDoc: nextDoc });
+      scheduleStateSave();
+      get().showToast('已重做变更');
+    },
+
+    decideRevision: async (revId, action) => {
+      const s = get();
+      if (!s.stateDoc || !s.activeWorkspace) return;
+      await s.flushPendingSaves();
+      try {
+        const updated = await studioApi.decideRevision(
+          s.stateDoc.id,
+          revId,
+          action,
+          s.activeWorkspace.wsKey,
+        );
+        set({
+          stateDoc: updated,
+          syncedRevision: updated.revision ?? s.syncedRevision + 1,
+          dirtyState: false,
+          saveStatus: 'saved',
+        });
+        get().showToast(action === 'accept' ? `已采纳 Agent 建议 ${revId}` : `已忽略建议 ${revId}`);
+      } catch (error) {
+        get().showToast(error instanceof Error ? error.message : '处理建议失败');
+      }
+    },
+
+    connectStates: (machineKey, fromUid, toUid, event = '流转', guard) => {
+      get().mutateMachine(machineKey, `连线 ${event}`, (ir) => {
+        const uid = nextEdgeUid(ir);
+        ir.transitions.push({
+          uid,
+          fromUid,
+          toUid,
+          event: event.trim() || '流转',
+          ...(guard?.trim() ? { guard: guard.trim() } : {}),
+        });
+      });
+    },
+
+    spawnStateAt: (machineKey, name, pos, opts) => {
+      const doc = get().stateDoc;
+      const machine = doc?.machines[machineKey]?.current;
+      if (!doc || !machine) return null;
+      const newUid = nextStateUid(machine);
+      get().mutateMachine(machineKey, `新增节点「${name}」`, (ir) => {
+        ir.states.push({
+          uid: newUid,
+          name: name.trim() || '新状态',
+          ...(opts?.isGateway ? { isGateway: true } : {}),
+        });
+        if (opts?.initial) {
+          ir.initialStateUid = newUid;
+        }
+        if (opts?.connectFromUid) {
+          ir.transitions.push({
+            uid: nextEdgeUid(ir),
+            fromUid: opts.connectFromUid,
+            toUid: newUid,
+            event: opts.event?.trim() || '流转',
+            ...(opts.guard?.trim() ? { guard: opts.guard.trim() } : {}),
+          });
+        }
+      });
+      get().updateNodePosition(machineKey, newUid, pos, true);
+      return newUid;
+    },
+
+    insertStateOnEdge: (machineKey, edgeUid, pos) => {
+      const doc = get().stateDoc;
+      const machine = doc?.machines[machineKey]?.current;
+      if (!doc || !machine) return;
+      const newUid = nextStateUid(machine);
+      get().mutateMachine(machineKey, '在连线中插入中间节点', (ir) => {
+        const idx = ir.transitions.findIndex((t) => t.uid === edgeUid);
+        if (idx < 0) return;
+        const orig = ir.transitions[idx]!;
+        ir.states.push({ uid: newUid, name: ir.graphKind === 'flow' ? '中间步骤' : '中间状态' });
+        ir.transitions.splice(
+          idx,
+          1,
+          {
+            uid: nextEdgeUid(ir),
+            fromUid: orig.fromUid,
+            toUid: newUid,
+            event: orig.event,
+            ...(orig.guard ? { guard: orig.guard } : {}),
+          },
+          {
+            uid: `e${String(Number(nextEdgeUid(ir).slice(1)) + 1)}`,
+            fromUid: newUid,
+            toUid: orig.toUid,
+            event: '继续',
+          },
+        );
+      });
+      get().updateNodePosition(machineKey, newUid, pos, true);
+    },
+
+    reverseEdge: (machineKey, edgeUid) => {
+      get().mutateMachine(machineKey, '反转连线方向', (ir) => {
+        const edge = ir.transitions.find((t) => t.uid === edgeUid);
+        if (!edge) return;
+        const tmp = edge.fromUid;
+        edge.fromUid = edge.toUid;
+        edge.toUid = tmp;
+      });
+    },
+
+    setInitialState: (machineKey, stateUid) => {
+      get().mutateMachine(machineKey, '设置初始状态', (ir) => {
+        ir.initialStateUid = stateUid;
+      });
+    },
+
+    renameState: (machineKey, stateUid, nextName) => {
+      const trimmed = nextName.trim();
+      if (!trimmed) return;
+      get().mutateMachine(machineKey, `改名「${trimmed}」`, (ir) => {
+        const st = ir.states.find((x) => x.uid === stateUid);
+        if (st) st.name = trimmed;
+      });
+    },
+
+    editEdge: (machineKey, edgeUid, event, guard) => {
+      const trimmedEvent = event.trim() || '流转';
+      const trimmedGuard = guard?.trim() ?? '';
+      get().mutateMachine(machineKey, `修改转移「${trimmedEvent}」`, (ir) => {
+        const edge = ir.transitions.find((t) => t.uid === edgeUid);
+        if (!edge) return;
+        edge.event = trimmedEvent;
+        if (trimmedGuard) edge.guard = trimmedGuard;
+        else delete edge.guard;
+      });
+    },
+
+    deleteEdge: (machineKey, edgeUid) => {
+      get().mutateMachine(machineKey, '删除转移边', (ir) => {
+        ir.transitions = ir.transitions.filter((t) => t.uid !== edgeUid);
+      });
+    },
+
+    deleteState: (machineKey, stateUid) => {
+      get().mutateMachine(machineKey, '删除状态节点', (ir) => {
+        ir.states = ir.states.filter((x) => x.uid !== stateUid);
+        ir.transitions = ir.transitions.filter(
+          (t) => t.fromUid !== stateUid && t.toUid !== stateUid,
+        );
+      });
+    },
+
+    toggleGateway: (machineKey, stateUid) => {
+      get().mutateMachine(machineKey, '切换条件判断节点形态', (ir) => {
+        const st = ir.states.find((x) => x.uid === stateUid);
+        if (st) st.isGateway = !st.isGateway;
+      });
+    },
+
+    toggleCollapseGroup: (groupId) => {
+      const next = new Set(get().collapsedGroups);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
+      set({ collapsedGroups: next });
+    },
+
+    ungroupDomain: (groupId) => {
+      const next = new Set(get().ungroupedDomains);
+      next.add(groupId);
+      set({ ungroupedDomains: next });
+      get().showToast('已解散该领域视觉分组（不影响规格文件）');
+    },
+
+    addStickyNote: (x, y) => {
+      const id = `note-${String(Date.now())}`;
+      set((s) => ({
+        stickyNotes: [...s.stickyNotes, { id, text: '记录设计要点或待办...', x, y }],
+      }));
+    },
+
+    updateStickyNote: (id, text) => {
+      set((s) => ({
+        stickyNotes: s.stickyNotes.map((n) => (n.id === id ? { ...n, text } : n)),
+      }));
+    },
+
+    deleteStickyNote: (id) => {
+      set((s) => ({ stickyNotes: s.stickyNotes.filter((n) => n.id !== id) }));
+    },
+
+    setDocFoldLevel: (docFoldLevel) => set({ docFoldLevel }),
+    setZoomPercent: (zoomPercent) => set({ zoomPercent }),
+    triggerZoom: (action) =>
+      set((s) => ({ zoomTrigger: { action, seq: (s.zoomTrigger?.seq ?? 0) + 1 } })),
+    setLinterOpen: (linterOpen) => set({ linterOpen }),
+    setRevisionDrawerOpen: (revisionDrawerOpen) => set({ revisionDrawerOpen }),
+    setFocusStateUid: (focusStateUid) => set({ focusStateUid }),
+    openShareModal: (target = null) => set({ shareTarget: target, sharePopoverOpen: true }),
+
+    toggleWorldlineCompare: (entryId) => {
+      const s = get();
+      if (s.worldlineComparing && s.worldlineCompareAId === entryId) {
+        set({ worldlineComparing: false, worldlineCompareAId: null });
+      } else {
+        set({ worldlineComparing: true, worldlineCompareAId: entryId });
+      }
+    },
+
+    setWorldlineOpen: (open) => {
+      if (typeof document !== 'undefined') {
+        document.body.classList.toggle('wl-open', open);
+      }
+      set({
+        worldlineOpen: open,
+        ...(open ? {} : { worldlineComparing: false, worldlineCompareAId: null }),
+      });
+    },
+
+    startSimulation: (machineKey) => {
+      const machine = get().stateDoc?.machines[machineKey]?.current;
+      if (!machine) return;
+      get().simSession?.stop();
+      const session = createMachineSimulationSession(machine);
+      set({
+        mode: 'simulate',
+        simSession: session,
+        simActiveUid: session.currentStateUid(),
+        simTrace: [],
+        simGuards: session.getGuards(),
+      });
+    },
+
+    stopSimulation: () => {
+      get().simSession?.stop();
+      set({ mode: 'explore', simSession: null, simActiveUid: null, simTrace: [] });
+    },
+
+    triggerSimEvent: (eventName) => {
+      const sess = get().simSession;
+      if (!sess) return;
+      const res = sess.send(eventName);
+      if (!res.transitioned) {
+        get().showToast(`事件「${eventName}」未满足守卫条件，请先开启底部守卫开关`);
+        return;
+      }
+      set({ simActiveUid: sess.currentStateUid(), simTrace: sess.getTrace() });
+    },
+
+    toggleSimGuard: (guardName) => {
+      const sess = get().simSession;
+      if (!sess) return;
+      const cur = sess.getGuards();
+      sess.setGuard(guardName, !cur[guardName]);
+      set({ simGuards: sess.getGuards() });
+    },
+
+    openCommentPopover: (anchor, title, x, y) => {
+      set({ commentPopover: { anchor, title, x, y } });
+    },
+
+    closeCommentPopover: () => set({ commentPopover: null }),
+
+    addComment: (anchor, body) => {
+      const doc = get().stateDoc;
+      if (!doc || body.trim() === '') return;
+      const next = addStudioComment(doc, {
+        anchor,
+        author: 'human',
+        body,
+        createdAt: new Date().toISOString(),
+      });
+      set({ stateDoc: next });
+      scheduleStateSave();
+    },
+
+    editComment: (commentId, body) => {
+      const doc = get().stateDoc;
+      if (!doc || body.trim() === '') return;
+      const next = editStudioComment(doc, commentId, {
+        body,
+        updatedAt: new Date().toISOString(),
+      });
+      set({ stateDoc: next });
+      scheduleStateSave();
+    },
+
+    resolveComment: (commentId) => {
+      const doc = get().stateDoc;
+      if (!doc) return;
+      set({ stateDoc: resolveStudioComment(doc, commentId, new Date().toISOString()) });
+      scheduleStateSave();
+    },
+
+    reopenComment: (commentId) => {
+      const doc = get().stateDoc;
+      if (!doc) return;
+      set({ stateDoc: reopenStudioComment(doc, commentId, new Date().toISOString()) });
+      scheduleStateSave();
+    },
+
+    deleteComment: (commentId) => {
+      const doc = get().stateDoc;
+      if (!doc) return;
+      set({ stateDoc: deleteStudioComment(doc, commentId, new Date().toISOString()) });
+      scheduleStateSave();
+    },
+
+    updateDocDraft: (capId, nextText, changeKind) => {
+      const s = get();
+      const doc = s.stateDoc;
+      const detail = s.specDetails[capId];
+      if (!doc || !detail) return;
+      const nextDoc: StudioStateDoc = {
+        ...doc,
+        docDrafts: {
+          ...doc.docDrafts,
+          [capId]: {
+            sourceFile: detail.file,
+            baseHash: detail.baseHash,
+            currentText: nextText,
+            changeKind,
+          },
+        },
+      };
+      set({ stateDoc: nextDoc });
+      scheduleStateSave();
+    },
+
+    openPromptWorkbench: (title, subtitle, body) => {
+      set({ promptModal: { title, subtitle, body, fullscreen: false } });
+    },
+
+    closePromptWorkbench: () => set({ promptModal: null }),
+
+    togglePromptFullscreen: () => {
+      const pm = get().promptModal;
+      if (!pm) return;
+      set({ promptModal: { ...pm, fullscreen: !pm.fullscreen } });
+    },
+
+    buildNegotiationPrompt: (machineKey) => {
+      const s = get();
+      const doc = s.stateDoc;
+      const ws = s.activeWorkspace;
+      if (!doc || !ws) return '';
+      const targetKeys = machineKey ? [machineKey] : Object.keys(doc.machines);
+      const diffBlocks: string[] = [];
+      for (const mk of targetKeys) {
+        const draft = doc.machines[mk];
+        if (!draft) continue;
+        const diff = computeMachineDiff(draft);
+        if (!diff.hasChanges) continue;
+        diffBlocks.push(
+          `### ${mk} (${draft.sourceFile})\n\`\`\`diff\n${formatSemanticDiff(diff, draft)}\n\`\`\``,
+        );
+      }
+      const openComments = doc.comments.filter((c) => c.status === 'open');
+      const commentLines = openComments.map((c) => {
+        const loc =
+          c.anchor.kind === 'state'
+            ? `${c.anchor.machineKey} · 节点(${c.anchor.stateUid})`
+            : c.anchor.kind === 'edge'
+              ? `${c.anchor.machineKey} · 连线(${c.anchor.edgeUid})`
+              : c.anchor.kind === 'machine'
+                ? c.anchor.machineKey
+                : c.anchor.kind === 'forest'
+                  ? `主视图 · ${c.anchor.capability}`
+                  : c.anchor.kind === 'macro-edge'
+                    ? `主视图连线(${c.anchor.edgeId})`
+                    : `${c.anchor.capability}${c.anchor.reqId ? ` · ${c.anchor.reqId}` : ''}`;
+        return `- [定位: ${loc}] ${c.body}`;
+      });
+      return [
+        `# Studio 规格调整请求 · ${ws.repo} (${ws.branch})`,
+        '',
+        `- 草稿 ID: \`${doc.id}\``,
+        `- 工作区: \`${ws.wsKey}\``,
+        '',
+        '## 1. 语义变更摘要',
+        diffBlocks.length > 0
+          ? diffBlocks.join('\n\n')
+          : '- 暂无结构增删，请结合下方锚定评论处理。',
+        '',
+        '## 2. 未解决评论',
+        commentLines.length > 0 ? commentLines.join('\n') : '- 无',
+        '',
+        '## 3. 执行与回执指令',
+        `1. 先运行 \`llman-sdd studio diff ${doc.id}\` 与 \`llman-sdd studio validate ${doc.id}\` 核验变更；`,
+        `2. 若需反提案，请调用 \`llman-sdd studio revise ${doc.id}\` 回推建议层（不要直接覆盖人类草稿）；`,
+        `3. 同步更新规格、实现与测试并确保门禁全绿。`,
+      ].join('\n');
+    },
+
+    setSkin: (skin) => {
+      if (typeof document !== 'undefined') document.documentElement.dataset.skin = skin;
+      set({ skin });
+    },
+
+    setEdgePreset: (edgePreset) => set({ edgePreset }),
+    setTier: (tier) => set({ tier }),
+    setShowMinimap: (showMinimap) => set({ showMinimap }),
+    setShowLegend: (showLegend) => set({ showLegend }),
+    toggleLegendKind: (kind) => {
+      const next = new Set(get().legendKindFilter);
+      if (next.has(kind) && next.size > 1) next.delete(kind);
+      else next.add(kind);
+      set({ legendKindFilter: next });
+    },
+    setTextfoldEndpoint: (textfoldEndpoint) => set({ textfoldEndpoint }),
+    setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
+    setDagPanelOpen: (dagPanelOpen) => set({ dagPanelOpen }),
+    setDagFullscreen: (dagFullscreen) => set({ dagFullscreen }),
+    setCmdkOpen: (cmdkOpen) => set({ cmdkOpen }),
+    setSaveModalOpen: (saveModalOpen) => set({ saveModalOpen }),
+    setSharePopoverOpen: (sharePopoverOpen) => set({ sharePopoverOpen }),
+    setShowTips: (showTips) => set({ showTips }),
+    stepTip: (delta) => set((s) => ({ tipIdx: (s.tipIdx + delta + 4) % 4 })),
+
+    showToast: (msg) => {
+      set({ toastMsg: msg });
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => set({ toastMsg: null }), 2600);
+    },
+
+    getDiagnosticsForMachine: (machineKey) => {
+      const machine = get().stateDoc?.machines[machineKey]?.current;
+      return machine ? validateMachineGraph(machine) : [];
+    },
+
+    getActiveMachineKey: () => {
+      const s = get();
+      if (s.nestStack.length > 0) return s.nestStack[s.nestStack.length - 1]!.machineKey;
+      const tab = s.tabs.find((t) => t.id === s.activeTabId);
+      return tab?.kind === 'machine' ? tab.targetId : null;
+    },
+  };
+});
+
+export function nextStateUid(machine: StudioMachineIR): string {
+  return nextPrefixedUid(
+    's',
+    machine.states.map((s) => s.uid),
+  );
+}
+
+export function nextEdgeUid(machine: StudioMachineIR): string {
+  return nextPrefixedUid(
+    'e',
+    machine.transitions.map((t) => t.uid),
+  );
+}

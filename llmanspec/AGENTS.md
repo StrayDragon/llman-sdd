@@ -46,7 +46,7 @@ llman-sdd:spec 驱动开发工作流(TypeScript + Bun),完全接替 Rust llman �
 | 语言 | TypeScript | 仅 typecheck,不参与构建 |
 | 布局 | Bun workspaces | `packages/core` 纯域逻辑;`apps/cli` 命令入口 |
 | 分发 | Bun 直跑 TS + `bun build --compile` | CLI 与二进制不经过打包器 |
-| Web | 未落地;若引入,打包器为 rsbuild | 以独立 change 引入 |
+| Web | `apps/studio/`(rsbuild + React + `@xyflow/react`) | 交互与设计真言以 `llmanspec/specs/studio-web.feature` 为唯一真源 |
 | 工具链 | oxlint + oxfmt、tsc --noEmit、prek、just | oxfmt 忽略 `llmanspec/` 与 `AGENTS.md`(格式归 llman 管) |
 | 测试 | bun:test + `tests/bdd/` Gherkin runner | BDD 选型已终局 |
 

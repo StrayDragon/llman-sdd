@@ -68,13 +68,122 @@ export const STUDIO_LINTER_RULES: readonly StudioLinterRuleMeta[] = [
   },
 ] as const;
 
-const PLACEHOLDER_NAME_RE = /^(新状态|中间态|终态|state)\d+$/iu;
+const PLACEHOLDER_NAME_RE = /^(新状态|中间态|终态|新步骤|条件判断|state|step)\d+$/iu;
+
+export const FLOWCHART_LINTER_RULES: readonly StudioLinterRuleMeta[] = [
+  {
+    code: 'F1',
+    severity: 'error',
+    name: 'Flow start/end completeness',
+    description: 'Flowchart requires at least 2 distinct steps, 1 transition, and a start step',
+  },
+  {
+    code: 'F2',
+    severity: 'error',
+    name: 'Unreachable flow step',
+    description: 'Every step must be reachable from the start step',
+  },
+  {
+    code: 'F3',
+    severity: 'warning',
+    name: 'Gateway branch completeness',
+    description: 'Condition gateway step should have at least 2 outgoing branches',
+  },
+  {
+    code: 'F4',
+    severity: 'warning',
+    name: 'Placeholder step name',
+    description: 'Draft placeholder step name should be replaced with a domain action',
+  },
+] as const;
+
+function validateFlowchartGraph(machine: StudioMachineIR): MachineDiagnostic[] {
+  const diagnostics: MachineDiagnostic[] = [];
+  const stateByUid = new Map(machine.states.map((s) => [s.uid, s]));
+  const nameOf = (uid: string): string => stateByUid.get(uid)?.name || uid;
+  const validEdges = machine.transitions.filter(
+    (e) => stateByUid.has(e.fromUid) && stateByUid.has(e.toUid),
+  );
+
+  // F1: Start/end & basic structure completeness
+  const distinctNames = new Set(machine.states.map((s) => s.name.trim()).filter((n) => n !== ''));
+  if (distinctNames.size < 2 || validEdges.length < 1) {
+    diagnostics.push({
+      code: 'F1',
+      severity: 'error',
+      targetKind: 'machine',
+      targetId: null,
+      message: 'F1 structure: flowchart requires at least 2 steps and 1 valid connection',
+    });
+  }
+  const initialUid =
+    machine.initialStateUid && stateByUid.has(machine.initialStateUid)
+      ? machine.initialStateUid
+      : (validEdges[0]?.fromUid ?? machine.states[0]?.uid ?? null);
+
+  // F2: Reachability from start step
+  if (initialUid !== null && machine.states.length > 0) {
+    const graph = createGraph();
+    for (const s of machine.states) addNode(graph, { id: s.uid });
+    for (const e of validEdges) {
+      addEdge(graph, { id: e.uid, sourceId: e.fromUid, targetId: e.toUid });
+    }
+    const reachable = new Set(
+      [...genBFS(graph, initialUid)]
+        .map((n) => (typeof n === 'object' && n !== null && 'id' in n ? String(n.id) : String(n)))
+        .filter((id) => id !== ''),
+    );
+    for (const s of machine.states) {
+      if (!reachable.has(s.uid)) {
+        diagnostics.push({
+          code: 'F2',
+          severity: 'error',
+          targetKind: 'state',
+          targetId: s.uid,
+          message: `F2 unreachable: step \`${s.name}\` cannot be reached from \`${nameOf(initialUid)}\``,
+        });
+      }
+    }
+  }
+
+  // F3 & F4: Gateway branching and placeholder names
+  for (const s of machine.states) {
+    if (s.isGateway) {
+      const outs = validEdges.filter((e) => e.fromUid === s.uid);
+      if (outs.length < 2) {
+        diagnostics.push({
+          code: 'F3',
+          severity: 'warning',
+          targetKind: 'state',
+          targetId: s.uid,
+          message: `F3 gateway: condition \`${s.name}\` has ${String(outs.length)} outgoing branch(es); expected >= 2`,
+        });
+      }
+    }
+    if (PLACEHOLDER_NAME_RE.test(s.name.trim())) {
+      diagnostics.push({
+        code: 'F4',
+        severity: 'warning',
+        targetKind: 'state',
+        targetId: s.uid,
+        message: `F4 placeholder name: step \`${s.name}\` should be renamed to a concrete action`,
+      });
+    }
+  }
+
+  return diagnostics;
+}
 
 /**
- * Validate a StudioMachineIR against all E1-E4 blocking errors and W1-W2 warnings.
+ * Validate a StudioMachineIR against dialect-isolated rules:
+ * - graphKind === 'flow': Flowchart Linter (F1-F4)
+ * - default ('machine'): State Machine Linter (E1-E4 blocking errors + W1-W2 warnings)
  * Never short-circuits on the first error so interactive UI can highlight every issue at once.
  */
 export function validateMachineGraph(machine: StudioMachineIR): MachineDiagnostic[] {
+  if (machine.graphKind === 'flow') {
+    return validateFlowchartGraph(machine);
+  }
   const diagnostics: MachineDiagnostic[] = [];
   const stateByUid = new Map(machine.states.map((s) => [s.uid, s]));
   const nameOf = (uid: string): string => stateByUid.get(uid)?.name || uid;

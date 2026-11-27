@@ -86,7 +86,55 @@ export function resolveStudioComment(
   return {
     ...doc,
     updatedAt,
+    revision: (doc.revision ?? 0) + 1,
     comments: doc.comments.map((c) => (c.id === commentId ? { ...c, status: 'resolved' } : c)),
+  };
+}
+
+export function editStudioComment(
+  doc: StudioStateDoc,
+  commentId: string,
+  input: { body: string; updatedAt: string },
+): StudioStateDoc {
+  const body = input.body.trim();
+  if (body === '') throw new StudioRevisionError('comment body must not be empty');
+  const exists = doc.comments.some((c) => c.id === commentId);
+  if (!exists) throw new StudioRevisionError(`comment not found: ${commentId}`);
+  return {
+    ...doc,
+    updatedAt: input.updatedAt,
+    revision: (doc.revision ?? 0) + 1,
+    comments: doc.comments.map((c) => (c.id === commentId ? { ...c, body } : c)),
+  };
+}
+
+export function reopenStudioComment(
+  doc: StudioStateDoc,
+  commentId: string,
+  updatedAt: string,
+): StudioStateDoc {
+  const exists = doc.comments.some((c) => c.id === commentId);
+  if (!exists) throw new StudioRevisionError(`comment not found: ${commentId}`);
+  return {
+    ...doc,
+    updatedAt,
+    revision: (doc.revision ?? 0) + 1,
+    comments: doc.comments.map((c) => (c.id === commentId ? { ...c, status: 'open' } : c)),
+  };
+}
+
+export function deleteStudioComment(
+  doc: StudioStateDoc,
+  commentId: string,
+  updatedAt: string,
+): StudioStateDoc {
+  const exists = doc.comments.some((c) => c.id === commentId);
+  if (!exists) throw new StudioRevisionError(`comment not found: ${commentId}`);
+  return {
+    ...doc,
+    updatedAt,
+    revision: (doc.revision ?? 0) + 1,
+    comments: doc.comments.filter((c) => c.id !== commentId),
   };
 }
 
@@ -344,11 +392,14 @@ export function acceptRevisionProposal(
   const existingTl = doc.timelines[proposal.machineKey];
   const nextTimelines = { ...doc.timelines };
   if (existingTl) {
-    const truncated = existingTl.entries.slice(0, existingTl.headIdx + 1);
-    const seq = truncated.length;
-    truncated.push({
+    const entries = [...existingTl.entries];
+    const parentEntry = entries[existingTl.headIdx];
+    const seq = entries.length;
+    entries.push({
       seq,
       id: `#${String(seq)}`,
+      ...(parentEntry ? { parentId: parentEntry.id } : {}),
+      actor: 'agent',
       label: `accept ${proposal.id}: ${proposal.rationale}`,
       createdAt: acceptedAt,
       isBase: false,
@@ -356,8 +407,8 @@ export function acceptRevisionProposal(
       snapshot: cloneMachineIR(nextMachine),
     });
     nextTimelines[proposal.machineKey] = {
-      entries: truncated,
-      headIdx: truncated.length - 1,
+      entries,
+      headIdx: entries.length - 1,
     };
   }
 

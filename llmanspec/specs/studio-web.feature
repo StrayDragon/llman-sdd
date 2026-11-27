@@ -1,0 +1,79 @@
+# language: zh-CN
+# purpose: 定义 Studio Web 自举交互工作台、Hono 本地单实例 Hub、Zod 端到端契约、透明 HTTP GET 内容协商、非破坏多叉世界线、6 条设计真言、XState 推演与单二进制共同分发契约。
+
+功能: studio-web
+
+  @req:r143
+  规则: 自举 Studio Web 主状态流转
+    Studio Web 自身作为首个自举状态机规范样例，6 大主态流转 MUST 通过 E1–E4 图门禁校验（无不可达孤岛、无确定性冲突、无死锁陷阱），并在 `--demo` 模式下作为默认内置模型载入。
+
+    @transitions
+    场景大纲: Studio Web 主态流转
+      假如 当前处于 <from> 状态且满足 <guard>
+      当 触发 <event> 事件
+      那么 流转至 <to> 状态
+
+      例子:
+        | from           | event          | guard    | to             |
+        | 启动与工作区就绪 | 打开主视图或深链 |          | 主视图与导航态 |
+        | 主视图与导航态 | 切换工作区或标签 |          | 启动与工作区就绪 |
+        | 主视图与导航态 | 进入规格编辑   |          | 画布直编与草稿态 |
+        | 画布直编与草稿态 | 启动单步推演   |          | 推演试跑态     |
+        | 推演试跑态     | 退出推演       |          | 画布直编与草稿态 |
+        | 画布直编与草稿态 | 打开世界线与对比 |          | 世界线与验收闭环 |
+        | 世界线与验收闭环 | 回到画布继续微调 |          | 画布直编与草稿态 |
+        | 世界线与验收闭环 | 校验通过保存变更 | 门禁全绿 | 写保护与保存变更 |
+        | 写保护与保存变更 | 确认生效返回   |          | 主视图与导航态 |
+
+  @req:r144
+  规则: 本地单实例 Hub、Zod 端到端契约与回环安全
+    前置依赖 @req:r128 的核心状态机 IR 协议与 @req:r11 的全仓规格校验约束；后置协同输出面向 @req:r134 CLI 协商命令与 @req:r141 MCP 工具链的统一本地草稿与内容协商入口。
+    `llman-sdd studio` MUST 提供基于纯 Web 标准 `Hono` 与 `@hono/node-server` 的本地回环服务（`studio open` / `studio serve --foreground` / `studio stop`），仅监听 `127.0.0.1` 且零 `Bun.*` 专属调用以遵守双运行时纪律。
+    前后端 REST、SSE 与 Hub 元数据 MUST 共享 `packages/core/src/studio/contracts.ts` 的 Zod v4 契约 SSOT；非法写请求 MUST 返回 HTTP 400 并附字段路径。
+    服务 MUST 提供 `/api/health` 探活与 `~/.llman-sdd/studio-hub.json` 僵尸锁自愈；写接口 MUST 校验回环 `Host`/`Origin` 与会话 `X-Studio-Token`；`/api/bootstrap` 仅下发轻量索引并由 `/api/specs/:capId` 按需懒加载正文；`PUT /api/states/:id` MUST 经 `If-Match`（`revision`）防多标签与并发 Agent 覆写并返回 `409`，且严禁直写 `llmanspec/specs/`。
+
+    场景: 本地 Hono 回环服务校验 Zod 契约、并发乐观锁、回环安全与懒加载
+      假如 一个包含真实规格与本地草稿的临时仓库并启动随机端口 Studio 服务
+      当 依次请求健康检查、索引与懒加载接口、非法 Zod 载荷、缺令牌写请求及过期版本号更新
+      那么 健康检查与索引懒加载返回合法 Zod 契约数据
+      而且 非法载荷返回 400、缺令牌写请求被拒绝、过期版本号返回 409 且 specs 目录零修改
+
+  @req:r145
+  规则: 透明 HTTP GET 内容协商与 TextFold 双层折展代理
+    Canonical Deep-Link `/p/:wsKey/*` MUST 支持透明 HTTP `GET` 内容协商：浏览器请求（`Accept: text/html` 或 `?format=html`）返回 Studio SPA 并内嵌 `<script type="application/json" id="studio-focus-context">`；非浏览器 HTTP 客户端默认返回精简 `text/markdown` 规格与聚焦摘要及路由提示，`?format=json` 返回结构化 JSON。
+    `POST /api/textfold/fold` MUST 优先命中本地 `sha256` 缓存，未配置外部 TextFold 服务或服务不可达时静默降级至本地确定性 AST 5 级折展（零外部依赖）。
+
+    场景: 同链内容协商区分浏览器与 Agent 且 TextFold 离线确定性降级
+      假如 一个已启动的随机端口 Studio 本地服务
+      当 以不同 Accept 与 format 参数访问深链并调用 TextFold 折展接口
+      那么 非浏览器请求默认返回 Markdown、format=json 返回合法 JSON、HTML 响应内嵌 studio-focus-context
+      而且 未配置外部服务时 TextFold 返回本地 AST 5 级折展并命中缓存
+
+  @req:r146
+  规则: 非破坏多叉世界线、全量锚点评论与 0-LLM 决策树投影
+    `packages/core/src/studio/` MUST 向后兼容扩展 5 类统一 `SemanticAnchor`（`machine`/`state`/`edge`/`forest`/`macro-edge`/`doc`）、评论完整 CRUD（编辑/重开/删除）、非破坏多叉世界线（`TimelineEntry.parentId` 与 `actor`，提交仅追加不截断既有分叉）、规则与决策表文档草稿 `docDrafts`、手拖连线弧度 `edgeBends`、并发 `revision`、净 Diff 边语义签名消元，以及 0-LLM 确定性决策表到决策树 IR 编译。
+
+    场景: 非破坏世界线分叉保留历史、评论全生命周期与 0-LLM 决策树编译
+      假如 一份包含状态机、规则文档与决策表的 Studio 会话数据
+      当 从历史节点创建人类与 Agent 平行分叉、编辑重开删除评论并编译决策表
+      那么 世界线同时保留两个平行分叉且净 Diff 对冲假边噪音
+      而且 评论 CRUD 与 0-LLM 决策树节点结构全部准确无误
+
+  @req:r147
+  规则: Studio Web 6 条设计真言与单二进制共同分发
+    Studio Web 生产实现 MUST 遵守 6 条设计真言：触点同侧展开（右上角世界线由右侧滑出且小地图左让）、顶栏浮层单槽互斥（实时对比条优先于诊断条与小贴士）、默认连线零穿卡（避障通道路由）、连线与标签互斥且支持按住标签手拖微调、领域分组按工作区排他隔离、以及产品级视觉与文案洁癖（统一单色线框 SVG 严禁彩色 Emoji 滥用，UI 严禁出现预留/占位/Demo 模拟按钮）。
+    `apps/studio` 经 `rsbuild build` 产出静态 `apps/studio/dist/`；`apps/cli/scripts/build-binary.ts` MUST 将静态产物编译期嵌入单可执行文件，运行时静态托管优先读内存嵌表并在源码或 npm 态自动回退磁盘目录。
+
+    场景: 避障互斥边路由零穿卡零叠字且静态产物构建与双路径托管就绪
+      假如 Studio 前端避障互斥路由器、设计洁癖检查与构建产出目录
+      当 对多行跨列与双向边执行路由计算并校验静态构建产物不含开发态占位文案
+      那么 所有默认路由零穿卡零标签重叠且构建产物可被本地服务正确托管
+
+  @req:r148
+  规则: 单步推演编译与变更依赖实时图
+    `apps/studio` MUST 在前端基于 `xstate` v5 将 `StudioMachineIR` 编译为可执行本地 actor 并通过原生 `inspect` 捕获微步轨迹（`xstate` 不得污染 `packages/core`）；实时「变更依赖」视图 MUST 消费 `graphMermaid` 并保留 `obsidianmd/pele` 用于 Mermaid 渲染。
+
+    场景: 状态机编译为 XState actor 按守卫开关单步推演
+      假如 自举 Studio Web 状态机 IR 与守卫开关映射
+      当 调用前端 XState 编译器创建 actor 并分别在守卫为假与为真时触发转移
+      那么 守卫为假时转移被拦截且守卫为真时正确流转并记录微步轨迹

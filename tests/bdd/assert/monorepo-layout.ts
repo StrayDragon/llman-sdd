@@ -29,7 +29,9 @@ if (!JSON.stringify(corePkg.exports ?? {}).includes('.ts')) {
   fail('core 包 exports 未直指 .ts 源码(不得引入构建步骤)');
 }
 for (const deps of [corePkg.dependencies, corePkg.devDependencies, corePkg.peerDependencies]) {
-  const strangers = Object.keys(deps ?? {}).filter((name) => /^apps\/|@llman-sdd\/cli/u.test(name));
+  const strangers = Object.keys(deps ?? {}).filter((name) =>
+    /^apps\/|@llman-sdd\/(cli|studio)/u.test(name),
+  );
   if (strangers.length > 0) fail(`packages/core 依赖了 apps/* 工作区: ${strangers.join(', ')}`);
 }
 

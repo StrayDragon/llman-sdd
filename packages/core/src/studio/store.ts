@@ -55,6 +55,8 @@ export function studioStateRelPath(stateId: string): string {
 const stateNodeSchema = z.object({
   uid: z.string().min(1),
   name: z.string(),
+  isGateway: z.boolean().optional(),
+  subMachineKey: z.string().min(1).optional(),
 });
 
 const transitionEdgeSchema = z.object({
@@ -78,6 +80,7 @@ const machineIrSchema = z.object({
   reqId: z.string().nullable(),
   ruleTitle: z.string(),
   scenarioName: z.string().min(1),
+  graphKind: z.enum(['machine', 'flow']).optional(),
   initialStateUid: z.string().nullable(),
   columns: columnsSchema,
   states: z.array(stateNodeSchema),
@@ -99,6 +102,13 @@ const semanticAnchorSchema = z.discriminatedUnion('kind', [
     stateUid: z.string().min(1),
   }),
   z.object({ kind: z.literal('edge'), machineKey: z.string().min(1), edgeUid: z.string().min(1) }),
+  z.object({ kind: z.literal('forest'), capability: z.string().min(1) }),
+  z.object({ kind: z.literal('macro-edge'), edgeId: z.string().min(1) }),
+  z.object({
+    kind: z.literal('doc'),
+    capability: z.string().min(1),
+    reqId: z.string().min(1).optional(),
+  }),
 ]);
 
 const commentSchema = z.object({
@@ -165,6 +175,9 @@ const timelineEntrySchema = z.object({
   isBase: z.boolean(),
   mode: z.enum(['modify', 'create', 'remove']),
   snapshot: machineIrSchema.nullable(),
+  parentId: z.string().min(1).nullable().optional(),
+  actor: z.enum(['human', 'agent']).optional(),
+  branchRef: z.string().min(1).optional(),
 });
 
 const timelineSchema = z.object({
@@ -177,15 +190,31 @@ const nodePositionSchema = z.object({
   y: z.number().finite(),
 });
 
+const edgeBendOffsetSchema = z.object({
+  dx: z.number().finite(),
+  dy: z.number().finite(),
+});
+
+const docDraftSchema = z.object({
+  sourceFile: z.string().min(1),
+  baseHash: z.string().min(1),
+  currentText: z.string(),
+  changeKind: z.enum(['wording', 'semantic']),
+});
+
 export const studioStateDocSchema = z.object({
   version: z.literal(1),
   id: z.string().regex(STATE_ID_RE),
   title: z.string().min(1),
   createdAt: z.string().min(1),
   updatedAt: z.string().min(1),
+  revision: z.number().int().nonnegative().optional(),
+  baseHashes: z.record(z.string(), z.string()).optional(),
   machines: z.record(z.string(), machineDraftSchema),
+  docDrafts: z.record(z.string(), docDraftSchema).optional(),
   timelines: z.record(z.string(), timelineSchema),
   layouts: z.record(z.string(), z.record(z.string(), nodePositionSchema)),
+  edgeBends: z.record(z.string(), z.record(z.string(), edgeBendOffsetSchema)).optional(),
   comments: z.array(commentSchema),
   revisions: z.array(revisionProposalSchema),
 });
@@ -285,8 +314,92 @@ export function recordTimelineCommit(
   return {
     ...doc,
     updatedAt: input.createdAt,
+    revision: (doc.revision ?? 0) + 1,
     machines: { ...doc.machines, [machineKey]: nextDraft },
     timelines: { ...doc.timelines, [machineKey]: { entries, headIdx: entries.length - 1 } },
+  };
+}
+
+/**
+ * Non-destructive multi-branch Worldline commit (studio-web r146).
+ * Appends a new snapshot linked to `parentId` (defaulting to current head) without truncating
+ * sibling human or agent branches.
+ */
+export function recordWorldlineCommit(
+  doc: StudioStateDoc,
+  machineKey: string,
+  nextMachine: StudioMachineIR | null,
+  input: {
+    label: string;
+    createdAt: string;
+    actor?: 'human' | 'agent';
+    parentId?: string | null;
+    branchRef?: string;
+    mode?: MachineDraft['mode'];
+  },
+): StudioStateDoc {
+  const existingDraft = doc.machines[machineKey];
+  if (!existingDraft) {
+    throw new StudioStateError(`machine not found in state doc: ${machineKey}`);
+  }
+  const nextMode = input.mode ?? existingDraft.mode;
+  const nextDraft: MachineDraft = {
+    ...cloneMachineDraft(existingDraft),
+    mode: nextMode,
+    current: nextMachine ? cloneMachineIR(nextMachine) : null,
+  };
+  const existingTl =
+    doc.timelines[machineKey] ?? buildInitialTimeline(existingDraft, doc.createdAt);
+  const currentHead = existingTl.entries[existingTl.headIdx];
+  const parentId = input.parentId !== undefined ? input.parentId : (currentHead?.id ?? 'BASE');
+  const seq = existingTl.entries.length;
+  const entries = [
+    ...existingTl.entries,
+    {
+      seq,
+      id: `#${String(seq)}`,
+      label: input.label.trim() || `branch #${String(seq)}`,
+      createdAt: input.createdAt,
+      isBase: false,
+      mode: nextMode,
+      snapshot: nextMachine ? cloneMachineIR(nextMachine) : null,
+      parentId,
+      actor: input.actor ?? 'human',
+      ...(input.branchRef !== undefined ? { branchRef: input.branchRef } : {}),
+    },
+  ];
+  return {
+    ...doc,
+    updatedAt: input.createdAt,
+    revision: (doc.revision ?? 0) + 1,
+    machines: { ...doc.machines, [machineKey]: nextDraft },
+    timelines: { ...doc.timelines, [machineKey]: { entries, headIdx: entries.length - 1 } },
+  };
+}
+
+/** Non-destructively switch the active head pointer to any node in the Worldline tree. */
+export function switchWorldlineHead(
+  doc: StudioStateDoc,
+  machineKey: string,
+  targetIdx: number,
+  updatedAt: string,
+): StudioStateDoc {
+  const draft = doc.machines[machineKey];
+  const tl = doc.timelines[machineKey];
+  if (!draft || !tl) throw new StudioStateError(`timeline not found for machine: ${machineKey}`);
+  const target = tl.entries[targetIdx];
+  if (!target) throw new StudioStateError(`timeline index out of range: ${String(targetIdx)}`);
+  const nextDraft: MachineDraft = {
+    ...cloneMachineDraft(draft),
+    mode: target.mode,
+    current: target.snapshot ? cloneMachineIR(target.snapshot) : null,
+  };
+  return {
+    ...doc,
+    updatedAt,
+    revision: (doc.revision ?? 0) + 1,
+    machines: { ...doc.machines, [machineKey]: nextDraft },
+    timelines: { ...doc.timelines, [machineKey]: { ...tl, headIdx: targetIdx } },
   };
 }
 
