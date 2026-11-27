@@ -144,6 +144,7 @@ export function TopChrome() {
     if (worldlineComparing && worldlineCompareAId) {
       return (
         <div
+          data-top-slot=""
           className="fixed top-[54px] z-40 inline-flex items-center gap-2.5 rounded-full px-3.5 py-1.5 text-xs shadow-lg"
           style={{
             left: worldlineOpen ? 'calc((100vw - 356px) / 2)' : '50%',
@@ -180,6 +181,7 @@ export function TopChrome() {
         <div
           role="status"
           aria-label="逻辑漂移校准提示"
+          data-top-slot=""
           className="fixed top-[54px] z-35 studio-island inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs shadow-sm"
           style={{
             left: worldlineOpen ? 'calc((100vw - 356px) / 2)' : '50%',
@@ -255,6 +257,7 @@ export function TopChrome() {
     if (mode === 'simulate') {
       return (
         <div
+          data-top-slot=""
           className="fixed top-[54px] left-1/2 -translate-x-1/2 z-30 studio-island inline-flex items-center gap-2 rounded-full px-3.5 py-1 text-xs"
           style={{
             borderColor: 'var(--accent)',
@@ -270,6 +273,7 @@ export function TopChrome() {
     if (!showTips || isDocPage) return null;
     return (
       <div
+        data-top-slot=""
         className="fixed top-[54px] left-1/2 -translate-x-1/2 z-20 studio-island inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-xs"
         style={{ width: 560, maxWidth: 'calc(100vw - 440px)', color: 'var(--text-secondary)' }}
       >

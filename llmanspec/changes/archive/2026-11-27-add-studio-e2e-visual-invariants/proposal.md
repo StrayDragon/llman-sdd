@@ -3,6 +3,9 @@ depends_on:
   - add-studio-web-workbench
   - add-studio-forest-tabs
 title: "[Post-MVP] 建立 Studio 真实浏览器 E2E 视觉不变量与 6 条设计真言自动门禁"
+branch: sdd/add-studio-e2e-visual-invariants
+base_branch: main
+base_sha: 7fc6a962e2f8ccd5c2b369a0b11a7980f849e119
 ---
 
 # 建立 Studio 真实浏览器 E2E 视觉不变量与 6 条设计真言自动门禁

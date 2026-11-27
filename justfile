@@ -82,6 +82,11 @@ perf:
 check-perf:
     bun scripts/perf-baseline.ts --check
 
+# Studio 真实浏览器 E2E 视觉不变量门(不进 qa,合约 studio-web r156):先构建前端再跑无头 Chromium 几何断言
+qa-studio-e2e:
+    bun --filter '@llman-sdd/studio' build
+    bun tests/e2e/studio/run.ts
+
 # 单元测试覆盖率报告(不进 qa):仅 unit 直接导入面可归因;BDD 以真实 CLI
 # 子进程执行,覆盖率不归因到 runner 进程,故不纳入
 coverage:

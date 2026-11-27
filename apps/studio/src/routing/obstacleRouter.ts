@@ -155,6 +155,10 @@ export function resolveLabelPosition(
     [-60, 24],
     [0, -72],
     [0, 72],
+    [0, -96],
+    [0, 96],
+    [0, -124],
+    [0, 124],
   ];
   let best = { lx, ly, score: Number.POSITIVE_INFINITY };
   for (const [ox, oy] of offsets) {

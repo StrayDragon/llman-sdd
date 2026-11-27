@@ -239,6 +239,7 @@ function DomainGroupNode({ data }: NodeProps<Node<DomainGroupNodeData>>) {
 
   return (
     <div
+      data-group-members={data.memberIds.join(',')}
       className={`group-frame tone-${data.tone} relative pointer-events-none`}
       style={{ width: data.width, height: data.height }}
     >
@@ -795,6 +796,7 @@ function ObstacleStateEdge({ id, data }: EdgeProps<Edge<ObstacleEdgeData>>) {
               e.stopPropagation();
               onDoubleClick?.(e.clientX, e.clientY);
             }}
+            data-edge-label=""
             title="按住拖拽微调弧度；双击就地编辑事件与守卫"
             className="nodrag nopan rounded-md border px-2 py-0.5 text-[10.5px] font-medium select-none"
             style={{
@@ -1336,13 +1338,19 @@ function StateMachineCanvasInner() {
         for (let i = 0; i < geom.samplePts.length - 1; i += 1) {
           placedSegments.push([geom.samplePts[i]!, geom.samplePts[i + 1]!]);
         }
+        const allMacroBoxes: RectBox[] = visibleSpecs
+          .filter((os) => !hiddenByCollapse.has(os.id))
+          .map((os) => {
+            const p = layout.specPositions[os.id]!;
+            return { x1: p.x - 4, y1: p.y - 4, x2: p.x + cardW + 4, y2: p.y + cardH + 4 };
+          });
         const lp = resolveLabelPosition(
           geom.lx,
           geom.ly,
           me.label.length * 7 + 16,
           20,
           placedLabels,
-          obs,
+          allMacroBoxes,
         );
         const isBridge = bridgeEdgeSet !== null && bridgeEdgeSet.has(me.id);
         const edgeDimmed = bridgeEdgeSet !== null && !isBridge;

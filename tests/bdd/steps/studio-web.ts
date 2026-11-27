@@ -60,6 +60,12 @@ import {
   type RectBox,
 } from '../../../apps/studio/src/routing/obstacleRouter.ts';
 import { createMachineSimulationSession } from '../../../apps/studio/src/simulate/xstateCompiler.ts';
+import {
+  ALL_STUDIO_INVARIANTS,
+  buildCleanSnapshot,
+  buildViolatingSnapshot,
+  checkStudioInvariants,
+} from '../../e2e/studio/invariants.ts';
 import { bdd } from '../runner.ts';
 
 const BDD_SPEC = `# language: zh-CN
@@ -690,4 +696,46 @@ bdd.thenStep('任意分组包围盒零误包非成员节点且交叉桥与外部
   expect(bridges.bridges.length).toBe(1);
   expect(portalEv.length).toBe(1);
   expect(portalEv[0]!.targetReqId).toBe('r20');
+});
+
+// ── r156: real-browser E2E visual invariants (pure geometry judge) ──
+
+bdd.given('一组同时违反 6 条设计真言的浏览器几何快照与一组干净快照', (ctx) => {
+  ctx.fixtures['r156Snapshots'] = {
+    violating: buildViolatingSnapshot(),
+    clean: buildCleanSnapshot(),
+  };
+});
+
+bdd.when('分别交由 Studio E2E 纯几何判定器裁决', (ctx) => {
+  const snaps = ctx.fixtures['r156Snapshots'] as {
+    violating: ReturnType<typeof buildViolatingSnapshot>;
+    clean: ReturnType<typeof buildCleanSnapshot>;
+  };
+  ctx.fixtures['r156Res'] = {
+    violating: checkStudioInvariants(snaps.violating),
+    clean: checkStudioInvariants(snaps.clean),
+  };
+});
+
+bdd.thenStep('违规快照逐条命中 6 类违规且干净快照零违规', (ctx) => {
+  const res = ctx.fixtures['r156Res'] as {
+    violating: ReturnType<typeof checkStudioInvariants>;
+    clean: ReturnType<typeof checkStudioInvariants>;
+  };
+  const hit = new Set(res.violating.map((v) => v.invariant));
+  expect([...ALL_STUDIO_INVARIANTS].every((id) => hit.has(id))).toBe(true);
+  expect(res.clean).toEqual([]);
+});
+
+bdd.thenStep('justfile 提供独立 qa-studio-e2e 门禁且日常 qa 不依赖浏览器', () => {
+  const root = join(import.meta.dirname, '..', '..', '..');
+  const justfile = readFileSync(join(root, 'justfile'), 'utf8');
+  expect(justfile).toMatch(/^qa-studio-e2e:/mu);
+  const qaRecipe = /^qa:[^\n]*\n((?:[ \t]+[^\n]*\n)*)/mu.exec(justfile)?.[0] ?? '';
+  expect(qaRecipe).not.toContain('e2e');
+  const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as {
+    scripts: Record<string, string>;
+  };
+  expect(pkg.scripts['qa']).not.toContain('e2e');
 });
