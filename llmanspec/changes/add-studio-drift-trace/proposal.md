@@ -15,7 +15,7 @@ title: 建立跨语言 Runtime Trace 漂移对账与反向建议 Diff 闭环
 
 - **0-Token 跨语言 Runtime Trace 对账协议**：定义极简语言无关 JSONL 迁移日志格式（`{"machine":"...","from":"...","event":"...","to":"..."}`），由 `packages/core` 将真实运行轨迹与 `llmanspec/specs/` 状态机确定性比对，0 Token 检出「未登记后门转移（Shadow Transition）」与「零覆盖纸面规格（Dead Spec）」。
 - **`@llmanspec:` 语义注释锚点与波及反查**：约定跨语言通用代码注释锚点（如 `// @llmanspec:r34`、`# @llmanspec:machine:<id>`，严格避开裸 `llman` 前缀），结合 `git diff` 0 Token 定位直接改代码命中的最小规格集合，为后续极低 Token 最小切片语义检查提供入口。
-- **4 类直改代码分流与 Studio「反向红绿对账 Diff」**：发现代码与规格漂移时绝不自动静默覆写 `llmanspec/specs/`，而是通过 `llman-sdd studio drift --write-state` 将观测到的新增状态/边封装为「反向建议 Diff（Reconciliation Proposal）」写入 `.llman-sdd/studio/states/` 并在 Studio 红绿呈现，由人类显式裁决：**真理胜出（修代码）** 或 **追认新意图（一键落为补录 Change）**。
+- **4 类直改代码分流与 Studio「逻辑漂移校准」反向红绿裁决**：发现代码与规格漂移时绝不自动静默覆写 `llmanspec/specs/`，而是通过 `llman-sdd studio drift --write-state` 将观测到的新增状态/边封装为「反向建议 Diff（Reconciliation Proposal）」写入 `.llman-sdd/studio/states/` 并在 Studio 按注意力就近原则展示校准卡与红绿虚线边，由人类在「对比 & 协商」抽屉显式裁决：**真理胜出（打开可视化零盲复制 Prompt 预编辑大窗修代码）** 或 **追认新意图（自动进时间线、跑方言 Linter 并经「保存变更」分支护栏补录 Change）**。
 - **离线确定性 + 配套 Skill（`llman-sdd-studio-drift`）**：CLI 保持 100% 离线确定性（零内置 LLM API/Key），按需输出极小的「最小切片裁决包」；配套新增 `llman-sdd-studio-drift` skill 引导用户常用的编码 Agent 按 4 类分流法则消费切片包并与 Studio 协作。
 
 ## Capabilities
