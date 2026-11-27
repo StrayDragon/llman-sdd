@@ -430,6 +430,24 @@ body.wl-open .react-flow__minimap:hover {
   transform: translateX(-356px) scale(1.65);
 }
 
+/* Semantic Cursor Discipline: default arrow on blank canvas, grab only while actively panning */
+.react-flow__pane {
+  cursor: default !important;
+}
+.react-flow__pane.dragging {
+  cursor: grabbing !important;
+}
+
+/* Background frames MUST NOT swallow clicks/drags inside groups or machine boundary */
+.react-flow__node-domainGroup,
+.react-flow__node-machineBoundary {
+  pointer-events: none !important;
+  cursor: default !important;
+}
+.react-flow__node-portalPill {
+  cursor: pointer !important;
+}
+
 /* React Flow Group Node Selection Frame Cleanup */
 .react-flow__node-domainGroup,
 .react-flow__node-machineBoundary,

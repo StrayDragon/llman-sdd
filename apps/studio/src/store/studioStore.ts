@@ -320,6 +320,92 @@ function saveRecoverySnapshot(wsKey: string, doc: StudioStateDoc): void {
   }
 }
 
+function uiSessionStorageKey(wsKey: string): string {
+  return `llman_sdd_studio_ui:${wsKey}`;
+}
+
+interface PersistedUiSession {
+  tabs: OpenTab[];
+  activeTabId: string;
+  nestStack: NestStep[];
+  skin: StudioSkin;
+  edgePreset: EdgePreset;
+  tier: CardTier;
+  showMinimap: boolean;
+  showLegend: boolean;
+  docFoldLevel: 0 | 1 | 2 | 3 | 4;
+  collapsedGroups: string[];
+  ungroupedDomains: string[];
+}
+
+function loadPersistedUiSession(wsKey: string): PersistedUiSession | null {
+  try {
+    const raw = localStorage.getItem(uiSessionStorageKey(wsKey));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<PersistedUiSession>;
+    if (!parsed || !Array.isArray(parsed.tabs)) return null;
+    return {
+      tabs: parsed.tabs,
+      activeTabId: typeof parsed.activeTabId === 'string' ? parsed.activeTabId : 'main',
+      nestStack: Array.isArray(parsed.nestStack) ? parsed.nestStack : [],
+      skin: parsed.skin === 'washi' ? 'washi' : 'linear',
+      edgePreset:
+        parsed.edgePreset === 'smoothstep' || parsed.edgePreset === 'straight'
+          ? parsed.edgePreset
+          : 'bezier',
+      tier: parsed.tier === 'glyph' || parsed.tier === 'detail' ? parsed.tier : 'map',
+      showMinimap: parsed.showMinimap !== false,
+      showLegend: parsed.showLegend !== false,
+      docFoldLevel:
+        parsed.docFoldLevel === 1 ||
+        parsed.docFoldLevel === 2 ||
+        parsed.docFoldLevel === 3 ||
+        parsed.docFoldLevel === 4
+          ? parsed.docFoldLevel
+          : 0,
+      collapsedGroups: Array.isArray(parsed.collapsedGroups) ? parsed.collapsedGroups : [],
+      ungroupedDomains: Array.isArray(parsed.ungroupedDomains) ? parsed.ungroupedDomains : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+function savePersistedUiSession(state: StudioStoreState): void {
+  const wsKey = state.activeWorkspace?.wsKey;
+  if (!wsKey || typeof localStorage === 'undefined') return;
+  const payload: PersistedUiSession = {
+    tabs: state.tabs,
+    activeTabId: state.activeTabId,
+    nestStack: state.nestStack,
+    skin: state.skin,
+    edgePreset: state.edgePreset,
+    tier: state.tier,
+    showMinimap: state.showMinimap,
+    showLegend: state.showLegend,
+    docFoldLevel: state.docFoldLevel,
+    collapsedGroups: [...state.collapsedGroups],
+    ungroupedDomains: [...state.ungroupedDomains],
+  };
+  try {
+    localStorage.setItem(uiSessionStorageKey(wsKey), JSON.stringify(payload));
+  } catch {
+    // Ignore storage quota errors
+  }
+  // Sync clean deep-link query params in browser URL without page reload
+  if (typeof window !== 'undefined') {
+    const activeTab = state.tabs.find((t) => t.id === state.activeTabId);
+    const basePath = `/p/${encodeURIComponent(wsKey)}`;
+    const nextUrl =
+      !activeTab || activeTab.kind === 'macro'
+        ? basePath
+        : `${basePath}?kind=${encodeURIComponent(activeTab.kind)}&target=${encodeURIComponent(activeTab.targetId)}`;
+    if (`${window.location.pathname}${window.location.search}` !== nextUrl) {
+      window.history.replaceState(null, '', nextUrl);
+    }
+  }
+}
+
 function applyBootstrapToState(
   boot: BootstrapResponse,
   workspaces: WorkspaceItem[],
@@ -331,20 +417,47 @@ function applyBootstrapToState(
     targetId: 'main',
     pinned: true,
   };
-  const firstMachineKey = Object.keys(boot.stateDoc.machines)[0];
-  const initialTabs: OpenTab[] =
-    boot.specs.length === 0 && firstMachineKey
-      ? [
-          mainTab,
-          {
-            id: `machine:${firstMachineKey}`,
-            kind: 'machine',
-            title: boot.stateDoc.machines[firstMachineKey]?.current?.capability ?? firstMachineKey,
-            targetId: firstMachineKey,
-          },
-        ]
-      : [mainTab];
-  const activeTabId = initialTabs[initialTabs.length - 1]!.id;
+  const persisted = loadPersistedUiSession(boot.workspace.wsKey);
+  const specIds = new Set(boot.specs.map((s) => s.id));
+  const machineIds = new Set(Object.keys(boot.stateDoc.machines));
+
+  let initialTabs: OpenTab[];
+  let activeTabId: string;
+  let nestStack: NestStep[] = [];
+
+  if (persisted) {
+    const validTabs = persisted.tabs.filter(
+      (t) =>
+        t.id === 'main' ||
+        (t.kind === 'doc' && specIds.has(t.targetId)) ||
+        (t.kind === 'machine' && machineIds.has(t.targetId)),
+    );
+    initialTabs = validTabs.some((t) => t.id === 'main') ? validTabs : [mainTab, ...validTabs];
+    activeTabId = initialTabs.some((t) => t.id === persisted.activeTabId)
+      ? persisted.activeTabId
+      : 'main';
+    nestStack = persisted.nestStack.filter((st) => machineIds.has(st.machineKey));
+    if (typeof document !== 'undefined') {
+      document.documentElement.dataset.skin = persisted.skin;
+    }
+  } else {
+    const firstMachineKey = Object.keys(boot.stateDoc.machines)[0];
+    initialTabs =
+      boot.specs.length === 0 && firstMachineKey
+        ? [
+            mainTab,
+            {
+              id: `machine:${firstMachineKey}`,
+              kind: 'machine',
+              title:
+                boot.stateDoc.machines[firstMachineKey]?.current?.capability ?? firstMachineKey,
+              targetId: firstMachineKey,
+            },
+          ]
+        : [mainTab];
+    activeTabId = initialTabs[initialTabs.length - 1]!.id;
+  }
+
   return {
     loading: false,
     error: null,
@@ -360,13 +473,26 @@ function applyBootstrapToState(
     graphMermaid: boot.graphMermaid,
     tabs: initialTabs,
     activeTabId,
-    navHistory: [{ tabId: activeTabId, nestStack: [] }],
+    navHistory: [{ tabId: activeTabId, nestStack }],
     navIdx: 0,
-    nestStack: [],
+    nestStack,
+    ...(persisted
+      ? {
+          skin: persisted.skin,
+          edgePreset: persisted.edgePreset,
+          tier: persisted.tier,
+          showMinimap: persisted.showMinimap,
+          showLegend: persisted.showLegend,
+          docFoldLevel: persisted.docFoldLevel,
+          collapsedGroups: new Set(persisted.collapsedGroups),
+          ungroupedDomains: new Set(persisted.ungroupedDomains),
+        }
+      : {
+          collapsedGroups: new Set(),
+          ungroupedDomains: new Set(),
+        }),
     worldlineComparing: false,
     worldlineCompareAId: null,
-    collapsedGroups: new Set(),
-    ungroupedDomains: new Set(),
     stickyNotes: [],
     linterOpen: false,
     revisionDrawerOpen: false,
@@ -484,7 +610,15 @@ export const useStudioStore = create<StudioStoreState>((set, get) => {
           studioApi.fetchWorkspaces(),
           studioApi.fetchBootstrap(wsKey),
         ]);
-        set(applyBootstrapToState(boot, wsRes.workspaces));
+        const nextSlice = applyBootstrapToState(boot, wsRes.workspaces);
+        set(nextSlice);
+        // If restored active tab is a doc tab, eagerly lazy-load its spec detail
+        const st = get();
+        const activeTab = st.tabs.find((t) => t.id === st.activeTabId);
+        if (activeTab?.kind === 'doc' && !st.specDetails[activeTab.targetId]) {
+          const detail = await studioApi.fetchSpecDetail(activeTab.targetId, boot.workspace.wsKey);
+          set((prev) => ({ specDetails: { ...prev.specDetails, [activeTab.targetId]: detail } }));
+        }
       } catch (error) {
         set({
           loading: false,
@@ -656,6 +790,19 @@ export const useStudioStore = create<StudioStoreState>((set, get) => {
       const nextNav = s.navHistory.slice(0, s.navIdx + 1);
       nextNav.push({ tabId, nestStack: [] });
       set({ activeTabId: tabId, nestStack: [], navHistory: nextNav, navIdx: nextNav.length - 1 });
+      const targetTab = s.tabs.find((t) => t.id === tabId);
+      if (targetTab?.kind === 'doc' && !s.specDetails[targetTab.targetId] && s.activeWorkspace) {
+        const wsKey = s.activeWorkspace.wsKey;
+        const capId = targetTab.targetId;
+        void studioApi
+          .fetchSpecDetail(capId, wsKey)
+          .then((detail) => {
+            set((prev) => ({ specDetails: { ...prev.specDetails, [capId]: detail } }));
+          })
+          .catch(() => {
+            get().showToast(`加载规格 ${capId} 详情失败`);
+          });
+      }
     },
 
     closeTab: (tabId) => {
@@ -1225,6 +1372,26 @@ export const useStudioStore = create<StudioStoreState>((set, get) => {
       return tab?.kind === 'machine' ? tab.targetId : null;
     },
   };
+});
+
+// Persist per-workspace UI navigation & view state so browser refresh restores exact open tabs & view
+useStudioStore.subscribe((state, prev) => {
+  if (state.loading || !state.activeWorkspace) return;
+  if (
+    state.tabs !== prev.tabs ||
+    state.activeTabId !== prev.activeTabId ||
+    state.nestStack !== prev.nestStack ||
+    state.skin !== prev.skin ||
+    state.edgePreset !== prev.edgePreset ||
+    state.tier !== prev.tier ||
+    state.showMinimap !== prev.showMinimap ||
+    state.showLegend !== prev.showLegend ||
+    state.docFoldLevel !== prev.docFoldLevel ||
+    state.collapsedGroups !== prev.collapsedGroups ||
+    state.ungroupedDomains !== prev.ungroupedDomains
+  ) {
+    savePersistedUiSession(state);
+  }
 });
 
 export function nextStateUid(machine: StudioMachineIR): string {

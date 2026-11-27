@@ -465,6 +465,18 @@ function MachineBoundaryNode({ data }: NodeProps<Node<MachineBoundaryNodeData>>)
       className={`machine-boundary-frame relative pointer-events-none ${data.nested ? 'is-nested' : ''}`}
       style={{ width: data.width, height: data.height }}
     >
+      <Handle
+        id="portal-in"
+        type="target"
+        position={Position.Left}
+        className="opacity-0 pointer-events-none"
+      />
+      <Handle
+        id="portal-out"
+        type="source"
+        position={Position.Right}
+        className="opacity-0 pointer-events-none"
+      />
       <div
         className="absolute left-3.5 -top-[13px] inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg border font-mono text-[10.5px] font-semibold"
         style={{
@@ -486,19 +498,23 @@ function PortalPillNode({ data }: NodeProps<Node<PortalPillNodeData>>) {
   return (
     <button
       type="button"
-      onClick={data.onOpen}
-      className="rounded-lg border border-dashed px-3 py-2 flex items-center gap-2 text-xs cursor-pointer transition-colors hover:border-solid"
+      onClick={(e) => {
+        e.stopPropagation();
+        data.onOpen();
+      }}
+      className="nodrag nopan pointer-events-auto rounded-lg border border-dashed px-3 py-2 flex items-center gap-2 text-xs cursor-pointer transition-all hover:border-solid hover:scale-[1.02]"
       style={{
+        width: 156,
         background: 'var(--surface)',
         borderColor: 'var(--border-strong)',
         boxShadow: 'var(--shadow-card)',
       }}
-      title={`跳转至关联规格 ${data.capId}`}
+      title={`点击打开关联规格 ${data.capId}`}
     >
-      <Handle type="target" position={Position.Left} className="studio-port opacity-0" />
-      <Handle type="source" position={Position.Right} className="studio-port opacity-0" />
-      <div className="text-left">
-        <div className="font-mono font-semibold text-[11.5px]">{data.capId}</div>
+      <Handle type="target" position={Position.Left} className="opacity-0 pointer-events-none" />
+      <Handle type="source" position={Position.Right} className="opacity-0 pointer-events-none" />
+      <div className="text-left min-w-0">
+        <div className="font-mono font-semibold text-[11.5px] truncate">{data.capId}</div>
         <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
           {data.direction === 'upstream' ? '← 上游约束' : '下游调用 →'}
         </div>
@@ -799,6 +815,24 @@ const NODE_TYPES = {
 };
 const EDGE_TYPES = { obstacleEdge: ObstacleStateEdge };
 
+function rayToRectBorder(
+  cx: number,
+  cy: number,
+  hw: number,
+  hh: number,
+  targetX: number,
+  targetY: number,
+  pad = 0,
+): { x: number; y: number } {
+  const dx = targetX - cx;
+  const dy = targetY - cy;
+  if (Math.abs(dx) < 1e-4 && Math.abs(dy) < 1e-4) return { x: cx, y: cy };
+  const tx = Math.abs(dx) > 1e-4 ? (hw + pad) / Math.abs(dx) : Number.POSITIVE_INFINITY;
+  const ty = Math.abs(dy) > 1e-4 ? (hh + pad) / Math.abs(dy) : Number.POSITIVE_INFINITY;
+  const t = Math.min(tx, ty);
+  return { x: cx + dx * t, y: cy + dy * t };
+}
+
 /**
  * BFS layered topological layout from initialStateUid:
  * - Places initial state on the left (col 0) and advances columns left-to-right by shortest path depth
@@ -962,8 +996,16 @@ function StateMachineCanvasInner() {
     if (!zoomTrigger) return;
     if (zoomTrigger.action === 'in') void rf.zoomIn({ duration: 160 });
     else if (zoomTrigger.action === 'out') void rf.zoomOut({ duration: 160 });
-    else void rf.fitView({ padding: 0.16, duration: 220 });
+    else void rf.fitView({ padding: 0.18, duration: 220 });
   }, [zoomTrigger, rf]);
+
+  // Auto-center viewport whenever switching tabs or drilling into/out of sub-machines
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => {
+      void rf.fitView({ padding: 0.2, duration: 220 });
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [activeTabId, nestStack.length, isMacro, rf]);
 
   // Smoothly focus node when selected from Linter or ⌘K
   useEffect(() => {
@@ -1071,6 +1113,8 @@ function StateMachineCanvasInner() {
         id: `grp:${gb.group.id}`,
         type: 'domainGroup',
         position: { x: gb.x, y: gb.y },
+        width: gb.collapsed ? 276 : gb.width,
+        height: gb.collapsed ? 128 : gb.height,
         draggable: false,
         selectable: false,
         zIndex: gb.collapsed ? 5 : 0,
@@ -1103,6 +1147,8 @@ function StateMachineCanvasInner() {
             id: sp.id,
             type: 'specCard',
             position: pos,
+            width: cardW,
+            height: cardH,
             zIndex: 4,
             data: {
               spec: sp,
@@ -1119,6 +1165,8 @@ function StateMachineCanvasInner() {
         id: n.id,
         type: 'stickyNote',
         position: { x: n.x, y: n.y },
+        width: 210,
+        height: 112,
         zIndex: 8,
         data: {
           id: n.id,
@@ -1226,8 +1274,13 @@ function StateMachineCanvasInner() {
     ];
 
     const nodeW = tier === 'glyph' ? 110 : tier === 'detail' ? 236 : 196;
-    const nodeH = tier === 'glyph' ? 104 : 68;
+    const heightOfState = (s: { subMachineKey?: string }): number => {
+      if (tier === 'glyph') return 104;
+      const baseH = tier === 'detail' ? 64 : 42;
+      return s.subMachineKey ? baseH + 28 : baseH;
+    };
     const posByUid = new Map<string, { x: number; y: number }>();
+    const sizeByUid = new Map<string, { w: number; h: number }>();
     let minX = Infinity;
     let minY = Infinity;
     let maxX = -Infinity;
@@ -1236,22 +1289,26 @@ function StateMachineCanvasInner() {
     renderStates.forEach((s, idx) => {
       const p = savedLayout[s.uid] ??
         baseLayout[s.uid] ?? { x: 180 + (idx % 3) * 310, y: 150 + Math.floor(idx / 3) * 195 };
+      const h = heightOfState(s);
       posByUid.set(s.uid, p);
+      sizeByUid.set(s.uid, { w: nodeW, h });
       minX = Math.min(minX, p.x);
       minY = Math.min(minY, p.y);
       maxX = Math.max(maxX, p.x + nodeW);
-      maxY = Math.max(maxY, p.y + nodeH);
+      maxY = Math.max(maxY, p.y + h);
     });
 
-    const frameX = Number.isFinite(minX) ? minX - 48 : 120;
-    const frameY = Number.isFinite(minY) ? minY - 48 : 96;
-    const frameW = Number.isFinite(maxX) ? maxX - frameX + 48 : 680;
-    const frameH = Number.isFinite(maxY) ? maxY - frameY + 52 : 420;
+    const frameX = Number.isFinite(minX) ? minX - 54 : 120;
+    const frameY = Number.isFinite(minY) ? minY - 56 : 96;
+    const frameW = Number.isFinite(maxX) ? maxX - frameX + 54 : 680;
+    const frameH = Number.isFinite(maxY) ? maxY - frameY + 56 : 420;
 
     const boundaryNode: Node<MachineBoundaryNodeData> = {
       id: '__machine_boundary__',
       type: 'machineBoundary',
       position: { x: frameX, y: frameY },
+      width: frameW,
+      height: frameH,
       draggable: false,
       selectable: false,
       zIndex: 0,
@@ -1280,9 +1337,11 @@ function StateMachineCanvasInner() {
           x: frameX - 224,
           y: frameY + Math.max(48, frameH / 2 - ((upstreamCaps.length - 1) * 86) / 2) + idx * 86,
         },
+        width: 156,
+        height: 52,
         draggable: false,
         selectable: false,
-        zIndex: 2,
+        zIndex: 6,
         data: {
           direction: 'upstream' as const,
           capId: cap,
@@ -1300,9 +1359,11 @@ function StateMachineCanvasInner() {
           x: frameX + frameW + 64,
           y: frameY + Math.max(48, frameH / 2 - ((downstreamCaps.length - 1) * 86) / 2) + idx * 86,
         },
+        width: 156,
+        height: 52,
         draggable: false,
         selectable: false,
-        zIndex: 2,
+        zIndex: 6,
         data: {
           direction: 'downstream' as const,
           capId: cap,
@@ -1319,13 +1380,14 @@ function StateMachineCanvasInner() {
     const portalEdges: Edge<ObstacleEdgeData>[] = [
       ...upstreamCaps.map((cap, idx) => {
         const py =
-          frameY + Math.max(48, frameH / 2 - ((upstreamCaps.length - 1) * 86) / 2) + idx * 86 + 24;
-        const sx = frameX - 68;
-        const tx = frameX - 4;
+          frameY + Math.max(48, frameH / 2 - ((upstreamCaps.length - 1) * 86) / 2) + idx * 86 + 26;
+        const sx = frameX - 66;
+        const tx = frameX - 3;
         return {
           id: `portal-edge:up:${cap}`,
           source: `portal:up:${cap}`,
           target: '__machine_boundary__',
+          targetHandle: 'portal-in',
           type: 'obstacleEdge',
           data: {
             label: '',
@@ -1342,12 +1404,13 @@ function StateMachineCanvasInner() {
           frameY +
           Math.max(48, frameH / 2 - ((downstreamCaps.length - 1) * 86) / 2) +
           idx * 86 +
-          24;
-        const sx = frameX + frameW + 4;
+          26;
+        const sx = frameX + frameW + 3;
         const tx = frameX + frameW + 60;
         return {
           id: `portal-edge:dn:${cap}`,
           source: '__machine_boundary__',
+          sourceHandle: 'portal-out',
           target: `portal:dn:${cap}`,
           type: 'obstacleEdge',
           data: {
@@ -1364,6 +1427,7 @@ function StateMachineCanvasInner() {
 
     const stateNodes: Node<StateNodeData>[] = renderStates.map((s) => {
       const pos = posByUid.get(s.uid)!;
+      const sz = sizeByUid.get(s.uid)!;
       const diffBadge: StateNodeData['diffBadge'] = s._removed
         ? 'removed'
         : liveOverlayDiff?.addedStateUids.includes(s.uid)
@@ -1384,6 +1448,8 @@ function StateMachineCanvasInner() {
         id: s.uid,
         type: 'stateNode',
         position: pos,
+        width: sz.w,
+        height: sz.h,
         zIndex: 4,
         data: {
           uid: s.uid,
@@ -1414,23 +1480,32 @@ function StateMachineCanvasInner() {
       };
     });
 
+    const allStateBoxes: RectBox[] = renderStates.map((os) => {
+      const p = posByUid.get(os.uid)!;
+      const sz = sizeByUid.get(os.uid)!;
+      return { x1: p.x - 4, y1: p.y - 4, x2: p.x + sz.w + 4, y2: p.y + sz.h + 4 };
+    });
+
     const placedSegments: Segment2D[] = [];
     const placedLabels: RectBox[] = [];
     const flowE: Edge<ObstacleEdgeData>[] = [];
     for (const t of renderEdges) {
       const aPos = posByUid.get(t.fromUid);
       const bPos = posByUid.get(t.toUid);
-      if (!aPos || !bPos) continue;
-      const ax = aPos.x + nodeW / 2;
-      const ay = aPos.y + nodeH / 2;
-      const bx = bPos.x + nodeW / 2;
-      const by = bPos.y + nodeH / 2;
+      const aSz = sizeByUid.get(t.fromUid);
+      const bSz = sizeByUid.get(t.toUid);
+      if (!aPos || !bPos || !aSz || !bSz) continue;
+      const ax = aPos.x + aSz.w / 2;
+      const ay = aPos.y + aSz.h / 2;
+      const bx = bPos.x + bSz.w / 2;
+      const by = bPos.y + bSz.h / 2;
       const bendOffset = stateDoc.edgeBends?.[activeMachineKey]?.[t.uid];
       const obs: RectBox[] = renderStates
         .filter((os) => os.uid !== t.fromUid && os.uid !== t.toUid)
         .map((os) => {
           const p = posByUid.get(os.uid)!;
-          return { x1: p.x - 4, y1: p.y - 4, x2: p.x + nodeW + 4, y2: p.y + nodeH + 4 };
+          const sz = sizeByUid.get(os.uid)!;
+          return { x1: p.x - 4, y1: p.y - 4, x2: p.x + sz.w + 4, y2: p.y + sz.h + 4 };
         });
 
       let edgePath: string;
@@ -1458,32 +1533,37 @@ function StateMachineCanvasInner() {
         const hasOpp = renderEdges.some(
           (o) => o.uid !== t.uid && o.fromUid === t.toUid && o.toUid === t.fromUid,
         );
-        const oppBend = hasOpp ? (Math.abs(dy) > Math.abs(dx) ? 74 : 44) : 0;
+        const oppBend = hasOpp ? (Math.abs(dy) > Math.abs(dx) ? 56 : 38) : 0;
         const parallelSpread =
-          sameDirGroup.length > 1 ? (sameDirIdx - (sameDirGroup.length - 1) / 2) * 58 : 0;
+          sameDirGroup.length > 1 ? (sameDirIdx - (sameDirGroup.length - 1) / 2) * 52 : 0;
         const bend = oppBend + parallelSpread;
-        const sx = ax + (dx / dist) * Math.min(nodeW / 2, dist * 0.35);
-        const sy = ay + (dy / dist) * Math.min(nodeH / 2, dist * 0.35);
-        const tx = bx - (dx / dist) * Math.min(nodeW / 2 + 6, dist * 0.38);
-        const ty = by - (dy / dist) * Math.min(nodeH / 2 + 4, dist * 0.38);
+        const bendX = (-dy / dist) * bend;
+        const bendY = (dx / dist) * bend;
+
+        // Exact rectangle-border anchoring (aimed gently toward curve apex so opposing arrows stay separated & flush on card edges!)
+        const aimX = (ax + bx) / 2 + bendX * 0.55;
+        const aimY = (ay + by) / 2 + bendY * 0.55;
+        const startPt = rayToRectBorder(ax, ay, aSz.w / 2, aSz.h / 2, aimX, aimY, 0);
+        const endPt = rayToRectBorder(bx, by, bSz.w / 2, bSz.h / 2, aimX, aimY, 4);
+
         const geom = routeObstacleAwareEdge({
-          sx,
-          sy,
-          tx,
-          ty,
+          sx: startPt.x,
+          sy: startPt.y,
+          tx: endPt.x,
+          ty: endPt.y,
           preset: edgePreset as EdgePreset,
-          bendX: (-dy / dist) * bend,
-          bendY: (dx / dist) * bend,
+          bendX,
+          bendY,
           obstacles: obs,
           endpoints: {
             ax,
             ay,
             bx,
             by,
-            hwA: nodeW / 2,
-            hhA: nodeH / 2,
-            hwB: nodeW / 2,
-            hhB: nodeH / 2,
+            hwA: aSz.w / 2,
+            hhA: aSz.h / 2,
+            hwB: bSz.w / 2,
+            hhB: bSz.h / 2,
           },
           placedSegments,
           manualOffset: bendOffset,
@@ -1498,7 +1578,8 @@ function StateMachineCanvasInner() {
 
       const label = `${t.event}${t.guard ? ` [${t.guard}]` : ''}`;
       const lblW = label.length * 7.2 + 18;
-      const lp = resolveLabelPosition(rawLx, rawLy, lblW, 22, placedLabels, obs);
+      // Avoid ALL state cards (including from/to) when placing edge labels!
+      const lp = resolveLabelPosition(rawLx, rawLy, lblW, 22, placedLabels, allStateBoxes);
       const isAdded = liveOverlayDiff?.addedEdgeUids.includes(t.uid) === true;
       const simClickable = mode === 'simulate' && t.fromUid === simActiveUid && !t._removed;
       flowE.push({
