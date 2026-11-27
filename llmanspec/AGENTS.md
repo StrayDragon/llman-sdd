@@ -202,4 +202,4 @@ flowchart LR
 | 行为规格(`llmanspec/specs/`) | 人类与 Agent 协作演进 | 顺应需求迭代的可执行行为合约与活产品说明 | Gherkin 规格 + BDD/单测 + Studio 可视化协商 |
 | 轻量技能(`llman-sdd-*`) | 随强模型持续瘦身 | 少管过程细枝末节,守住不变量、事实来源与验证门禁 | `packages/core/templates/` 精简迭代 |
 
-- 人类定理与精简技能的具体落地排在 Studio 体系完善之后(见 `llman-sdd list` 中 `add-human-theorems-and-lean-skills` 草案)
+- 剩余演进草案以 `llman-sdd list` 实时输出为准
