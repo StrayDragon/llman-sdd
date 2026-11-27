@@ -947,6 +947,8 @@ function StateMachineCanvasInner() {
     stickyNotes,
     zoomTrigger,
     focusStateUid,
+    setViewportForView,
+    clearViewportForView,
     openSpecTab,
     diveSubMachine,
     jumpNestLevel,
@@ -990,22 +992,33 @@ function StateMachineCanvasInner() {
   const isMacro = !activeTab || activeTab.kind === 'macro';
   const activeMachineKey = getActiveMachineKey();
   const machine = activeMachineKey ? (stateDoc?.machines[activeMachineKey]?.current ?? null) : null;
+  const viewKey = isMacro ? 'macro' : `machine:${activeMachineKey ?? activeTabId}`;
 
   // Bridge BottomChrome Zoom / Fit buttons cleanly to React Flow
   useEffect(() => {
     if (!zoomTrigger) return;
     if (zoomTrigger.action === 'in') void rf.zoomIn({ duration: 160 });
     else if (zoomTrigger.action === 'out') void rf.zoomOut({ duration: 160 });
-    else void rf.fitView({ padding: 0.18, duration: 220 });
-  }, [zoomTrigger, rf]);
+    else {
+      clearViewportForView(viewKey);
+      void rf.fitView({ padding: 0.18, duration: 220 });
+    }
+  }, [zoomTrigger, rf, clearViewportForView, viewKey]);
 
-  // Auto-center viewport whenever switching tabs or drilling into/out of sub-machines
+  // First-open auto-center + Per-Tab Viewport Memory:
+  // If user already adjusted pan/zoom for this tab, restore their exact viewport cleanly (zero surprise jump!).
   useEffect(() => {
+    const saved = useStudioStore.getState().viewports[viewKey];
     const raf = requestAnimationFrame(() => {
-      void rf.fitView({ padding: 0.2, duration: 220 });
+      if (saved) {
+        void rf.setViewport(saved, { duration: 0 });
+        setZoomPercent(Math.round(saved.zoom * 100));
+      } else {
+        void rf.fitView({ padding: 0.2, duration: 220 });
+      }
     });
     return () => cancelAnimationFrame(raf);
-  }, [activeTabId, nestStack.length, isMacro, rf]);
+  }, [viewKey, rf, setZoomPercent]);
 
   // Smoothly focus node when selected from Linter or ⌘K
   useEffect(() => {
@@ -1804,7 +1817,8 @@ function StateMachineCanvasInner() {
             icon: <Maximize2 size={12} />,
             onSelect: () => {
               resetLayoutForScope('__macro__');
-              setTimeout(() => void rf.fitView({ padding: 0.16, duration: 220 }), 40);
+              clearViewportForView('macro');
+              setTimeout(() => void rf.fitView({ padding: 0.18, duration: 220 }), 40);
             },
           },
           {
@@ -1863,7 +1877,8 @@ function StateMachineCanvasInner() {
           icon: <RotateCcw size={12} />,
           onSelect: () => {
             resetLayoutForScope(activeMachineKey);
-            setTimeout(() => void rf.fitView({ padding: 0.16, duration: 220 }), 40);
+            clearViewportForView(viewKey);
+            setTimeout(() => void rf.fitView({ padding: 0.18, duration: 220 }), 40);
           },
         },
         {
@@ -1945,7 +1960,10 @@ function StateMachineCanvasInner() {
           setSelectedEdgeId(null);
         }}
         onPaneContextMenu={handlePaneContextMenu}
-        onMoveEnd={(_ev, vp) => setZoomPercent(Math.round(vp.zoom * 100))}
+        onMoveEnd={(_ev, vp) => {
+          setZoomPercent(Math.round(vp.zoom * 100));
+          setViewportForView(viewKey, { x: vp.x, y: vp.y, zoom: vp.zoom });
+        }}
         onEdgeClick={(_ev, edge) => {
           setSelectedEdgeId(edge.id);
           setSelectedNodeId(null);

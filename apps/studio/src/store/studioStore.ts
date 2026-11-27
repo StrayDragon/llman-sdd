@@ -159,10 +159,11 @@ export interface StudioStoreState {
   ungroupedDomains: Set<string>;
   stickyNotes: StickyNoteItem[];
 
-  // Doc view 5-level TextFold & Canvas zoom bridge
+  // Doc view 5-level TextFold & Per-View Viewport Memory (never surprise-resets user zoom/pan!)
   docFoldLevel: 0 | 1 | 2 | 3 | 4;
   zoomPercent: number;
   zoomTrigger: { action: 'in' | 'out' | 'fit'; seq: number } | null;
+  viewports: Record<string, { x: number; y: number; zoom: number }>;
 
   // Settings SSOT (4 groups: 2 skins, 3 edge presets, 2 toggles, optional TextFold URL)
   skin: StudioSkin;
@@ -188,7 +189,13 @@ export interface StudioStoreState {
   openSpecTab: (spec: SpecIndexItem) => Promise<void>;
   openMachineTab: (machineKey: string, title?: string) => void;
   activateTab: (tabId: string) => void;
-  closeTab: (tabId: string) => void;
+  closeTab: (tabId: string, force?: boolean) => void;
+  togglePinTab: (tabId: string) => void;
+  closeOtherUnpinnedTabs: (keepTabId: string) => void;
+  restoreDefaultTabs: () => void;
+  reorderTab: (srcId: string, targetId: string, insertBefore: boolean) => void;
+  setViewportForView: (viewKey: string, vp: { x: number; y: number; zoom: number }) => void;
+  clearViewportForView: (viewKey: string) => void;
   navBack: () => void;
   navForward: () => void;
   diveSubMachine: (machineKey: string, label: string) => void;
@@ -336,6 +343,7 @@ interface PersistedUiSession {
   docFoldLevel: 0 | 1 | 2 | 3 | 4;
   collapsedGroups: string[];
   ungroupedDomains: string[];
+  viewports: Record<string, { x: number; y: number; zoom: number }>;
 }
 
 function loadPersistedUiSession(wsKey: string): PersistedUiSession | null {
@@ -365,6 +373,7 @@ function loadPersistedUiSession(wsKey: string): PersistedUiSession | null {
           : 0,
       collapsedGroups: Array.isArray(parsed.collapsedGroups) ? parsed.collapsedGroups : [],
       ungroupedDomains: Array.isArray(parsed.ungroupedDomains) ? parsed.ungroupedDomains : [],
+      viewports: parsed.viewports && typeof parsed.viewports === 'object' ? parsed.viewports : {},
     };
   } catch {
     return null;
@@ -386,6 +395,7 @@ function savePersistedUiSession(state: StudioStoreState): void {
     docFoldLevel: state.docFoldLevel,
     collapsedGroups: [...state.collapsedGroups],
     ungroupedDomains: [...state.ungroupedDomains],
+    viewports: state.viewports,
   };
   try {
     localStorage.setItem(uiSessionStorageKey(wsKey), JSON.stringify(payload));
@@ -486,10 +496,12 @@ function applyBootstrapToState(
           docFoldLevel: persisted.docFoldLevel,
           collapsedGroups: new Set(persisted.collapsedGroups),
           ungroupedDomains: new Set(persisted.ungroupedDomains),
+          viewports: persisted.viewports,
         }
       : {
           collapsedGroups: new Set(),
           ungroupedDomains: new Set(),
+          viewports: {},
         }),
     worldlineComparing: false,
     worldlineCompareAId: null,
@@ -588,6 +600,7 @@ export const useStudioStore = create<StudioStoreState>((set, get) => {
     docFoldLevel: 0,
     zoomPercent: 100,
     zoomTrigger: null,
+    viewports: {},
 
     skin: 'linear',
     edgePreset: 'bezier',
@@ -805,14 +818,99 @@ export const useStudioStore = create<StudioStoreState>((set, get) => {
       }
     },
 
-    closeTab: (tabId) => {
+    closeTab: (tabId, force = false) => {
       const s = get();
       const target = s.tabs.find((t) => t.id === tabId);
-      if (!target || target.pinned) return;
+      if (!target) return;
+      if (target.pinned && !force) return;
       const nextTabs = s.tabs.filter((t) => t.id !== tabId);
+      if (nextTabs.length === 0) {
+        const mainTab: OpenTab = {
+          id: 'main',
+          kind: 'macro',
+          title: '主视图',
+          targetId: 'main',
+          pinned: true,
+        };
+        set({ tabs: [mainTab], activeTabId: 'main', nestStack: [] });
+        return;
+      }
       const nextActive =
-        s.activeTabId === tabId ? (nextTabs[nextTabs.length - 1]?.id ?? 'main') : s.activeTabId;
+        s.activeTabId === tabId
+          ? (nextTabs[nextTabs.length - 1]?.id ?? nextTabs[0]!.id)
+          : s.activeTabId;
       set({ tabs: nextTabs, activeTabId: nextActive, nestStack: [] });
+    },
+
+    togglePinTab: (tabId) => {
+      const s = get();
+      const target = s.tabs.find((t) => t.id === tabId);
+      if (!target) return;
+      const nextPinned = !target.pinned;
+      const updated = s.tabs.map((t) => (t.id === tabId ? { ...t, pinned: nextPinned } : t));
+      const pinned = updated.filter((t) => t.pinned);
+      const unpinned = updated.filter((t) => !t.pinned);
+      set({ tabs: [...pinned, ...unpinned] });
+      get().showToast(nextPinned ? `已置顶「${target.title}」` : `已取消置顶「${target.title}」`);
+    },
+
+    closeOtherUnpinnedTabs: (keepTabId) => {
+      const s = get();
+      const nextTabs = s.tabs.filter((t) => t.id === keepTabId || t.pinned);
+      set({
+        tabs: nextTabs,
+        activeTabId: nextTabs.some((t) => t.id === keepTabId)
+          ? keepTabId
+          : (nextTabs[0]?.id ?? 'main'),
+        nestStack: [],
+      });
+      get().showToast('已关闭其他未置顶标签页');
+    },
+
+    restoreDefaultTabs: () => {
+      const mainTab: OpenTab = {
+        id: 'main',
+        kind: 'macro',
+        title: '主视图',
+        targetId: 'main',
+        pinned: true,
+      };
+      set({
+        tabs: [mainTab],
+        activeTabId: 'main',
+        nestStack: [],
+        navHistory: [{ tabId: 'main', nestStack: [] }],
+        navIdx: 0,
+      });
+      get().showToast('已恢复默认工作区 Tab');
+    },
+
+    reorderTab: (srcId, targetId, insertBefore) => {
+      const s = get();
+      if (srcId === targetId) return;
+      const fromIdx = s.tabs.findIndex((t) => t.id === srcId);
+      const toIdx = s.tabs.findIndex((t) => t.id === targetId);
+      if (fromIdx < 0 || toIdx < 0) return;
+      if (Boolean(s.tabs[fromIdx]?.pinned) !== Boolean(s.tabs[toIdx]?.pinned)) return;
+      const next = [...s.tabs];
+      const [moved] = next.splice(fromIdx, 1);
+      if (!moved) return;
+      let insertAt = next.findIndex((t) => t.id === targetId);
+      if (!insertBefore) insertAt += 1;
+      next.splice(insertAt, 0, moved);
+      set({ tabs: next });
+    },
+
+    setViewportForView: (viewKey, vp) => {
+      set((s) => ({ viewports: { ...s.viewports, [viewKey]: vp } }));
+    },
+
+    clearViewportForView: (viewKey) => {
+      set((s) => {
+        const next = { ...s.viewports };
+        delete next[viewKey];
+        return { viewports: next };
+      });
     },
 
     navBack: () => {
@@ -1388,7 +1486,8 @@ useStudioStore.subscribe((state, prev) => {
     state.showLegend !== prev.showLegend ||
     state.docFoldLevel !== prev.docFoldLevel ||
     state.collapsedGroups !== prev.collapsedGroups ||
-    state.ungroupedDomains !== prev.ungroupedDomains
+    state.ungroupedDomains !== prev.ungroupedDomains ||
+    state.viewports !== prev.viewports
   ) {
     savePersistedUiSession(state);
   }

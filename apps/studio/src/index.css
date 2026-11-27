@@ -467,3 +467,11 @@ body.wl-open .react-flow__minimap:hover {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* Browser-Grade Tab Drag Reorder Drop Indicators */
+.tab-drop-before {
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.tab-drop-after {
+  box-shadow: inset -2px 0 0 var(--accent);
+}

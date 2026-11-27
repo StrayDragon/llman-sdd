@@ -8,6 +8,7 @@
 import { computeMachineDiff, computeWorldlineOverlayDiff } from '@llman-sdd/core/studio';
 import {
   AlertTriangle,
+  Ban,
   CheckCircle2,
   ChevronDown,
   ChevronLeft,
@@ -17,7 +18,9 @@ import {
   FileText,
   GitBranch,
   Pin,
+  Plus,
   Redo2,
+  RotateCcw,
   Share2,
   Shield,
   Table2,
@@ -57,6 +60,10 @@ export function TopChrome() {
     tipIdx,
     activateTab,
     closeTab,
+    togglePinTab,
+    closeOtherUnpinnedTabs,
+    restoreDefaultTabs,
+    reorderTab,
     navBack,
     navForward,
     switchWorkspace,
@@ -77,6 +84,9 @@ export function TopChrome() {
 
   const [wsOpen, setWsOpen] = useState(false);
   const [lintFilter, setLintFilter] = useState<'all' | 'error' | 'warning'>('all');
+  const [dragTabId, setDragTabId] = useState<string | null>(null);
+  const [dropIndicator, setDropIndicator] = useState<{ id: string; before: boolean } | null>(null);
+  const [tabCtx, setTabCtx] = useState<{ tabId: string; x: number; y: number } | null>(null);
 
   const activeMachineKey = getActiveMachineKey();
   const activeDraft = activeMachineKey ? stateDoc?.machines[activeMachineKey] : undefined;
@@ -251,14 +261,60 @@ export function TopChrome() {
                   : tab.title.includes('lifecycle')
                     ? Table2
                     : FileText;
+              const dropCls =
+                dropIndicator?.id === tab.id
+                  ? dropIndicator.before
+                    ? ' tab-drop-before'
+                    : ' tab-drop-after'
+                  : '';
               return (
                 <div
                   key={tab.id}
+                  draggable
+                  title={tab.pinned ? '已置顶（拖动换序 · 右键管理）' : '拖动换序 · 右键置顶或关闭'}
+                  onDragStart={(e) => {
+                    setDragTabId(tab.id);
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', tab.id);
+                  }}
+                  onDragEnd={() => {
+                    setDragTabId(null);
+                    setDropIndicator(null);
+                  }}
+                  onDragOver={(e) => {
+                    if (!dragTabId || dragTabId === tab.id) return;
+                    const src = tabs.find((x) => x.id === dragTabId);
+                    if (!src || Boolean(src.pinned) !== Boolean(tab.pinned)) return;
+                    e.preventDefault();
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    setDropIndicator({
+                      id: tab.id,
+                      before: e.clientX < rect.left + rect.width / 2,
+                    });
+                  }}
+                  onDragLeave={() => {
+                    if (dropIndicator?.id === tab.id) setDropIndicator(null);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const srcId = dragTabId ?? e.dataTransfer.getData('text/plain');
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const before = e.clientX < rect.left + rect.width / 2;
+                    setDragTabId(null);
+                    setDropIndicator(null);
+                    if (srcId && srcId !== tab.id) reorderTab(srcId, tab.id, before);
+                  }}
                   onClick={() => activateTab(tab.id)}
-                  className="inline-flex items-center gap-1.5 h-7 rounded-md px-2.5 text-[12px] font-medium cursor-pointer select-none transition-colors shrink-0"
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setTabCtx({ tabId: tab.id, x: e.clientX, y: e.clientY });
+                  }}
+                  className={`inline-flex items-center gap-1.5 h-7 rounded-md px-2.5 text-[12px] font-medium cursor-pointer select-none transition-colors shrink-0${dropCls}`}
                   style={{
                     background: active ? 'var(--ink)' : 'transparent',
                     color: active ? '#ffffff' : 'var(--text-secondary)',
+                    opacity: dragTabId === tab.id ? 0.55 : 1,
                   }}
                 >
                   <TabIcon size={11} />
@@ -279,8 +335,92 @@ export function TopChrome() {
                 </div>
               );
             })}
+            <button
+              type="button"
+              title="打开新规格标签页 (⌘K)"
+              onClick={() => setCmdkOpen(true)}
+              className="w-7 h-7 inline-flex items-center justify-center rounded-md hover:bg-black/5 cursor-pointer shrink-0"
+              style={{ color: 'var(--text-secondary)' }}
+            >
+              <Plus size={13} />
+            </button>
           </div>
         </div>
+
+        {/* Clean Browser-Grade Tab Right-Click Menu (Matching studio-demo.html) */}
+        {tabCtx &&
+          (() => {
+            const targetTab = tabs.find((x) => x.id === tabCtx.tabId);
+            if (!targetTab) return null;
+            return (
+              <>
+                <div
+                  className="fixed inset-0 z-[78]"
+                  onClick={() => setTabCtx(null)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setTabCtx(null);
+                  }}
+                />
+                <div
+                  role="menu"
+                  aria-label="标签页管理菜单"
+                  className="fixed z-[79] studio-float w-48 p-1.5 flex flex-col gap-0.5 text-xs"
+                  style={{
+                    left: Math.min(window.innerWidth - 208, Math.max(12, tabCtx.x)),
+                    top: Math.min(window.innerHeight - 180, Math.max(48, tabCtx.y + 4)),
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      togglePinTab(targetTab.id);
+                      setTabCtx(null);
+                    }}
+                    className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-left hover:bg-black/5 cursor-pointer"
+                  >
+                    <Pin size={12} />
+                    <span>{targetTab.pinned ? '取消置顶' : '置顶此标签页'}</span>
+                  </button>
+                  <div className="h-px my-0.5" style={{ background: 'var(--border)' }} />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      closeTab(targetTab.id, true);
+                      setTabCtx(null);
+                    }}
+                    className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-left hover:bg-black/5 cursor-pointer"
+                  >
+                    <X size={12} />
+                    <span>关闭此标签页</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      closeOtherUnpinnedTabs(targetTab.id);
+                      setTabCtx(null);
+                    }}
+                    className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-left hover:bg-black/5 cursor-pointer"
+                  >
+                    <Ban size={12} />
+                    <span>关闭其他未置顶标签</span>
+                  </button>
+                  <div className="h-px my-0.5" style={{ background: 'var(--border)' }} />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      restoreDefaultTabs();
+                      setTabCtx(null);
+                    }}
+                    className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-left hover:bg-black/5 cursor-pointer"
+                  >
+                    <RotateCcw size={12} />
+                    <span>恢复默认工作区 Tab</span>
+                  </button>
+                </div>
+              </>
+            );
+          })()}
 
         {/* Live Draft Semantic Diff Chip */}
         {activeDiff?.hasChanges && (

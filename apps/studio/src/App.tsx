@@ -118,10 +118,19 @@ export function App() {
     const onPageHide = (): void => {
       void flushPendingSaves({ keepalive: true });
     };
+    // Global Native ContextMenu Takeover (matching studio-demo.html:9629 — zero browser menu leak!)
+    const onGlobalContextMenu = (ev: MouseEvent): void => {
+      const target = ev.target instanceof HTMLElement ? ev.target : null;
+      if (target?.closest('input, textarea, [contenteditable="true"]')) return;
+      if (target?.closest('.select-text') && window.getSelection()?.toString()) return;
+      ev.preventDefault();
+    };
     window.addEventListener('pagehide', onPageHide);
+    window.addEventListener('contextmenu', onGlobalContextMenu, true);
     return () => {
       unsubscribe();
       window.removeEventListener('pagehide', onPageHide);
+      window.removeEventListener('contextmenu', onGlobalContextMenu, true);
     };
   }, [init, refreshInPlace, flushPendingSaves, showToast]);
 
