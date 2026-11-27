@@ -65,6 +65,10 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 
 import {
+  computeDriftCalibrationOverlay,
+  getPendingDriftProposals,
+} from '../drift/reconcileOverlay.ts';
+import {
   buildExclusiveDomainGroups,
   layoutMainViewWithGroups,
   type GroupTone,
@@ -1289,13 +1293,26 @@ function StateMachineCanvasInner() {
       outDegree.set(tr.fromUid, (outDegree.get(tr.fromUid) ?? 0) + 1);
     }
 
+    // Pending `drift-trace` 1:1 live canvas overlay (dashed green edges + ghost states)
+    const driftOverlay =
+      !liveOverlayDiff && activeMachineKey
+        ? computeDriftCalibrationOverlay(
+            machine,
+            getPendingDriftProposals(stateDoc.revisions, activeMachineKey),
+          )
+        : null;
+
     const renderStates = [
-      ...machine.states.map((s) => ({ ...s, _removed: false })),
-      ...(liveOverlayDiff?.removedStates.map((s) => ({ ...s, _removed: true })) ?? []),
+      ...machine.states.map((s) => ({ ...s, _removed: false, _drift: false })),
+      ...(liveOverlayDiff?.removedStates.map((s) => ({ ...s, _removed: true, _drift: false })) ??
+        []),
+      ...(driftOverlay?.addedStates.map((s) => ({ ...s, _removed: false, _drift: true })) ?? []),
     ];
     const renderEdges = [
-      ...machine.transitions.map((t) => ({ ...t, _removed: false })),
-      ...(liveOverlayDiff?.removedEdges.map((t) => ({ ...t, _removed: true })) ?? []),
+      ...machine.transitions.map((t) => ({ ...t, _removed: false, _drift: false })),
+      ...(liveOverlayDiff?.removedEdges.map((t) => ({ ...t, _removed: true, _drift: false })) ??
+        []),
+      ...(driftOverlay?.addedEdges.map((t) => ({ ...t, _removed: false, _drift: true })) ?? []),
     ];
 
     const nodeW = tier === 'glyph' ? 110 : tier === 'detail' ? 236 : 196;
@@ -1455,7 +1472,7 @@ function StateMachineCanvasInner() {
       const sz = sizeByUid.get(s.uid)!;
       const diffBadge: StateNodeData['diffBadge'] = s._removed
         ? 'removed'
-        : liveOverlayDiff?.addedStateUids.includes(s.uid)
+        : s._drift || liveOverlayDiff?.addedStateUids.includes(s.uid)
           ? 'added'
           : liveOverlayDiff?.changedStateUids.includes(s.uid)
             ? 'changed'
@@ -1491,7 +1508,7 @@ function StateMachineCanvasInner() {
           focused: focusStateUid === s.uid,
           onDive: s.subMachineKey ? () => diveSubMachine(s.subMachineKey!, s.name) : undefined,
           onInlineEdit: (x, y) => {
-            if (s._removed) return;
+            if (s._removed || s._drift) return;
             setInlineEditor({
               kind: 'state',
               x,
@@ -1605,15 +1622,16 @@ function StateMachineCanvasInner() {
       const lblW = label.length * 7.2 + 18;
       // Avoid ALL state cards (including from/to) when placing edge labels!
       const lp = resolveLabelPosition(rawLx, rawLy, lblW, 22, placedLabels, allStateBoxes);
-      const isAdded = liveOverlayDiff?.addedEdgeUids.includes(t.uid) === true;
-      const simClickable = mode === 'simulate' && t.fromUid === simActiveUid && !t._removed;
+      const isAdded = liveOverlayDiff?.addedEdgeUids.includes(t.uid) === true || t._drift;
+      const simClickable =
+        mode === 'simulate' && t.fromUid === simActiveUid && !t._removed && !t._drift;
       flowE.push({
-        id: `${t.uid}${t._removed ? '-rem' : ''}`,
+        id: `${t.uid}${t._removed ? '-rem' : t._drift ? '-drift' : ''}`,
         source: t.fromUid,
         target: t.toUid,
         type: 'obstacleEdge',
         data: {
-          label,
+          label: t._drift ? `[Trace] ${label}` : label,
           dPath: edgePath,
           lx: lp.lx,
           ly: lp.ly,
@@ -1624,26 +1642,28 @@ function StateMachineCanvasInner() {
               : simClickable
                 ? '#2f54eb'
                 : '#7c8799',
-          dashed: t._removed,
+          dashed: t._removed || t._drift,
           machineKey: activeMachineKey,
           edgeUid: t.uid,
           bendOffset,
           simClickable,
           onSimClick: () => triggerSimEvent(t.event),
-          onBendDrag: !t._removed
-            ? (next) => updateEdgeBend(activeMachineKey, t.uid, next)
-            : undefined,
-          onDoubleClick: !t._removed
-            ? (x, y) =>
-                setInlineEditor({
-                  kind: 'edge',
-                  x,
-                  y,
-                  machineKey: activeMachineKey,
-                  targetUid: t.uid,
-                  value: label,
-                })
-            : undefined,
+          onBendDrag:
+            !t._removed && !t._drift
+              ? (next) => updateEdgeBend(activeMachineKey, t.uid, next)
+              : undefined,
+          onDoubleClick:
+            !t._removed && !t._drift
+              ? (x, y) =>
+                  setInlineEditor({
+                    kind: 'edge',
+                    x,
+                    y,
+                    machineKey: activeMachineKey,
+                    targetUid: t.uid,
+                    value: label,
+                  })
+              : undefined,
         },
       });
     }

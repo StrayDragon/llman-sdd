@@ -56,3 +56,15 @@
       假如 一份在状态机场景上方插入额外规则的 .feature 源码与修改草稿
       当 渲染更新源码、生成 Unified Diff 预览并组装提案草案
       那么 目标例子表精准替换且注释完好、写回源码通过 parseCapability 与 validateCapability
+
+  @req:r149
+  规则: 跨语言 Runtime Trace 对账与 @llmanspec: 最小切片提取
+    Studio 纯域 MUST 提供 `parseRuntimeTraceJsonl`、`reconcileRuntimeTrace`、`scanLlmanspecAnchors`、`buildDriftSlicePacket` 与 `buildDriftRevisionProposals`（零 I/O、0 Token、100% 离线确定性）。
+    JSONL Trace 解析 MUST 经 `zod` 逐行校验，遇到损坏 JSON 或缺少必填字段时 MUST 明确报出行号与错误原因而不静默跳过；对账引擎 MUST 检出 `shadowTransitions`（附出现次数与样例行号）、`uncoveredTransitions` 与 `unknownMachines`，并支持完整 `machineKey` 或无歧义短名匹配。
+    `@llmanspec:` 语义锚点扫描 MUST 覆盖 TS/Rust/Python 注释风格（严格匹配 `@llmanspec:<reqId>` 与 `@llmanspec:machine:<machineKey>`），并按 diff hunk 行号交集打包最小切片 `DriftSlicePacket`；`shadowTransitions` 转 `StudioRevisionProposal` MUST 标注 `source: 'drift-trace'` 且保持 `status: 'pending'`。
+
+    场景: Runtime Trace 漂移对账与跨语言 @llmanspec: 最小切片提取
+      假如 一份状态机规范、含未登记后门转移与损坏行的 JSONL Trace 及带 @llmanspec: 注释的多语言代码改动
+      当 调用纯域解析对账、生成反向建议层与构建最小切片裁决包
+      那么 损坏行精确报出行号、后门转移与未覆盖边准确检出且反向建议带 drift-trace 标记
+      而且 最小切片仅包含命中 @llmanspec: 锚点的 hunk 与对应规则原文

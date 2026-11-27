@@ -8,28 +8,39 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import {
+  applyDriftProposalsToStateDoc,
   applyRevisionOpsToMachine,
+  buildDriftSlicePacket,
   cloneMachineDraft,
   computeMachineDiff,
+  createStudioStateDoc,
   currentBranch,
   defaultBranch,
   deleteStudioState,
+  discoverSpecs,
+  extractStudioMachines,
   formatSemanticDiff,
   hasBlockingDiagnostics,
   listStudioStates,
   nextReqId,
+  parseRuntimeTraceJsonl,
+  parseUnifiedDiffHunks,
   previewFeatureUnifiedDiff,
   proposeRevision,
   readStudioState,
+  reconcileRuntimeTrace,
   renderUpdatedFeatureSource,
   replyStudioComment,
   StudioSyncError,
   validateMachineGraph,
   validateStateId,
   writeStudioState,
+  type DriftSlicePacket,
   type MachineDiagnostic,
   type MachineDraft,
   type RevisionOp,
+  type RuntimeTraceParseError,
+  type RuntimeTraceReconcileResult,
   type SemanticAnchor,
   type StudioStateDoc,
 } from '@llman-sdd/core';
@@ -874,6 +885,194 @@ export function registerStudio(program: Command, ctx: CliContext): void {
     }
     console.log("Next: run 'llman-sdd validate' and commit the updated specs.");
   });
+
+  // --- studio drift ---
+  const driftCmd = studio
+    .command('drift')
+    .description(
+      '0-Token offline Runtime Trace reconciliation and @llmanspec: minimal slice packet',
+    )
+    .option('--trace <path>', 'cross-language JSONL runtime trace file (or "-" for stdin)')
+    .option('--since <git-ref>', 'git ref to diff against for @llmanspec: minimal slice packet')
+    .option(
+      '--write-state',
+      'write detected shadow transitions as pending drift-trace proposals into .llman-sdd/studio/states/',
+    )
+    .option(
+      '--fail-on-shadow',
+      'exit with code 1 when --trace detects shadow transitions (pure --since mode always exits 0)',
+    );
+  addJsonFlags(driftCmd);
+  addSpecDirOption(driftCmd);
+  driftCmd.action(
+    (options: {
+      trace?: string;
+      since?: string;
+      writeState?: boolean;
+      failOnShadow?: boolean;
+      json?: boolean;
+      compactJson?: boolean;
+      directory?: string;
+    }) => {
+      if (options.trace === undefined && options.since === undefined) {
+        throw new CliError('specify at least one of --trace <path> or --since <git-ref>', 2);
+      }
+
+      const rctx = reRootContext(ctx, options.directory);
+      const specsDir = resolveRootSpecsDir(undefined, rctx.io);
+      const entries = discoverSpecs(specsDir, rctx.io);
+      const extracted = extractStudioMachines(entries);
+      const machines = extracted.map((m) => m.machine);
+
+      let parseErrors: RuntimeTraceParseError[] = [];
+      let reconcile: RuntimeTraceReconcileResult | null = null;
+      let writtenState: { stateId: string; path: string; addedProposalIds: string[] } | null = null;
+      let slicePacket: DriftSlicePacket | null = null;
+
+      if (options.trace !== undefined) {
+        const rawTrace = readInputText(ctx.cwd, options.trace);
+        const parsed = parseRuntimeTraceJsonl(rawTrace);
+        parseErrors = parsed.errors;
+        reconcile = reconcileRuntimeTrace(machines, parsed.events);
+
+        if (options.writeState === true && reconcile.shadowTransitions.length > 0) {
+          const stateIo = makeNodeStudioStateIo(rctx.root);
+          const now = stateIo.now().toISOString();
+          const existingStates = listStudioStates(stateIo);
+          let doc: StudioStateDoc = existingStates[0]
+            ? readStudioState(stateIo, existingStates[0].id)
+            : createStudioStateDoc({
+                id: 'workspace-draft',
+                title: 'Workspace Studio Drift Draft',
+                createdAt: now,
+                drafts: extracted.map((e) => e.draft),
+              });
+
+          // Ensure every shadowed machine exists in doc.machines so proposeRevision can attach cleanly
+          const missingMachines: Record<string, MachineDraft> = {};
+          for (const sh of reconcile.shadowTransitions) {
+            if (!doc.machines[sh.machineKey]) {
+              const found = extracted.find((e) => e.machine.machineKey === sh.machineKey);
+              if (found) missingMachines[sh.machineKey] = cloneMachineDraft(found.draft);
+            }
+          }
+          if (Object.keys(missingMachines).length > 0) {
+            doc = { ...doc, machines: { ...doc.machines, ...missingMachines } };
+          }
+
+          const applied = applyDriftProposalsToStateDoc(doc, reconcile.shadowTransitions, now);
+          const nextDoc: StudioStateDoc = {
+            ...applied.doc,
+            revision: (applied.doc.revision ?? 0) + 1,
+            updatedAt: now,
+          };
+          const relPath = writeStudioState(stateIo, nextDoc);
+          writtenState = {
+            stateId: nextDoc.id,
+            path: relPath,
+            addedProposalIds: applied.addedProposalIds,
+          };
+        }
+      }
+
+      if (options.since !== undefined) {
+        let diffText: string;
+        try {
+          diffText = rctx.git.run(['diff', '-U3', options.since]);
+        } catch (error) {
+          throw new CliError(
+            `git diff against '${options.since}' failed: ${error instanceof Error ? error.message : String(error)}`,
+            1,
+          );
+        }
+        const parsedDiffs = parseUnifiedDiffHunks(diffText);
+        const diffFiles = parsedDiffs.map((pf) => ({
+          file: pf.file,
+          content: rctx.io.exists(pf.file) ? rctx.io.readText(pf.file) : '',
+          hunks: pf.hunks,
+        }));
+        slicePacket = buildDriftSlicePacket({
+          sinceRef: options.since,
+          diffFiles,
+          specEntries: entries,
+        });
+      }
+
+      const payload = {
+        mode:
+          options.trace !== undefined && options.since !== undefined
+            ? 'trace+since'
+            : options.trace !== undefined
+              ? 'trace'
+              : 'since',
+        parseErrors,
+        reconcile,
+        writtenState,
+        slicePacket,
+      };
+
+      emitStudioOutput(payload, options, () => {
+        const lines: string[] = ['# Studio Drift Report (0-Token Offline)'];
+        if (parseErrors.length > 0) {
+          lines.push('', `## Trace Parse Errors (${String(parseErrors.length)})`);
+          for (const err of parseErrors) {
+            lines.push(`- L${String(err.line)}: ${err.message}`);
+          }
+        }
+        if (reconcile) {
+          lines.push(
+            '',
+            `## Runtime Trace Reconciliation (${String(reconcile.totalEvents)} events, ${String(reconcile.matchedEvents)} matched)`,
+            `- Shadow transitions: ${String(reconcile.shadowTransitions.length)}`,
+            `- Uncovered spec transitions: ${String(reconcile.uncoveredTransitions.length)}`,
+            `- Unknown machines: ${String(reconcile.unknownMachines.length)}`,
+          );
+          for (const sh of reconcile.shadowTransitions) {
+            const g = sh.guard ? ` [${sh.guard}]` : '';
+            lines.push(
+              `  [SHADOW] ${sh.machineKey}: ${sh.from} --[${sh.event}${g}]--> ${sh.to} (x${String(sh.count)}, L${sh.sampleLines.join(',L')})`,
+            );
+          }
+          for (const un of reconcile.unknownMachines) {
+            lines.push(
+              `  [UNKNOWN] ${un.machine} (${un.reason}, x${String(un.count)}, L${un.sampleLines.join(',L')})`,
+            );
+          }
+        }
+        if (writtenState) {
+          lines.push(
+            '',
+            `Wrote drift-trace proposal(s) [${writtenState.addedProposalIds.join(', ') || 'unchanged'}] to ${writtenState.path} (state: ${writtenState.stateId}; llmanspec/specs/ untouched).`,
+          );
+        }
+        if (slicePacket) {
+          lines.push(
+            '',
+            `## Minimal Anchor Slice (--since ${slicePacket.sinceRef ?? ''})`,
+            `- Changed files: ${String(slicePacket.changedFileCount)} (anchored: ${String(slicePacket.matchedFiles.length)}, unanchored: ${String(slicePacket.unanchoredFiles.length)})`,
+            `- Impacted specs: ${String(slicePacket.impactedSpecs.length)}`,
+          );
+          for (const sp of slicePacket.impactedSpecs) {
+            lines.push(
+              `  - [${sp.kind}] ${sp.capability}${sp.reqId ? ` (@req:${sp.reqId})` : ''}: ${sp.title} (${sp.sourceFile})`,
+            );
+          }
+        }
+        return lines.join('\n');
+      });
+
+      if (parseErrors.length > 0) {
+        exitWith(1);
+      }
+      if (
+        options.failOnShadow === true &&
+        options.trace !== undefined &&
+        (reconcile?.shadowTransitions.length ?? 0) > 0
+      ) {
+        exitWith(1);
+      }
+    },
+  );
 
   // --- studio open / serve / stop ---
   const openInBrowser = (targetUrl: string): void => {

@@ -2,8 +2,10 @@
 import {
   STUDIO_STATES_REL,
   acceptRevisionProposal,
+  applyDriftProposalsToStateDoc,
   buildDemoReimbursementDraft,
   buildDemoStudioDrafts,
+  buildDriftSlicePacket,
   buildProposalDraft,
   cloneMachineIR,
   computeMachineDiff,
@@ -13,10 +15,13 @@ import {
   formatSemanticDiff,
   hasBlockingDiagnostics,
   parseCapability,
+  parseRuntimeTraceJsonl,
+  parseUnifiedDiffHunks,
   previewFeatureUnifiedDiff,
   previewRevisionProposal,
   proposeRevision,
   readStudioState,
+  reconcileRuntimeTrace,
   recordTimelineCommit,
   renderUpdatedFeatureSource,
   rollbackTimeline,
@@ -456,3 +461,127 @@ bdd.thenStep(
     }
   },
 );
+
+// --- r149 ---
+bdd.given(
+  '一份状态机规范、含未登记后门转移与损坏行的 JSONL Trace 及带 @llmanspec: 注释的多语言代码改动',
+  (ctx) => {
+    const specSrc = `# language: zh-CN
+# purpose: 订单审批状态流转规范
+
+功能: order
+
+  @req:r12
+  规则: 订单审批流转
+    订单从待审批流转至已通过或已驳回。
+
+    @transitions
+    场景大纲: 审批主流程
+      假如 当前状态为 <from>
+      当 触发 <event>
+      那么 进入 <to>
+
+      例子:
+        | from   | event | to     |
+        | 待审批 | 批准  | 已通过 |
+        | 待审批 | 驳回  | 已驳回 |
+`;
+    const entry: SpecEntry = {
+      fileName: 'llmanspec/specs/order.feature',
+      specId: 'order',
+      doc: parseCapability(specSrc, 'llmanspec/specs/order.feature'),
+    };
+    const traceText = [
+      '{"machine":"order","from":"待审批","event":"批准","to":"已通过"}',
+      '{bad-json',
+      '{"machine":"order","from":"待审批","event":"超额转审","to":"财务复核"}',
+    ].join('\n');
+    const diffText = [
+      'diff --git a/src/order.py b/src/order.py',
+      '--- a/src/order.py',
+      '+++ b/src/order.py',
+      '@@ -1,3 +1,4 @@',
+      ' # @llmanspec:r12',
+      ' def approve(amount):',
+      '+    if amount > 5000: return "财务复核"',
+      '     return "已通过"',
+    ].join('\n');
+    ctx.fixtures['r149Input'] = {
+      entries: [entry],
+      traceText,
+      diffText,
+      pyContent:
+        '# @llmanspec:r12\ndef approve(amount):\n    if amount > 5000: return "财务复核"\n    return "已通过"\n',
+    };
+  },
+);
+
+bdd.when('调用纯域解析对账、生成反向建议层与构建最小切片裁决包', (ctx) => {
+  const { entries, traceText, diffText, pyContent } = ctx.fixtures['r149Input'] as {
+    entries: SpecEntry[];
+    traceText: string;
+    diffText: string;
+    pyContent: string;
+  };
+  const extracted = extractStudioMachines(entries);
+  const parsed = parseRuntimeTraceJsonl(traceText);
+  const rec = reconcileRuntimeTrace(
+    extracted.map((e) => e.machine),
+    parsed.events,
+  );
+  const baseDoc = createStudioStateDoc({
+    id: 'bdd-drift',
+    title: 'BDD Drift',
+    createdAt: '2026-11-27T00:00:00Z',
+    drafts: extracted.map((e) => e.draft),
+  });
+  const applied = applyDriftProposalsToStateDoc(
+    baseDoc,
+    rec.shadowTransitions,
+    '2026-11-27T00:01:00Z',
+  );
+  const hunks = parseUnifiedDiffHunks(diffText);
+  const slice = buildDriftSlicePacket({
+    sinceRef: 'HEAD~1',
+    specEntries: entries,
+    diffFiles: [{ file: 'src/order.py', content: pyContent, hunks: hunks[0]!.hunks }],
+  });
+  ctx.fixtures['r149Result'] = { parsed, rec, applied, slice };
+});
+
+bdd.thenStep(
+  '损坏行精确报出行号、后门转移与未覆盖边准确检出且反向建议带 drift-trace 标记',
+  (ctx) => {
+    const { parsed, rec, applied } = ctx.fixtures['r149Result'] as {
+      parsed: ReturnType<typeof parseRuntimeTraceJsonl>;
+      rec: ReturnType<typeof reconcileRuntimeTrace>;
+      applied: ReturnType<typeof applyDriftProposalsToStateDoc>;
+    };
+    if (parsed.errors.length !== 1 || parsed.errors[0]?.line !== 2) {
+      throw new Error(`expected parse error at line 2, got ${JSON.stringify(parsed.errors)}`);
+    }
+    if (rec.shadowTransitions.length !== 1 || rec.uncoveredTransitions.length !== 1) {
+      throw new Error(`unexpected reconcile counts: ${JSON.stringify(rec)}`);
+    }
+    if (
+      applied.addedProposalIds.length !== 1 ||
+      applied.doc.revisions[0]?.source !== 'drift-trace' ||
+      applied.doc.revisions[0]?.status !== 'pending'
+    ) {
+      throw new Error(`unexpected drift proposal: ${JSON.stringify(applied.doc.revisions)}`);
+    }
+  },
+);
+
+bdd.thenStep('最小切片仅包含命中 @llmanspec: 锚点的 hunk 与对应规则原文', (ctx) => {
+  const { slice } = ctx.fixtures['r149Result'] as {
+    slice: ReturnType<typeof buildDriftSlicePacket>;
+  };
+  if (
+    slice.matchedFiles.length !== 1 ||
+    slice.impactedSpecs.length !== 1 ||
+    slice.impactedSpecs[0]?.reqId !== 'r12'
+  ) {
+    throw new Error(`unexpected drift slice packet: ${JSON.stringify(slice)}`);
+  }
+});

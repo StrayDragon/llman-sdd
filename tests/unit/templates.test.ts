@@ -76,9 +76,10 @@ describe('buildTemplateVars', () => {
 describe('skills', () => {
   test('candidates are every built-in skill', () => {
     const base = loadConfig(`schema: spec-driven\n`);
-    expect(skillCandidates(base)).toHaveLength(16);
+    expect(skillCandidates(base)).toHaveLength(17);
     expect(skillCandidates(base)).toContain('llman-sdd-continue.md');
     expect(skillCandidates(base)).toContain('llman-sdd-research.md');
+    expect(skillCandidates(base)).toContain('llman-sdd-studio-drift.md');
   });
 
   test('ethics gate rejects products missing governance keys', () => {

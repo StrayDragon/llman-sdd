@@ -3,8 +3,9 @@
  * Supports non-destructive parentId/actor branch tree, Git Worktree peer switching,
  * and 1:1 live interactive canvas overlay diff. Production-pure monochrome SVG UI.
  */
-import { Clock, GitBranch, Sparkles, X } from 'lucide-react';
+import { Check, Clock, GitBranch, Sparkles, X } from 'lucide-react';
 
+import { buildTruthWinsPrompt, getPendingDriftProposals } from '../drift/reconcileOverlay.ts';
 import { useStudioStore } from '../store/studioStore.ts';
 
 export function WorldlineDrawer() {
@@ -16,12 +17,15 @@ export function WorldlineDrawer() {
     peerWorktrees,
     stateDoc,
     setWorldlineOpen,
+    setLinterOpen,
     switchWorldlineTo,
     toggleWorldlineCompare,
     switchWorkspace,
+    decideRevision,
     openPromptWorkbench,
     buildNegotiationPrompt,
     getActiveMachineKey,
+    getDiagnosticsForMachine,
   } = useStudioStore();
 
   if (!worldlineOpen || !stateDoc || !activeWorkspace) return null;
@@ -30,6 +34,7 @@ export function WorldlineDrawer() {
   const timeline = machineKey ? stateDoc.timelines[machineKey] : undefined;
   const entries = timeline?.entries ?? [];
   const headIdx = timeline?.headIdx ?? 0;
+  const pendingDrift = getPendingDriftProposals(stateDoc.revisions, machineKey);
 
   // Compute branch lane indentation cleanly from parentId
   const laneOf = new Map<string, number>([['BASE', 0]]);
@@ -107,6 +112,83 @@ export function WorldlineDrawer() {
 
       {/* Branching Snapshot Tree */}
       <div className="flex-1 min-h-0 overflow-y-auto p-2.5 flex flex-col gap-1.5">
+        {pendingDrift.length > 0 && (
+          <div className="flex flex-col gap-2 mb-1">
+            {pendingDrift.map((rev) => {
+              const draft = stateDoc.machines[rev.machineKey];
+              return (
+                <div
+                  key={rev.id}
+                  className="rounded-lg border border-dashed p-2.5 text-xs flex flex-col gap-2"
+                  style={{
+                    borderColor: 'var(--green)',
+                    background: 'var(--green-soft)',
+                  }}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span
+                      className="font-mono text-[10px] font-semibold"
+                      style={{ color: 'var(--green)' }}
+                    >
+                      {rev.id} · Agent · 逻辑漂移校准
+                    </span>
+                    <span className="font-mono text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                      {rev.ops.length} 项观测
+                    </span>
+                  </div>
+                  <div className="text-[11.5px] leading-relaxed">{rev.rationale}</div>
+                  <div className="flex items-center justify-end gap-1.5 pt-0.5 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => void decideRevision(rev.id, 'reject')}
+                      className="rounded border px-2 py-0.5 text-[10px] cursor-pointer hover:bg-black/5"
+                      style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+                    >
+                      忽略
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        openPromptWorkbench(
+                          '逻辑漂移校准 · 真理胜出',
+                          '附 Trace 观测证据与精确对象锚点，确认后复制给编码 Agent 清理违规实现代码',
+                          buildTruthWinsPrompt({
+                            repo: activeWorkspace.repo,
+                            branch: activeWorkspace.branch,
+                            wsKey: activeWorkspace.wsKey,
+                            stateId: stateDoc.id,
+                            machineKey: rev.machineKey,
+                            sourceFile: draft?.sourceFile ?? '',
+                            proposals: [rev],
+                          }),
+                        )
+                      }
+                      className="rounded border px-2 py-0.5 text-[10px] font-medium cursor-pointer hover:bg-black/5"
+                      style={{ borderColor: 'var(--ink)', background: 'var(--surface)' }}
+                    >
+                      真理胜出
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void decideRevision(rev.id, 'accept').then(() => {
+                          if (getDiagnosticsForMachine(rev.machineKey).length > 0) {
+                            setLinterOpen(true);
+                          }
+                        });
+                      }}
+                      className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-medium cursor-pointer"
+                      style={{ background: 'var(--green)', color: '#ffffff' }}
+                    >
+                      <Check size={10} />
+                      <span>追认新意图</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
         {entries.length === 0 ? (
           <div className="text-xs p-3 text-center" style={{ color: 'var(--text-muted)' }}>
             打开任意状态机后即可查看和对比分支历史。

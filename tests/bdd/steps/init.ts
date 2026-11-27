@@ -144,6 +144,28 @@ bdd.thenStep(
   },
 );
 
+bdd.thenStep(
+  'studio-drift 技能包含四类直改代码分流法则与 studio drift 命令指引且通过 ethics 门禁',
+  (ctx) => {
+    const root = (ctx.fixtures['init'] as { root: string }).root;
+    const content = readFileSync(
+      join(root, '.agents', 'skills', 'llman-sdd-studio-drift', 'SKILL.md'),
+      'utf8',
+    );
+    for (const marker of [
+      'llman-sdd studio drift',
+      '四类直改代码分流法则',
+      '--write-state',
+      '--fail-on-shadow',
+      ...ETHICS_KEYS,
+    ]) {
+      if (!content.includes(marker)) {
+        throw new Error(`llman-sdd-studio-drift/SKILL.md missing required marker: ${marker}`);
+      }
+    }
+  },
+);
+
 // ---------------------------------------------------------------------------
 // r80 — repo's own committed skills stay fresh against the golden baseline
 // ---------------------------------------------------------------------------

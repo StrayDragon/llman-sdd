@@ -3,6 +3,9 @@ depends_on:
   - add-studio-domain-core
   - add-studio-web-workbench
 title: "[MVP] 建立跨语言 Runtime Trace 漂移对账与反向建议 Diff 闭环"
+branch: sdd/add-studio-drift-trace
+base_branch: main
+base_sha: 5ad15a9174abcf948e9aa1575d3f3fbf1755fba9
 ---
 
 # 建立跨语言 Runtime Trace 漂移对账与反向建议 Diff 闭环

@@ -552,32 +552,42 @@ export function createStudioHubApp(options: StudioHubOptions): CreatedStudioHubA
     }
   };
 
-  // Watch specs/, changes/, and resolved .git dir (supports linked worktrees; excludes states/ to prevent self-echo).
+  // Watch specs/, changes/, resolved .git dir, and external .llman-sdd/studio/states/ writes (with self-echo guard).
   const watchers: FSWatcher[] = [];
   const watchedWsKeys = new Set<string>();
   const watchTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  let lastSelfStateWriteAt = 0;
   const attachWatchers = (ws: WorkspaceItem): void => {
     if (watchedWsKeys.has(ws.wsKey)) return;
     watchedWsKeys.add(ws.wsKey);
     const gitDir = resolveGitDir(ws.worktreePath);
-    const watchTargets: Array<{ dir: string; isGit: boolean }> = [
-      { dir: join(ws.instanceRoot, 'llmanspec', 'specs'), isGit: false },
-      { dir: join(ws.instanceRoot, 'llmanspec', 'changes'), isGit: false },
-      ...(gitDir ? [{ dir: gitDir, isGit: true }] : []),
+    const watchTargets: Array<{ dir: string; kind: 'specs' | 'git' | 'states' }> = [
+      { dir: join(ws.instanceRoot, 'llmanspec', 'specs'), kind: 'specs' },
+      { dir: join(ws.instanceRoot, 'llmanspec', 'changes'), kind: 'specs' },
+      { dir: join(ws.instanceRoot, '.llman-sdd', 'studio', 'states'), kind: 'states' },
+      ...(gitDir ? [{ dir: gitDir, kind: 'git' as const }] : []),
     ];
-    for (const { dir: target, isGit } of watchTargets) {
+    for (const { dir: target, kind } of watchTargets) {
       if (!existsSync(target)) continue;
-      const timerKey = `${ws.wsKey}:${isGit ? 'git' : target}`;
+      const timerKey = `${ws.wsKey}:${kind}:${target}`;
       try {
         const w = watch(target, { persistent: false }, (_evType, fileName) => {
-          if (isGit && (!fileName || !String(fileName).includes('HEAD'))) return;
+          if (kind === 'git' && (!fileName || !String(fileName).includes('HEAD'))) return;
+          if (kind === 'states') {
+            if (Date.now() - lastSelfStateWriteAt < 600) return;
+            if (
+              fileName &&
+              (!String(fileName).endsWith('.json') || String(fileName).startsWith('.'))
+            )
+              return;
+          }
           const prev = watchTimers.get(timerKey);
           if (prev) clearTimeout(prev);
           watchTimers.set(
             timerKey,
             setTimeout(() => {
               watchTimers.delete(timerKey);
-              if (isGit) {
+              if (kind === 'git') {
                 const refreshed = discoverWorkspaceRecord(ws.instanceRoot, demoDefault);
                 workspaces.set(ws.wsKey, {
                   ...refreshed,
@@ -588,6 +598,17 @@ export function createStudioHubApp(options: StudioHubOptions): CreatedStudioHubA
                   wsKey: ws.wsKey,
                   branch: refreshed.item.branch,
                   protected: refreshed.item.protected,
+                });
+              } else if (kind === 'states') {
+                const stateId = fileName
+                  ? String(fileName).replace(/\.json$/u, '')
+                  : 'workspace-draft';
+                broadcastEvent({
+                  type: 'state-updated',
+                  wsKey: ws.wsKey,
+                  stateId,
+                  revision: 0,
+                  originClientId: null,
                 });
               } else {
                 broadcastEvent({
@@ -835,6 +856,7 @@ export function createStudioHubApp(options: StudioHubOptions): CreatedStudioHubA
       revision: nextRevision,
       updatedAt: now,
     };
+    lastSelfStateWriteAt = Date.now();
     writeStudioState(stateIo, nextDoc);
     broadcastEvent({
       type: 'state-updated',
@@ -948,6 +970,7 @@ export function createStudioHubApp(options: StudioHubOptions): CreatedStudioHubA
           : rejectRevisionProposal(doc, c.req.param('revId'), now);
       const nextRevision = (doc.revision ?? 0) + 1;
       const nextDoc: StudioStateDoc = { ...updated, revision: nextRevision };
+      lastSelfStateWriteAt = Date.now();
       writeStudioState(stateIo, nextDoc);
       broadcastEvent({
         type: 'state-updated',

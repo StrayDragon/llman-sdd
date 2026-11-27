@@ -5,7 +5,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
+  acceptRevisionProposal,
   addStudioComment,
+  applyDriftProposalsToStateDoc,
   bootstrapResponseSchema,
   buildDemoStudioWebDrafts,
   cloneMachineIR,
@@ -23,6 +25,7 @@ import {
   specDetailResponseSchema,
   switchWorldlineHead,
   textfoldResponseSchema,
+  type StudioStateDoc,
 } from '@llman-sdd/core';
 
 import {
@@ -34,6 +37,11 @@ import {
   parseEmbeddedStudioAssets,
   resetEmbeddedStudioAssetsCache,
 } from '../../../apps/cli/src/studio-server/static.ts';
+import {
+  buildTruthWinsPrompt,
+  computeDriftCalibrationOverlay,
+  getPendingDriftProposals,
+} from '../../../apps/studio/src/drift/reconcileOverlay.ts';
 import {
   countPolyObstacleHits,
   rectsOverlap,
@@ -432,4 +440,76 @@ bdd.thenStep('守卫为假时转移被拦截且守卫为真时正确流转并记
   expect(r.blocked).toBe(false);
   expect(r.allowed).toBe(true);
   expect(r.traceLen).toBe(4);
+});
+
+// --- r151 ---
+bdd.given('一份包含 drift-trace 待审建议的 Studio 会话文档', (ctx) => {
+  const [l1] = buildDemoStudioWebDrafts();
+  const machineKey = l1!.current!.machineKey;
+  const baseDoc = createStudioStateDoc({
+    id: 'bdd-drift-web',
+    title: 'BDD Drift Web',
+    createdAt: '2026-11-27T00:00:00Z',
+    drafts: [l1!],
+  });
+  const { doc } = applyDriftProposalsToStateDoc(
+    baseDoc,
+    [
+      {
+        machineKey,
+        from: '画布直编与草稿态',
+        event: '热修直写',
+        to: '旁路状态',
+        count: 2,
+        sampleLines: [5, 9],
+      },
+    ],
+    '2026-11-27T00:01:00Z',
+  );
+  ctx.fixtures['r151State'] = { doc, machineKey };
+});
+
+bdd.when('分别生成逻辑漂移画布叠加、真理胜出修正 Prompt 与执行追认新意图采纳', (ctx) => {
+  const { doc, machineKey } = ctx.fixtures['r151State'] as {
+    doc: StudioStateDoc;
+    machineKey: string;
+  };
+  const pending = getPendingDriftProposals(doc.revisions, machineKey);
+  const overlay = computeDriftCalibrationOverlay(doc.machines[machineKey]!.current!, pending);
+  const prompt = buildTruthWinsPrompt({
+    repo: 'llman-sdd',
+    branch: 'main',
+    wsKey: 'llman-sdd@main@root',
+    stateId: doc.id,
+    machineKey,
+    sourceFile: doc.machines[machineKey]!.sourceFile,
+    proposals: pending,
+  });
+  const accepted = acceptRevisionProposal(doc, pending[0]!.id, '2026-11-27T00:02:00Z');
+  ctx.fixtures['r151Res'] = { overlay, prompt, accepted, machineKey };
+});
+
+bdd.thenStep('漂移叠加包含新增状态与虚线绿边、真理胜出 Prompt 含 Trace 证据与锚点', (ctx) => {
+  const r = ctx.fixtures['r151Res'] as {
+    overlay: ReturnType<typeof computeDriftCalibrationOverlay>;
+    prompt: string;
+    machineKey: string;
+  };
+  expect(r.overlay).not.toBeNull();
+  expect(r.overlay!.addedStates.map((s) => s.name)).toEqual(['旁路状态']);
+  expect(r.overlay!.addedEdges.length).toBe(1);
+  expect(r.prompt).toContain(`machine:${r.machineKey}`);
+  expect(r.prompt).toContain('热修直写');
+});
+
+bdd.thenStep('追认新意图原子写入草稿与 agent 世界线节点且标记建议已采纳', (ctx) => {
+  const r = ctx.fixtures['r151Res'] as {
+    accepted: StudioStateDoc;
+    machineKey: string;
+  };
+  expect(r.accepted.revisions[0]!.status).toBe('accepted');
+  expect(r.accepted.timelines[r.machineKey]!.entries.at(-1)?.actor).toBe('agent');
+  expect(
+    r.accepted.machines[r.machineKey]!.current!.states.some((s) => s.name === '旁路状态'),
+  ).toBe(true);
 });

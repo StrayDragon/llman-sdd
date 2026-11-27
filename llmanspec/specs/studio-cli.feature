@@ -55,3 +55,15 @@
       那么 默认分支直接 apply 被拒写退出码 1 且 .feature 零修改
       而且 默认分支 --dry-run 返回 Unified Diff 退出码 0 且 .feature 零修改
       而且 特性分支 apply 在行号偏移 20 行后精准替换例子表、为新建草稿分配真实 reqId 且通过 llman-sdd validate
+
+  @req:r150
+  规则: studio drift 离线对账、切片包与非破坏反向建议写入
+    `llman-sdd studio drift` MUST 挂载于 `studio` 父分组下，支持 `--trace <path>`、`--since <git-ref>`、`--write-state`、`--fail-on-shadow`、`--json`、`--compact-json` 与 `--directory <path>`，全流程保持 100% 离线确定性且零内置外部大模型调用。
+    传入 `--write-state` 时 MUST 仅将检出的 `shadowTransitions` 以 `source: 'drift-trace'` 的 `pending` 修订建议原子写入 `<instanceRoot>/.llman-sdd/studio/states/<id>.json`，绝不得静默改写 `llmanspec/specs/` 任何字节。
+    传入 `--fail-on-shadow` 时 MUST 仅在 `--trace` 检出非空 `shadowTransitions` 时返回退出码 1；纯 `--since` 最小切片生成模式（未传 `--trace`）退出码 MUST 恒为 0。
+
+    场景: studio drift 检出后门转移、原子写建议层且零改写 specs
+      假如 一个含状态机规格、@llmanspec: 代码改动提交与 JSONL Trace 文件的临时 git 仓库
+      当 依次运行 studio drift --since --fail-on-shadow 与 studio drift --trace --write-state --fail-on-shadow --json
+      那么 纯 --since 切片模式退出码为 0 并输出命中锚点的最小切片包
+      而且 --trace --write-state --fail-on-shadow 退出码为 1、向本地草稿写入 drift-trace 建议且 specs 目录零修改

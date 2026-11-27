@@ -31,6 +31,11 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 
+import {
+  buildTruthWinsPrompt,
+  countShadowEdgesInProposals,
+  getPendingDriftProposals,
+} from '../drift/reconcileOverlay.ts';
 import { useStudioStore } from '../store/studioStore.ts';
 
 const TIPS = [
@@ -78,6 +83,9 @@ export function TopChrome() {
     setCmdkOpen,
     setShowTips,
     stepTip,
+    decideRevision,
+    openPromptWorkbench,
+    openMachineTab,
     getActiveMachineKey,
     getDiagnosticsForMachine,
   } = useStudioStore();
@@ -116,7 +124,15 @@ export function TopChrome() {
     };
   })();
 
-  // Single-Slot Top-Center HUD Exclusivity (Axiom 2): CompareBanner > SimulateBanner > Tips Capsule
+  const pendingDriftProposals = stateDoc
+    ? getPendingDriftProposals(stateDoc.revisions, activeMachineKey)
+    : [];
+  const allPendingDriftProposals = stateDoc ? getPendingDriftProposals(stateDoc.revisions) : [];
+  const hudDriftProposals =
+    pendingDriftProposals.length > 0 ? pendingDriftProposals : allPendingDriftProposals;
+  const driftShadowCount = countShadowEdgesInProposals(hudDriftProposals);
+
+  // Single-Slot Top-Center HUD Exclusivity (Axiom 2): CompareBanner > DriftCalibrationBanner > SimulateBanner > Tips Capsule
   const renderTopCenterHud = () => {
     if (worldlineComparing && worldlineCompareAId) {
       return (
@@ -145,6 +161,86 @@ export function TopChrome() {
             className="rounded-full px-2.5 py-0.5 text-[11px] border border-white/25 bg-white/10 hover:bg-white/20 cursor-pointer"
           >
             退出对比
+          </button>
+        </div>
+      );
+    }
+    if (hudDriftProposals.length > 0 && stateDoc && activeWorkspace) {
+      const firstDrift = hudDriftProposals[0]!;
+      const targetDraft = stateDoc.machines[firstDrift.machineKey];
+      const targetMachineKey = firstDrift.machineKey;
+      return (
+        <div
+          role="status"
+          aria-label="逻辑漂移校准提示"
+          className="fixed top-[54px] z-35 studio-island inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs shadow-sm"
+          style={{
+            left: worldlineOpen ? 'calc((100vw - 356px) / 2)' : '50%',
+            transform: 'translateX(-50%)',
+            borderColor: 'var(--green-border)',
+            background: 'var(--green-soft)',
+            color: 'var(--ink)',
+          }}
+        >
+          <span
+            className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+            style={{ background: 'var(--green)', color: '#ffffff' }}
+          >
+            逻辑漂移校准
+          </span>
+          <span>
+            代码运行中观测到 <strong>{driftShadowCount || hudDriftProposals.length}</strong>{' '}
+            条未登记状态转移，请团队裁决
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              openPromptWorkbench(
+                '逻辑漂移校准 · 真理胜出',
+                '附 Trace 观测证据与精确规格锚点，确认后复制给编码 Agent 清理违规实现代码',
+                buildTruthWinsPrompt({
+                  repo: activeWorkspace.repo,
+                  branch: activeWorkspace.branch,
+                  wsKey: activeWorkspace.wsKey,
+                  stateId: stateDoc.id,
+                  machineKey: targetMachineKey,
+                  sourceFile: targetDraft?.sourceFile ?? '',
+                  proposals: hudDriftProposals.filter((p) => p.machineKey === targetMachineKey),
+                }),
+              );
+            }}
+            className="rounded-full border px-2 py-0.5 text-[11px] font-medium cursor-pointer hover:bg-black/5"
+            style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+          >
+            真理胜出
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (activeMachineKey !== targetMachineKey) {
+                openMachineTab(
+                  targetMachineKey,
+                  targetDraft?.current?.capability ?? targetMachineKey,
+                );
+              }
+              void decideRevision(firstDrift.id, 'accept').then(() => {
+                if (getDiagnosticsForMachine(targetMachineKey).length > 0) {
+                  setLinterOpen(true);
+                }
+              });
+            }}
+            className="rounded-full px-2 py-0.5 text-[11px] font-medium cursor-pointer"
+            style={{ background: 'var(--green)', color: '#ffffff' }}
+          >
+            追认新意图
+          </button>
+          <button
+            type="button"
+            onClick={() => setWorldlineOpen(true)}
+            className="rounded-full px-1.5 py-0.5 text-[11px] underline cursor-pointer"
+            style={{ color: 'var(--text-secondary)' }}
+          >
+            世界线
           </button>
         </div>
       );

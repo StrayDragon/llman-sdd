@@ -237,3 +237,12 @@
       假如 本仓库的等价 config(zh-Hans 与 bdd 配置)
       当 渲染全部 skills
       那么 explore 与 propose 技能均含 Studio CLI 协商指引且符合模板强度词与命令面门禁
+
+  @req:r152
+  规则: llman-sdd-studio-drift 技能模板与基线同步
+    内置 zh-Hans 模板 MUST 新增 `llman-sdd-studio-drift` 技能（经 `init` / `init --update` 渲染到 `.agents/skills/llman-sdd-studio-drift/SKILL.md`），引导编码 Agent 按 4 类直改代码分流法则（纯内部重构放行、合规细化提建议、破坏既有真理修代码、业务意图变化经 `--write-state` 推反向建议）消费 `llman-sdd studio drift` 最小切片包；MUST 通过 ethics 治理门、模板强度词门禁（r97）、check:stc 文风门与 golden 基线一致性比对。
+
+    场景: studio-drift 技能模板渲染含四类分流法则且通过门禁
+      假如 本仓库的等价 config(zh-Hans 与 bdd 配置)
+      当 渲染全部 skills
+      那么 studio-drift 技能包含四类直改代码分流法则与 studio drift 命令指引且通过 ethics 门禁

@@ -461,3 +461,87 @@ bdd.thenStep(
     }
   },
 );
+
+// --- r150 ---
+bdd.given('一个含状态机规格、@llmanspec: 代码改动提交与 JSONL Trace 文件的临时 git 仓库', (ctx) => {
+  const root = makeTempStudioRepo();
+  mkdirSync(join(root, 'src'), { recursive: true });
+  writeFileSync(
+    join(root, 'src', 'expense.ts'),
+    '// @llmanspec:r10\nexport function approve(n: number) {\n  return n <= 5000;\n}\n',
+  );
+  spawnSync('git', ['add', '-A'], { cwd: root });
+  spawnSync('git', ['commit', '-qm', 'add anchored source'], { cwd: root });
+  writeFileSync(
+    join(root, 'src', 'expense.ts'),
+    '// @llmanspec:r10\nexport function approve(n: number) {\n  if (n > 5000) return "财务复核";\n  return n <= 5000;\n}\n',
+  );
+  const tracePath = join(root, 'runtime-trace.jsonl');
+  writeFileSync(
+    tracePath,
+    [
+      '{"machine":"expense","from":"草稿","event":"提交","to":"待审批"}',
+      '{"machine":"expense","from":"待审批","event":"超额转审","to":"财务复核"}',
+    ].join('\n'),
+  );
+  ctx.fixtures['r150State'] = {
+    root,
+    tracePath,
+    specBefore: readFileSync(join(root, 'llmanspec', 'specs', 'expense.feature'), 'utf8'),
+  };
+});
+
+bdd.when(
+  '依次运行 studio drift --since --fail-on-shadow 与 studio drift --trace --write-state --fail-on-shadow --json',
+  (ctx) => {
+    const { root, tracePath } = ctx.fixtures['r150State'] as {
+      root: string;
+      tracePath: string;
+    };
+    const sinceRes = runCliIn(
+      ['studio', 'drift', '--since', 'HEAD', '--fail-on-shadow', '--json'],
+      root,
+    );
+    const traceRes = runCliIn(
+      ['studio', 'drift', '--trace', tracePath, '--write-state', '--fail-on-shadow', '--json'],
+      root,
+    );
+    const specAfter = readFileSync(join(root, 'llmanspec', 'specs', 'expense.feature'), 'utf8');
+    const savedDoc = readStudioState(makeNodeStudioStateIo(root), 'workspace-draft');
+    ctx.fixtures['r150Out'] = { sinceRes, traceRes, specAfter, savedDoc };
+  },
+);
+
+bdd.thenStep('纯 --since 切片模式退出码为 0 并输出命中锚点的最小切片包', (ctx) => {
+  const { sinceRes } = ctx.fixtures['r150Out'] as { sinceRes: CliResult };
+  if (sinceRes.code !== 0) {
+    throw new Error(`expected --since exit 0, got ${sinceRes.code}: ${sinceRes.stderr}`);
+  }
+  const parsed = JSON.parse(sinceRes.stdout) as {
+    slicePacket: { impactedSpecs: Array<{ reqId: string }> };
+  };
+  if (parsed.slicePacket.impactedSpecs[0]?.reqId !== 'r10') {
+    throw new Error(`unexpected slicePacket: ${sinceRes.stdout}`);
+  }
+});
+
+bdd.thenStep(
+  '--trace --write-state --fail-on-shadow 退出码为 1、向本地草稿写入 drift-trace 建议且 specs 目录零修改',
+  (ctx) => {
+    const { specBefore } = ctx.fixtures['r150State'] as { specBefore: string };
+    const { traceRes, specAfter, savedDoc } = ctx.fixtures['r150Out'] as {
+      traceRes: CliResult;
+      specAfter: string;
+      savedDoc: StudioStateDoc;
+    };
+    if (traceRes.code !== 1) {
+      throw new Error(`expected --fail-on-shadow exit 1, got ${traceRes.code}`);
+    }
+    if (specAfter !== specBefore) {
+      throw new Error('studio drift --write-state modified llmanspec/specs/');
+    }
+    if (!savedDoc.revisions.some((r) => r.source === 'drift-trace' && r.status === 'pending')) {
+      throw new Error(`missing drift-trace proposal: ${JSON.stringify(savedDoc.revisions)}`);
+    }
+  },
+);
