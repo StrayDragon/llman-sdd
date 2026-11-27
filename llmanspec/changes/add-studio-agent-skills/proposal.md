@@ -19,16 +19,14 @@ Studio 将人类意图的审视、改图、评论与裁决收口到可视化工�
 ## What Changes
 
 - **`llman-sdd-studio-onboard`（新项目接入 & 陌生仓库反向提炼学习引导）**：
-  - 引导 Agent 在新项目或存量/他人开源代码中，快速反向梳理核心领域边界（DDD）与关键状态机/流程图/决策表，自动生成符合 `studio-core` 解析与方言 Linter（`E1–E4` / `F1–F4`）零告警基线的首批 `llmanspec/` 规格，方便人类通过 Studio 动态业务图和单步试跑 10 分钟吃透陌生项目；
-  - 指导如何结合 `llman-sdd studio open`（及 `--demo` 自举样例对照）完成首轮人机全景对齐。
-- **`llman-sdd-studio-collab`（Studio 人机异步协商与不可达回执协作规范）**：
-  - 规范 Agent 消费 Studio 可视化工作台导出 Prompt 与透明 HTTP GET 深链接的标准动作：精准解析 `[定位: <图> · 对象(uid)]` 与子树净 Diff、优先经 CLI（`studio comment reply`、`studio revise`、`studio report`）回写评论、虚线红绿修订建议与**意图不可达/冲突结构化回执**（零 MCP 配置门槛），严守“绝不未经人类确认静默覆盖 `llmanspec/specs/`”红线；
-  - 清晰衔接分支写保护三出口（切可写 Worktree / 开新分支走 Change / 仅导 `proposal.md`）。
-- **`llman-sdd-studio-review`（图规格体检与变更沉淀助手）**：
-  - 指导 Agent 协助人类解读状态机/流程图 Linter 诊断、跨森林交叉桥风险与未解决评论，将 Studio 确认的业务意图无损沉淀为高质量 `proposal.md` / delta spec。
-- **路由与模板集成**：
-  - 在 `packages/core/templates/` 落地上述精炼、低 Token 的 skill 模板，同步更新 `llman-sdd-wayfinder` 的场景分流指引；
-  - 通过 `llman-sdd init --update` 刷新 `.agents/skills/` 并对齐 `tests/golden/` 基线，确保任意新项目初始化后开箱即得完整 Studio 协作能力。
+  - 引导 Agent 在新项目或存量/他人开源代码中，快速反向梳理核心领域边界（DDD）与关键状态机/流程图/决策表，生成符合 `studio-core` 解析与方言 Linter（`E1–E4` / `F1–F4`）零告警基线的首批 `llmanspec/` 规格，方便人类通过 Studio 动态业务图和单步试跑 10 分钟吃透陌生项目；
+  - 指导结合 `llman-sdd studio open`（含 `--demo` 自举样例对照与多 Worktree 同 Hub 隔离提示）完成首轮人机全景对齐。
+- **`llman-sdd-studio-collab`（Studio 人机异步协商、不可达回执与图规格体检）**：
+  - 合并原 `collab` 与 `review` 职责（契合轻量技能演进路线，降低技能发现噪音与 Token 占用）：规范 Agent 消费 Studio 导出 Prompt 与透明 HTTP GET 深链接的标准动作，精准解析 `[定位: <图> · 对象(uid)]` 与子树净 Diff，解读 Linter 诊断、跨森林交叉桥与未解决评论；
+  - 优先经真实 CLI（`llman-sdd studio diff`、`llman-sdd studio validate`、`llman-sdd studio comment reply`、`llman-sdd studio revise`、`llman-sdd studio apply --dry-run`）回写评论、结构化不可达/冲突回执与虚线修订层（零 MCP 门槛），严守不经人类确认不得静默改写 `llmanspec/specs/` 红线与分支写保护三出口。
+- **模板集成与基线对齐**：
+  - 在 `packages/core/templates/zh-Hans/skills/` 落地上述 2 份精炼、0 STC 错误的 skill 模板并登记至 `OPTIONAL_SKILL_FILES` 与 `scripts/stc-baseline.json`；
+  - 通过 `llman-sdd init --update` 刷新 `.agents/skills/` 并运行 `generate:skills-template-baseline` 对齐 `tests/golden/` 基线，确保新项目开箱即得完整 Studio 协作能力。
 
 ## Capabilities
 
