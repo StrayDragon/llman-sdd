@@ -50,6 +50,8 @@ import {
   addSpecDirOption,
   CliError,
   exitWith,
+  formatNotFound,
+  loadRootSpecEntries,
   reRootContext,
   resolveRootSpecsDir,
   type CliContext,
@@ -64,7 +66,12 @@ import {
 import { startStudioHub } from '../studio-server/server.ts';
 import { collectDiskSyncPreview } from '../studio-server/syncDisk.ts';
 import { registerStudioMcp } from './studioMcp.ts';
-import { makeNodeStudioStateIo, resolveStateIdOrThrow } from './studioShared.ts';
+import {
+  EMPTY_DRAFT_NEXT,
+  makeNodeStudioStateIo,
+  readStudioStateOrThrow,
+  resolveStateIdOrThrow,
+} from './studioShared.ts';
 
 export { makeNodeStudioStateIo, resolveStateIdOrThrow };
 
@@ -339,7 +346,7 @@ interface MachineValidationSummary {
 export function registerStudio(program: Command, ctx: CliContext): void {
   const studio = program
     .command('studio')
-    .description('Studio state-machine draft negotiation and spec sync');
+    .description('Studio draft negotiation and spec sync for machine, flow, and decision specs');
 
   // --- studio state <list|prune> ---
   const stateGroup = studio.command('state').description('Manage local Studio draft state files');
@@ -382,7 +389,14 @@ export function registerStudio(program: Command, ctx: CliContext): void {
       const targetId = validateStateId(options.id!);
       const removed = deleteStudioState(io, targetId);
       if (!removed) {
-        throw new CliError(`studio state not found: ${targetId}`, 1);
+        throw new CliError(
+          formatNotFound(
+            'studio state',
+            targetId,
+            listStudioStates(io).map((s) => s.id),
+          ),
+          1,
+        );
       }
       console.log(`Pruned studio state: ${targetId}`);
       return;
@@ -410,8 +424,8 @@ export function registerStudio(program: Command, ctx: CliContext): void {
     ) => {
       const rctx = reRootContext(ctx, options.directory);
       const io = makeNodeStudioStateIo(rctx.root);
-      const stateId = resolveStateIdOrThrow(io, stateIdArg);
-      const doc = readStudioState(io, stateId);
+      const stateId = resolveStateIdOrThrow(io, stateIdArg, EMPTY_DRAFT_NEXT.diff);
+      const doc = readStudioStateOrThrow(io, stateId);
       const includeUnified = options.unified !== false;
 
       const machineDiffs = Object.entries(doc.machines).map(([machineKey, draft]) => {
@@ -504,13 +518,16 @@ export function registerStudio(program: Command, ctx: CliContext): void {
   // --- studio validate [state-id] ---
   const validateCmd = studio
     .command('validate')
-    .description('Run full E1-E4/W1-W2 graph validation on a draft (with optional --patch preview)')
+    .description(
+      'Run graph validation on a draft or on machines extracted from specs (machine/flow/decision)',
+    )
     .argument('[state-id]', 'studio draft state id (auto-selected when exactly one exists)')
     .option(
       '--patch <path>',
       'JSON RevisionOp[] patch file or "-" for stdin (in-memory preview only)',
     )
-    .option('--machine <key>', 'target machine key when --patch is a bare RevisionOp[] array');
+    .option('--machine <key>', 'target machine key when --patch is a bare RevisionOp[] array')
+    .option('--specs', 'validate machines extracted from llmanspec/specs/ (ignore drafts)');
   addJsonFlags(validateCmd);
   addSpecDirOption(validateCmd);
   validateCmd.action(
@@ -522,12 +539,66 @@ export function registerStudio(program: Command, ctx: CliContext): void {
         json?: boolean;
         compactJson?: boolean;
         directory?: string;
+        specs?: boolean;
       },
     ) => {
       const rctx = reRootContext(ctx, options.directory);
       const io = makeNodeStudioStateIo(rctx.root);
+      if (options.specs === true && options.patch !== undefined) {
+        throw new CliError('--specs cannot be combined with --patch', 2);
+      }
+      const noDrafts = listStudioStates(io).length === 0;
+      const useSpecs =
+        options.specs === true ||
+        (stateIdArg === undefined && noDrafts && options.patch === undefined);
+      if (useSpecs) {
+        const extracted = extractStudioMachines(loadRootSpecEntries(undefined, rctx.io));
+        const results: MachineValidationSummary[] = [];
+        let errorCount = 0;
+        let warningCount = 0;
+        for (const item of extracted) {
+          const diagnostics = validateMachineGraph(item.machine);
+          for (const d of diagnostics) {
+            if (d.severity === 'error') errorCount += 1;
+            else warningCount += 1;
+          }
+          results.push({
+            machineKey: item.machine.machineKey,
+            mode: item.draft.mode,
+            sourceFile: item.draft.sourceFile,
+            valid: !hasBlockingDiagnostics(diagnostics),
+            diagnostics,
+          });
+        }
+        const valid = errorCount === 0;
+        const payload = {
+          source: 'specs' as const,
+          stateId: '',
+          valid,
+          patched: false,
+          errorCount,
+          warningCount,
+          machines: results,
+        };
+        emitStudioOutput(payload, options, () => {
+          const lines: string[] = ['source: specs'];
+          for (const m of results) {
+            lines.push(`${m.valid ? 'PASS' : 'FAIL'} ${m.machineKey} (${m.sourceFile})`);
+            for (const d of m.diagnostics) {
+              const loc = d.targetId ? `${d.targetKind}:${d.targetId}` : d.targetKind;
+              lines.push(`  [${d.code}/${d.severity}] (${loc}) ${d.message}`);
+            }
+          }
+          lines.push(
+            `studio validate (specs): ${valid ? 'PASS' : 'FAIL'} (${String(errorCount)} error(s), ${String(warningCount)} warning(s))`,
+          );
+          return lines.join('\n');
+        });
+        if (!valid) exitWith(1);
+        return;
+      }
       const stateId = resolveStateIdOrThrow(io, stateIdArg);
-      const doc = readStudioState(io, stateId);
+      const doc = readStudioStateOrThrow(io, stateId);
 
       const workingMachines: Record<string, MachineDraft> = {};
       for (const [k, d] of Object.entries(doc.machines)) {
@@ -623,8 +694,8 @@ export function registerStudio(program: Command, ctx: CliContext): void {
     (stateIdArg: string | undefined, options: { copy?: boolean; directory?: string }) => {
       const rctx = reRootContext(ctx, options.directory);
       const io = makeNodeStudioStateIo(rctx.root);
-      const stateId = resolveStateIdOrThrow(io, stateIdArg);
-      const doc = readStudioState(io, stateId);
+      const stateId = resolveStateIdOrThrow(io, stateIdArg, EMPTY_DRAFT_NEXT.prompt);
+      const doc = readStudioStateOrThrow(io, stateId);
 
       const lines: string[] = [
         `# Studio Negotiation Prompt: ${doc.title}`,
@@ -724,7 +795,7 @@ export function registerStudio(program: Command, ctx: CliContext): void {
       const rctx = reRootContext(ctx, options.directory);
       const io = makeNodeStudioStateIo(rctx.root);
       const stateId = validateStateId(stateIdArg);
-      const doc = readStudioState(io, stateId);
+      const doc = readStudioStateOrThrow(io, stateId);
       const nextDoc = replyStudioComment(doc, commentId, {
         author: 'agent',
         body: options.body,
@@ -759,7 +830,7 @@ export function registerStudio(program: Command, ctx: CliContext): void {
       const rctx = reRootContext(ctx, options.directory);
       const io = makeNodeStudioStateIo(rctx.root);
       const stateId = validateStateId(stateIdArg);
-      const doc = readStudioState(io, stateId);
+      const doc = readStudioStateOrThrow(io, stateId);
       const rawText = readInputText(ctx.cwd, options.file);
       const { machineKey, ops, rationale } = parseRevisionPayload(
         rawText,
@@ -785,7 +856,7 @@ export function registerStudio(program: Command, ctx: CliContext): void {
   // --- studio apply <state-id> ---
   const applyCmd = studio
     .command('apply')
-    .description('Semantically write validated Studio state machines back into llmanspec/specs/')
+    .description('Semantically write validated Studio drafts back into llmanspec/specs/')
     .argument('<state-id>', 'studio draft state id')
     .option('--dry-run', 'preview Unified Diff to stdout on any branch without modifying files');
   addSpecDirOption(applyCmd);
@@ -793,7 +864,7 @@ export function registerStudio(program: Command, ctx: CliContext): void {
     const rctx = reRootContext(ctx, options.directory);
     const io = makeNodeStudioStateIo(rctx.root);
     const stateId = validateStateId(stateIdArg);
-    const doc = readStudioState(io, stateId);
+    const doc = readStudioStateOrThrow(io, stateId);
 
     // Step 1: Full E1-E4 gate across every non-removed machine
     const blockingLines: string[] = [];
@@ -1101,8 +1172,8 @@ export function registerStudio(program: Command, ctx: CliContext): void {
 
   const registerServeOpts = (cmd: Command): Command =>
     cmd
-      .option('--port <port>', 'port to listen on (default: 4710)', '4710')
-      .option('--host <addr>', 'loopback host address (default: 127.0.0.1)', '127.0.0.1')
+      .option('--port <port>', 'port to listen on', '4710')
+      .option('--host <addr>', 'loopback host address', '127.0.0.1')
       .option('--no-open', 'do not open browser automatically')
       .option('--foreground', 'run server in the foreground')
       .option('--demo', 'load built-in self-hosting studio-web and sample drafts')
@@ -1141,7 +1212,7 @@ export function registerStudio(program: Command, ctx: CliContext): void {
       demo: options.demo === true,
     });
     const wsUrl = `${hub.url}/p/${encodeURIComponent(hub.activeWsKey)}`;
-    console.log(`llman-sdd Studio listening at ${wsUrl}`);
+    console.log(`Studio: ${formatLoopbackUrl(host, port)}/ (workspace ${hub.activeWsKey})`);
     if (options.open !== false) openInBrowser(wsUrl);
     const shutdown = (): void => {
       void hub.close().finally(() => process.exit(0));
@@ -1180,7 +1251,7 @@ export function registerStudio(program: Command, ctx: CliContext): void {
         if (res.ok) {
           const payload = (await res.json()) as { activeWsKey: string };
           const wsUrl = `${liveBase}/p/${encodeURIComponent(payload.activeWsKey)}`;
-          console.log(`Reusing running llman-sdd Studio Hub at ${wsUrl}`);
+          console.log(`Studio: ${liveBase}/ (workspace ${payload.activeWsKey})`);
           if (options.open !== false) openInBrowser(wsUrl);
           return;
         }

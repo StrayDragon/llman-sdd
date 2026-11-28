@@ -5,15 +5,15 @@
 
   @req:r134
   规则: 纯父分组、原子存储、缺省 state-id 消歧与会话管理
-    `llman-sdd studio` MUST 作为纯父分组挂载于 CLI 根命令，裸调不带子命令 MUST 向 stderr 输出用法并以退出码 2 退出；所有 Studio 子命令 MUST 声明并接受 `--directory <path>` 经统一实例根发现解析工作区。
+    `llman-sdd studio` MUST 作为纯父分组挂载于 CLI 根命令，裸调不带子命令 MUST 向 stderr 输出用法并以退出码 2 退出，MUST NOT 输出空的 `Error:` 行；所有 Studio 子命令 MUST 声明并接受 `--directory <path>` 经统一实例根发现解析工作区。
     本地草稿持久化 MUST 经 `makeNodeStudioStateIo(instanceRoot)` 读写 `<instanceRoot>/.llman-sdd/studio/states/<id>.json`，写盘 MUST 走同目录临时文件加原子 `rename`，只读命令 MUST NOT 惰性创建该目录。
-    接受可选 `[state-id]` 的子命令在省略参数时 MUST 按精确消歧规则解析：恰好 1 份草稿时自动选中，0 份或多于 1 份 MUST 报域错误（退出码 1）并在多份时列出全部草稿 ID。
+    接受可选 `[state-id]` 的子命令在省略参数时 MUST 按精确消歧规则解析：恰好 1 份草稿时自动选中，多于 1 份 MUST 报域错误（退出码 1）并列出全部草稿 ID；0 份时 `studio validate` MUST 按 `--specs` 路径执行，其余可选 state-id 子命令 MUST 报域错误（退出码 1）且 stderr 含 Next 建议行。
     `studio state list` MUST 支持简洁人读文本、`--json` 与 `--compact-json` 输出草稿摘要（无新 TOON 耦合）；`studio state prune` MUST 支持 `--id <state-id>` 删除单条或 `--all` 清空，缺参或互斥组合 MUST 报用法错误（退出码 2）。
 
     场景: studio 纯父分组裸调、会话列表清理与多草稿消歧
       假如 一个包含多份 Studio 本地草稿的临时仓库
       当 依次运行 studio 裸调、studio state list、缺省 state-id 的 studio diff 与 studio state prune
-      那么 studio 裸调退出码为 2 且 stderr 含用法提示
+      那么 studio 裸调退出码为 2 且 stderr 含用法提示且不含空的 Error 行
       而且 state list 在 --directory 与 --compact-json 下返回一致草稿摘要
       而且 多草稿省略 state-id 报域错误退出码 1 并列出全部草稿 ID
       而且 state prune 按 --id 与 --all 正确清理本地草稿
@@ -21,7 +21,7 @@
   @req:r135
   规则: 只读语义 Diff、图校验预检与结构化 Prompt
     `studio diff [state-id]` MUST 输出各状态机的语义 Diff、未解决评论与基于 `jsdiff` 的内存 Unified Diff 预览，支持 `--json`、`--compact-json`、`--no-unified` 与 `--directory`，MUST NOT 新增 TOON 耦合。
-    `studio validate [state-id]` MUST 对草稿内全部活跃状态机执行全量 E1–E4/W1–W2 校验，存在阻断错时 MUST 以退出码 1 退出，支持 `--json`、`--compact-json` 与 `--directory`；传入 `--patch <path|->` 时 MUST 仅在内存预检假设修订补丁而不修改磁盘草稿。
+    `studio validate [state-id]` MUST 对草稿内全部活跃状态机执行全量图校验（machine E1–E4/W1–W2 与 flow F 系列），存在阻断错时 MUST 以退出码 1 退出，支持 `--json`、`--compact-json`、`--specs` 与 `--directory`；传入 `--patch <path|->` 时 MUST 仅在内存预检假设修订补丁而不修改磁盘草稿；`--specs` 与 `--patch` 同用 MUST 报用法错误退出码 2。
     `studio prompt [state-id]` MUST 向 stdout 输出高信噪比结构化 Agent 协商 Prompt（含草稿 ID、语义 Diff、未解决评论与 CLI 写回回调命令），支持可选 `--copy` 尝试写入系统剪贴板与 `--directory`。
 
     场景: 只读 diff、validate --patch 预检与 prompt 输出
@@ -79,3 +79,28 @@
       当 依次请求 sync-preview、sync-apply 与 studio diff --json
       那么 preview 返回 stale 条目、apply 后 specs 目录零修改且 baseHashes 更新
       而且 studio diff 人读含「文件和画布对不上」、JSON 含 syncItems
+
+  @req:r170
+  规则: 无草稿降级、--specs 与错误下一步
+    `studio validate --specs` MUST 不读草稿、对 `extractStudioMachines` 结果跑 `validateMachineGraph`，输出结构与有草稿时一致且标注 `source: specs`、`stateId` 为空，MUST NOT 写 `.llman-sdd`。无草稿且未给 `--specs` 时 MUST 自动按 `--specs` 执行。
+    无草稿时 `studio diff`/`prompt`/`apply`/`revise` MUST 以 `Error:` 开头、含 `Next:` 建议行，退出码仍为 1。`studio open --help` 的 `--port`/`--host` 默认值 MUST NOT 重复显示。`studio open`/`serve` 启动成功 MUST 向 stdout 打印一行 `Studio: http://<host>:<port>/ (workspace <name>)`。
+
+    场景: 无草稿 studio validate 从规格校验
+      假如 一个仅含一份带转移表规格且无 Studio 草稿的临时仓库
+      当 运行 studio validate
+      那么 退出码为 0 且输出含 source: specs
+
+    场景: 无草稿 studio diff 给出 Next 行
+      假如 一个仅含一份带转移表规格且无 Studio 草稿的临时仓库
+      当 运行 studio diff
+      那么 stderr 以 "Error:" 开头且含 "Next:" 且退出码为 1
+
+    场景: studio apply 未知 id 列出候选
+      假如 一个含 Studio 草稿 alpha-draft 与 beta-draft 的临时仓库
+      当 运行 studio apply nope
+      那么 stderr 含 "studio state not found: nope" 且含 "Available:" 且含 alpha-draft
+
+    场景: studio open help 默认值不重复
+      假如 本仓库的真实 llmanspec 工作区
+      当 运行 studio open --help
+      那么 stdout 不含重复的 port 默认值标注

@@ -8,6 +8,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 import {
+  ChangeIdResolveError,
+  collectChanges,
   discoverSpecs,
   embeddedTemplates,
   loadConfig,
@@ -121,6 +123,53 @@ export class CliError extends Error {
     super(message);
     this.exitCode = exitCode;
   }
+}
+
+function levenshtein(a: string, b: string): number {
+  const m = a.length;
+  const n = b.length;
+  const dp: number[][] = Array.from({ length: m + 1 }, () =>
+    Array.from({ length: n + 1 }, () => 0),
+  );
+  for (let i = 0; i <= m; i++) dp[i]![0] = i;
+  for (let j = 0; j <= n; j++) dp[0]![j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[i]![j] = Math.min(dp[i - 1]![j]! + 1, dp[i]![j - 1]! + 1, dp[i - 1]![j - 1]! + cost);
+    }
+  }
+  return dp[m]![n]!;
+}
+
+/**
+ * Deterministic not-found candidates: prefix (lexicographic), then substring
+ * (non-prefix, lexicographic), then edit distance <= 2 (distance then lex).
+ * Case-sensitive. At most `limit` entries. Same input always same output.
+ */
+export function pickNotFoundCandidates(query: string, ids: readonly string[], limit = 5): string[] {
+  const unique = [...new Set(ids)];
+  const byLex = (a: string, b: string): number => a.localeCompare(b);
+  const prefix = unique.filter((id) => id.startsWith(query)).toSorted(byLex);
+  const used = new Set(prefix);
+  const substr = unique.filter((id) => !used.has(id) && id.includes(query)).toSorted(byLex);
+  for (const id of substr) used.add(id);
+  const fuzzy = unique
+    .filter((id) => !used.has(id) && levenshtein(query, id) <= 2)
+    .toSorted((a, b) => {
+      const da = levenshtein(query, a);
+      const db = levenshtein(query, b);
+      return da !== db ? da - db : byLex(a, b);
+    });
+  for (const id of fuzzy) used.add(id);
+  const rest = unique.filter((id) => !used.has(id)).toSorted(byLex);
+  return [...prefix, ...substr, ...fuzzy, ...rest].slice(0, limit);
+}
+
+export function formatNotFound(kind: string, query: string, ids: readonly string[]): string {
+  const picks = pickNotFoundCandidates(query, ids);
+  if (picks.length === 0) return `${kind} not found: ${query}`;
+  return `${kind} not found: ${query}. Available: ${picks.join(', ')}`;
 }
 
 /** Single exit-code write point for non-error result paths (e.g. sweep verdicts). */
@@ -253,13 +302,22 @@ export function resolveChangeIdOrExit(
   input: string,
   opts: { suppressHint?: boolean } = {},
 ): { id: string; viaPrefix: boolean } {
-  const resolved = resolveChangeId(ctx.io, ctx.root, input, {
-    maxScanDepth: cliMaxScanDepth(program),
-  });
-  if (resolved.viaPrefix && opts.suppressHint !== true) {
-    console.error(`'${input}' -> '${resolved.id}' (prefix match)`);
+  const maxScanDepth = cliMaxScanDepth(program);
+  try {
+    const resolved = resolveChangeId(ctx.io, ctx.root, input, { maxScanDepth });
+    if (resolved.viaPrefix && opts.suppressHint !== true) {
+      console.error(`'${input}' -> '${resolved.id}' (prefix match)`);
+    }
+    return resolved;
+  } catch (error) {
+    if (error instanceof ChangeIdResolveError && error.message.startsWith('change not found:')) {
+      const ids = collectChanges(ctx.io, ctx.root, new Date(0), { maxScanDepth }).map(
+        (c) => c.name,
+      );
+      throw new CliError(formatNotFound('change', input, ids), 1);
+    }
+    throw error;
   }
-  return resolved;
 }
 
 export type OutMode = 'toon' | 'json' | 'compact-json' | 'human';

@@ -22,7 +22,7 @@ import { makeNodeStudioStateIo } from '../../../apps/cli/src/commands/studio.ts'
 import { createStudioHubApp } from '../../../apps/cli/src/studio-server/server.ts';
 import { initGitRepo } from '../../helpers/spawn.ts';
 import { bdd } from '../runner.ts';
-import { CLI } from './shared.ts';
+import { CLI, REPO_ROOT } from './shared.ts';
 
 interface CliResult {
   code: number;
@@ -158,10 +158,13 @@ bdd.when(
   },
 );
 
-bdd.thenStep('studio 裸调退出码为 2 且 stderr 含用法提示', (ctx) => {
+bdd.thenStep('studio 裸调退出码为 2 且 stderr 含用法提示且不含空的 Error 行', (ctx) => {
   const { bare } = ctx.fixtures['r134Out'] as { bare: CliResult };
   if (bare.code !== 2 || !bare.stderr.includes('Usage:')) {
     throw new Error(`expected exit 2 with Usage, got ${bare.code}: ${bare.stderr}`);
+  }
+  if (/(?:^|\n)Error:\s*$/mu.test(bare.stderr)) {
+    throw new Error(`stderr has empty Error line: ${JSON.stringify(bare.stderr)}`);
   }
 });
 
@@ -651,5 +654,80 @@ bdd.thenStep('studio diff 人读含「文件和画布对不上」、JSON 含 syn
   }
   if (!Array.isArray(parsed.syncItems)) {
     throw new Error(`json diff missing syncItems: ${diffJson.stdout}`);
+  }
+});
+
+// --- r170 ---
+bdd.given('一个仅含一份带转移表规格且无 Studio 草稿的临时仓库', (ctx) => {
+  ctx.fixtures['studioEmptyRoot'] = makeTempStudioRepo();
+});
+
+bdd.given('一个含 Studio 草稿 alpha-draft 与 beta-draft 的临时仓库', (ctx) => {
+  const root = makeTempStudioRepo();
+  seedDraft(root, 'alpha-draft');
+  seedDraft(root, 'beta-draft');
+  ctx.fixtures['studioDraftRoot'] = root;
+});
+
+bdd.when('运行 studio validate', (ctx) => {
+  const root = ctx.fixtures['studioEmptyRoot'] as string;
+  ctx.fixtures['studioCmd'] = runCliIn(['studio', 'validate'], root);
+});
+
+bdd.when('运行 studio diff', (ctx) => {
+  const root = ctx.fixtures['studioEmptyRoot'] as string;
+  ctx.fixtures['studioCmd'] = runCliIn(['studio', 'diff'], root);
+});
+
+bdd.when('运行 studio apply nope', (ctx) => {
+  const root = ctx.fixtures['studioDraftRoot'] as string;
+  ctx.fixtures['studioCmd'] = runCliIn(['studio', 'apply', 'nope'], root);
+});
+
+bdd.when('运行 studio open --help', (ctx) => {
+  ctx.fixtures['studioCmd'] = runCliIn(['studio', 'open', '--help'], REPO_ROOT);
+});
+
+bdd.thenStep('退出码为 0 且输出含 source: specs', (ctx) => {
+  const r = ctx.fixtures['studioCmd'] as CliResult;
+  if (r.code !== 0 || !r.stdout.includes('source: specs')) {
+    throw new Error(`expected exit 0 with source: specs, got ${r.code}\n${r.stdout}\n${r.stderr}`);
+  }
+});
+
+bdd.thenStep('stderr 以 "Error:" 开头且含 "Next:" 且退出码为 1', (ctx) => {
+  const r = ctx.fixtures['studioCmd'] as CliResult;
+  if (r.code !== 1 || !r.stderr.startsWith('Error:') || !r.stderr.includes('Next:')) {
+    throw new Error(`expected Error+Next exit 1, got ${r.code}: ${JSON.stringify(r.stderr)}`);
+  }
+});
+
+bdd.thenStep(
+  'stderr 含 "studio state not found: nope" 且含 "Available:" 且含 alpha-draft',
+  (ctx) => {
+    const r = ctx.fixtures['studioCmd'] as CliResult;
+    if (
+      !r.stderr.includes('studio state not found: nope') ||
+      !r.stderr.includes('Available:') ||
+      !r.stderr.includes('alpha-draft')
+    ) {
+      throw new Error(`missing not-found candidates: ${JSON.stringify(r.stderr)}`);
+    }
+  },
+);
+
+bdd.thenStep('stdout 不含重复的 port 默认值标注', (ctx) => {
+  const r = ctx.fixtures['studioCmd'] as CliResult;
+  if (
+    r.stdout.includes('(default: 4710) (default:') ||
+    r.stdout.includes('(default: "4710") (default:')
+  ) {
+    throw new Error(`duplicated port default in help:\n${r.stdout}`);
+  }
+  if (
+    (r.stdout.match(/--port/gu) ?? []).length > 0 &&
+    r.stdout.includes('(default: 4710) (default:')
+  ) {
+    throw new Error(`duplicated default annotation:\n${r.stdout}`);
   }
 });

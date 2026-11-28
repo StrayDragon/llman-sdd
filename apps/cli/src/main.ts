@@ -95,7 +95,11 @@ async function main(): Promise<void> {
     }
     if (comErr instanceof CliError) {
       const message = stripCommanderPrefix(comErr.message);
-      console.error(message.startsWith('Error: ') ? message : `Error: ${message}`);
+      // Pure-parent groups already printed Usage; an empty CliError must not
+      // emit a blank `Error:` line (cli r171 / studio-cli r134).
+      if (message !== '') {
+        console.error(message.startsWith('Error: ') ? message : `Error: ${message}`);
+      }
       process.exitCode = comErr.exitCode;
       return;
     }

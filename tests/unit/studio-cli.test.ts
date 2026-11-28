@@ -164,12 +164,19 @@ test('T1: bare studio, studio state, studio comment exit 2 with Usage; state lis
       expect(bare.code).toBe(2);
       expect(bare.stderr).toContain('Usage:');
       expect(bare.stderr).not.toContain('Error: error:');
+      expect(bare.stderr).not.toMatch(/(?:^|\n)Error:\s*$/mu);
     }
 
     // 0 drafts -> omitting state-id exits 1 without creating directory
     const emptyDiff = runCliIn(['studio', 'diff'], repo.root);
     expect(emptyDiff.code).toBe(1);
     expect(emptyDiff.stderr).toContain('Error:');
+    expect(emptyDiff.stderr).toContain('Next:');
+    expect(existsSync(join(repo.root, STUDIO_STATES_REL))).toBe(false);
+
+    const emptyValidate = runCliIn(['studio', 'validate'], repo.root);
+    expect(emptyValidate.code).toBe(0);
+    expect(emptyValidate.stdout).toContain('source: specs');
     expect(existsSync(join(repo.root, STUDIO_STATES_REL))).toBe(false);
 
     // Seed 2 drafts

@@ -17,6 +17,7 @@ import {
   addSpecDirOption,
   CliError,
   cliMaxScanDepth,
+  formatNotFound,
   loadRootSpecEntries,
   reRootContext,
   specsPrefixFor,
@@ -213,7 +214,13 @@ export function registerShow(program: Command, ctx: CliContext): void {
         const specPath =
           specEntry !== undefined && !existsSync(flatSpecPath) ? specEntry.fileName : flatSpecPath;
         if (!existsSync(specPath)) {
-          throw new CliError(`spec not found: ${item}`);
+          throw new CliError(
+            formatNotFound(
+              'spec',
+              item,
+              specEntries().map((e) => specIdOf(e)),
+            ),
+          );
         }
         if (asJson) {
           console.log(

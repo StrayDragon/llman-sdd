@@ -1,6 +1,9 @@
 ---
 depends_on: []
 title: CLI 失败给出下一步且无草稿可从规格校验
+branch: sdd/improve-cli-failure-next-steps
+base_branch: main
+base_sha: 8426295c6aa377b8b66606829739fd61a8885acf
 ---
 
 # CLI 失败给出下一步且无草稿可从规格校验
