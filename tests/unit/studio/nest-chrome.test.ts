@@ -4,6 +4,7 @@ import {
   divePillLabel,
   machineCanvasViewKey,
   nestFrameCrumbItems,
+  nestGroupFrameRect,
   nestStepDisplayLabel,
 } from '../../../apps/studio/src/nest/chrome.ts';
 
@@ -50,4 +51,16 @@ test('nestFrameCrumbItems is root plus every nest layer with only last current',
   expect(nestStepDisplayLabel({ graphKind: 'flow', ruleTitle: '已含子流程' }, 'x')).toBe(
     '已含子流程',
   );
+});
+
+test('nestGroupFrameRect wraps inner box and portal occupancy', () => {
+  const inner = { x: 200, y: 100, w: 400, h: 300 };
+  const both = nestGroupFrameRect(inner, true, true);
+  expect(both.x).toBeLessThan(inner.x);
+  expect(both.y).toBeLessThan(inner.y);
+  expect(both.x + both.w).toBeGreaterThan(inner.x + inner.w);
+  expect(both.y + both.h).toBeGreaterThan(inner.y + inner.h);
+  const none = nestGroupFrameRect(inner, false, false);
+  expect(none.x).toBeGreaterThan(both.x);
+  expect(none.x + none.w).toBeLessThan(both.x + both.w);
 });

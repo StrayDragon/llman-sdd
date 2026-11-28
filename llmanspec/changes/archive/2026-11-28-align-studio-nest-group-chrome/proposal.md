@@ -1,6 +1,9 @@
 ---
 depends_on: []
 title: 嵌套返回贴在外层节点组左上
+branch: sdd/align-studio-nest-group-chrome
+base_branch: main
+base_sha: 03282d6f4e435efe3dbd1ca76f9650e25e6b07a5
 ---
 
 # 嵌套返回贴在外层节点组左上

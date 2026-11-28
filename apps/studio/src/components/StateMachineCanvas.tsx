@@ -87,6 +87,7 @@ import {
   divePillLabel,
   machineCanvasViewKey,
   nestFrameCrumbItems,
+  nestGroupFrameRect,
   nestStepDisplayLabel,
   type NestFrameCrumbItem,
 } from '../nest/chrome.ts';
@@ -150,10 +151,15 @@ interface MachineBoundaryNodeData extends Record<string, unknown> {
   height: number;
   nested: boolean;
   hostName?: string;
+}
+
+interface ParentContextFrameNodeData extends Record<string, unknown> {
+  width: number;
+  height: number;
   levelLabel?: string;
-  crumbs?: NestFrameCrumbItem[];
-  onJumpOut?: () => void;
-  onJumpToLevel?: (idx: number) => void;
+  crumbs: NestFrameCrumbItem[];
+  onJumpOut: () => void;
+  onJumpToLevel: (idx: number) => void;
 }
 
 interface PortalPillNodeData extends Record<string, unknown> {
@@ -510,6 +516,60 @@ function StickyNoteNode({ data }: NodeProps<Node<StickyNoteNodeData>>) {
   );
 }
 
+function ParentContextFrameNode({ data }: NodeProps<Node<ParentContextFrameNodeData>>) {
+  return (
+    <div
+      className="parent-context-frame relative pointer-events-none"
+      style={{ width: data.width, height: data.height }}
+    >
+      <div
+        className="nest-frame-crumb nodrag nopan"
+        data-nest-crumb="true"
+        data-nest-level={data.levelLabel}
+      >
+        <button
+          type="button"
+          className="nest-crumb-btn back"
+          onClick={(e) => {
+            e.stopPropagation();
+            data.onJumpOut();
+          }}
+        >
+          <ArrowLeft size={11} />
+          <span>返回上层</span>
+        </button>
+        <span className="sep-v" />
+        {data.crumbs.map((c, i) => (
+          <span
+            key={`${c.machineKey}:${String(c.idx)}`}
+            className="inline-flex items-center gap-[5px]"
+          >
+            {i > 0 ? <span className="nest-crumb-chevron">›</span> : null}
+            {c.current ? (
+              <span data-nest-step={c.machineKey} className="nest-crumb-btn current">
+                {c.label}
+                {data.levelLabel ? ` ${data.levelLabel}` : ''}
+              </span>
+            ) : (
+              <button
+                type="button"
+                data-nest-step={c.machineKey}
+                className="nest-crumb-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  data.onJumpToLevel(c.idx);
+                }}
+              >
+                {c.label}
+              </button>
+            )}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function MachineBoundaryNode({ data }: NodeProps<Node<MachineBoundaryNodeData>>) {
   return (
     <div
@@ -528,67 +588,6 @@ function MachineBoundaryNode({ data }: NodeProps<Node<MachineBoundaryNodeData>>)
         position={Position.Right}
         className="opacity-0 pointer-events-none"
       />
-      {data.nested ? (
-        <div
-          className="absolute left-3.5 -top-[36px] inline-flex items-center gap-1 pointer-events-auto z-10 rounded-lg border px-1.5 py-0.5"
-          data-nest-crumb="true"
-          data-nest-level={data.levelLabel}
-          style={{
-            background: 'var(--surface)',
-            borderColor: 'var(--border-strong)',
-            boxShadow: 'var(--shadow-card)',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              data.onJumpOut?.();
-            }}
-            className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10.5px] font-semibold cursor-pointer"
-            style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}
-          >
-            <ArrowLeft size={11} />
-            <span>返回上层</span>
-          </button>
-          {(data.crumbs ?? []).map((c, i) => (
-            <span
-              key={`${c.machineKey}:${String(c.idx)}`}
-              className="inline-flex items-center gap-1"
-            >
-              {i > 0 ? (
-                <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
-                  ›
-                </span>
-              ) : null}
-              {c.current ? (
-                <span
-                  data-nest-step={c.machineKey}
-                  className="inline-flex items-center rounded-md px-2 py-0.5 text-[10.5px] font-semibold"
-                  style={{ background: 'var(--ink)', color: '#ffffff' }}
-                >
-                  {c.label}
-                  {data.levelLabel ? ` ${data.levelLabel}` : ''}
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  data-nest-step={c.machineKey}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    data.onJumpToLevel?.(c.idx);
-                  }}
-                  className="rounded-md px-2 py-0.5 text-[10.5px] font-medium cursor-pointer"
-                  style={{ color: 'var(--text-secondary)', background: 'transparent' }}
-                >
-                  {c.label}
-                </button>
-              )}
-            </span>
-          ))}
-        </div>
-      ) : null}
       <div
         className="absolute left-3.5 -top-[13px] inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg border font-mono text-[10.5px] font-semibold"
         style={{
@@ -601,14 +600,9 @@ function MachineBoundaryNode({ data }: NodeProps<Node<MachineBoundaryNodeData>>)
         <Workflow size={11} style={{ color: 'var(--t-machine)' }} />
         <span>
           {data.nested && data.hostName
-            ? `展开内部:${data.hostName}`
+            ? `展开内部：${data.hostName}`
             : `当前状态机边界 · ${data.title}`}
         </span>
-        {data.levelLabel ? (
-          <span className="font-mono opacity-70" data-nest-level={data.levelLabel}>
-            {data.levelLabel}
-          </span>
-        ) : null}
         <span className="opacity-65">{data.file}</span>
       </div>
     </div>
@@ -1028,6 +1022,7 @@ const NODE_TYPES = {
   domainGroup: DomainGroupNode,
   specCard: SpecCardNode,
   stickyNote: StickyNoteNode,
+  parentContext: ParentContextFrameNode,
   machineBoundary: MachineBoundaryNode,
   portalPill: PortalPillNode,
   stateNode: MachineStateNode,
@@ -1821,7 +1816,7 @@ function StateMachineCanvasInner() {
       maxY = Math.max(maxY, p.y + h);
     });
 
-    const topPad = nestStack.length > 0 ? 88 : 56;
+    const topPad = 56;
     const frameX = Number.isFinite(minX) ? minX - 54 : 120;
     const frameY = Number.isFinite(minY) ? minY - topPad : 96;
     const frameW = Number.isFinite(maxX) ? maxX - frameX + 54 : 680;
@@ -1838,6 +1833,7 @@ function StateMachineCanvasInner() {
       (key) => stateDoc.machines[key]?.current ?? stateDoc.machines[key]?.baseline ?? null,
     );
 
+    const nested = nestStack.length > 0;
     const boundaryNode: Node<MachineBoundaryNodeData> = {
       id: '__machine_boundary__',
       type: 'machineBoundary',
@@ -1846,21 +1842,14 @@ function StateMachineCanvasInner() {
       height: frameH,
       draggable: false,
       selectable: false,
-      zIndex: 0,
+      zIndex: 1,
       data: {
         title: `${machine.capability} · ${machine.ruleTitle}`,
         file: stateDoc.machines[activeMachineKey]?.sourceFile ?? '',
         width: frameW,
         height: frameH,
-        nested: nestStack.length > 0,
+        nested,
         hostName: parentCtx?.hostName,
-        levelLabel: nestStack.length > 0 ? nestLevelLabel(nestStack.length) : undefined,
-        crumbs: nestFrameCrumbItems(tabRootKey, tabRootLabel, nestStack, (key) => {
-          const draft = stateDoc.machines[key];
-          return draft?.current ?? draft?.baseline ?? null;
-        }),
-        onJumpOut: () => jumpNestLevel(nestStack.length - 2, parentCtx?.hostUid),
-        onJumpToLevel: (idx) => jumpNestLevel(idx),
       },
     };
 
@@ -2256,8 +2245,41 @@ function StateMachineCanvasInner() {
       });
     }
 
+    const parentContextNode: Node<ParentContextFrameNodeData> | undefined = nested
+      ? (() => {
+          const group = nestGroupFrameRect(
+            { x: frameX, y: frameY, w: frameW, h: frameH },
+            upstreamCaps.length > 0,
+            downstreamCaps.length > 0,
+          );
+          return {
+            id: '__parent_context__',
+            type: 'parentContext' as const,
+            position: { x: group.x, y: group.y },
+            width: group.w,
+            height: group.h,
+            draggable: false,
+            selectable: false,
+            zIndex: 0,
+            data: {
+              width: group.w,
+              height: group.h,
+              levelLabel: nestLevelLabel(nestStack.length),
+              crumbs: nestFrameCrumbItems(tabRootKey, tabRootLabel, nestStack, (key) => {
+                const draft = stateDoc.machines[key];
+                return draft?.current ?? draft?.baseline ?? null;
+              }),
+              onJumpOut: () => jumpNestLevel(nestStack.length - 2, parentCtx?.hostUid),
+              onJumpToLevel: (idx: number) => jumpNestLevel(idx),
+            },
+          };
+        })()
+      : undefined;
+
     return {
-      flowNodes: [boundaryNode, ...portalNodes, ...stateNodes],
+      flowNodes: parentContextNode
+        ? [parentContextNode, boundaryNode, ...portalNodes, ...stateNodes]
+        : [boundaryNode, ...portalNodes, ...stateNodes],
       flowEdges: [...portalEdges, ...flowE],
     };
   }, [
@@ -2983,7 +3005,11 @@ function StateMachineCanvasInner() {
             nodeBorderRadius={4}
             maskColor="rgba(20, 23, 31, 0.08)"
             nodeColor={(n) => {
-              if (n.type === 'domainGroup' || n.type === 'machineBoundary') {
+              if (
+                n.type === 'domainGroup' ||
+                n.type === 'machineBoundary' ||
+                n.type === 'parentContext'
+              ) {
                 return 'rgba(148, 163, 184, 0.16)';
               }
               if (n.type === 'portalPill') return '#cbd5e1';
@@ -3005,7 +3031,9 @@ function StateMachineCanvasInner() {
               return '#94a3b8';
             }}
             nodeStrokeColor={(n) =>
-              n.type === 'domainGroup' || n.type === 'machineBoundary' ? '#cbd5e1' : 'transparent'
+              n.type === 'domainGroup' || n.type === 'machineBoundary' || n.type === 'parentContext'
+                ? '#cbd5e1'
+                : 'transparent'
             }
           />
         )}

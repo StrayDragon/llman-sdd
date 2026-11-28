@@ -72,6 +72,7 @@ import {
   divePillLabel,
   machineCanvasViewKey,
   nestFrameCrumbItems,
+  nestGroupFrameRect,
 } from '../../../apps/studio/src/nest/chrome.ts';
 import {
   getParentNestContext,
@@ -1348,4 +1349,21 @@ bdd.thenStep('项数为 3 且首项为根机、末项为当前层', (ctx) => {
 bdd.thenStep('仅末项标记为当前层', (ctx) => {
   const items = ctx.fixtures['nestCrumbsOut'] as ReturnType<typeof nestFrameCrumbItems>;
   expect(items.map((c) => c.current)).toEqual([false, false, true]);
+});
+
+bdd.given('内层边界框与左右门户占位', (ctx) => {
+  ctx.fixtures['nestGroupIn'] = { x: 200, y: 100, w: 400, h: 300 };
+});
+
+bdd.when('计算嵌套外框矩形', (ctx) => {
+  const inner = ctx.fixtures['nestGroupIn'] as { x: number; y: number; w: number; h: number };
+  ctx.fixtures['nestGroupOut'] = nestGroupFrameRect(inner, true, true);
+});
+
+bdd.thenStep('外框左缘在内框左侧之外且上缘在内框上方', (ctx) => {
+  const inner = ctx.fixtures['nestGroupIn'] as { x: number; y: number; w: number; h: number };
+  const outer = ctx.fixtures['nestGroupOut'] as { x: number; y: number; w: number; h: number };
+  expect(outer.x).toBeLessThan(inner.x);
+  expect(outer.y).toBeLessThan(inner.y);
+  expect(outer.x + outer.w).toBeGreaterThan(inner.x + inner.w);
 });

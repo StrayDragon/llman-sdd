@@ -65,3 +65,24 @@ export function machineCanvasViewKey(
   if (nestMachineKeys.length === 0) return `machine:${machineKey}`;
   return `machine:${machineKey}|nest:${nestMachineKeys.join(',')}`;
 }
+
+/** Matches portal layout in StateMachineCanvas (left offset 224, right gap 64, pill 156). */
+export const NEST_PORTAL_W = 156;
+export const NEST_PORTAL_LEFT = 224;
+export const NEST_PORTAL_RIGHT_GAP = 64;
+export const NEST_GROUP_PAD = 42;
+export const NEST_GROUP_TOP_EXTRA = 56;
+
+export function nestGroupFrameRect(
+  inner: { x: number; y: number; w: number; h: number },
+  hasIn: boolean,
+  hasOut: boolean,
+): { x: number; y: number; w: number; h: number } {
+  const left = hasIn ? inner.x - NEST_PORTAL_LEFT - NEST_GROUP_PAD : inner.x - NEST_GROUP_PAD;
+  const right = hasOut
+    ? inner.x + inner.w + NEST_PORTAL_RIGHT_GAP + NEST_PORTAL_W + NEST_GROUP_PAD
+    : inner.x + inner.w + NEST_GROUP_PAD;
+  const top = inner.y - NEST_GROUP_TOP_EXTRA;
+  const bottom = inner.y + inner.h + NEST_GROUP_PAD;
+  return { x: left, y: top, w: right - left, h: bottom - top };
+}

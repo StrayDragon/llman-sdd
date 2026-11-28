@@ -139,9 +139,13 @@ async function main(): Promise<number> {
     await page.goto(nestUrl);
     await page.waitForSelector('.react-flow__node', { timeout: 20_000 });
     await settle(page, 1400);
-    const crumbOnFrame = page.locator('.machine-boundary-frame [data-nest-crumb]');
+    const crumbOnFrame = page.locator('.parent-context-frame [data-nest-crumb]');
     const level = await crumbOnFrame.getAttribute('data-nest-level');
-    if (level !== 'L3') failures.push(`expected L3 breadcrumb on boundary, got ${String(level)}`);
+    if (level !== 'L3')
+      failures.push(`expected L3 breadcrumb on outer nest group, got ${String(level)}`);
+    if ((await page.locator('.machine-boundary-frame [data-nest-crumb]').count()) !== 0) {
+      failures.push('nest crumb must not sit on the inner machine boundary');
+    }
     if ((await page.locator('.studio-island[data-nest-crumb]').count()) !== 0) {
       failures.push('nest crumb must not be a canvas-top island');
     }

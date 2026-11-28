@@ -295,6 +295,75 @@ body,
   background: rgba(109, 40, 217, 0.042);
 }
 
+/* Outer nest group wrapping parent portals + inner machine boundary */
+.parent-context-frame {
+  border-radius: 20px;
+  border: 1.5px dashed var(--border);
+  background: rgba(148, 163, 184, 0.025);
+}
+.nest-frame-crumb {
+  position: absolute;
+  left: 16px;
+  top: -16px;
+  z-index: 6;
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px 3px 5px;
+  border-radius: 9px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-island);
+  white-space: nowrap;
+}
+.nest-crumb-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 500;
+  padding: 2px 7px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition:
+    background 0.12s,
+    color 0.12s;
+}
+.nest-crumb-btn:hover {
+  background: var(--surface-subtle);
+  color: var(--ink);
+}
+.nest-crumb-btn.back {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+.nest-crumb-btn.back:hover {
+  background: var(--accent);
+  color: #ffffff;
+}
+.nest-crumb-btn.current {
+  background: var(--ink);
+  color: #ffffff;
+  font-weight: 600;
+  cursor: default;
+}
+.nest-crumb-chevron {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.sep-v {
+  width: 1px;
+  height: 14px;
+  background: var(--border);
+  margin: 0 3px;
+}
+
 /* Box-in-Box Machine Boundary & Nested Stacked Shadow */
 .machine-boundary-frame {
   border-radius: 16px;
@@ -450,7 +519,8 @@ body.wl-open .react-flow__minimap:hover {
 
 /* Background frames MUST NOT swallow clicks/drags inside groups or machine boundary */
 .react-flow__node-domainGroup,
-.react-flow__node-machineBoundary {
+.react-flow__node-machineBoundary,
+.react-flow__node-parentContext {
   pointer-events: none !important;
   cursor: default !important;
 }
@@ -461,6 +531,7 @@ body.wl-open .react-flow__minimap:hover {
 /* React Flow Group Node Selection Frame Cleanup */
 .react-flow__node-domainGroup,
 .react-flow__node-machineBoundary,
+.react-flow__node-parentContext,
 .react-flow__node-portalPill,
 .react-flow__node-stickyNote,
 .react-flow__node-specCard,
