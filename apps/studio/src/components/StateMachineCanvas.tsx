@@ -74,6 +74,7 @@ import {
   getPendingDriftProposals,
 } from '../drift/reconcileOverlay.ts';
 import { STUDIO_CONTRAST_PALETTES } from '../ergonomics/contrast.ts';
+import { checkDoubleClick } from '../ergonomics/doubleClick.ts';
 import {
   alignSelectedNodes,
   distributeSelectedNodes,
@@ -191,6 +192,7 @@ interface StateNodeData extends Record<string, unknown> {
   peekOpen?: boolean;
   subtreeDirty?: boolean;
   diveLabel?: string;
+  diveGraphKind?: 'machine' | 'flow';
   peekSvg?: string;
   onInlineEdit: (x: number, y: number) => void;
 }
@@ -211,6 +213,7 @@ interface ObstacleEdgeData extends Record<string, unknown> {
   onSimClick?: () => void;
   onBendDrag?: (next: EdgeBendOffset) => void;
   onDoubleClick?: (x: number, y: number) => void;
+  onSelect?: () => void;
 }
 
 const KIND_LABELS: Record<SpecIndexItem['kind'], string> = {
@@ -674,6 +677,7 @@ function MachineStateNode({ data, selected }: NodeProps<Node<StateNodeData>>) {
     peekOpen,
     subtreeDirty,
     diveLabel,
+    diveGraphKind,
     peekSvg,
     onInlineEdit,
   } = data;
@@ -835,12 +839,7 @@ function MachineStateNode({ data, selected }: NodeProps<Node<StateNodeData>>) {
               e.stopPropagation();
               onDive();
             }}
-            className="inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10.5px] font-semibold cursor-pointer"
-            style={{
-              borderColor: 'var(--accent-border)',
-              color: 'var(--accent)',
-              background: 'var(--accent-soft)',
-            }}
+            className={`sub-drill-pill ${diveGraphKind === 'flow' ? 'flow-pill' : ''}`}
             title={subtreeDirty ? '嵌套子层有未保存改动' : (diveLabel ?? '进入子状态机')}
           >
             {subtreeDirty ? (
@@ -904,7 +903,21 @@ function ObstacleStateEdge({ id, data, selected }: EdgeProps<Edge<ObstacleEdgeDa
     onSimClick,
     onBendDrag,
     onDoubleClick,
+    onSelect,
   } = data;
+
+  const clickKey = `edge:${id}`;
+  const handleEdgeActivate = (clientX: number, clientY: number): void => {
+    if (simClickable && onSimClick) {
+      onSimClick();
+      return;
+    }
+    if (onDoubleClick && checkDoubleClick(clickKey)) {
+      onDoubleClick(clientX, clientY);
+      return;
+    }
+    onSelect?.();
+  };
 
   const startBendDrag = (e: MouseEvent): void => {
     if (!onBendDrag) return;
@@ -929,19 +942,43 @@ function ObstacleStateEdge({ id, data, selected }: EdgeProps<Edge<ObstacleEdgeDa
       window.removeEventListener('mouseup', onUp);
       dragCleanupRef.current = null;
     };
-    const onUp = (): void => {
+    const onUp = (up: globalThis.MouseEvent): void => {
       cleanup();
-      if (!moved && simClickable && onSimClick) onSimClick();
+      if (moved) return;
+      handleEdgeActivate(up.clientX, up.clientY);
     };
     dragCleanupRef.current = cleanup;
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
   };
 
+  const pulseClass =
+    syncPulse === 'focus'
+      ? 'studio-sync-edge-focus'
+      : syncPulse === 'ours'
+        ? 'studio-sync-edge-ours'
+        : syncPulse === 'theirs'
+          ? 'studio-sync-edge-theirs'
+          : undefined;
+
   return (
     <>
-      {/* Wide transparent hit area for reliable edge right-click & click */}
-      <path d={dPath} fill="none" stroke="transparent" strokeWidth={14} />
+      <path
+        d={dPath}
+        fill="none"
+        stroke="transparent"
+        strokeWidth={20}
+        className="studio-edge-hit"
+        onClick={(e) => {
+          e.stopPropagation();
+          handleEdgeActivate(e.clientX, e.clientY);
+        }}
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          if (simClickable) return;
+          onDoubleClick?.(e.clientX, e.clientY);
+        }}
+      />
       <path
         id={id}
         d={dPath}
@@ -954,27 +991,26 @@ function ObstacleStateEdge({ id, data, selected }: EdgeProps<Edge<ObstacleEdgeDa
         shapeRendering="geometricPrecision"
         strokeDasharray={dashed ? '6 4' : undefined}
         markerEnd="url(#studio-arrow)"
-        className={
-          syncPulse === 'focus'
-            ? 'studio-sync-edge-focus'
-            : syncPulse === 'ours'
-              ? 'studio-sync-edge-ours'
-              : syncPulse === 'theirs'
-                ? 'studio-sync-edge-theirs'
-                : undefined
-        }
+        className={['studio-edge-vis', pulseClass].filter(Boolean).join(' ')}
+        style={{ pointerEvents: 'none' }}
       />
-      {label && (
+      {label || onDoubleClick ? (
         <EdgeLabelRenderer>
           <div
-            onMouseDown={startBendDrag}
+            onMouseDown={onBendDrag ? startBendDrag : undefined}
+            onClick={(e) => {
+              if (onBendDrag) return;
+              e.stopPropagation();
+              handleEdgeActivate(e.clientX, e.clientY);
+            }}
             onDoubleClick={(e) => {
               e.stopPropagation();
+              if (simClickable) return;
               onDoubleClick?.(e.clientX, e.clientY);
             }}
             data-edge-label=""
             title="按住拖拽微调弧度；双击就地编辑事件与守卫"
-            className={`nodrag nopan rounded-md border px-2 py-0.5 text-[10.5px] font-medium select-none ${syncPulseClass(syncPulse)}`}
+            className={`nodrag nopan studio-edge-label rounded-md border px-2 py-0.5 text-[10.5px] font-medium select-none ${syncPulseClass(syncPulse)}`}
             data-sync-pulse={syncPulse}
             style={{
               position: 'absolute',
@@ -988,7 +1024,9 @@ function ObstacleStateEdge({ id, data, selected }: EdgeProps<Edge<ObstacleEdgeDa
                     ? 'var(--green-soft)'
                     : simClickable
                       ? 'var(--accent-soft)'
-                      : 'var(--surface)',
+                      : focused
+                        ? 'var(--accent-soft)'
+                        : 'var(--surface)',
               borderColor:
                 syncPulse === 'focus'
                   ? 'var(--ink)'
@@ -998,7 +1036,9 @@ function ObstacleStateEdge({ id, data, selected }: EdgeProps<Edge<ObstacleEdgeDa
                       ? 'var(--green)'
                       : simClickable
                         ? 'var(--accent)'
-                        : 'var(--border)',
+                        : focused
+                          ? 'var(--accent)'
+                          : 'var(--border)',
               color:
                 syncPulse === 'ours'
                   ? 'var(--amber)'
@@ -1010,10 +1050,10 @@ function ObstacleStateEdge({ id, data, selected }: EdgeProps<Edge<ObstacleEdgeDa
               boxShadow: syncPulse ? undefined : 'var(--shadow-card)',
             }}
           >
-            {label}
+            {label || '双击编辑'}
           </div>
         </EdgeLabelRenderer>
-      )}
+      ) : null}
     </>
   );
 }
@@ -1459,6 +1499,20 @@ function StateMachineCanvasInner() {
         e.preventDefault();
         deleteState(activeMachineKey, selectedNodeId);
         setSelectedNodeId(null);
+      } else if (e.key === 'Enter' && selectedEdgeId) {
+        const edgeUid = selectedEdgeId.replace(/-rem$/u, '').replace(/-drift$/u, '');
+        const t = machine.transitions.find((x) => x.uid === edgeUid);
+        if (t) {
+          e.preventDefault();
+          setInlineEditor({
+            kind: 'edge',
+            x: window.innerWidth / 2,
+            y: window.innerHeight / 2,
+            machineKey: activeMachineKey,
+            targetUid: t.uid,
+            value: t.guard ? `${t.event} [${t.guard}]` : t.event,
+          });
+        }
       } else if (e.key === 'Enter' && selectedNodeId) {
         const st = machine.states.find((x) => x.uid === selectedNodeId);
         if (st) {
@@ -1731,6 +1785,11 @@ function StateMachineCanvasInner() {
             dashed: me.isManual,
             bendOffset,
             onBendDrag: (next) => updateEdgeBend('__macro__', me.id, next),
+            onSelect: () => {
+              setSelectedEdgeId(me.id);
+              setSelectedNodeId(null);
+              setCanvasFocus({ kind: 'macro-edge', id: me.id });
+            },
           },
         });
       }
@@ -2053,6 +2112,12 @@ function StateMachineCanvasInner() {
                 dirty: hasSubtreeChanges(s.subMachineKey, stateDoc.machines),
               })
             : undefined,
+          diveGraphKind: s.subMachineKey
+            ? (
+                stateDoc.machines[s.subMachineKey]?.current ??
+                stateDoc.machines[s.subMachineKey]?.baseline
+              )?.graphKind
+            : undefined,
           peekSvg:
             s.subMachineKey && peekSubNodeIds.has(`${activeMachineKey}:${s.uid}`)
               ? (() => {
@@ -2241,6 +2306,11 @@ function StateMachineCanvasInner() {
                     value: label,
                   })
               : undefined,
+          onSelect: () => {
+            setSelectedEdgeId(edgeDomId);
+            setSelectedNodeId(null);
+            setCanvasFocus({ kind: 'edge', id: t.uid });
+          },
         },
       });
     }
@@ -2726,6 +2796,13 @@ function StateMachineCanvasInner() {
           setCanvasFocus(
             isMacro ? { kind: 'macro-edge', id: edge.id } : { kind: 'edge', id: edge.id },
           );
+        }}
+        onEdgeDoubleClick={(ev, edge) => {
+          const d = edge.data as ObstacleEdgeData | undefined;
+          if (d?.onDoubleClick) {
+            ev.stopPropagation();
+            d.onDoubleClick(ev.clientX, ev.clientY);
+          }
         }}
         onNodeContextMenu={(e, node) => {
           e.preventDefault();

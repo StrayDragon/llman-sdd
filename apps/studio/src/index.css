@@ -269,6 +269,48 @@ body,
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
+.react-flow__edge:hover .studio-edge-vis {
+  stroke-width: 2.6;
+  filter: drop-shadow(0 0 4px rgba(47, 84, 235, 0.28));
+}
+.react-flow__edge:hover .studio-edge-label {
+  border-color: var(--accent);
+}
+
+.sub-drill-pill {
+  margin-top: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 5px;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.12s,
+    color 0.12s,
+    border-color 0.12s;
+}
+.sub-drill-pill:hover {
+  background: var(--accent);
+  color: #ffffff;
+  border-color: var(--accent);
+}
+.sub-drill-pill.flow-pill {
+  border-color: var(--t-flow-bd);
+  background: var(--t-flow-bg);
+  color: var(--t-flow);
+}
+.sub-drill-pill.flow-pill:hover {
+  background: var(--t-flow);
+  color: #ffffff;
+  border-color: var(--t-flow);
+}
+
 /* Exclusive Domain Group Frames (Axiom 5) */
 .group-frame {
   border-radius: 14px;

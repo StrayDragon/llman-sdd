@@ -78,8 +78,8 @@ export const STUDIO_SHORTCUT_REGISTRY: readonly ShortcutEntry[] = [
   {
     id: 'enter-edit',
     keys: ['Enter'],
-    label: '就地编辑状态名',
-    detail: '对当前选中的状态节点打开浮层改名',
+    label: '就地编辑状态或连线',
+    detail: '对当前选中的状态节点改名，或对选中连线打开事件/守卫浮层',
     scope: 'machine',
   },
   {

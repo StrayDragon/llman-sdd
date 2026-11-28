@@ -5,6 +5,10 @@ import {
   MIN_NON_TEXT_CONTRAST,
   STUDIO_CONTRAST_PALETTES,
 } from '../../../apps/studio/src/ergonomics/contrast.ts';
+import {
+  checkDoubleClick,
+  resetDoubleClickState,
+} from '../../../apps/studio/src/ergonomics/doubleClick.ts';
 import { buildSnapshotFileName } from '../../../apps/studio/src/ergonomics/exportSnapshot.ts';
 import { STUDIO_GUIDED_TOUR_STEPS } from '../../../apps/studio/src/ergonomics/guidedTour.ts';
 import {
@@ -91,5 +95,19 @@ describe('studio onboarding, shortcuts, layout tidy & contrast (r157)', () => {
   test('snapshot export filename normalizes titles safely', () => {
     expect(buildSnapshotFileName('主视图 · Main', 'svg')).toBe('llman-studio-主视图-main.svg');
     expect(buildSnapshotFileName('   ', 'png')).toBe('llman-studio-studio-canvas.png');
+  });
+
+  test('checkDoubleClick treats two clicks on the same key within 380ms as a double-click', () => {
+    resetDoubleClickState();
+    expect(checkDoubleClick('edge:e1', 1000)).toBe(false);
+    expect(checkDoubleClick('edge:e1', 1300)).toBe(true);
+    expect(checkDoubleClick('edge:e1', 1400)).toBe(false);
+  });
+
+  test('checkDoubleClick does not fire across different keys or after the window', () => {
+    resetDoubleClickState();
+    expect(checkDoubleClick('edge:a', 1000)).toBe(false);
+    expect(checkDoubleClick('edge:b', 1100)).toBe(false);
+    expect(checkDoubleClick('edge:a', 1500)).toBe(false);
   });
 });
