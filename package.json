@@ -18,7 +18,7 @@
     "build": "bun --filter '@llman-sdd/studio' build && bun --filter '@llman-sdd/cli' build",
     "check": "bun run typecheck && bun run lint && bun run format:check",
     "qa": "bun run check && bun run test && bun run check:stc && bun run check:skills-template-render && bun run pending-gate && bun run check:schema && bun run qa-studio-e2e",
-    "qa-studio-e2e": "bun --filter '@llman-sdd/studio' build && bun tests/e2e/studio/run.ts && bun tests/e2e/studio/conflict-run.ts",
+    "qa-studio-e2e": "bun --filter '@llman-sdd/studio' build && bun tests/e2e/studio/run.ts && bun tests/e2e/studio/conflict-run.ts && bun tests/e2e/studio/nest-run.ts",
     "generate:skills-template-baseline": "bun tests/golden/generate.ts",
     "check:skills-template-render": "bun tests/golden/check.ts",
     "check:stc": "bun scripts/check-stc.ts",

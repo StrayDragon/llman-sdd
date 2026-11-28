@@ -1,6 +1,9 @@
 ---
 depends_on: []
 title: 嵌套下钻保留父层上下文并兼容 DAG 深链
+branch: sdd/add-studio-nest-context-deeplink
+base_branch: main
+base_sha: 7fbbb685b81e91e44b313c5f753871d2cef0005e
 ---
 
 # 嵌套下钻保留父层上下文并兼容 DAG 深链

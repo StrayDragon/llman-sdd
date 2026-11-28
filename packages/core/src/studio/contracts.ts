@@ -274,6 +274,12 @@ export const studioSseEventSchema = z.discriminatedUnion('type', [
 ]);
 export type StudioSseEvent = z.infer<typeof studioSseEventSchema>;
 
+export const studioFocusObjectSchema = z.object({
+  kind: z.enum(['forest', 'macro-edge', 'state', 'edge']),
+  id: z.string().min(1),
+});
+export type StudioFocusObject = z.infer<typeof studioFocusObjectSchema>;
+
 export const studioFocusContextSchema = z.object({
   wsKey: z.string(),
   repo: z.string(),
@@ -282,8 +288,18 @@ export const studioFocusContextSchema = z.object({
   targetId: z.string(),
   canonicalUrl: z.string(),
   summary: z.string(),
+  nest: z.array(z.string().min(1)).optional(),
+  focus: studioFocusObjectSchema.optional(),
 });
 export type StudioFocusContext = z.infer<typeof studioFocusContextSchema>;
+
+export const studioDeepLinkJsonSchema = z.object({
+  focus: studioFocusContextSchema,
+  workspace: workspaceItemSchema,
+  specs: z.array(specIndexItemSchema),
+  edges: z.array(specIndexEdgeSchema),
+});
+export type StudioDeepLinkJson = z.infer<typeof studioDeepLinkJsonSchema>;
 
 export const studioSearchTargetKindSchema = z.enum([
   'spec',

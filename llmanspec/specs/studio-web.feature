@@ -172,3 +172,33 @@
       当 折叠活动条目、为评论设置请谁看并分别生成全部与勾选子集 Prompt
       那么 活动条目为白话且 N>0 才显示标记、缺省请谁看等于作者
       而且 未勾选 Prompt 含全部未解决看法、勾选后只含被勾条目且按钮无 @agent
+
+  @req:r172
+  规则: 嵌套下钻上下文与父层邻居门户
+    嵌套视图的父层 MUST 由当前 `nestStack` 路径与 Tab 根机求解，MUST NOT 使用单一 `parentMachineId`。宿主状态是父机中 `subMachineKey` 等于当前机的状态；门户 MUST 投影该宿主的入边/出边邻居并标注事件与可选守卫。返回上层 MUST 选中并居中宿主；点击父层邻居门户 MUST 返回上层并选中该邻居。同一子机被多个宿主引用时，两条 nest 路径的面包屑与父层邻居 MUST 各自正确。非嵌套时 MUST 保持既有跨规格门户，嵌套时 MUST NOT 与跨规格门户叠加。
+
+    场景: DAG 共享子机两条 nest 路径的父层邻居与面包屑各自正确
+      假如 一份同一子机被两个宿主引用的 DAG 状态机集合
+      当 分别沿两条 nest 路径计算父层上下文
+      那么 两条路径的面包屑与宿主状态互不相同且邻居来自各自父机
+
+  @req:r173
+  规则: 子树聚合与 Prompt 分层
+    Studio Web MUST 提供对当前机子树的纯函数聚合：机器集合（`visited` 防环）、任一层是否有未保存语义改动、分层语义 Diff 文本（子层标题为 `# [子层: …]`）。含环的非法数据 MUST 终止且 MUST NOT 死循环。Prompt 工作台 MUST 包含全部子层净改动并分层标注。复合节点就地预览默认关闭。
+
+    场景: 子树环数据终止且 DAG 子树 Diff 分层
+      假如 一份含 A 引用 B、B 引用 A 的环数据与一份合法子树草稿
+      当 分别计算环的子树机器集合与合法子树的分层 Diff 文本
+      那么 环计算终止且每机至多出现一次
+      而且 合法子树 Diff 含分层标题
+
+  @req:r174
+  规则: 深链 nest 路径与 focus 选中
+    Canonical 深链 MUST 向后兼容增加查询参数 `nest`（逗号分隔机器 key，含 Tab 根机）与 `focus`（`forest|macro-edge|state|edge` 加对象 id）。无 `nest`/`focus` 的既有 `kind`/`target` 深链 MUST 行为不变。服务端 `text/markdown` 与 `json` 协商输出 MUST 带 nest 路径与聚焦对象摘要，JSON MUST 通过 `studioFocusContextSchema` 校验。浏览器打开 MUST 按 nest 还原下钻并选中 focus 对象；`focus=macro-edge:<id>` MUST 选中该边且评论锚点为 `macro-edge`。
+
+    场景: 深链 parse 向后兼容且 nest 与 macro-edge focus 可还原
+      假如 一组无 nest 的既有深链查询与一组含 nest 及 macro-edge focus 的查询
+      当 分别解析并再序列化
+      那么 无 nest 的结果与既有 kind 和 target 一致
+      而且 含 nest 的结果保留路径与 macro-edge 聚焦
+

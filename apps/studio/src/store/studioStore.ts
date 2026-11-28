@@ -49,6 +49,8 @@ import {
 import { create } from 'zustand';
 
 import { studioApi, STUDIO_CLIENT_ID, StudioConflictError } from '../api/client.ts';
+import { defaultHostFocusUid } from '../nest/parentContext.ts';
+import { buildSubtreeDiffText, getSubtreeMachineIds } from '../nest/subtree.ts';
 import type { EdgePreset } from '../routing/obstacleRouter.ts';
 import {
   createMachineSimulationSession,
@@ -75,6 +77,12 @@ export interface NestStep {
   machineKey: string;
   label: string;
 }
+
+export type CanvasFocus =
+  | { kind: 'state'; id: string }
+  | { kind: 'edge'; id: string }
+  | { kind: 'macro-edge'; id: string }
+  | { kind: 'forest'; id: string };
 
 export interface CommentPopoverState {
   anchor: SemanticAnchor;
@@ -183,6 +191,8 @@ export interface StudioStoreState {
   commentPopover: CommentPopoverState | null;
   promptModal: PromptModalState | null;
   focusStateUid: string | null;
+  canvasFocus: CanvasFocus | null;
+  peekSubNodeIds: Set<string>;
 
   // Main view domain groups (strictly workspace-isolated, Axiom 5) & drafting sticky notes
   collapsedGroups: Set<string>;
@@ -248,7 +258,15 @@ export interface StudioStoreState {
   navBack: () => void;
   navForward: () => void;
   diveSubMachine: (machineKey: string, label: string) => void;
-  jumpNestLevel: (idx: number) => void;
+  jumpNestLevel: (idx: number, focusStateUid?: string | null) => void;
+  setCanvasFocus: (focus: CanvasFocus | null) => void;
+  toggleSubPeek: (machineKey: string, stateUid: string) => void;
+  applyDeepLink: (input: {
+    kind: string;
+    target: string;
+    nest: string[];
+    focus: CanvasFocus | null;
+  }) => void;
 
   mutateMachine: (
     machineKey: string,
@@ -600,6 +618,8 @@ function applyBootstrapToState(
     linterOpen: false,
     revisionDrawerOpen: false,
     focusStateUid: null,
+    canvasFocus: null,
+    peekSubNodeIds: new Set(),
     dirtyState: false,
     stateEditSeq: 0,
     syncedRevision: boot.stateDoc.revision ?? 0,
@@ -710,6 +730,8 @@ export const useStudioStore = create<StudioStoreState>((set, get) => {
     commentPopover: null,
     promptModal: null,
     focusStateUid: null,
+    canvasFocus: null,
+    peekSubNodeIds: new Set(),
 
     collapsedGroups: new Set(),
     ungroupedDomains: new Set(),
@@ -1255,12 +1277,74 @@ export const useStudioStore = create<StudioStoreState>((set, get) => {
       set({ nestStack: nextStack, navHistory: nextNav, navIdx: nextNav.length - 1 });
     },
 
-    jumpNestLevel: (idx) => {
+    jumpNestLevel: (idx, focusStateUid) => {
       const s = get();
       const nextStack = idx < 0 ? [] : s.nestStack.slice(0, idx + 1);
       const nextNav = s.navHistory.slice(0, s.navIdx + 1);
       nextNav.push({ tabId: s.activeTabId, nestStack: nextStack });
-      set({ nestStack: nextStack, navHistory: nextNav, navIdx: nextNav.length - 1 });
+      const tab = s.tabs.find((t) => t.id === s.activeTabId);
+      const tabRoot = tab?.kind === 'machine' ? tab.targetId : '';
+      const resolve = (key: string) =>
+        s.stateDoc?.machines[key]?.current ?? s.stateDoc?.machines[key]?.baseline ?? null;
+      const hostUid =
+        focusStateUid !== undefined
+          ? focusStateUid
+          : defaultHostFocusUid(s.nestStack, idx, tabRoot, resolve);
+      set({
+        nestStack: nextStack,
+        navHistory: nextNav,
+        navIdx: nextNav.length - 1,
+        focusStateUid: hostUid,
+        canvasFocus: hostUid ? { kind: 'state', id: hostUid } : null,
+      });
+    },
+
+    setCanvasFocus: (focus) =>
+      set({
+        canvasFocus: focus,
+        focusStateUid: focus?.kind === 'state' ? focus.id : null,
+      }),
+
+    toggleSubPeek: (machineKey, stateUid) => {
+      const key = `${machineKey}:${stateUid}`;
+      const next = new Set(get().peekSubNodeIds);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      set({ peekSubNodeIds: next });
+    },
+
+    applyDeepLink: (input) => {
+      const s = get();
+      const doc = s.stateDoc;
+      if (!doc) return;
+      if (input.kind === 'machine' && doc.machines[input.target]) {
+        s.openMachineTab(input.target);
+      } else if (input.kind === 'doc') {
+        const spec = s.specs.find((item) => item.id === input.target);
+        if (spec) void s.openSpecTab(spec);
+      } else if (input.kind === 'macro' || input.kind === 'forest') {
+        const liveTabs = get();
+        if (liveTabs.activeTabId !== 'main') {
+          set({ activeTabId: 'main' });
+        }
+      }
+      const live = get();
+      let nextStack: NestStep[] = live.nestStack;
+      if (input.nest.length > 1) {
+        const nested = input.nest.slice(1).filter((key) => doc.machines[key]);
+        nextStack = nested.map((machineKey) => ({
+          machineKey,
+          label: doc.machines[machineKey]?.current?.ruleTitle ?? machineKey,
+        }));
+      } else if (input.nest.length === 0) {
+        nextStack = [];
+      }
+      const focus = input.focus;
+      set({
+        nestStack: nextStack,
+        canvasFocus: focus,
+        focusStateUid: focus?.kind === 'state' ? focus.id : null,
+      });
     },
 
     mutateMachine: (machineKey, label, mutator, actor = 'human') => {
@@ -1729,9 +1813,18 @@ export const useStudioStore = create<StudioStoreState>((set, get) => {
       const doc = s.stateDoc;
       const ws = s.activeWorkspace;
       if (!doc || !ws) return '';
-      const targetKeys = machineKey ? [machineKey] : Object.keys(doc.machines);
+      const resolve = (key: string) =>
+        doc.machines[key]?.current ?? doc.machines[key]?.baseline ?? null;
+      const targetKeys = machineKey
+        ? getSubtreeMachineIds(machineKey, resolve)
+        : Object.keys(doc.machines);
+      const subtreeText = machineKey ? buildSubtreeDiffText(machineKey, doc.machines) : '';
       const diffBlocks: string[] = [];
+      if (subtreeText !== '') {
+        diffBlocks.push(`\`\`\`diff\n${subtreeText}\n\`\`\``);
+      }
       for (const mk of targetKeys) {
+        if (machineKey && subtreeText !== '') break;
         const draft = doc.machines[mk];
         if (!draft) continue;
         const diff = computeMachineDiff(draft);
@@ -1747,9 +1840,20 @@ export const useStudioStore = create<StudioStoreState>((set, get) => {
       }
       const macroDraftLines = s.macroDraftNotes.map((n) => `- [全景结构草稿意图] ${n}`);
       const selected = commentIds ?? get().promptIncludeIds;
+      const subtreeIds = new Set(targetKeys);
       const openComments = doc.comments.filter((c) => {
         if (c.status !== 'open') return false;
-        if (selected.length === 0) return true;
+        if (selected.length === 0) {
+          if (!machineKey) return true;
+          if (
+            c.anchor.kind === 'state' ||
+            c.anchor.kind === 'edge' ||
+            c.anchor.kind === 'machine'
+          ) {
+            return subtreeIds.has(c.anchor.machineKey);
+          }
+          return true;
+        }
         return selected.includes(c.id);
       });
       const commentLines = openComments.map((c) => {

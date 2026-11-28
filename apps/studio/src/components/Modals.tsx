@@ -6,7 +6,11 @@
  * - SearchPaletteModal: scope tabs (全部 | 规格与图 | 操作命令) + state-level indexing
  * - RevisionDrawer: Agent negotiation proposal accept / reject panel
  */
-import type { StudioSearchHit } from '@llman-sdd/core/studio';
+import {
+  formatStudioDeepLinkQuery,
+  nestPathFromStack,
+  type StudioSearchHit,
+} from '@llman-sdd/core/studio';
 import { Command } from 'cmdk';
 import {
   Check,
@@ -365,6 +369,10 @@ export function ShareDeepLinkModal() {
     activeWorkspace,
     setSharePopoverOpen,
     getActiveMachineKey,
+    nestStack,
+    tabs,
+    activeTabId,
+    canvasFocus,
     showToast,
   } = useStudioStore();
   const [previewTab, setPreviewTab] = useState<'markdown' | 'json' | 'html'>('markdown');
@@ -373,13 +381,33 @@ export function ShareDeepLinkModal() {
   const mk = getActiveMachineKey();
   const effectiveKind = shareTarget?.kind ?? (mk ? 'machine' : 'macro');
   const effectiveTarget = shareTarget?.targetId ?? mk ?? 'default';
+  const tab = tabs.find((t) => t.id === activeTabId);
+  const tabRoot = tab?.kind === 'machine' ? tab.targetId : (mk ?? '');
+  const nestPath =
+    effectiveKind === 'machine' && tabRoot !== ''
+      ? nestPathFromStack(
+          tabRoot,
+          nestStack.map((s) => s.machineKey),
+        )
+      : [];
+  const shareFocus =
+    canvasFocus &&
+    (canvasFocus.kind === 'forest' ||
+      canvasFocus.kind === 'macro-edge' ||
+      canvasFocus.kind === 'state' ||
+      canvasFocus.kind === 'edge')
+      ? canvasFocus
+      : null;
+  const query = formatStudioDeepLinkQuery({
+    kind: effectiveKind,
+    target: effectiveTarget,
+    nest: nestPath,
+    focus: shareFocus,
+  });
   const base = activeWorkspace
     ? `${window.location.origin}/p/${encodeURIComponent(activeWorkspace.wsKey)}`
     : '';
-  const url =
-    effectiveKind === 'macro' && effectiveTarget === 'default'
-      ? base
-      : `${base}?kind=${encodeURIComponent(effectiveKind)}&target=${encodeURIComponent(effectiveTarget)}`;
+  const url = query === '' ? base : `${base}?${query}`;
 
   useEffect(() => {
     if (!sharePopoverOpen || !url) return;

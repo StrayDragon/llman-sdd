@@ -34,6 +34,9 @@ import {
   type SpecIndexEdge,
   type SpecIndexItem,
   commentWatchTag,
+  formatStudioDeepLinkQuery,
+  parseStudioDeepLink,
+  type StudioMachineIR,
   type StudioStateDoc,
 } from '@llman-sdd/core';
 
@@ -65,6 +68,14 @@ import {
   filterShortcutsByView,
   STUDIO_SHORTCUT_REGISTRY,
 } from '../../../apps/studio/src/ergonomics/shortcuts.ts';
+import {
+  getParentNestContext,
+  nestBreadcrumb,
+} from '../../../apps/studio/src/nest/parentContext.ts';
+import {
+  buildSubtreeDiffText,
+  getSubtreeMachineIds,
+} from '../../../apps/studio/src/nest/subtree.ts';
 import {
   buildExclusiveDomainGroupsWithManual,
   extractPortalEvidence,
@@ -1085,4 +1096,180 @@ bdd.thenStep('未勾选 Prompt 含全部未解决看法、勾选后只含被勾�
   const { allOpen, subset } = ctx.fixtures['r166Res'] as { allOpen: string[]; subset: string[] };
   expect(allOpen.length).toBeGreaterThanOrEqual(subset.length);
   expect(SYNC_COPY.promptSubset.includes('@agent')).toBe(false);
+});
+
+function bddIr(
+  key: string,
+  states: Array<{ uid: string; name: string; sub?: string }>,
+  transitions: Array<{ from: string; event: string; to: string }>,
+): StudioMachineIR {
+  return {
+    machineKey: key,
+    capability: key,
+    reqId: 'r1',
+    ruleTitle: key,
+    scenarioName: 'main',
+    initialStateUid: states[0]?.uid ?? null,
+    columns: { from: 'from', event: 'event', to: 'to' },
+    states: states.map((s) => ({
+      uid: s.uid,
+      name: s.name,
+      ...(s.sub ? { subMachineKey: s.sub } : {}),
+    })),
+    transitions: transitions.map((t, i) => ({
+      uid: `t${String(i)}`,
+      fromUid: t.from,
+      event: t.event,
+      toUid: t.to,
+    })),
+  };
+}
+
+bdd.given('一份同一子机被两个宿主引用的 DAG 状态机集合', (ctx) => {
+  const child = bddIr('child', [{ uid: 'c1', name: 'c' }], []);
+  const hostA = bddIr(
+    'hostA',
+    [
+      { uid: 'a0', name: 'a-in' },
+      { uid: 'ah', name: 'a-host', sub: 'child' },
+      { uid: 'a1', name: 'a-out' },
+    ],
+    [
+      { from: 'a0', event: 'enter', to: 'ah' },
+      { from: 'ah', event: 'leave', to: 'a1' },
+    ],
+  );
+  const hostB = bddIr(
+    'hostB',
+    [
+      { uid: 'b0', name: 'b-in' },
+      { uid: 'bh', name: 'b-host', sub: 'child' },
+      { uid: 'b1', name: 'b-out' },
+    ],
+    [
+      { from: 'b0', event: 'in', to: 'bh' },
+      { from: 'bh', event: 'out', to: 'b1' },
+    ],
+  );
+  ctx.fixtures['nestDag'] = { child, hostA, hostB };
+});
+
+bdd.when('分别沿两条 nest 路径计算父层上下文', (ctx) => {
+  const { child, hostA, hostB } = ctx.fixtures['nestDag'] as {
+    child: StudioMachineIR;
+    hostA: StudioMachineIR;
+    hostB: StudioMachineIR;
+  };
+  const machines: Record<string, StudioMachineIR> = {
+    child,
+    hostA,
+    hostB,
+  };
+  const resolve = (k: string) => machines[k];
+  const stack = [{ machineKey: 'child', label: 'child' }];
+  ctx.fixtures['nestDagCtx'] = {
+    a: getParentNestContext(stack, 'hostA', 'hostA', resolve),
+    b: getParentNestContext(stack, 'hostB', 'hostB', resolve),
+    crumbsA: nestBreadcrumb('hostA', 'hostA', stack).map((c) => c.label),
+    crumbsB: nestBreadcrumb('hostB', 'hostB', stack).map((c) => c.label),
+  };
+});
+
+bdd.thenStep('两条路径的面包屑与宿主状态互不相同且邻居来自各自父机', (ctx) => {
+  const r = ctx.fixtures['nestDagCtx'] as {
+    a: ReturnType<typeof getParentNestContext>;
+    b: ReturnType<typeof getParentNestContext>;
+    crumbsA: string[];
+    crumbsB: string[];
+  };
+  expect(r.a?.hostName).toBe('a-host');
+  expect(r.b?.hostName).toBe('b-host');
+  expect(r.crumbsA).not.toEqual(r.crumbsB);
+  expect(r.a?.incoming[0]?.name).toBe('a-in');
+  expect(r.b?.incoming[0]?.name).toBe('b-in');
+});
+
+bdd.given('一份含 A 引用 B、B 引用 A 的环数据与一份合法子树草稿', (ctx) => {
+  const a = bddIr('A', [{ uid: 'sa', name: 'ha', sub: 'B' }], []);
+  const b = bddIr('B', [{ uid: 'sb', name: 'hb', sub: 'A' }], []);
+  const child = bddIr('child', [{ uid: 'c1', name: 'c' }], []);
+  const host = bddIr('host', [{ uid: 'h1', name: 'h', sub: 'child' }], []);
+  ctx.fixtures['nestCycle'] = { a, b, child, host };
+});
+
+bdd.when('分别计算环的子树机器集合与合法子树的分层 Diff 文本', (ctx) => {
+  const { a, b, child, host } = ctx.fixtures['nestCycle'] as {
+    a: StudioMachineIR;
+    b: StudioMachineIR;
+    child: StudioMachineIR;
+    host: StudioMachineIR;
+  };
+  const cycleMap: Record<string, StudioMachineIR> = { A: a, B: b };
+  const ids = getSubtreeMachineIds('A', (k) => cycleMap[k]);
+  const drafts = {
+    host: {
+      mode: 'modify' as const,
+      baseline: host,
+      current: host,
+      sourceFile: 'host.feature',
+    },
+    child: {
+      mode: 'modify' as const,
+      baseline: child,
+      current: { ...child, states: [...child.states, { uid: 'cx', name: 'extra' }] },
+      sourceFile: 'child.feature',
+    },
+  };
+  ctx.fixtures['nestCycleOut'] = {
+    ids,
+    text: buildSubtreeDiffText('host', drafts),
+  };
+});
+
+bdd.thenStep('环计算终止且每机至多出现一次', (ctx) => {
+  const { ids } = ctx.fixtures['nestCycleOut'] as { ids: string[] };
+  expect(ids).toEqual(['A', 'B']);
+  expect(new Set(ids).size).toBe(ids.length);
+});
+
+bdd.thenStep('合法子树 Diff 含分层标题', (ctx) => {
+  const { text } = ctx.fixtures['nestCycleOut'] as { text: string };
+  expect(text).toContain('# [子层: child]');
+});
+
+bdd.given('一组无 nest 的既有深链查询与一组含 nest 及 macro-edge focus 的查询', (ctx) => {
+  ctx.fixtures['deepQueries'] = {
+    legacy: 'kind=machine&target=cap/r1/flow',
+    nested: 'kind=machine&target=k0&nest=k0,k1,k2&focus=macro-edge:ref_1',
+  };
+});
+
+bdd.when('分别解析并再序列化', (ctx) => {
+  const q = ctx.fixtures['deepQueries'] as { legacy: string; nested: string };
+  const legacy = parseStudioDeepLink(q.legacy);
+  const nested = parseStudioDeepLink(q.nested);
+  ctx.fixtures['deepParsed'] = {
+    legacy,
+    nested,
+    legacyAgain: parseStudioDeepLink(formatStudioDeepLinkQuery(legacy)),
+  };
+});
+
+bdd.thenStep('无 nest 的结果与既有 kind 和 target 一致', (ctx) => {
+  const r = ctx.fixtures['deepParsed'] as {
+    legacy: ReturnType<typeof parseStudioDeepLink>;
+    legacyAgain: ReturnType<typeof parseStudioDeepLink>;
+  };
+  expect(r.legacy.kind).toBe('machine');
+  expect(r.legacy.target).toBe('cap/r1/flow');
+  expect(r.legacy.nest).toEqual([]);
+  expect(r.legacy.focus).toBeNull();
+  expect(r.legacyAgain.kind).toBe(r.legacy.kind);
+  expect(r.legacyAgain.target).toBe(r.legacy.target);
+});
+
+bdd.thenStep('含 nest 的结果保留路径与 macro-edge 聚焦', (ctx) => {
+  const r = ctx.fixtures['deepParsed'] as { nested: ReturnType<typeof parseStudioDeepLink> };
+  expect(r.nested.nest).toEqual(['k0', 'k1', 'k2']);
+  expect(r.nested.focus).toEqual({ kind: 'macro-edge', id: 'ref_1' });
 });

@@ -9,6 +9,7 @@ export * from './validate.ts';
 export * from './revisions.ts';
 export * from './store.ts';
 export * from './contracts.ts';
+export * from './deeplink.ts';
 export * from './decisionTree.ts';
 export * from './textfold.ts';
 export * from './demos.ts';

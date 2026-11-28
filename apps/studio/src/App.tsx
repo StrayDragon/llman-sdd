@@ -3,6 +3,7 @@
  * Coordinates initial bootstrap, Deep-Link focus restore, SSE live refresh (self-echo filtered),
  * pagehide keepalive flush, and global keyboard shortcuts (⌘K, ⌘Z/⌘⇧Z, Alt+←/→/↑, Esc).
  */
+import { parseStudioDeepLink } from '@llman-sdd/core/studio';
 import { useEffect } from 'react';
 
 import { studioApi } from './api/client.ts';
@@ -25,7 +26,7 @@ import { SyncConflictDock } from './components/SyncConflictDock.tsx';
 import { TheoremsDrawer } from './components/TheoremsDrawer.tsx';
 import { TopChrome } from './components/TopChrome.tsx';
 import { WorldlineDrawer } from './components/WorldlineDrawer.tsx';
-import { useStudioStore } from './store/studioStore.ts';
+import { useStudioStore, type CanvasFocus } from './store/studioStore.ts';
 
 function readInitialWsKeyFromLocation(): string | undefined {
   const m = /^\/p\/([^/]+)/u.exec(window.location.pathname);
@@ -39,11 +40,35 @@ function readInitialWsKeyFromLocation(): string | undefined {
   return undefined;
 }
 
+function canvasFocusFromUnknown(raw: unknown): CanvasFocus | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const rec = raw as { kind?: unknown; id?: unknown };
+  if (
+    (rec.kind === 'forest' ||
+      rec.kind === 'macro-edge' ||
+      rec.kind === 'state' ||
+      rec.kind === 'edge') &&
+    typeof rec.id === 'string' &&
+    rec.id !== ''
+  ) {
+    return { kind: rec.kind, id: rec.id };
+  }
+  return null;
+}
+
 function readInitialFocusContext(): {
   wsKey?: string;
   targetKind?: string;
   targetId?: string;
+  nest: string[];
+  focus: CanvasFocus | null;
 } {
+  const parsedLink = parseStudioDeepLink(window.location.search, window.location.hash);
+  let wsKey: string | undefined;
+  let nest = parsedLink.nest;
+  let focus: CanvasFocus | null = parsedLink.focus;
+  let targetKind = parsedLink.kind;
+  let targetId = parsedLink.target;
   try {
     const el = document.getElementById('studio-focus-context');
     if (el?.textContent) {
@@ -51,17 +76,22 @@ function readInitialFocusContext(): {
         wsKey?: string;
         targetKind?: string;
         targetId?: string;
+        nest?: string[];
+        focus?: unknown;
       };
-      if (parsed && typeof parsed === 'object') return parsed;
+      if (parsed && typeof parsed === 'object') {
+        wsKey = parsed.wsKey;
+        if (typeof parsed.targetKind === 'string') targetKind = parsed.targetKind;
+        if (typeof parsed.targetId === 'string') targetId = parsed.targetId;
+        if (Array.isArray(parsed.nest) && parsed.nest.length > 0) nest = parsed.nest;
+        const fromJson = canvasFocusFromUnknown(parsed.focus);
+        if (fromJson) focus = fromJson;
+      }
     }
   } catch {
     // Ignore malformed inline focus context
   }
-  const params = new URLSearchParams(window.location.search);
-  return {
-    targetKind: params.get('kind') ?? undefined,
-    targetId: params.get('target') ?? undefined,
-  };
+  return { wsKey, targetKind, targetId, nest, focus };
 }
 
 function isEditableElement(target: EventTarget | null): boolean {
@@ -103,13 +133,17 @@ export function App() {
     void init(initialWs).then(() => {
       const st = useStudioStore.getState();
       const targetId = focusCtx.targetId;
-      if (!targetId || targetId === 'default') return;
-      if (focusCtx.targetKind === 'machine' && st.stateDoc?.machines[targetId]) {
-        st.openMachineTab(targetId);
-      } else if (focusCtx.targetKind === 'doc') {
-        const spec = st.specs.find((s) => s.id === targetId);
-        if (spec) void st.openSpecTab(spec);
-      }
+      const hasDeep =
+        (targetId !== undefined && targetId !== 'default') ||
+        focusCtx.nest.length > 0 ||
+        focusCtx.focus !== null;
+      if (!hasDeep) return;
+      st.applyDeepLink({
+        kind: focusCtx.targetKind ?? 'macro',
+        target: targetId ?? 'default',
+        nest: focusCtx.nest,
+        focus: focusCtx.focus,
+      });
     });
 
     const unsubscribe = studioApi.subscribeEvents((ev) => {

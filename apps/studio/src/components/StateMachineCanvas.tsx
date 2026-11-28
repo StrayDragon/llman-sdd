@@ -16,6 +16,7 @@ import {
   type ForestEdgeEvidence,
   type SemanticAnchor,
   type SpecIndexItem,
+  nestLevelLabel,
   type StudioMachineIR,
 } from '@llman-sdd/core/studio';
 import {
@@ -27,6 +28,7 @@ import {
   ReactFlow,
   ReactFlowProvider,
   useReactFlow,
+  useStoreApi,
   useViewport,
   type Connection,
   type Edge,
@@ -41,6 +43,7 @@ import {
   ArrowRight,
   CircleDot,
   Diamond,
+  Eye,
   ExternalLink,
   FileText,
   Flag,
@@ -80,6 +83,8 @@ import {
   type DistributeAxis,
   type NodeBoxInput,
 } from '../ergonomics/layoutTidy.ts';
+import { getParentNestContext } from '../nest/parentContext.ts';
+import { hasSubtreeChanges } from '../nest/subtree.ts';
 import {
   buildExclusiveDomainGroupsWithManual,
   computeFocusAdjacencySet,
@@ -137,13 +142,18 @@ interface MachineBoundaryNodeData extends Record<string, unknown> {
   width: number;
   height: number;
   nested: boolean;
+  hostName?: string;
+  levelLabel?: string;
 }
 
 interface PortalPillNodeData extends Record<string, unknown> {
   direction: 'upstream' | 'downstream';
   capId: string;
   label: string;
+  edgeLabel?: string;
+  parentCtx?: boolean;
   onPreview: (x: number, y: number) => void;
+  onReturn?: () => void;
 }
 
 interface StateNodeData extends Record<string, unknown> {
@@ -161,6 +171,10 @@ interface StateNodeData extends Record<string, unknown> {
   focused: boolean;
   syncPulse?: 'ours' | 'theirs' | 'focus';
   onDive?: () => void;
+  onTogglePeek?: () => void;
+  peekOpen?: boolean;
+  subtreeDirty?: boolean;
+  peekSvg?: string;
   onInlineEdit: (x: number, y: number) => void;
 }
 
@@ -176,6 +190,7 @@ interface ObstacleEdgeData extends Record<string, unknown> {
   bendOffset?: EdgeBendOffset;
   simClickable?: boolean;
   syncPulse?: 'ours' | 'theirs' | 'focus';
+  focused?: boolean;
   onSimClick?: () => void;
   onBendDrag?: (next: EdgeBendOffset) => void;
   onDoubleClick?: (x: number, y: number) => void;
@@ -512,7 +527,16 @@ function MachineBoundaryNode({ data }: NodeProps<Node<MachineBoundaryNodeData>>)
         }}
       >
         <Workflow size={11} style={{ color: 'var(--t-machine)' }} />
-        <span>当前状态机边界 · {data.title}</span>
+        <span>
+          {data.nested && data.hostName
+            ? `展开内部:${data.hostName}`
+            : `当前状态机边界 · ${data.title}`}
+        </span>
+        {data.levelLabel ? (
+          <span className="font-mono opacity-70" data-nest-level={data.levelLabel}>
+            {data.levelLabel}
+          </span>
+        ) : null}
         <span className="opacity-65">{data.file}</span>
       </div>
     </div>
@@ -525,8 +549,10 @@ function PortalPillNode({ data }: NodeProps<Node<PortalPillNodeData>>) {
       type="button"
       onClick={(e) => {
         e.stopPropagation();
-        data.onPreview(e.clientX, e.clientY);
+        if (data.parentCtx && data.onReturn) data.onReturn();
+        else data.onPreview(e.clientX, e.clientY);
       }}
+      data-parent-portal={data.parentCtx ? data.capId : undefined}
       className="nodrag nopan pointer-events-auto rounded-lg border border-dashed px-3 py-2 flex items-center gap-2 text-xs cursor-pointer transition-all hover:border-solid hover:scale-[1.02]"
       style={{
         width: 156,
@@ -539,9 +565,16 @@ function PortalPillNode({ data }: NodeProps<Node<PortalPillNodeData>>) {
       <Handle type="target" position={Position.Left} className="opacity-0 pointer-events-none" />
       <Handle type="source" position={Position.Right} className="opacity-0 pointer-events-none" />
       <div className="text-left min-w-0">
-        <div className="font-mono font-semibold text-[11.5px] truncate">{data.capId}</div>
+        <div className="font-mono font-semibold text-[11.5px] truncate">{data.label}</div>
         <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-          {data.direction === 'upstream' ? '← 上游约束' : '下游调用 →'}
+          {data.parentCtx
+            ? data.direction === 'upstream'
+              ? '← 上层前置'
+              : '上层去向 →'
+            : data.direction === 'upstream'
+              ? '← 上游约束'
+              : '下游调用 →'}
+          {data.edgeLabel ? ` · ${data.edgeLabel}` : ''}
         </div>
       </div>
     </button>
@@ -571,6 +604,10 @@ function MachineStateNode({ data, selected }: NodeProps<Node<StateNodeData>>) {
     focused,
     syncPulse,
     onDive,
+    onTogglePeek,
+    peekOpen,
+    subtreeDirty,
+    peekSvg,
     onInlineEdit,
   } = data;
 
@@ -724,30 +761,60 @@ function MachineStateNode({ data, selected }: NodeProps<Node<StateNodeData>>) {
       </div>
 
       {subMachineKey && onDive && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDive();
-          }}
-          className="mt-2 inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10.5px] font-semibold cursor-pointer transition-colors hover:bg-[#2f54eb] hover:text-white"
-          style={{
-            borderColor: 'var(--accent-border)',
-            color: 'var(--accent)',
-            background: 'var(--accent-soft)',
-          }}
-        >
-          <Layers size={10} />
-          <span>进入子机</span>
-        </button>
+        <div className="mt-2 flex items-center gap-1">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDive();
+            }}
+            className="inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10.5px] font-semibold cursor-pointer"
+            style={{
+              borderColor: 'var(--accent-border)',
+              color: 'var(--accent)',
+              background: 'var(--accent-soft)',
+            }}
+            title={subtreeDirty ? '嵌套子层有未保存改动' : '进入嵌套子图'}
+          >
+            {subtreeDirty ? (
+              <span
+                className="inline-block w-1.5 h-1.5 rounded-full"
+                style={{ background: 'var(--amber)' }}
+                aria-label="子树有未保存改动"
+              />
+            ) : (
+              <Layers size={10} />
+            )}
+            <span>{subtreeDirty ? '进入子机 · 已改' : '进入子机'}</span>
+          </button>
+          {onTogglePeek ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onTogglePeek();
+              }}
+              className="inline-flex items-center rounded-md border px-1.5 py-0.5 cursor-pointer"
+              style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
+              title={peekOpen ? '关闭就地预览' : '就地预览子图'}
+              aria-pressed={peekOpen === true}
+            >
+              <Eye size={10} />
+            </button>
+          ) : null}
+        </div>
       )}
+      {peekOpen && peekSvg ? (
+        <div className="mt-2 pointer-events-none" dangerouslySetInnerHTML={{ __html: peekSvg }} />
+      ) : null}
     </div>
   );
 }
 
-function ObstacleStateEdge({ id, data }: EdgeProps<Edge<ObstacleEdgeData>>) {
+function ObstacleStateEdge({ id, data, selected }: EdgeProps<Edge<ObstacleEdgeData>>) {
   const { zoom } = useViewport();
   const dragCleanupRef = useRef<(() => void) | null>(null);
+  const focused = Boolean(data?.focused) || selected === true;
 
   useEffect(() => {
     return () => {
@@ -812,8 +879,11 @@ function ObstacleStateEdge({ id, data }: EdgeProps<Edge<ObstacleEdgeData>>) {
         id={id}
         d={dPath}
         fill="none"
-        stroke={stroke}
-        strokeWidth={syncPulse === 'focus' ? 3.1 : simClickable ? 2.5 : syncPulse ? 2.4 : 1.85}
+        stroke={focused ? 'var(--ink)' : stroke}
+        strokeWidth={
+          focused || syncPulse === 'focus' ? 3.1 : simClickable ? 2.5 : syncPulse ? 2.4 : 1.85
+        }
+        data-edge-selected={focused ? 'true' : undefined}
         shapeRendering="geometricPrecision"
         strokeDasharray={dashed ? '6 4' : undefined}
         markerEnd="url(#studio-arrow)"
@@ -916,6 +986,58 @@ function rayToRectBorder(
  *   transition labels (e.g. `校验通过保存变更 [门禁全绿]`) never clip against neighboring cards
  * - Keeps 2-cycle satellite pairs cleanly stacked above & below their hub column
  */
+function escapeXml(text: string): string {
+  return text
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;');
+}
+
+function buildSubPeekSvg(
+  machine: StudioMachineIR,
+  layout: Record<string, { x: number; y: number }>,
+): string {
+  if (machine.states.length === 0) return '';
+  const vbW = 168;
+  const vbH = 72;
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (const s of machine.states) {
+    const p = layout[s.uid] ?? { x: 0, y: 0 };
+    minX = Math.min(minX, p.x);
+    maxX = Math.max(maxX, p.x);
+    minY = Math.min(minY, p.y);
+    maxY = Math.max(maxY, p.y);
+  }
+  const spanX = Math.max(80, maxX - minX);
+  const spanY = Math.max(40, maxY - minY);
+  const sc = Math.min((vbW - 28) / spanX, (vbH - 20) / spanY);
+  const midX = (minX + maxX) / 2;
+  const midY = (minY + maxY) / 2;
+  const mapP = (uid: string) => {
+    const p = layout[uid] ?? { x: 0, y: 0 };
+    return { x: vbW / 2 + (p.x - midX) * sc, y: vbH / 2 + (p.y - midY) * sc };
+  };
+  const edgePaths = machine.transitions
+    .map((t) => {
+      const a = mapP(t.fromUid);
+      const b = mapP(t.toUid);
+      return `<path d="M ${a.x.toFixed(1)} ${a.y.toFixed(1)} L ${b.x.toFixed(1)} ${b.y.toFixed(1)}" fill="none" stroke="currentColor" stroke-width="1" opacity="0.45"/>`;
+    })
+    .join('');
+  const nodes = machine.states
+    .map((s) => {
+      const p = mapP(s.uid);
+      const short = s.name.length > 6 ? `${s.name.slice(0, 5)}…` : s.name;
+      return `<g><rect x="${(p.x - 22).toFixed(1)}" y="${(p.y - 8).toFixed(1)}" width="44" height="16" rx="4" fill="var(--surface)" stroke="currentColor" stroke-width="1"/><text x="${p.x.toFixed(1)}" y="${(p.y + 3).toFixed(1)}" text-anchor="middle" font-size="8" fill="currentColor">${escapeXml(short)}</text></g>`;
+    })
+    .join('');
+  return `<svg width="${String(vbW)}" height="${String(vbH)}" viewBox="0 0 ${String(vbW)} ${String(vbH)}" aria-hidden="true">${edgePaths}${nodes}</svg>`;
+}
+
 function defaultMachineLayout(machine: StudioMachineIR): Record<string, { x: number; y: number }> {
   const out: Record<string, { x: number; y: number }> = {};
   if (machine.states.length === 0) return out;
@@ -1028,6 +1150,8 @@ function StateMachineCanvasInner() {
     focusAdjacencyCapId,
     zoomTrigger,
     focusStateUid,
+    canvasFocus,
+    peekSubNodeIds,
     panelFindOpen,
     panelFindQuery,
     panelFindActiveId,
@@ -1045,6 +1169,8 @@ function StateMachineCanvasInner() {
     getActiveForestView,
     diveSubMachine,
     jumpNestLevel,
+    toggleSubPeek,
+    setCanvasFocus,
     updateNodePosition,
     updateEdgeBend,
     resetEdgeBend,
@@ -1075,6 +1201,7 @@ function StateMachineCanvasInner() {
   } = useStudioStore();
 
   const rf = useReactFlow();
+  const rfStore = useStoreApi();
   const contrastPalette = STUDIO_CONTRAST_PALETTES[skin];
   const [radialMenu, setRadialMenu] = useState<RadialContextState | null>(null);
   const [inlineEditor, setInlineEditor] = useState<InlineEditorState | null>(null);
@@ -1139,6 +1266,17 @@ function StateMachineCanvasInner() {
       });
     }
   }, [zoomTrigger, rf, clearViewportForView, setViewportForView, setZoomPercent]);
+
+  useEffect(() => {
+    if (!canvasFocus) return;
+    if (canvasFocus.kind === 'state') {
+      setSelectedNodeId(canvasFocus.id);
+      setSelectedEdgeId(null);
+    } else if (canvasFocus.kind === 'edge' || canvasFocus.kind === 'macro-edge') {
+      setSelectedEdgeId(canvasFocus.id);
+      setSelectedNodeId(null);
+    }
+  }, [canvasFocus]);
 
   // Smoothly focus node when selected from Linter or ⌘K
   useEffect(() => {
@@ -1499,17 +1637,21 @@ function StateMachineCanvasInner() {
         );
         const isBridge = bridgeEdgeSet !== null && bridgeEdgeSet.has(me.id);
         const edgeDimmed = bridgeEdgeSet !== null && !isBridge;
+        const isFocused = canvasFocus?.kind === 'macro-edge' && canvasFocus.id === me.id;
         flowE.push({
           id: me.id,
           source: me.from,
           target: me.to,
           type: 'obstacleEdge',
+          selected: isFocused,
+          className: isFocused ? 'selected' : undefined,
           style: edgeDimmed ? { opacity: 0.18 } : undefined,
           data: {
             label: me.label,
             dPath: geom.d,
             lx: lp.lx,
             ly: lp.ly,
+            focused: isFocused,
             stroke: isBridge
               ? '#2f54eb'
               : me.isManual
@@ -1608,6 +1750,17 @@ function StateMachineCanvasInner() {
     const frameW = Number.isFinite(maxX) ? maxX - frameX + 54 : 680;
     const frameH = Number.isFinite(maxY) ? maxY - frameY + 56 : 420;
 
+    const tabRootKey = activeTab?.kind === 'machine' ? activeTab.targetId : '';
+    const tabRootDraft = tabRootKey ? stateDoc.machines[tabRootKey] : undefined;
+    const tabRootLabel =
+      tabRootDraft?.current?.capability ?? tabRootDraft?.current?.ruleTitle ?? tabRootKey;
+    const parentCtx = getParentNestContext(
+      nestStack,
+      tabRootKey,
+      tabRootLabel,
+      (key) => stateDoc.machines[key]?.current ?? stateDoc.machines[key]?.baseline ?? null,
+    );
+
     const boundaryNode: Node<MachineBoundaryNodeData> = {
       id: '__machine_boundary__',
       type: 'machineBoundary',
@@ -1623,16 +1776,22 @@ function StateMachineCanvasInner() {
         width: frameW,
         height: frameH,
         nested: nestStack.length > 0,
+        hostName: parentCtx?.hostName,
+        levelLabel: nestStack.length > 0 ? nestLevelLabel(nestStack.length) : undefined,
       },
     };
 
-    // Upstream & Downstream Portal Ghost Pills from cross-spec macroEdges
-    const upstreamCaps = Array.from(
-      new Set(macroEdges.filter((e) => e.to === machine.capability).map((e) => e.from)),
-    ).slice(0, 3);
-    const downstreamCaps = Array.from(
-      new Set(macroEdges.filter((e) => e.from === machine.capability).map((e) => e.to)),
-    ).slice(0, 3);
+    // Nested: parent-layer neighbors. Otherwise: cross-spec macroEdges. Never both.
+    const upstreamCaps = parentCtx
+      ? parentCtx.incoming.map((n) => n.uid)
+      : Array.from(
+          new Set(macroEdges.filter((e) => e.to === machine.capability).map((e) => e.from)),
+        ).slice(0, 3);
+    const downstreamCaps = parentCtx
+      ? parentCtx.outgoing.map((n) => n.uid)
+      : Array.from(
+          new Set(macroEdges.filter((e) => e.from === machine.capability).map((e) => e.to)),
+        ).slice(0, 3);
 
     const portalNodes: Node<PortalPillNodeData>[] = [
       ...upstreamCaps.map((cap, idx) => ({
@@ -1650,7 +1809,11 @@ function StateMachineCanvasInner() {
         data: {
           direction: 'upstream' as const,
           capId: cap,
-          label: cap,
+          label: parentCtx ? (parentCtx.incoming.find((n) => n.uid === cap)?.name ?? cap) : cap,
+          edgeLabel: parentCtx
+            ? parentCtx.incoming.find((n) => n.uid === cap)?.edgeLabel
+            : undefined,
+          parentCtx: Boolean(parentCtx),
           onPreview: (x: number, y: number) =>
             setPortalPopover({
               capId: cap,
@@ -1659,6 +1822,7 @@ function StateMachineCanvasInner() {
               y,
               evidence: extractPortalEvidence(machine.capability, 'upstream', cap, macroEdges),
             }),
+          onReturn: parentCtx ? () => jumpNestLevel(parentCtx.parentIdx, cap) : undefined,
         },
       })),
       ...downstreamCaps.map((cap, idx) => ({
@@ -1676,7 +1840,11 @@ function StateMachineCanvasInner() {
         data: {
           direction: 'downstream' as const,
           capId: cap,
-          label: cap,
+          label: parentCtx ? (parentCtx.outgoing.find((n) => n.uid === cap)?.name ?? cap) : cap,
+          edgeLabel: parentCtx
+            ? parentCtx.outgoing.find((n) => n.uid === cap)?.edgeLabel
+            : undefined,
+          parentCtx: Boolean(parentCtx),
           onPreview: (x: number, y: number) =>
             setPortalPopover({
               capId: cap,
@@ -1685,6 +1853,7 @@ function StateMachineCanvasInner() {
               y,
               evidence: extractPortalEvidence(machine.capability, 'downstream', cap, macroEdges),
             }),
+          onReturn: parentCtx ? () => jumpNestLevel(parentCtx.parentIdx, cap) : undefined,
         },
       })),
     ];
@@ -1774,6 +1943,7 @@ function StateMachineCanvasInner() {
         width: sz.w,
         height: sz.h,
         zIndex: 4,
+        selected: canvasFocus?.kind === 'state' && canvasFocus.id === s.uid,
         data: {
           uid: s.uid,
           label: s.name,
@@ -1786,9 +1956,26 @@ function StateMachineCanvasInner() {
           simActive: mode === 'simulate' && simActiveUid === s.uid,
           hasError: errorUids.has(s.uid),
           commentCount: cCount,
-          focused: focusStateUid === s.uid,
+          focused:
+            focusStateUid === s.uid || (canvasFocus?.kind === 'state' && canvasFocus.id === s.uid),
           syncPulse,
           onDive: s.subMachineKey ? () => diveSubMachine(s.subMachineKey!, s.name) : undefined,
+          onTogglePeek: s.subMachineKey ? () => toggleSubPeek(activeMachineKey, s.uid) : undefined,
+          peekOpen: s.subMachineKey ? peekSubNodeIds.has(`${activeMachineKey}:${s.uid}`) : false,
+          subtreeDirty: s.subMachineKey
+            ? hasSubtreeChanges(s.subMachineKey, stateDoc.machines)
+            : false,
+          peekSvg:
+            s.subMachineKey && peekSubNodeIds.has(`${activeMachineKey}:${s.uid}`)
+              ? (() => {
+                  const sub =
+                    stateDoc.machines[s.subMachineKey]?.current ??
+                    stateDoc.machines[s.subMachineKey]?.baseline;
+                  if (!sub) return undefined;
+                  const lay = stateDoc.layouts[s.subMachineKey] ?? defaultMachineLayout(sub);
+                  return buildSubPeekSvg(sub, lay);
+                })()
+              : undefined,
           onInlineEdit: (x, y) => {
             if (s._removed || s._drift) return;
             setInlineEditor({
@@ -1917,12 +2104,17 @@ function StateMachineCanvasInner() {
           : isSyncOursEdge
             ? 'ours'
             : undefined;
+      const edgeDomId = `${t.uid}${t._removed ? '-rem' : t._drift ? '-drift' : ''}`;
+      const isEdgeFocused = canvasFocus?.kind === 'edge' && canvasFocus.id === t.uid;
       flowE.push({
-        id: `${t.uid}${t._removed ? '-rem' : t._drift ? '-drift' : ''}`,
+        id: edgeDomId,
         source: t.fromUid,
         target: t.toUid,
         type: 'obstacleEdge',
+        selected: isEdgeFocused,
+        className: isEdgeFocused ? 'selected' : undefined,
         data: {
+          focused: isEdgeFocused,
           label: t._drift ? `[Trace] ${label}` : label,
           dPath: edgePath,
           lx: lp.lx,
@@ -1992,11 +2184,15 @@ function StateMachineCanvasInner() {
     activeTab?.kind,
     activeForestView,
     focusAdjacencyCapId,
-    nestStack.length,
+    nestStack,
     focusStateUid,
+    canvasFocus,
+    peekSubNodeIds,
     openSpecTab,
     openCommentPopover,
     diveSubMachine,
+    jumpNestLevel,
+    toggleSubPeek,
     updateEdgeBend,
     triggerSimEvent,
     getDiagnosticsForMachine,
@@ -2039,6 +2235,30 @@ function StateMachineCanvasInner() {
       }
     };
   }, [viewKey, hasNodes, rf, setZoomPercent, setViewportForView]);
+
+  useEffect(() => {
+    if (!canvasFocus) return;
+    if (canvasFocus.kind !== 'macro-edge' && canvasFocus.kind !== 'edge') return;
+    const id = canvasFocus.id;
+    if (!flowEdges.some((e) => e.id === id)) return;
+    const t = window.setTimeout(() => {
+      if (rfStore.getState().edgeLookup.get(id)) {
+        rfStore.getState().addSelectedEdges([id]);
+      }
+      const srcTgt = rf.getEdge(id);
+      if (!srcTgt) return;
+      const src = rf.getNode(srcTgt.source);
+      const tgt = rf.getNode(srcTgt.target);
+      if (src && tgt) {
+        void rf.setCenter(
+          (src.position.x + tgt.position.x) / 2 + 80,
+          (src.position.y + tgt.position.y) / 2 + 40,
+          { zoom: 1, duration: 180 },
+        );
+      }
+    }, 280);
+    return () => window.clearTimeout(t);
+  }, [canvasFocus, flowEdges, rf, rfStore]);
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
@@ -2337,10 +2557,17 @@ function StateMachineCanvasInner() {
   };
 
   return (
-    <div className="w-full h-full relative">
+    <div
+      className="w-full h-full relative"
+      data-canvas-focus={canvasFocus ? `${canvasFocus.kind}:${canvasFocus.id}` : undefined}
+    >
       {/* Box-in-Box Nested Breadcrumb */}
       {nestStack.length > 0 && (
-        <div className="fixed top-[56px] left-3 z-30 studio-island inline-flex items-center gap-1.5 px-2.5 py-1 text-xs">
+        <div
+          className="fixed top-[56px] left-3 z-30 studio-island inline-flex items-center gap-1.5 px-2.5 py-1 text-xs"
+          data-nest-crumb="true"
+          data-nest-level={nestLevelLabel(nestStack.length)}
+        >
           <button
             type="button"
             onClick={() => jumpNestLevel(nestStack.length - 2)}
@@ -2353,10 +2580,11 @@ function StateMachineCanvasInner() {
           <span style={{ color: 'var(--text-muted)' }}>|</span>
           {nestStack.map((step, idx) => (
             <button
-              key={step.machineKey}
+              key={`${step.machineKey}:${String(idx)}`}
               type="button"
               onClick={() => jumpNestLevel(idx)}
               className="rounded px-2 py-0.5 cursor-pointer"
+              data-nest-step={step.machineKey}
               style={{
                 fontWeight: idx === nestStack.length - 1 ? 600 : 400,
                 background: idx === nestStack.length - 1 ? 'var(--ink)' : 'transparent',
@@ -2366,6 +2594,9 @@ function StateMachineCanvasInner() {
               {step.label}
             </button>
           ))}
+          <span className="font-mono" style={{ color: 'var(--text-muted)' }}>
+            {nestLevelLabel(nestStack.length)}
+          </span>
         </div>
       )}
 
@@ -2385,6 +2616,7 @@ function StateMachineCanvasInner() {
           setPortalPopover(null);
           setSelectedNodeId(null);
           setSelectedEdgeId(null);
+          setCanvasFocus(null);
         }}
         selectionKeyCode="Shift"
         onSelectionChange={handleSelectionChange}
@@ -2408,6 +2640,9 @@ function StateMachineCanvasInner() {
         onEdgeClick={(_ev, edge) => {
           setSelectedEdgeId(edge.id);
           setSelectedNodeId(null);
+          setCanvasFocus(
+            isMacro ? { kind: 'macro-edge', id: edge.id } : { kind: 'edge', id: edge.id },
+          );
         }}
         onNodeContextMenu={(e, node) => {
           e.preventDefault();

@@ -78,6 +78,10 @@ import {
   type SpecEntry,
   type SpecIndexEdge,
   type SpecIndexItem,
+  formatStudioFocusToken,
+  formatStudioNestToken,
+  parseStudioDeepLink,
+  studioDeepLinkJsonSchema,
   type StudioFocusContext,
   type StudioSseEvent,
   type StudioStateDoc,
@@ -1453,23 +1457,49 @@ export function createStudioHubApp(options: StudioHubOptions): CreatedStudioHubA
     const boot = handleBootstrap(wsKeyParam);
     if (!boot) return c.text('workspace not found', 404);
     const format = resolveNegotiatedFormat(c.req.header('accept'), c.req.query('format'));
-    const targetKind = (c.req.query('kind') ?? 'macro') as StudioFocusContext['targetKind'];
-    const targetId = c.req.query('target') ?? 'default';
+    const parsed = parseStudioDeepLink(
+      new URLSearchParams({
+        ...(c.req.query('kind') !== undefined ? { kind: c.req.query('kind')! } : {}),
+        ...(c.req.query('target') !== undefined ? { target: c.req.query('target')! } : {}),
+        ...(c.req.query('nest') !== undefined ? { nest: c.req.query('nest')! } : {}),
+        ...(c.req.query('focus') !== undefined ? { focus: c.req.query('focus')! } : {}),
+        ...(c.req.query('tab') !== undefined ? { tab: c.req.query('tab')! } : {}),
+      }),
+    );
+    const targetKind = (
+      ['macro', 'machine', 'doc', 'state', 'edge'].includes(parsed.kind) ? parsed.kind : 'macro'
+    ) as StudioFocusContext['targetKind'];
+    const targetId = parsed.target;
     const baseUrl = formatLoopbackUrl(host, boundPort);
+    const path = `/p/${encodeURIComponent(boot.workspace.wsKey)}`;
+    const canonParams = new URLSearchParams();
+    canonParams.set('kind', targetKind);
+    canonParams.set('target', targetId);
+    const nestTok = formatStudioNestToken(parsed.nest);
+    if (nestTok !== '') canonParams.set('nest', nestTok);
+    if (parsed.focus) canonParams.set('focus', formatStudioFocusToken(parsed.focus));
+    const canonicalUrl = `${baseUrl}${path}?${canonParams.toString()}`;
     const focus: StudioFocusContext = {
       wsKey: boot.workspace.wsKey,
       repo: boot.workspace.repo,
       branch: boot.workspace.branch,
-      targetKind: ['macro', 'machine', 'doc', 'state', 'edge'].includes(targetKind)
-        ? targetKind
-        : 'macro',
+      targetKind,
       targetId,
-      canonicalUrl: `${baseUrl}/p/${encodeURIComponent(boot.workspace.wsKey)}?kind=${encodeURIComponent(targetKind)}&target=${encodeURIComponent(targetId)}`,
+      canonicalUrl,
       summary: `${boot.workspace.repo} (${boot.workspace.branch}) · ${String(boot.specs.length)} specs`,
+      ...(parsed.nest.length > 0 ? { nest: parsed.nest } : {}),
+      ...(parsed.focus ? { focus: parsed.focus } : {}),
     };
 
     if (format === 'json') {
-      return c.json({ focus, workspace: boot.workspace, specs: boot.specs, edges: boot.edges });
+      return c.json(
+        studioDeepLinkJsonSchema.parse({
+          focus,
+          workspace: boot.workspace,
+          specs: boot.specs,
+          edges: boot.edges,
+        }),
+      );
     }
     if (format === 'markdown') {
       const openComments = boot.stateDoc.comments.filter((cm) => cm.status === 'open').length;

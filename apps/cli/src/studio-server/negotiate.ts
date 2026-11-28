@@ -40,6 +40,8 @@ export function renderNegotiatedMarkdown(input: {
     '',
     `- Workspace: \`${workspace.wsKey}\` (${workspace.protected ? 'protected branch' : 'writable branch'})`,
     `- Focus: \`${focus.targetKind}:${focus.targetId}\` — ${focus.summary}`,
+    ...(focus.nest && focus.nest.length > 0 ? [`- Nest: \`${focus.nest.join(' > ')}\``] : []),
+    ...(focus.focus ? [`- Focus object: \`${focus.focus.kind}:${focus.focus.id}\``] : []),
     `- Specs: ${String(specs.length)} | Open comments: ${String(openCommentCount)}`,
     `- Canonical URL: ${focus.canonicalUrl}`,
     '',
