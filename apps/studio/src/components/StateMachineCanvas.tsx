@@ -83,6 +83,7 @@ import {
   type DistributeAxis,
   type NodeBoxInput,
 } from '../ergonomics/layoutTidy.ts';
+import { divePillLabel, machineCanvasViewKey } from '../nest/chrome.ts';
 import { getParentNestContext } from '../nest/parentContext.ts';
 import { hasSubtreeChanges } from '../nest/subtree.ts';
 import {
@@ -144,6 +145,9 @@ interface MachineBoundaryNodeData extends Record<string, unknown> {
   nested: boolean;
   hostName?: string;
   levelLabel?: string;
+  parentLabel?: string;
+  currentLabel?: string;
+  onJumpOut?: () => void;
 }
 
 interface PortalPillNodeData extends Record<string, unknown> {
@@ -174,6 +178,7 @@ interface StateNodeData extends Record<string, unknown> {
   onTogglePeek?: () => void;
   peekOpen?: boolean;
   subtreeDirty?: boolean;
+  diveLabel?: string;
   peekSvg?: string;
   onInlineEdit: (x: number, y: number) => void;
 }
@@ -517,6 +522,44 @@ function MachineBoundaryNode({ data }: NodeProps<Node<MachineBoundaryNodeData>>)
         position={Position.Right}
         className="opacity-0 pointer-events-none"
       />
+      {data.nested ? (
+        <div
+          className="absolute left-3.5 -top-[36px] inline-flex items-center gap-1 pointer-events-auto z-10"
+          data-nest-crumb="true"
+          data-nest-level={data.levelLabel}
+        >
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              data.onJumpOut?.();
+            }}
+            className="inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-[10.5px] font-semibold cursor-pointer"
+            style={{
+              background: 'var(--accent-soft)',
+              color: 'var(--accent)',
+              borderColor: 'var(--accent-border)',
+              boxShadow: 'var(--shadow-card)',
+            }}
+          >
+            <ArrowLeft size={11} />
+            <span>返回上层{data.parentLabel ? ` ${data.parentLabel}` : ''}</span>
+          </button>
+          {data.currentLabel ? (
+            <span
+              className="inline-flex items-center rounded-lg border px-2 py-0.5 text-[10.5px] font-semibold"
+              style={{
+                background: 'var(--ink)',
+                color: '#ffffff',
+                borderColor: 'var(--ink)',
+                boxShadow: 'var(--shadow-card)',
+              }}
+            >
+              {data.currentLabel}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
       <div
         className="absolute left-3.5 -top-[13px] inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg border font-mono text-[10.5px] font-semibold"
         style={{
@@ -607,6 +650,7 @@ function MachineStateNode({ data, selected }: NodeProps<Node<StateNodeData>>) {
     onTogglePeek,
     peekOpen,
     subtreeDirty,
+    diveLabel,
     peekSvg,
     onInlineEdit,
   } = data;
@@ -774,7 +818,7 @@ function MachineStateNode({ data, selected }: NodeProps<Node<StateNodeData>>) {
               color: 'var(--accent)',
               background: 'var(--accent-soft)',
             }}
-            title={subtreeDirty ? '嵌套子层有未保存改动' : '进入嵌套子图'}
+            title={subtreeDirty ? '嵌套子层有未保存改动' : (diveLabel ?? '进入子状态机')}
           >
             {subtreeDirty ? (
               <span
@@ -785,7 +829,7 @@ function MachineStateNode({ data, selected }: NodeProps<Node<StateNodeData>>) {
             ) : (
               <Layers size={10} />
             )}
-            <span>{subtreeDirty ? '进入子机 · 已改' : '进入子机'}</span>
+            <span>{diveLabel ?? divePillLabel({ dirty: subtreeDirty })}</span>
           </button>
           {onTogglePeek ? (
             <button
@@ -1227,7 +1271,10 @@ function StateMachineCanvasInner() {
     ? activeTab?.kind === 'forest'
       ? `forest:${activeTab.targetId}`
       : 'macro'
-    : `machine:${activeMachineKey ?? activeTabId}`;
+    : machineCanvasViewKey(
+        activeMachineKey ?? activeTabId,
+        nestStack.map((step) => step.machineKey),
+      );
 
   const viewKeyRef = useRef(viewKey);
   viewKeyRef.current = viewKey;
@@ -1745,8 +1792,9 @@ function StateMachineCanvasInner() {
       maxY = Math.max(maxY, p.y + h);
     });
 
+    const topPad = nestStack.length > 0 ? 88 : 56;
     const frameX = Number.isFinite(minX) ? minX - 54 : 120;
-    const frameY = Number.isFinite(minY) ? minY - 56 : 96;
+    const frameY = Number.isFinite(minY) ? minY - topPad : 96;
     const frameW = Number.isFinite(maxX) ? maxX - frameX + 54 : 680;
     const frameH = Number.isFinite(maxY) ? maxY - frameY + 56 : 420;
 
@@ -1778,6 +1826,9 @@ function StateMachineCanvasInner() {
         nested: nestStack.length > 0,
         hostName: parentCtx?.hostName,
         levelLabel: nestStack.length > 0 ? nestLevelLabel(nestStack.length) : undefined,
+        parentLabel: parentCtx?.parentLabel,
+        currentLabel: nestStack.at(-1)?.label ?? machine.ruleTitle,
+        onJumpOut: () => jumpNestLevel(nestStack.length - 2),
       },
     };
 
@@ -1965,6 +2016,15 @@ function StateMachineCanvasInner() {
           subtreeDirty: s.subMachineKey
             ? hasSubtreeChanges(s.subMachineKey, stateDoc.machines)
             : false,
+          diveLabel: s.subMachineKey
+            ? divePillLabel({
+                graphKind: (
+                  stateDoc.machines[s.subMachineKey]?.current ??
+                  stateDoc.machines[s.subMachineKey]?.baseline
+                )?.graphKind,
+                dirty: hasSubtreeChanges(s.subMachineKey, stateDoc.machines),
+              })
+            : undefined,
           peekSvg:
             s.subMachineKey && peekSubNodeIds.has(`${activeMachineKey}:${s.uid}`)
               ? (() => {
@@ -2217,9 +2277,10 @@ function StateMachineCanvasInner() {
       });
     } else if (fittedInitialViewRef.current !== viewKey) {
       fittedInitialViewRef.current = viewKey;
+      const pad = nestStack.length > 0 ? 0.28 : 0.18;
       raf1 = requestAnimationFrame(() => {
         raf2 = requestAnimationFrame(() => {
-          void rf.fitView({ padding: 0.18, duration: 220 }).then(() => {
+          void rf.fitView({ padding: pad, duration: 220 }).then(() => {
             setZoomPercent(Math.round(rf.getViewport().zoom * 100));
           });
         });
@@ -2234,7 +2295,7 @@ function StateMachineCanvasInner() {
         setViewportForView(viewKey, pending.vp);
       }
     };
-  }, [viewKey, hasNodes, rf, setZoomPercent, setViewportForView]);
+  }, [viewKey, hasNodes, nestStack.length, rf, setZoomPercent, setViewportForView]);
 
   useEffect(() => {
     if (!canvasFocus) return;
@@ -2561,45 +2622,6 @@ function StateMachineCanvasInner() {
       className="w-full h-full relative"
       data-canvas-focus={canvasFocus ? `${canvasFocus.kind}:${canvasFocus.id}` : undefined}
     >
-      {/* Box-in-Box Nested Breadcrumb */}
-      {nestStack.length > 0 && (
-        <div
-          className="fixed top-[56px] left-3 z-30 studio-island inline-flex items-center gap-1.5 px-2.5 py-1 text-xs"
-          data-nest-crumb="true"
-          data-nest-level={nestLevelLabel(nestStack.length)}
-        >
-          <button
-            type="button"
-            onClick={() => jumpNestLevel(nestStack.length - 2)}
-            className="inline-flex items-center gap-1 rounded px-2 py-0.5 font-semibold cursor-pointer"
-            style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}
-          >
-            <ArrowLeft size={12} />
-            <span>返回上层</span>
-          </button>
-          <span style={{ color: 'var(--text-muted)' }}>|</span>
-          {nestStack.map((step, idx) => (
-            <button
-              key={`${step.machineKey}:${String(idx)}`}
-              type="button"
-              onClick={() => jumpNestLevel(idx)}
-              className="rounded px-2 py-0.5 cursor-pointer"
-              data-nest-step={step.machineKey}
-              style={{
-                fontWeight: idx === nestStack.length - 1 ? 600 : 400,
-                background: idx === nestStack.length - 1 ? 'var(--ink)' : 'transparent',
-                color: idx === nestStack.length - 1 ? '#ffffff' : 'var(--text-secondary)',
-              }}
-            >
-              {step.label}
-            </button>
-          ))}
-          <span className="font-mono" style={{ color: 'var(--text-muted)' }}>
-            {nestLevelLabel(nestStack.length)}
-          </span>
-        </div>
-      )}
-
       <ReactFlow
         nodes={flowNodes}
         edges={flowEdges}

@@ -68,6 +68,7 @@ import {
   filterShortcutsByView,
   STUDIO_SHORTCUT_REGISTRY,
 } from '../../../apps/studio/src/ergonomics/shortcuts.ts';
+import { divePillLabel, machineCanvasViewKey } from '../../../apps/studio/src/nest/chrome.ts';
 import {
   getParentNestContext,
   nestBreadcrumb,
@@ -1272,4 +1273,37 @@ bdd.thenStep('含 nest 的结果保留路径与 macro-edge 聚焦', (ctx) => {
   const r = ctx.fixtures['deepParsed'] as { nested: ReturnType<typeof parseStudioDeepLink> };
   expect(r.nested.nest).toEqual(['k0', 'k1', 'k2']);
   expect(r.nested.focus).toEqual({ kind: 'macro-edge', id: 'ref_1' });
+});
+
+bdd.given('一台状态机与一台流程图子机', (ctx) => {
+  ctx.fixtures['nestChrome'] = {
+    machineKey: 'child',
+    pathA: ['hostA', 'child'],
+    pathB: ['hostB', 'child'],
+  };
+});
+
+bdd.when('分别计算下钻文案与带 nest 的视口 key', (ctx) => {
+  const { machineKey, pathA, pathB } = ctx.fixtures['nestChrome'] as {
+    machineKey: string;
+    pathA: string[];
+    pathB: string[];
+  };
+  ctx.fixtures['nestChromeOut'] = {
+    machine: divePillLabel({}),
+    flow: divePillLabel({ graphKind: 'flow' }),
+    viaA: machineCanvasViewKey(machineKey, pathA),
+    viaB: machineCanvasViewKey(machineKey, pathB),
+  };
+});
+
+bdd.thenStep('状态机文案为进入子状态机、流程图文案为进入子流程', (ctx) => {
+  const r = ctx.fixtures['nestChromeOut'] as { machine: string; flow: string };
+  expect(r.machine).toBe('进入子状态机');
+  expect(r.flow).toBe('进入子流程');
+});
+
+bdd.thenStep('两条不同 nest 路径的视口 key 不相同', (ctx) => {
+  const r = ctx.fixtures['nestChromeOut'] as { viaA: string; viaB: string };
+  expect(r.viaA).not.toBe(r.viaB);
 });

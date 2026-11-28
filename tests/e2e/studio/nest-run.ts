@@ -139,15 +139,19 @@ async function main(): Promise<number> {
     await page.goto(nestUrl);
     await page.waitForSelector('.react-flow__node', { timeout: 20_000 });
     await settle(page, 1400);
-    const level = await page.locator('[data-nest-crumb]').getAttribute('data-nest-level');
-    if (level !== 'L3') failures.push(`expected L3 breadcrumb, got ${String(level)}`);
+    const crumbOnFrame = page.locator('.machine-boundary-frame [data-nest-crumb]');
+    const level = await crumbOnFrame.getAttribute('data-nest-level');
+    if (level !== 'L3') failures.push(`expected L3 breadcrumb on boundary, got ${String(level)}`);
+    if ((await page.locator('.studio-island[data-nest-crumb]').count()) !== 0) {
+      failures.push('nest crumb must not be a canvas-top island');
+    }
     const portal = page.locator('[data-parent-portal]').first();
     if ((await portal.count()) === 0) {
       failures.push('parent portal missing at L3');
     } else {
       await portal.click();
       await settle(page, 800);
-      const after = await page.locator('[data-nest-crumb]').getAttribute('data-nest-level');
+      const after = await crumbOnFrame.getAttribute('data-nest-level');
       if (after !== 'L2') failures.push(`portal click expected L2, got ${String(after)}`);
       const selected = await page
         .locator('.react-flow__node.selected, .react-flow__node-stateNode.selected')

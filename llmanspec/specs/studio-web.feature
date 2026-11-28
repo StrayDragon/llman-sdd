@@ -202,3 +202,13 @@
       那么 无 nest 的结果与既有 kind 和 target 一致
       而且 含 nest 的结果保留路径与 macro-edge 聚焦
 
+  @req:r176
+  规则: 嵌套贴框导航与 nest 视口记忆
+    嵌套时「返回上层」MUST 贴在当前机边界框左上角，MUST NOT 作为画布顶栏悬浮条。复合节点下钻缺省文案 MUST 为「进入子状态机」；目标机 `graphKind` 为 `flow` 时 MUST 为「进入子流程」。视口记忆 key MUST 含 machineKey 与 nest 路径：某路径首次进入 MUST 无记忆从而 fitView 居中；用户平移缩放后 MUST 按该路径记住。
+
+    场景: 下钻文案按方言缺省且视口 key 含 nest 路径
+      假如 一台状态机与一台流程图子机
+      当 分别计算下钻文案与带 nest 的视口 key
+      那么 状态机文案为进入子状态机、流程图文案为进入子流程
+      而且 两条不同 nest 路径的视口 key 不相同
+

@@ -1,6 +1,9 @@
 ---
 depends_on: []
 title: 嵌套返回贴节点组并记住视口
+branch: sdd/align-studio-nest-chrome
+base_branch: main
+base_sha: dfdfcd02e6bfd12c7cb35fa5db30db6e02b57fb2
 ---
 
 # 嵌套返回贴节点组并记住视口
