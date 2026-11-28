@@ -1,6 +1,9 @@
 ---
 depends_on: []
 title: 规格声明流程图方言与任意深度子机嵌套
+branch: sdd/add-spec-flow-and-nested-machines
+base_branch: main
+base_sha: 5f62e3ddf84cf3d9f132a7501c1a1128e3abbd50
 ---
 
 # 规格声明流程图方言与任意深度子机嵌套

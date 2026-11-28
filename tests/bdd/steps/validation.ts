@@ -1575,6 +1575,221 @@ bdd.given('一个两个状态互相到达的合法流转表临时仓库', (ctx) 
   );
 });
 
+const STATE_STEPS = `      假如 状态 <状态>
+      当 读取属性
+      那么 子机为 <子机>`;
+
+function nestedPairFeature(
+  cap: string,
+  nestCell: string,
+  opts?: { extraHostRow?: string; hostState?: string; childNestsHost?: boolean },
+): string {
+  const hostState = opts?.hostState ?? 'on';
+  const extra = opts?.extraHostRow ?? '';
+  const childStates = opts?.childNestsHost
+    ? `
+    @states
+    场景大纲: 子属性
+${STATE_STEPS}
+      例子:
+        | 状态 | 子机 |
+        | idle | @req:r80 |
+`
+    : '';
+  return `# language: zh-CN
+# purpose: ${cap}
+功能: ${cap}
+
+  @req:r80
+  规则: host
+    系统 MUST x
+
+    @transitions
+    场景大纲: host-flow
+${BOUND_STEPS}
+      例子:
+        | from | event | to |
+${CYCLE_ROWS}
+
+    @states
+    场景大纲: 状态属性
+${STATE_STEPS}
+      例子:
+        | 状态 | 子机 |
+        | ${hostState} | ${nestCell} |${extra}
+
+  @req:r81
+  规则: child
+    系统 MUST y
+
+    @transitions
+    场景大纲: child-flow
+${BOUND_STEPS}
+      例子:
+        | from | event | to |
+        | idle | run | done |
+        | done | reset | idle |
+${childStates}
+`;
+}
+
+bdd.given('一个 @states 引用不存在 req 的临时仓库', (ctx) => {
+  wireTransition(ctx, 'n1-red', nestedPairFeature('n1-red', '@req:r999'));
+});
+
+bdd.given('一个 @states 引用同仓另一规则唯一状态机的临时仓库', (ctx) => {
+  wireTransition(ctx, 'n1-green', nestedPairFeature('n1-green', '@req:r81'));
+});
+
+bdd.given('一个两台机器互相嵌套成环的临时仓库', (ctx) => {
+  wireTransition(ctx, 'n2-red', nestedPairFeature('n2-red', '@req:r81', { childNestsHost: true }));
+});
+
+bdd.given('一个单向嵌套无环的临时仓库', (ctx) => {
+  wireTransition(ctx, 'n2-green', nestedPairFeature('n2-green', '@req:r81'));
+});
+
+bdd.given('一个 @states 宿主状态不在转移表中的临时仓库', (ctx) => {
+  wireTransition(ctx, 'n3-red', nestedPairFeature('n3-red', '@req:r81', { hostState: 'ghost' }));
+});
+
+bdd.given('一个 @states 宿主状态存在于转移表的临时仓库', (ctx) => {
+  wireTransition(ctx, 'n3-green', nestedPairFeature('n3-green', '@req:r81'));
+});
+
+bdd.given('一个同一宿主状态在 @states 中出现两行的临时仓库', (ctx) => {
+  wireTransition(
+    ctx,
+    'n4-red',
+    nestedPairFeature('n4-red', '@req:r81', {
+      extraHostRow: '\n        | on | @req:r81 |',
+    }),
+  );
+});
+
+bdd.given('一个每个宿主状态在 @states 中只出现一行的临时仓库', (ctx) => {
+  wireTransition(ctx, 'n4-green', nestedPairFeature('n4-green', '@req:r81'));
+});
+
+bdd.given('一个同规则两台机器共享状态名且 @states 映射该名的临时仓库', (ctx) => {
+  wireTransition(
+    ctx,
+    'n5-red',
+    `# language: zh-CN
+# purpose: n5-red
+功能: n5-red
+
+  @req:r82
+  规则: multi
+    系统 MUST x
+
+    @transitions
+    场景大纲: ma
+${BOUND_STEPS}
+      例子:
+        | from | event | to |
+${CYCLE_ROWS}
+
+    @transitions
+    场景大纲: mb
+${BOUND_STEPS}
+      例子:
+        | from | event | to |
+        | on | x | other |
+        | other | y | on |
+
+    @states
+    场景大纲: 状态属性
+${STATE_STEPS}
+      例子:
+        | 状态 | 子机 |
+        | on | @req:r82#mb |
+`,
+  );
+});
+
+bdd.given('一个同规则两台机器状态名互不重叠且 @states 可消歧的临时仓库', (ctx) => {
+  wireTransition(
+    ctx,
+    'n5-green',
+    `# language: zh-CN
+# purpose: n5-green
+功能: n5-green
+
+  @req:r83
+  规则: multi
+    系统 MUST x
+
+    @transitions
+    场景大纲: ma
+${BOUND_STEPS}
+      例子:
+        | from | event | to |
+${CYCLE_ROWS}
+
+    @transitions
+    场景大纲: mb
+${BOUND_STEPS}
+      例子:
+        | from | event | to |
+        | idle | run | done |
+        | done | reset | idle |
+
+    @states
+    场景大纲: 状态属性
+${STATE_STEPS}
+      例子:
+        | 状态 | 子机 |
+        | idle | @req:r86 |
+
+  @req:r86
+  规则: child
+    系统 MUST y
+
+    @transitions
+    场景大纲: child-flow
+${BOUND_STEPS}
+      例子:
+        | from | event | to |
+        | a | e | b |
+        | b | e | a |
+`,
+  );
+});
+
+bdd.given('一个同时挂 @flow 与 @no-transitions 的合法流转表临时仓库', (ctx) => {
+  wireTransition(
+    ctx,
+    'flow-conflict',
+    transitionFeature(
+      'flow-conflict',
+      'r84',
+      'conflict',
+      BOUND_STEPS,
+      '| from | event | to |',
+      CYCLE_ROWS,
+      '    @flow @no-transitions\n',
+    ),
+  );
+});
+
+bdd.given('一个挂 @flow 且含回不到初始状态的环区的流转表临时仓库', (ctx) => {
+  wireTransition(
+    ctx,
+    'flow-trap',
+    transitionFeature(
+      'flow-trap',
+      'r85',
+      'trap',
+      BOUND_STEPS,
+      '| from | event | to |',
+      `        | on | go | trapped |
+        | trapped | stay | trapped |`,
+      '    @flow\n',
+    ),
+  );
+});
+
 bdd.thenStep('该流转表判 ERROR 且消息含 "{text}"', (ctx, text) => {
   const r = ctx.fixtures['validate结果'] as { code: number; stdout: string };
   if (r.code === 0) throw new Error(`expected non-zero exit\n${r.stdout}`);

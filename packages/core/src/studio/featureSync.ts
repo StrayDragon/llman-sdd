@@ -5,7 +5,12 @@
 import { createTwoFilesPatch } from 'diff';
 
 import { computeMachineDiff, formatSemanticDiff } from './diff.ts';
-import type { MachineDraft, StudioComment, StudioMachineIR } from './model.ts';
+import {
+  splitMachineKey,
+  type MachineDraft,
+  type StudioComment,
+  type StudioMachineIR,
+} from './model.ts';
 
 export class StudioSyncError extends Error {
   constructor(message: string) {
@@ -67,6 +72,61 @@ function formatTableLines(machine: StudioMachineIR, indent: string): string[] {
   });
 }
 
+function usesEnglishColumns(machine: StudioMachineIR): boolean {
+  return machine.columns.from === 'from';
+}
+
+function attributedStates(machine: StudioMachineIR) {
+  return machine.states.filter((s) => s.isGateway === true || (s.subMachineKey ?? '') !== '');
+}
+
+function formatSubmachineCell(machineKey: string): string {
+  const parts = splitMachineKey(machineKey);
+  if (!parts) return machineKey;
+  return `@req:${parts.reqId}#${parts.scenarioName}`;
+}
+
+function formatStatesTableLines(
+  machine: StudioMachineIR,
+  indent: string,
+  english: boolean,
+): string[] {
+  const headers = english ? ['state', 'submachine', 'gateway'] : ['状态', '子机', '网关'];
+  const rows = attributedStates(machine).map((s) => [
+    s.name,
+    s.subMachineKey ? formatSubmachineCell(s.subMachineKey) : '',
+    s.isGateway === true ? (english ? 'yes' : '是') : '',
+  ]);
+  const allRows = [headers, ...rows];
+  const widths = headers.map((_, colIdx) =>
+    Math.max(...allRows.map((row) => (row[colIdx] ?? '').length), 1),
+  );
+  return allRows.map((row) => {
+    const cells = row.map((cell, idx) => cell.padEnd(widths[idx] ?? 0, ' '));
+    return `${indent}| ${cells.join(' | ')} |`;
+  });
+}
+
+function buildStatesOutlineBlock(machine: StudioMachineIR, indent = '    '): string[] {
+  if (attributedStates(machine).length === 0) return [];
+  const english = usesEnglishColumns(machine);
+  const stepIndent = `${indent}  `;
+  const tableIndent = `${indent}    `;
+  const stateCol = english ? 'state' : '状态';
+  const subCol = english ? 'submachine' : '子机';
+  const title = english ? 'state attributes' : '状态属性';
+  return [
+    `${indent}@states`,
+    `${indent}场景大纲: ${title}`,
+    `${stepIndent}假如 状态 <${stateCol}>`,
+    `${stepIndent}当 读取属性`,
+    `${stepIndent}那么 子机为 <${subCol}>`,
+    '',
+    `${stepIndent}例子:`,
+    ...formatStatesTableLines(machine, tableIndent, english),
+  ];
+}
+
 function buildScenarioOutlineBlock(machine: StudioMachineIR, indent = '    '): string[] {
   const hasGuardCol =
     machine.columns.guard !== undefined ||
@@ -80,8 +140,13 @@ function buildScenarioOutlineBlock(machine: StudioMachineIR, indent = '    '): s
     ? `${stepIndent}假如 当前处于 <${machine.columns.from}> 状态且满足 <${guardColName}>`
     : `${stepIndent}假如 当前处于 <${machine.columns.from}> 状态`;
 
-  return [
+  const tags = [
+    ...(machine.graphKind === 'flow' ? [`${indent}@flow`] : []),
     `${indent}@transitions`,
+  ];
+
+  const lines = [
+    ...tags,
     `${indent}场景大纲: ${machine.scenarioName}`,
     givenLine,
     `${stepIndent}当 触发 <${machine.columns.event}> 事件`,
@@ -90,6 +155,15 @@ function buildScenarioOutlineBlock(machine: StudioMachineIR, indent = '    '): s
     `${stepIndent}例子:`,
     ...formatTableLines(machine, tableIndent),
   ];
+  const statesBlock = buildStatesOutlineBlock(machine, indent);
+  if (statesBlock.length > 0) {
+    lines.push('', ...statesBlock);
+  }
+  return lines;
+}
+
+function lineHasTag(line: string, tag: string): boolean {
+  return new RegExp(`(?:^|\\s)@${tag}(?:\\s|$)`, 'u').test(line.trim());
 }
 
 function buildRuleBlock(machine: StudioMachineIR): string[] {
@@ -217,6 +291,89 @@ function locateScenarioSpan(
   return null;
 }
 
+function locateStatesSpan(
+  lines: readonly string[],
+  ruleStartIdx: number,
+  ruleEndIdx: number,
+): Pick<
+  ScenarioSpan,
+  'scenarioStartIdx' | 'scenarioEndIdx' | 'tableStartIdx' | 'tableEndIdx' | 'tableIndent'
+> | null {
+  const scStarts: Array<{ startIdx: number; headerIdx: number }> = [];
+  for (let i = ruleStartIdx; i < ruleEndIdx; i += 1) {
+    const sm = SCENARIO_HEADER_RE.exec(lines[i] ?? '');
+    if (!sm) continue;
+    let startIdx = i;
+    let hasStates = false;
+    for (let j = i - 1; j >= ruleStartIdx; j -= 1) {
+      const trimmed = (lines[j] ?? '').trim();
+      if (trimmed.startsWith('@')) {
+        startIdx = j;
+        if (lineHasTag(trimmed, 'states')) hasStates = true;
+      } else {
+        break;
+      }
+    }
+    if (hasStates) scStarts.push({ startIdx, headerIdx: i });
+  }
+  const hit = scStarts[0];
+  if (!hit) return null;
+  const scenarioEndIdx = scStarts[1]?.startIdx ?? ruleEndIdx;
+  let examplesHeaderIdx = -1;
+  for (let i = hit.headerIdx + 1; i < scenarioEndIdx; i += 1) {
+    if (EXAMPLES_HEADER_RE.test(lines[i] ?? '')) {
+      examplesHeaderIdx = i;
+      break;
+    }
+  }
+  if (examplesHeaderIdx === -1) return null;
+  let tableStartIdx = -1;
+  let tableEndIdx = -1;
+  let tableIndent = '        ';
+  for (let i = examplesHeaderIdx + 1; i < scenarioEndIdx; i += 1) {
+    const line = lines[i] ?? '';
+    const trimmed = line.trim();
+    if (trimmed.startsWith('|')) {
+      if (tableStartIdx === -1) {
+        tableStartIdx = i;
+        tableIndent = /^(\s*)/u.exec(line)?.[1] ?? '        ';
+      }
+      tableEndIdx = i + 1;
+    } else if (tableStartIdx !== -1) {
+      break;
+    }
+  }
+  if (tableStartIdx === -1 || tableEndIdx === -1) return null;
+  return {
+    scenarioStartIdx: hit.startIdx,
+    scenarioEndIdx,
+    tableStartIdx,
+    tableEndIdx,
+    tableIndent,
+  };
+}
+
+function syncFlowTag(lines: string[], span: ScenarioSpan, wantFlow: boolean): void {
+  for (let i = span.scenarioStartIdx; i < span.examplesHeaderIdx && i < lines.length; i += 1) {
+    const line = lines[i] ?? '';
+    const trimmed = line.trim();
+    if (trimmed.startsWith('@') && lineHasTag(trimmed, 'flow')) {
+      if (wantFlow) return;
+      const next = trimmed
+        .split(/\s+/u)
+        .filter((tok) => tok !== '@flow')
+        .join(' ');
+      const indent = /^(\s*)/u.exec(line)?.[1] ?? '';
+      if (next === '') lines.splice(i, 1);
+      else lines[i] = `${indent}${next}`;
+      return;
+    }
+  }
+  if (!wantFlow) return;
+  const indent = /^(\s*)/u.exec(lines[span.scenarioStartIdx] ?? '')?.[1] ?? '    ';
+  lines.splice(span.scenarioStartIdx, 0, `${indent}@flow`);
+}
+
 /**
  * Losslessly render updated `.feature` source for `modify`, `create`, or `remove` drafts.
  * Semantically locates the target `例子:` block — immune to line-number drift above or below.
@@ -278,14 +435,66 @@ export function renderUpdatedFeatureSource(
       `target transition scenario not found: ${locatorTarget.scenarioName} in ${draft.sourceFile}`,
     );
   }
+  const diff = computeMachineDiff(draft);
+  if (!diff.hasChanges) {
+    return originalText;
+  }
 
-  const newTable = formatTableLines(machine, span.tableIndent);
-  const nextLines = [
-    ...rawLines.slice(0, span.tableStartIdx),
-    ...newTable,
-    ...rawLines.slice(span.tableEndIdx),
-  ];
-  return `${nextLines.join('\n')}${trailingNewline ? '\n' : ''}`;
+  const transitionDirty =
+    diff.statesAdded.length +
+      diff.statesRemoved.length +
+      diff.statesRenamed.length +
+      diff.transitionsAdded.length +
+      diff.transitionsRemoved.length +
+      diff.transitionsModified.length >
+    0;
+  const attrDirty = diff.nestLinksChanged.length > 0 || diff.gatewaysChanged.length > 0;
+  const flowDirty = diff.graphKindChanged;
+  const attrs = attributedStates(machine);
+
+  let nextLines = [...rawLines];
+  if (transitionDirty) {
+    const newTable = formatTableLines(machine, span.tableIndent);
+    nextLines = [
+      ...nextLines.slice(0, span.tableStartIdx),
+      ...newTable,
+      ...nextLines.slice(span.tableEndIdx),
+    ];
+  }
+
+  if (flowDirty) {
+    const spanNow = locateScenarioSpan(nextLines, locatorTarget);
+    if (spanNow) syncFlowTag(nextLines, spanNow, machine.graphKind === 'flow');
+  }
+
+  if (attrDirty || diff.statesRenamed.length > 0) {
+    const spanNow = locateScenarioSpan(nextLines, locatorTarget);
+    const english = usesEnglishColumns(machine);
+    const statesSpan = spanNow
+      ? locateStatesSpan(nextLines, spanNow.ruleStartIdx, spanNow.ruleEndIdx)
+      : null;
+    if (attrs.length === 0 && statesSpan) {
+      nextLines = [
+        ...nextLines.slice(0, statesSpan.scenarioStartIdx),
+        ...nextLines.slice(statesSpan.scenarioEndIdx),
+      ];
+    } else if (attrs.length > 0 && statesSpan) {
+      const newTable = formatStatesTableLines(machine, statesSpan.tableIndent, english);
+      nextLines = [
+        ...nextLines.slice(0, statesSpan.tableStartIdx),
+        ...newTable,
+        ...nextLines.slice(statesSpan.tableEndIdx),
+      ];
+    } else if (attrs.length > 0 && spanNow && !statesSpan) {
+      const insertAt = spanNow.scenarioEndIdx;
+      const indent = /^(\s*)/u.exec(nextLines[spanNow.scenarioStartIdx] ?? '')?.[1] ?? '    ';
+      const block = ['', ...buildStatesOutlineBlock(machine, indent)];
+      nextLines = [...nextLines.slice(0, insertAt), ...block, ...nextLines.slice(insertAt)];
+    }
+  }
+
+  const joined = nextLines.join('\n').replaceAll(/\n{3,}/gu, '\n\n');
+  return `${joined}${trailingNewline ? '\n' : ''}`;
 }
 
 /** Generate in-memory standard Unified Diff preview via jsdiff (zero patch files written). */

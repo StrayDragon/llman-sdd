@@ -155,6 +155,10 @@ export interface ForestNode {
   ruleCount: number;
   scenarioCount: number;
   decisionTableCount: number;
+  /** Longest subMachineKey chain among this capability's machines (0 if none). Optional so P4 UI can omit until P5. */
+  maxNestingDepth?: number;
+  /** Distinct nested machines referenced from this capability's states. Optional so P4 UI can omit until P5. */
+  nestedMachineCount?: number;
   machineKeys: string[];
   weight: number;
   tags: string[];
@@ -285,6 +289,37 @@ export function buildForestGraph(entries: readonly SpecEntry[]): ForestGraph {
     const hardness: ForestNode['hardness'] =
       machineKeys.length > 0 ? 'drift-guarded' : runnableRules > 0 ? 'tested' : 'doc';
 
+    const capMachineList = capMachines.map((m) => m.machine);
+    const byKey = new Map(extracted.map((m) => [m.machine.machineKey, m.machine]));
+    const depthMemo = new Map<string, number>();
+    const nestDepth = (key: string, stack: Set<string>): number => {
+      if (stack.has(key)) return 0;
+      const cached = depthMemo.get(key);
+      if (cached !== undefined) return cached;
+      const node = byKey.get(key);
+      const children = (node?.states ?? [])
+        .map((s) => s.subMachineKey)
+        .filter((k): k is string => k !== undefined && k !== '');
+      if (children.length === 0) {
+        depthMemo.set(key, 0);
+        return 0;
+      }
+      stack.add(key);
+      const depth = 1 + Math.max(...children.map((c) => nestDepth(c, stack)));
+      stack.delete(key);
+      depthMemo.set(key, depth);
+      return depth;
+    };
+    const nestedKeys = new Set<string>();
+    let maxNestingDepth = 0;
+    for (const m of capMachineList) {
+      maxNestingDepth = Math.max(maxNestingDepth, nestDepth(m.machineKey, new Set()));
+      for (const s of m.states) {
+        if (s.subMachineKey) nestedKeys.add(s.subMachineKey);
+      }
+    }
+    const nestedMachineCount = nestedKeys.size;
+
     const weight = Number((ruleCount + scenarioCount * 0.5 + machineKeys.length * 3).toFixed(2));
     const levels = foldFeatureAst(entry.doc);
     const reqPreview = entry.doc.rules
@@ -301,6 +336,8 @@ export function buildForestGraph(entries: readonly SpecEntry[]): ForestGraph {
       ruleCount,
       scenarioCount,
       decisionTableCount: decisionTables.length,
+      maxNestingDepth,
+      nestedMachineCount,
       machineKeys,
       weight,
       tags: allTags,

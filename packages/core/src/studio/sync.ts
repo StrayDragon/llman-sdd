@@ -21,7 +21,7 @@ export const SYNC_SNAPSHOT_BRANCH_REF = 'snapshot-before-sync';
 export const SYNC_SNAPSHOT_LABEL = '刚才在画布上的版本';
 export const SYNC_BOTH_BLOCKED_REASON = 'signature-clash';
 
-export type SyncItemKind = 'state' | 'transition' | 'guard' | 'doc-rule';
+export type SyncItemKind = 'state' | 'transition' | 'guard' | 'doc-rule' | 'nest' | 'gateway';
 export type SyncPick = 'ours' | 'theirs' | 'both';
 
 export interface SyncTransitionPayload {
@@ -45,6 +45,10 @@ export interface SyncItem {
   theirsStateName?: string;
   oursTransition?: SyncTransitionPayload;
   theirsTransition?: SyncTransitionPayload;
+  oursNest?: string | null;
+  theirsNest?: string | null;
+  oursGateway?: boolean;
+  theirsGateway?: boolean;
   oursText?: string;
   theirsText?: string;
 }
@@ -159,6 +163,74 @@ export function buildSyncItems(draft: MachineDraft, theirs: StudioMachineIR | nu
       ...(inOurs ? { oursStateName: name } : {}),
       ...(inTheirs ? { theirsStateName: name } : {}),
     });
+  }
+
+  const nestOf = (ir: StudioMachineIR | null, name: string): string | null =>
+    ir?.states.find((s) => s.name === name)?.subMachineKey ?? null;
+  const gwOf = (ir: StudioMachineIR | null, name: string): boolean =>
+    ir?.states.find((s) => s.name === name)?.isGateway === true;
+
+  for (const name of allStates) {
+    const inOurs = oursStates.has(name);
+    const inTheirs = theirsStates.has(name);
+    const inBase = baseStates.has(name);
+    if (!inOurs && !inTheirs && !inBase) continue;
+
+    const oursNest = nestOf(ours, name);
+    const theirsNest = nestOf(theirs, name);
+    const baseNest = nestOf(base, name);
+    if (oursNest !== theirsNest && (oursNest !== baseNest || theirsNest !== baseNest)) {
+      const oursPresent = oursNest !== baseNest;
+      const theirsPresent = theirsNest !== baseNest;
+      if (oursPresent || theirsPresent) {
+        let defaultPick: SyncPick | null = null;
+        if (oursPresent && !theirsPresent) defaultPick = 'ours';
+        else if (!oursPresent && theirsPresent) defaultPick = 'theirs';
+        items.push({
+          id: itemId(machineKey, 'nest', name),
+          kind: 'nest',
+          machineKey,
+          sourceFile,
+          oursPresent,
+          theirsPresent,
+          labelOurs: oursPresent ? `nest ${name} -> ${oursNest ?? '∅'}` : null,
+          labelTheirs: theirsPresent ? `nest ${name} -> ${theirsNest ?? '∅'}` : null,
+          defaultPick,
+          oursStateName: name,
+          theirsStateName: name,
+          oursNest,
+          theirsNest,
+        });
+      }
+    }
+
+    const oursGw = gwOf(ours, name);
+    const theirsGw = gwOf(theirs, name);
+    const baseGw = gwOf(base, name);
+    if (oursGw !== theirsGw && (oursGw !== baseGw || theirsGw !== baseGw)) {
+      const oursPresent = oursGw !== baseGw;
+      const theirsPresent = theirsGw !== baseGw;
+      if (oursPresent || theirsPresent) {
+        let defaultPick: SyncPick | null = null;
+        if (oursPresent && !theirsPresent) defaultPick = 'ours';
+        else if (!oursPresent && theirsPresent) defaultPick = 'theirs';
+        items.push({
+          id: itemId(machineKey, 'gateway', name),
+          kind: 'gateway',
+          machineKey,
+          sourceFile,
+          oursPresent,
+          theirsPresent,
+          labelOurs: oursPresent ? `gateway ${name}=${String(oursGw)}` : null,
+          labelTheirs: theirsPresent ? `gateway ${name}=${String(theirsGw)}` : null,
+          defaultPick,
+          oursStateName: name,
+          theirsStateName: name,
+          oursGateway: oursGw,
+          theirsGateway: theirsGw,
+        });
+      }
+    }
   }
 
   const baseTrans = transitionMap(base);
@@ -349,6 +421,9 @@ function isRemovalLabel(label: string | null): boolean {
 }
 
 function clashBoth(item: SyncItem): boolean {
+  if (item.kind === 'nest' || item.kind === 'gateway') {
+    return item.oursPresent && item.theirsPresent;
+  }
   return (
     item.oursPresent &&
     item.theirsPresent &&
@@ -378,6 +453,44 @@ export function applySyncPicks(
     if (pick === undefined) continue;
     if (pick === 'both' && clashBoth(item)) {
       blocked.push({ itemId: item.id, reason: SYNC_BOTH_BLOCKED_REASON });
+      continue;
+    }
+
+    if (item.kind === 'nest') {
+      const name = item.oursStateName ?? item.theirsStateName;
+      if (name === undefined) continue;
+      const state = machine.states.find((s) => s.name === name);
+      if (!state) {
+        applied.push(item.id);
+        continue;
+      }
+      if (pick === 'theirs') {
+        if (item.theirsNest) state.subMachineKey = item.theirsNest;
+        else delete state.subMachineKey;
+      } else if (pick === 'ours') {
+        if (item.oursNest) state.subMachineKey = item.oursNest;
+        else delete state.subMachineKey;
+      }
+      applied.push(item.id);
+      continue;
+    }
+
+    if (item.kind === 'gateway') {
+      const name = item.oursStateName ?? item.theirsStateName;
+      if (name === undefined) continue;
+      const state = machine.states.find((s) => s.name === name);
+      if (!state) {
+        applied.push(item.id);
+        continue;
+      }
+      if (pick === 'theirs') {
+        if (item.theirsGateway) state.isGateway = true;
+        else delete state.isGateway;
+      } else if (pick === 'ours') {
+        if (item.oursGateway) state.isGateway = true;
+        else delete state.isGateway;
+      }
+      applied.push(item.id);
       continue;
     }
 

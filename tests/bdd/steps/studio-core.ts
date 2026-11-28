@@ -37,6 +37,7 @@ import {
   validateMachineGraph,
   applySyncPicks,
   buildSyncItems,
+  validateFlowAndNesting,
   writeStudioState,
   writeStudioViews,
   type MachineDiagnostic,
@@ -914,3 +915,234 @@ bdd.thenStep(
     }
   },
 );
+
+const FLOW_HOST = `# language: zh-CN
+# purpose: host
+功能: host
+
+  @req:r10
+  规则: 宿主
+    宿主 MUST 嵌套。
+
+    @flow
+    @transitions
+    场景大纲: 主流程
+      假如 当前处于 <from>
+      当 触发 <event>
+      那么 流转至 <to>
+      例子:
+        | from | event | to |
+        | 待审 | go | 完成 |
+        | 完成 | back | 待审 |
+
+    @states
+    场景大纲: 状态属性
+      假如 状态 <状态>
+      当 读取属性
+      那么 子机为 <子机>
+      例子:
+        | 状态 | 子机 | 网关 |
+        | 待审 | @req:r20 | 是 |
+`;
+
+const FLOW_CHILD = `# language: zh-CN
+# purpose: child
+功能: child
+
+  @req:r20
+  规则: 子机
+    子机 MUST 流转。
+
+    @transitions
+    场景大纲: 审批流
+      假如 当前处于 <from>
+      当 触发 <event>
+      那么 流转至 <to>
+      例子:
+        | from | event | to |
+        | 草稿 | go | 通过 |
+        | 通过 | back | 草稿 |
+`;
+
+bdd.given('一份含 @flow 与 @states 且跨能力引用子机的规格集合', (ctx) => {
+  ctx.fixtures['r168Extract'] = {
+    host: FLOW_HOST,
+    child: FLOW_CHILD,
+    entries: [
+      {
+        fileName: 'llmanspec/specs/host.feature',
+        specId: 'host',
+        doc: parseCapability(FLOW_HOST, 'llmanspec/specs/host.feature'),
+      },
+      {
+        fileName: 'llmanspec/specs/child.feature',
+        specId: 'child',
+        doc: parseCapability(FLOW_CHILD, 'llmanspec/specs/child.feature'),
+      },
+    ] satisfies SpecEntry[],
+  };
+});
+
+bdd.when('抽取状态机并无改动写回，再改名与增删嵌套后写回再抽取', (ctx) => {
+  const { host, child, entries } = ctx.fixtures['r168Extract'] as {
+    host: string;
+    child: string;
+    entries: SpecEntry[];
+  };
+  const extracted = extractStudioMachines(entries);
+  const hostDraft = extracted.find((e) => e.machine.capability === 'host')!.draft;
+  const unchanged = renderUpdatedFeatureSource(host, hostDraft);
+  const cur = cloneMachineIR(hostDraft.current!);
+  const pending = cur.states.find((s) => s.name === '待审')!;
+  pending.name = '审核中';
+  const done = cur.states.find((s) => s.name === '完成')!;
+  done.subMachineKey = pending.subMachineKey;
+  delete pending.subMachineKey;
+  const mutated = renderUpdatedFeatureSource(host, { ...hostDraft, current: cur });
+  const again = extractStudioMachines([
+    {
+      fileName: 'llmanspec/specs/host.feature',
+      specId: 'host',
+      doc: parseCapability(mutated, 'llmanspec/specs/host.feature'),
+    },
+    {
+      fileName: 'llmanspec/specs/child.feature',
+      specId: 'child',
+      doc: parseCapability(child, 'llmanspec/specs/child.feature'),
+    },
+  ]);
+  ctx.fixtures['r168ExtractRes'] = { extracted, unchanged, host, again };
+});
+
+bdd.thenStep('抽出 graphKind 为 flow 且 subMachineKey 与 isGateway 正确', (ctx) => {
+  const { extracted } = ctx.fixtures['r168ExtractRes'] as {
+    extracted: ReturnType<typeof extractStudioMachines>;
+  };
+  const hostM = extracted.find((e) => e.machine.capability === 'host')!.machine;
+  if (hostM.graphKind !== 'flow') throw new Error(`graphKind ${hostM.graphKind}`);
+  const pending = hostM.states.find((s) => s.name === '待审');
+  if (pending?.isGateway !== true || pending.subMachineKey !== 'child/r20/审批流') {
+    throw new Error(`bad nest/gateway: ${JSON.stringify(pending)}`);
+  }
+});
+
+bdd.thenStep('无改动写回与原文逐字节相同，改名增删后再抽取语义等价', (ctx) => {
+  const { unchanged, host, again } = ctx.fixtures['r168ExtractRes'] as {
+    unchanged: string;
+    host: string;
+    again: ReturnType<typeof extractStudioMachines>;
+  };
+  if (unchanged !== host) throw new Error('unchanged writeback mutated bytes');
+  const hostM = again.find((e) => e.machine.capability === 'host')!.machine;
+  if (hostM.states.find((s) => s.name === '审核中')?.subMachineKey !== undefined) {
+    throw new Error('nest should have moved off 审核中');
+  }
+  if (hostM.states.find((s) => s.name === '完成')?.subMachineKey !== 'child/r20/审批流') {
+    throw new Error('nest should sit on 完成');
+  }
+});
+
+bdd.given('一份基线含子机链接的状态机及画布与磁盘两侧不同的嵌套目标', (ctx) => {
+  const entries = [
+    {
+      fileName: 'llmanspec/specs/host.feature',
+      specId: 'host',
+      doc: parseCapability(FLOW_HOST, 'llmanspec/specs/host.feature'),
+    },
+    {
+      fileName: 'llmanspec/specs/child.feature',
+      specId: 'child',
+      doc: parseCapability(FLOW_CHILD, 'llmanspec/specs/child.feature'),
+    },
+  ] satisfies SpecEntry[];
+  const extracted = extractStudioMachines(entries);
+  const draft = extracted.find((e) => e.machine.capability === 'host')!.draft;
+  const ours = cloneMachineIR(draft.current!);
+  ours.states.find((s) => s.name === '待审')!.subMachineKey = 'other/r1/alt';
+  const theirs = cloneMachineIR(draft.current!);
+  theirs.states.find((s) => s.name === '待审')!.subMachineKey = 'third/r2/alt';
+  ctx.fixtures['r168Sync'] = { draft: { ...draft, current: ours }, theirs };
+});
+
+bdd.when('计算语义 Diff 并对同签名嵌套变更执行 applySyncPicks both', (ctx) => {
+  const { draft, theirs } = ctx.fixtures['r168Sync'] as {
+    draft: MachineDraft;
+    theirs: StudioMachineIR;
+  };
+  const diff = computeMachineDiff(draft);
+  const items = buildSyncItems(draft, theirs);
+  const nest = items.find((i) => i.kind === 'nest');
+  const blocked = nest
+    ? applySyncPicks(draft, items, { [nest.id]: 'both' }, '2026-11-28T00:00:00.000Z')
+    : { blocked: [] };
+  ctx.fixtures['r168SyncRes'] = { diff, summary: formatSemanticDiff(diff, draft), blocked };
+});
+
+bdd.thenStep('Diff 摘要含嵌套链接变更且 both 返回 blocked', (ctx) => {
+  const { summary, blocked } = ctx.fixtures['r168SyncRes'] as {
+    summary: string;
+    blocked: { blocked: Array<{ reason: string }> };
+  };
+  if (!summary.includes('nest:')) throw new Error(`diff missing nest: ${summary}`);
+  if (blocked.blocked.length === 0) throw new Error('expected nest both to be blocked');
+});
+
+bdd.given('一份子机互相引用成环的规格与一份悬空 @req 子机引用的规格', (ctx) => {
+  const cycleChild = FLOW_CHILD.replace(
+    '        | 通过 | back | 草稿 |',
+    `        | 通过 | back | 草稿 |
+
+    @states
+    场景大纲: 状态属性
+      假如 状态 <状态>
+      当 读取属性
+      那么 子机为 <子机>
+      例子:
+        | 状态 | 子机 |
+        | 草稿 | @req:r10 |`,
+  );
+  const dangling = FLOW_HOST.replace('@req:r20', '@req:r999');
+  ctx.fixtures['r168NestVal'] = { cycleHost: FLOW_HOST, cycleChild, dangling };
+});
+
+bdd.when('运行 validateFlowAndNesting', (ctx) => {
+  const { cycleHost, cycleChild, dangling } = ctx.fixtures['r168NestVal'] as {
+    cycleHost: string;
+    cycleChild: string;
+    dangling: string;
+  };
+  const cycleItems = validateFlowAndNesting([
+    {
+      fileName: 'llmanspec/specs/host.feature',
+      specId: 'host',
+      doc: parseCapability(cycleHost, 'llmanspec/specs/host.feature'),
+    },
+    {
+      fileName: 'llmanspec/specs/child.feature',
+      specId: 'child',
+      doc: parseCapability(cycleChild, 'llmanspec/specs/child.feature'),
+    },
+  ]);
+  const danglingItems = validateFlowAndNesting([
+    {
+      fileName: 'llmanspec/specs/host.feature',
+      specId: 'host',
+      doc: parseCapability(dangling, 'llmanspec/specs/host.feature'),
+    },
+  ]);
+  ctx.fixtures['r168NestValRes'] = { cycleItems, danglingItems };
+});
+
+bdd.thenStep('成环规格报 N2 ERROR 且消息含环路径，悬空规格报 N1 ERROR', (ctx) => {
+  const { cycleItems, danglingItems } = ctx.fixtures['r168NestValRes'] as {
+    cycleItems: ReturnType<typeof validateFlowAndNesting>;
+    danglingItems: ReturnType<typeof validateFlowAndNesting>;
+  };
+  const n2 = cycleItems.find((i) => i.message.includes('nested machine cycle'));
+  if (!n2 || !n2.message.includes('->')) {
+    throw new Error(`expected N2 cycle path, got ${JSON.stringify(cycleItems)}`);
+  }
+  if (!danglingItems.some((i) => i.message.includes('dangling nested machine'))) {
+    throw new Error(`expected N1 dangling, got ${JSON.stringify(danglingItems)}`);
+  }
+});

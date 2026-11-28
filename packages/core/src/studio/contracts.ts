@@ -328,7 +328,14 @@ export type StudioSearchResponse = z.infer<typeof studioSearchResponseSchema>;
 export const syncPickSchema = z.enum(['ours', 'theirs', 'both']);
 export type SyncPickDto = z.infer<typeof syncPickSchema>;
 
-export const syncItemKindSchema = z.enum(['state', 'transition', 'guard', 'doc-rule']);
+export const syncItemKindSchema = z.enum([
+  'state',
+  'transition',
+  'guard',
+  'doc-rule',
+  'nest',
+  'gateway',
+]);
 
 export const syncTransitionPayloadSchema = z.object({
   from: z.string().min(1),
@@ -351,6 +358,10 @@ export const syncItemSchema = z.object({
   theirsStateName: z.string().optional(),
   oursTransition: syncTransitionPayloadSchema.optional(),
   theirsTransition: syncTransitionPayloadSchema.optional(),
+  oursNest: z.string().nullable().optional(),
+  theirsNest: z.string().nullable().optional(),
+  oursGateway: z.boolean().optional(),
+  theirsGateway: z.boolean().optional(),
   oursText: z.string().optional(),
   theirsText: z.string().optional(),
 });

@@ -175,6 +175,18 @@ export function makeMachineKey(
   return `${capability}/${reqPart}/${scenarioName}`;
 }
 
+export function splitMachineKey(
+  machineKey: string,
+): { capability: string; reqId: string; scenarioName: string } | null {
+  const parts = machineKey.split('/');
+  if (parts.length < 3) return null;
+  const capability = parts[0] ?? '';
+  const reqId = parts[1] ?? '';
+  const scenarioName = parts.slice(2).join('/');
+  if (capability === '' || reqId === '' || scenarioName === '') return null;
+  return { capability, reqId, scenarioName };
+}
+
 export function cloneMachineIR(machine: StudioMachineIR): StudioMachineIR {
   return {
     machineKey: machine.machineKey,

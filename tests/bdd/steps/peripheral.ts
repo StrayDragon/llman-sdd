@@ -712,3 +712,10 @@ bdd.thenStep(
     }
   },
 );
+
+bdd.thenStep('输出含 @flow 与 @states', (ctx) => {
+  const r = ctx.fixtures['specTransitions输出'] as { code: number; stdout: string };
+  for (const frag of ['@flow', '@states']) {
+    if (!r.stdout.includes(frag)) throw new Error(`output must contain "${frag}":\n${r.stdout}`);
+  }
+});

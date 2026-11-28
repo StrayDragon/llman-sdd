@@ -97,13 +97,22 @@ export type {
 } from './validation/validate.ts';
 export { validateAllSpecs, validateCapability } from './validation/validate.ts';
 export { buildDuplicatesFor, formatTotals } from './validation/validate.ts';
+export { parseMachineKeyParts, validateFlowAndNesting } from './validation/flowAndNesting.ts';
 export {
   TRANSITIONS_INTROSPECTION,
   extractTransitions,
+  isGatewayCell,
+  isStatesOutline,
   isTransitionOutline,
+  parseSubmachineRef,
+  resolveStateColumns,
   resolveTransitionColumns,
   resolveTransitionDecision,
+  FORCE_FLOW_TAG,
+  STATES_TAG,
   type ColumnMap,
+  type StateColumnMap,
+  type SubmachineRef,
   type TransitionDecision,
   type TransitionEdge,
 } from './validation/xstateTransitions.ts';
@@ -339,6 +348,7 @@ export {
   cloneMachineDraft,
   cloneMachineIR,
   makeMachineKey,
+  splitMachineKey,
   nextPrefixedUid,
   type DocDraftChangeKind,
   type EdgeBendOffset,
@@ -382,7 +392,9 @@ export {
   computeMachineDiff,
   computeWorldlineOverlayDiff,
   formatSemanticDiff,
+  type GatewayFlagDiff,
   type MachineSemanticDiff,
+  type NestLinkDiff,
   type StateRenameDiff,
   type TransitionChangedField,
   type TransitionModifiedDiff,

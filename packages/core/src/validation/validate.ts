@@ -9,6 +9,7 @@ import { assignSpecIds } from '../spec/assignSpecIds.ts';
 import type { CapabilityDoc } from '../spec/ir.ts';
 import { ruleHasRunnableScenario, specIdOf } from '../spec/ir.ts';
 import { buildReqRegistry } from '../spec/reqRegistry.ts';
+import { validateFlowAndNesting } from './flowAndNesting.ts';
 import { validateTransitionsForRule } from './xstateTransitions.ts';
 
 export type ValidationLevel = 'ERROR' | 'WARNING' | 'INFO';
@@ -177,6 +178,15 @@ export function validateAllSpecs(
       duplicateSpecId: duplicateSpecIds.has(specIdOf(e)),
     }),
   );
+
+  const nesting = validateFlowAndNesting(list);
+  for (const item of nesting) {
+    const cap = item.id.split('/')[0] ?? '';
+    const verdict = verdicts.find((v) => v.capability === cap);
+    if (!verdict) continue;
+    verdict.items.push(item);
+    if (item.level === 'ERROR') verdict.ok = false;
+  }
 
   const failed = verdicts.some((v) => !v.ok);
   const passed = verdicts.filter((v) => v.ok).length;

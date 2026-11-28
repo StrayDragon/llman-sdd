@@ -101,3 +101,25 @@
       当 构建三方条目并对 ours、theirs、both 与同签名 both 分别执行 applySyncPicks
       那么 仅一侧条目带默认勾选、同签名一致条目不进待勾选
       而且 ours 保留画布、theirs 并入文件侧、合法 both 两条都留、同签名 both 返回 blocked
+
+  @req:r168
+  规则: 流程图方言与子机嵌套的抽取、写回、diff 与同步
+    Studio 纯域 MUST 从挂 `@flow` 的转移大纲抽出 `graphKind:'flow'`，从同规则 `@states` 大纲把 `submachine`/`gateway` 列解析为既有字段 `subMachineKey`/`isGateway`（`@req:<id>` 或 `@req:<id>#<场景名>`，经全局 req 注册表，允许跨能力与多宿主共享，禁止环）。
+    `@states` 大纲 MUST NOT 被当作转移表或决策表。`renderUpdatedFeatureSource` 在无语义改动时 MUST 原样返回原文；状态改名与嵌套/网关增删 MUST 同步 `@states` 表且再抽取语义等价。
+    `computeMachineDiff` MUST 报告嵌套链接与网关变更；`buildSyncItems` 语义签名 MUST 含 `(state, nest)` 与 `(state, gateway)`，同签名冲突 MUST 禁止 both。
+
+    场景: 跨能力嵌套与方言抽取写回往返无损
+      假如 一份含 @flow 与 @states 且跨能力引用子机的规格集合
+      当 抽取状态机并无改动写回，再改名与增删嵌套后写回再抽取
+      那么 抽出 graphKind 为 flow 且 subMachineKey 与 isGateway 正确
+      而且 无改动写回与原文逐字节相同，改名增删后再抽取语义等价
+
+    场景: 嵌套链接 diff 与同签名同步冲突
+      假如 一份基线含子机链接的状态机及画布与磁盘两侧不同的嵌套目标
+      当 计算语义 Diff 并对同签名嵌套变更执行 applySyncPicks both
+      那么 Diff 摘要含嵌套链接变更且 both 返回 blocked
+
+    场景: 环与悬空引用可被纯域校验看见
+      假如 一份子机互相引用成环的规格与一份悬空 @req 子机引用的规格
+      当 运行 validateFlowAndNesting
+      那么 成环规格报 N2 ERROR 且消息含环路径，悬空规格报 N1 ERROR

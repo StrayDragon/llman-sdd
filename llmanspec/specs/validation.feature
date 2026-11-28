@@ -444,6 +444,72 @@
       当 运行 validate --specs --json
       那么 该 capability 通过且无状态流转 ERROR
 
+  @req:r169
+  规则: @flow 与 @states 门禁及子机嵌套 N1–N5
+    挂 `@flow` 的转移大纲 MUST 施 E1/E2/E3、MUST NOT 施 E4，并 MAY 产出 F3/F4 级 WARNING；`@flow` 与 `@no-transitions` 同挂 MUST 判 ERROR。
+    `@states` 大纲 MUST NOT 被嗅探为转移表。子机引用 MUST 经全局 req 注册表解析，anchor 为 `<cap>/transitions/<req_id>`：
+    N1 悬空引用（req 不存在或目标规则无状态机）MUST ERROR；N2 嵌套成环 MUST ERROR 且消息含环路径；N3 宿主状态不在宿主机 MUST ERROR；N4 同一宿主状态在同一规则内被映射两次 MUST ERROR；N5 状态名在同规则多台机器出现 MUST ERROR。合法跨能力引用与多宿主共享同一子机 MUST 通过。
+
+    场景: N1 悬空引用被拒绝
+      假如 一个 @states 引用不存在 req 的临时仓库
+      当 运行 validate --specs --json
+      那么 该流转表判 ERROR 且消息含 "dangling nested machine reference"
+
+    场景: N1 合法子机引用通过
+      假如 一个 @states 引用同仓另一规则唯一状态机的临时仓库
+      当 运行 validate --specs --json
+      那么 该 capability 通过且无状态流转 ERROR
+
+    场景: N2 嵌套成环被拒绝
+      假如 一个两台机器互相嵌套成环的临时仓库
+      当 运行 validate --specs --json
+      那么 该流转表判 ERROR 且消息含 "nested machine cycle"
+
+    场景: N2 无环嵌套通过
+      假如 一个单向嵌套无环的临时仓库
+      当 运行 validate --specs --json
+      那么 该 capability 通过且无状态流转 ERROR
+
+    场景: N3 宿主状态不存在被拒绝
+      假如 一个 @states 宿主状态不在转移表中的临时仓库
+      当 运行 validate --specs --json
+      那么 该流转表判 ERROR 且消息含 "host state"
+
+    场景: N3 宿主状态存在通过
+      假如 一个 @states 宿主状态存在于转移表的临时仓库
+      当 运行 validate --specs --json
+      那么 该 capability 通过且无状态流转 ERROR
+
+    场景: N4 同一宿主映射两次被拒绝
+      假如 一个同一宿主状态在 @states 中出现两行的临时仓库
+      当 运行 validate --specs --json
+      那么 该流转表判 ERROR 且消息含 "mapped more than once"
+
+    场景: N4 每宿主映射一次通过
+      假如 一个每个宿主状态在 @states 中只出现一行的临时仓库
+      当 运行 validate --specs --json
+      那么 该 capability 通过且无状态流转 ERROR
+
+    场景: N5 同规则多机同名歧义被拒绝
+      假如 一个同规则两台机器共享状态名且 @states 映射该名的临时仓库
+      当 运行 validate --specs --json
+      那么 该流转表判 ERROR 且消息含 "ambiguous"
+
+    场景: N5 同规则状态名唯一通过
+      假如 一个同规则两台机器状态名互不重叠且 @states 可消歧的临时仓库
+      当 运行 validate --specs --json
+      那么 该 capability 通过且无状态流转 ERROR
+
+    场景: @flow 与 @no-transitions 冲突
+      假如 一个同时挂 @flow 与 @no-transitions 的合法流转表临时仓库
+      当 运行 validate --specs --json
+      那么 该流转表判 ERROR 且消息含 "conflicting @flow and @no-transitions tags"
+
+    场景: @flow 陷阱态不施 E4
+      假如 一个挂 @flow 且含回不到初始状态的环区的流转表临时仓库
+      当 运行 validate --specs --json
+      那么 该 capability 通过且无状态流转 ERROR
+
   @req:r161
   规则: 人类定理（Human Theorems）纯域解析、哈希封签门禁与只读权限锁
     项目 MAY 在 `llmanspec/theorems/*.md` 沉淀少量由人类维护的硬不变量（每条以 `## theorem:<id>` 声明，含必填 `statement` 与可选 `rationale`/`gate`/`scope`）；缺失该目录时 MUST 保持零报错向后兼容。

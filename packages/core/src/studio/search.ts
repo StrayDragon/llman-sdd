@@ -5,6 +5,7 @@
 import type { CapabilityDoc } from '../spec/ir.ts';
 import type { TheoremItem } from '../theorems/theorems.ts';
 import { extractDecisionTables } from './decisionTree.ts';
+import { extractStudioMachines } from './extract.ts';
 import type { StudioStateDoc } from './model.ts';
 
 export type StudioSearchTargetKind =
@@ -131,6 +132,25 @@ export function buildWorkspaceSearchDocuments(
         title: `${capId} · ${reqTag ? `${reqTag} ` : ''}${rule.title}`,
         body: [reqTag, rule.title, rule.description, ...scenarioLines].filter(Boolean).join('\n'),
       });
+    }
+
+    const extracted = extractStudioMachines([
+      { fileName: `${capId}.feature`, specId: capId, doc: item.doc },
+    ]);
+    const draftKeys = new Set(Object.keys(stateDoc?.machines ?? {}));
+    for (const { machine } of extracted) {
+      if (draftKeys.has(machine.machineKey)) continue;
+      for (const st of machine.states) {
+        docs.push({
+          id: `state:${machine.machineKey}:${st.uid}`,
+          targetKind: 'state',
+          targetId: st.uid,
+          capId: machine.capability,
+          machineKey: machine.machineKey,
+          title: `${machine.capability} · 状态 · ${st.name}`,
+          body: `${st.name} ${st.isGateway ? '条件判断' : '状态'} ${st.subMachineKey ?? ''} ${machine.graphKind ?? 'machine'} ${machine.ruleTitle}`,
+        });
+      }
     }
 
     for (const dt of extractDecisionTables(item.doc)) {

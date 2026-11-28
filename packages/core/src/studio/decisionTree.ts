@@ -4,8 +4,11 @@
  */
 import type { CapabilityDoc, ExamplesBlockIR, ScenarioIR } from '../spec/ir.ts';
 import {
+  isStatesOutline,
+  resolveStateColumns,
   resolveTransitionColumns,
   resolveTransitionDecision,
+  STATES_TAG,
 } from '../validation/xstateTransitions.ts';
 
 export interface DecisionTreeNode {
@@ -147,6 +150,13 @@ export function compileDecisionTableToTree(
 
 function isDecisionExamplesBlock(scenario: ScenarioIR, block: ExamplesBlockIR): boolean {
   if (block.headers.length < 2 || block.rows.length < 2) return false;
+  if (scenario.tags.includes(STATES_TAG) || isStatesOutline(scenario)) return false;
+  if (
+    resolveStateColumns(block.headers) !== null &&
+    resolveTransitionColumns(block.headers) === null
+  ) {
+    return false;
+  }
   if (resolveTransitionColumns(block.headers) !== null) return false;
   return resolveTransitionDecision(scenario) !== 'force';
 }

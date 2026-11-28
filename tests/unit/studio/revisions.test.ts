@@ -109,6 +109,24 @@ describe('studio/revisions (r131)', () => {
     );
   });
 
+  test('acceptRevisionProposal preserves subMachineKey across rename_state', () => {
+    const { key, doc } = seedDoc();
+    doc.machines[key]!.current!.states[1]!.subMachineKey = 'child/r1/sub';
+    const proposed = proposeRevision(doc, {
+      machineKey: key,
+      rationale: '改名',
+      createdAt: '2026-11-26T10:20:00Z',
+      ops: [{ op: 'rename_state', from: '待审批', to: '待主管审批' }],
+    });
+    const accepted = acceptRevisionProposal(
+      proposed,
+      proposed.revisions[0]!.id,
+      '2026-11-26T10:21:00Z',
+    );
+    const renamed = accepted.machines[key]!.current!.states.find((s) => s.name === '待主管审批');
+    expect(renamed?.subMachineKey).toBe('child/r1/sub');
+  });
+
   test('supports rejecting pending revisions and update/remove transition ops', () => {
     const { key, doc } = seedDoc();
     const withRev = proposeRevision(doc, {

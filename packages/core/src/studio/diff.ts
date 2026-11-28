@@ -25,6 +25,20 @@ export interface TransitionModifiedDiff {
   changedFields: TransitionChangedField[];
 }
 
+export interface NestLinkDiff {
+  stateUid: string;
+  stateName: string;
+  from: string | null;
+  to: string | null;
+}
+
+export interface GatewayFlagDiff {
+  stateUid: string;
+  stateName: string;
+  from: boolean;
+  to: boolean;
+}
+
 export interface MachineSemanticDiff {
   mode: MachineDraftMode;
   hasChanges: boolean;
@@ -34,6 +48,16 @@ export interface MachineSemanticDiff {
   transitionsAdded: StudioTransitionEdge[];
   transitionsRemoved: StudioTransitionEdge[];
   transitionsModified: TransitionModifiedDiff[];
+  nestLinksChanged: NestLinkDiff[];
+  gatewaysChanged: GatewayFlagDiff[];
+  graphKindChanged: boolean;
+}
+
+function emptyAttr(): Pick<
+  MachineSemanticDiff,
+  'nestLinksChanged' | 'gatewaysChanged' | 'graphKindChanged'
+> {
+  return { nestLinksChanged: [], gatewaysChanged: [], graphKindChanged: false };
 }
 
 export function computeMachineDiff(draft: MachineDraft): MachineSemanticDiff {
@@ -50,6 +74,7 @@ export function computeMachineDiff(draft: MachineDraft): MachineSemanticDiff {
       transitionsAdded: [],
       transitionsRemoved,
       transitionsModified: [],
+      ...emptyAttr(),
     };
   }
 
@@ -57,15 +82,34 @@ export function computeMachineDiff(draft: MachineDraft): MachineSemanticDiff {
     const cur = draft.current;
     const statesAdded = cur ? [...cur.states] : [];
     const transitionsAdded = cur ? [...cur.transitions] : [];
+    const nestLinksChanged: NestLinkDiff[] = (cur?.states ?? [])
+      .filter((s) => s.subMachineKey)
+      .map((s) => ({
+        stateUid: s.uid,
+        stateName: s.name,
+        from: null,
+        to: s.subMachineKey ?? null,
+      }));
+    const gatewaysChanged: GatewayFlagDiff[] = (cur?.states ?? [])
+      .filter((s) => s.isGateway === true)
+      .map((s) => ({ stateUid: s.uid, stateName: s.name, from: false, to: true }));
     return {
       mode: draft.mode,
-      hasChanges: statesAdded.length > 0 || transitionsAdded.length > 0,
+      hasChanges:
+        statesAdded.length > 0 ||
+        transitionsAdded.length > 0 ||
+        nestLinksChanged.length > 0 ||
+        gatewaysChanged.length > 0 ||
+        cur?.graphKind === 'flow',
       statesAdded,
       statesRemoved: [],
       statesRenamed: [],
       transitionsAdded,
       transitionsRemoved: [],
       transitionsModified: [],
+      nestLinksChanged,
+      gatewaysChanged,
+      graphKindChanged: cur?.graphKind === 'flow',
     };
   }
 
@@ -81,6 +125,7 @@ export function computeMachineDiff(draft: MachineDraft): MachineSemanticDiff {
       transitionsAdded: [],
       transitionsRemoved: [...base.transitions],
       transitionsModified: [],
+      ...emptyAttr(),
     };
   }
 
@@ -151,14 +196,34 @@ export function computeMachineDiff(draft: MachineDraft): MachineSemanticDiff {
   const netTransitionsAdded = transitionsAdded.filter((_, idx) => !cancelledAdded.has(idx));
   const netTransitionsRemoved = transitionsRemoved.filter((_, idx) => !cancelledRemoved.has(idx));
 
+  const nestLinksChanged: NestLinkDiff[] = [];
+  const gatewaysChanged: GatewayFlagDiff[] = [];
+  for (const s of cur.states) {
+    const b = baseStates.get(s.uid);
+    if (!b) continue;
+    const fromNest = b.subMachineKey ?? null;
+    const toNest = s.subMachineKey ?? null;
+    if (fromNest !== toNest) {
+      nestLinksChanged.push({ stateUid: s.uid, stateName: s.name, from: fromNest, to: toNest });
+    }
+    const fromGw = b.isGateway === true;
+    const toGw = s.isGateway === true;
+    if (fromGw !== toGw) {
+      gatewaysChanged.push({ stateUid: s.uid, stateName: s.name, from: fromGw, to: toGw });
+    }
+  }
+  const graphKindChanged = (base.graphKind ?? 'machine') !== (cur.graphKind ?? 'machine');
+
   const hasChanges =
     statesAdded.length +
       statesRemoved.length +
       statesRenamed.length +
       netTransitionsAdded.length +
       netTransitionsRemoved.length +
-      transitionsModified.length >
-    0;
+      transitionsModified.length +
+      nestLinksChanged.length +
+      gatewaysChanged.length >
+      0 || graphKindChanged;
 
   return {
     mode: draft.mode,
@@ -169,6 +234,9 @@ export function computeMachineDiff(draft: MachineDraft): MachineSemanticDiff {
     transitionsAdded: netTransitionsAdded,
     transitionsRemoved: netTransitionsRemoved,
     transitionsModified,
+    nestLinksChanged,
+    gatewaysChanged,
+    graphKindChanged,
   };
 }
 
@@ -276,6 +344,16 @@ export function formatSemanticDiff(diff: MachineSemanticDiff, draft: MachineDraf
     const toName = resolveStateLabel(e.toUid, base, cur);
     const guardPart = e.guard ? ` [${e.guard}]` : '';
     lines.push(`- ${fromName} --[${e.event}${guardPart}]--> ${toName}`);
+  }
+  for (const n of diff.nestLinksChanged) {
+    if (n.from === null && n.to !== null) lines.push(`+ nest: ${n.stateName} -> ${n.to}`);
+    else if (n.from !== null && n.to === null) lines.push(`- nest: ${n.stateName}`);
+    else lines.push(`~ nest: ${n.stateName}: ${n.from ?? ''} -> ${n.to ?? ''}`);
+  }
+  for (const g of diff.gatewaysChanged) {
+    if (!g.from && g.to) lines.push(`+ gateway: ${g.stateName}`);
+    else if (g.from && !g.to) lines.push(`- gateway: ${g.stateName}`);
+    else lines.push(`~ gateway: ${g.stateName}`);
   }
 
   return lines.join('\n');

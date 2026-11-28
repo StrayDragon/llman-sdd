@@ -6,9 +6,14 @@ import { specIdOf } from '../spec/ir.ts';
 import type { SpecEntry } from '../validation/validate.ts';
 import {
   extractTransitions,
+  FORCE_FLOW_TAG,
+  isGatewayCell,
   isTransitionOutline,
+  parseSubmachineRef,
+  resolveStateColumns,
   resolveTransitionColumns,
   resolveTransitionDecision,
+  STATES_TAG,
 } from '../validation/xstateTransitions.ts';
 import {
   cloneMachineIR,
@@ -80,6 +85,7 @@ export function extractStudioMachines(entries: readonly SpecEntry[]): ExtractedS
           reqId: rule.reqId || null,
           ruleTitle: rule.title,
           scenarioName: sc.name,
+          ...(sc.tags.includes(FORCE_FLOW_TAG) ? { graphKind: 'flow' as const } : {}),
           initialStateUid,
           columns: {
             from: cols.from,
@@ -103,7 +109,71 @@ export function extractStudioMachines(entries: readonly SpecEntry[]): ExtractedS
     }
   }
 
+  applyStateAttributes(results, entries);
   return results;
+}
+
+function applyStateAttributes(
+  results: ExtractedStudioMachine[],
+  entries: readonly SpecEntry[],
+): void {
+  const catalog = results.map((r) => r.machine);
+  const hostsByRule = new Map<string, ExtractedStudioMachine[]>();
+  for (const item of results) {
+    const key = `${item.machine.capability}\0${item.machine.reqId ?? ''}`;
+    const list = hostsByRule.get(key) ?? [];
+    list.push(item);
+    hostsByRule.set(key, list);
+  }
+
+  for (const entry of entries) {
+    const capability = specIdOf(entry);
+    for (const rule of entry.doc.rules) {
+      const hosts = hostsByRule.get(`${capability}\0${rule.reqId}`) ?? [];
+      if (hosts.length === 0) continue;
+      for (const sc of rule.scenarios) {
+        if (!sc.tags.includes(STATES_TAG)) continue;
+        for (const block of sc.examples ?? []) {
+          const cols = resolveStateColumns(block.headers);
+          if (!cols) continue;
+          const stateIdx = block.headers.indexOf(cols.state);
+          const subIdx =
+            cols.submachine === undefined ? -1 : block.headers.indexOf(cols.submachine);
+          const gwIdx = cols.gateway === undefined ? -1 : block.headers.indexOf(cols.gateway);
+          for (const row of block.rows) {
+            const stateName = (row[stateIdx] ?? '').trim();
+            if (stateName === '') continue;
+            const hostsWithState = hosts.filter((h) =>
+              h.machine.states.some((s) => s.name === stateName),
+            );
+            if (hostsWithState.length !== 1) continue;
+            const host = hostsWithState[0];
+            if (!host) continue;
+            const state = host.machine.states.find((s) => s.name === stateName);
+            if (!state) continue;
+            if (gwIdx !== -1 && isGatewayCell(row[gwIdx] ?? '')) {
+              state.isGateway = true;
+            }
+            const ref = parseSubmachineRef(subIdx === -1 ? '' : (row[subIdx] ?? ''));
+            if (ref === null || ref.reqId === '') continue;
+            const targets = catalog.filter((m) => {
+              if ((m.reqId ?? '') !== ref.reqId) return false;
+              if (ref.scenarioName === null) return true;
+              return m.scenarioName === ref.scenarioName;
+            });
+            if (targets.length !== 1) continue;
+            const targetKey = targets[0]?.machineKey;
+            if (targetKey) state.subMachineKey = targetKey;
+          }
+        }
+      }
+    }
+  }
+
+  for (const item of results) {
+    item.draft.baseline = cloneMachineIR(item.machine);
+    item.draft.current = cloneMachineIR(item.machine);
+  }
 }
 
 export interface CreateMachineDraftInput {
@@ -112,8 +182,14 @@ export interface CreateMachineDraftInput {
   scenarioName: string;
   sourceFile?: string;
   reqId?: string | null;
+  graphKind?: StudioMachineIR['graphKind'];
   columns?: StudioMachineColumns;
-  states: Array<{ name: string; initial?: boolean }>;
+  states: Array<{
+    name: string;
+    initial?: boolean;
+    isGateway?: boolean;
+    subMachineKey?: string;
+  }>;
   transitions: Array<{ from: string; event: string; guard?: string; to: string }>;
 }
 
@@ -128,7 +204,14 @@ export function createMachineDraft(input: CreateMachineDraftInput): MachineDraft
     if (stateUidByName.has(name)) continue;
     const uid = `s${String(states.length + 1)}`;
     stateUidByName.set(name, uid);
-    states.push({ uid, name });
+    states.push({
+      uid,
+      name,
+      ...(s.isGateway === true ? { isGateway: true } : {}),
+      ...(s.subMachineKey !== undefined && s.subMachineKey !== ''
+        ? { subMachineKey: s.subMachineKey }
+        : {}),
+    });
     if (s.initial && initialStateUid === null) initialStateUid = uid;
   }
 
@@ -173,6 +256,7 @@ export function createMachineDraft(input: CreateMachineDraftInput): MachineDraft
     reqId: input.reqId ?? null,
     ruleTitle: input.ruleTitle,
     scenarioName: input.scenarioName,
+    ...(input.graphKind !== undefined ? { graphKind: input.graphKind } : {}),
     initialStateUid,
     columns,
     states,
