@@ -16,6 +16,7 @@ import {
   STAGE_ORDER,
   validateCapability,
   validateChange,
+  validateFlowAndNesting,
   type ChangeIssue,
   type CrossRootCollision,
   type HarnessGate,
@@ -85,6 +86,16 @@ function specV1Items(
       durationMs: 0,
       matchedViaPrefix: false,
     });
+  }
+  for (const extra of validateFlowAndNesting(entries)) {
+    const cap = extra.id.split('/')[0] ?? '';
+    const target = items.find((i) => i.id === cap);
+    if (!target) continue;
+    target.issues = [
+      ...target.issues,
+      { level: extra.level, path: extra.id, message: extra.message },
+    ];
+    target.valid = target.issues.every((i) => i.level !== 'ERROR');
   }
   // r13/r48: harness issues attach to their spec item after the structural
   // verdict (execution runs only for the entries actually being validated —

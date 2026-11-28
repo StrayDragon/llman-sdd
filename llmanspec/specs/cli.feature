@@ -10,7 +10,7 @@
     MUST 保持退出码 0;错误渲染逻辑 MUST 收敛在主入口统一出口,各命令 MUST NOT 自行散落 `process.exitCode = 1` 写退出码点。
     参数解析失败 MUST 一律以退出码 2 退出,口径覆盖缺必需参数、多余参数、非法枚举值与非法旗标组合(前代对 handler 级校验如 `--format`
     以退出码 1 退出,本仓统一为 2,属有意 divergence)。不带子命令的根裸调用(含只给根级选项的情形)MUST 等同 `--help`:帮助文本写
-    stdout 且退出码 0;四个纯父分组 `change`/`spec`/`project`/`self` 缺必需子命令 MUST 报用法错误到 stderr 且退出码 2;
+    stdout 且退出码 0;五个纯父分组 `change`/`spec`/`project`/`self`/`studio` 缺必需子命令 MUST 报用法错误到 stderr 且退出码 2;
     `config` MUST 保留其默认 action(裸调用输出概览且退出码 0)。
 
     场景: 未知命令单一前缀与退出码
@@ -155,3 +155,18 @@
       假如 一个根实例含归档条目且挂有缺 llmanspec 链接 worktree 的临时仓库
       当 在该 worktree 内运行 freeze --dry-run 并再以 --directory 指向主检出运行一次
       那么 缺省调用报域错误退出 1,显式重定向可用且输出非主检出 WARNING
+
+  @req:r171
+  规则: not-found 错误列出确定性候选
+    `show`、`studio` 各子命令及 `change` 系命令中找不到 id 的域错误 MUST 在 `Error: <kind> not found: <query>` 后附最多五个候选（有则 `Available: a, b, c`），排序 MUST 为前缀匹配、再子串匹配、再编辑距离小于等于 2，并列按字典序，同输入同输出；无候选时 MUST NOT 附加 Available。纯父分组缺子命令 MUST 报用法到 stderr 且退出码 2，MUST NOT 输出空的 `Error:` 行。
+
+    场景: show 未知 change 列出候选
+      假如 一个含活跃 change alpha-fix 与 beta-fix 的临时仓库
+      当 运行 show nonexist
+      那么 stderr 含 "change not found: nonexist" 且含 "Available:" 且退出码为 1
+
+    场景: 纯父分组 studio 裸调无空 Error 行
+      假如 本仓库的真实 llmanspec 工作区
+      当 运行 CLI 的 studio 分组不带子命令
+      那么 stderr 含 "Usage:" 且不含空的 Error 行
+      而且 退出码为 2

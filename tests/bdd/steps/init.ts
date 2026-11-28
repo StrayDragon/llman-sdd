@@ -8,6 +8,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  rmSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -113,6 +114,117 @@ bdd.thenStep('每个 SKILL.md 通过 ethics 治理门', (ctx) => {
     }
   }
 });
+
+bdd.thenStep(
+  'explore 与 propose 技能均含 Studio CLI 协商指引且符合模板强度词与命令面门禁',
+  (ctx) => {
+    const root = (ctx.fixtures['init'] as { root: string }).root;
+    const explore = readFileSync(
+      join(root, '.agents', 'skills', 'llman-sdd-explore', 'SKILL.md'),
+      'utf8',
+    );
+    const propose = readFileSync(
+      join(root, '.agents', 'skills', 'llman-sdd-propose', 'SKILL.md'),
+      'utf8',
+    );
+    for (const [name, content] of [
+      ['llman-sdd-explore', explore],
+      ['llman-sdd-propose', propose],
+    ] as const) {
+      for (const marker of [
+        'llman-sdd studio diff',
+        'llman-sdd studio validate',
+        'llman-sdd studio comment reply',
+        'llman-sdd studio revise',
+      ]) {
+        if (!content.includes(marker)) {
+          throw new Error(`${name}/SKILL.md missing Studio CLI guidance marker: ${marker}`);
+        }
+      }
+    }
+  },
+);
+
+bdd.thenStep(
+  'studio-drift 技能包含四类直改代码分流法则与 studio drift 命令指引且通过 ethics 门禁',
+  (ctx) => {
+    const root = (ctx.fixtures['init'] as { root: string }).root;
+    const content = readFileSync(
+      join(root, '.agents', 'skills', 'llman-sdd-studio-drift', 'SKILL.md'),
+      'utf8',
+    );
+    for (const marker of [
+      'llman-sdd studio drift',
+      '四类直改代码分流法则',
+      '--write-state',
+      '--fail-on-shadow',
+      ...ETHICS_KEYS,
+    ]) {
+      if (!content.includes(marker)) {
+        throw new Error(`llman-sdd-studio-drift/SKILL.md missing required marker: ${marker}`);
+      }
+    }
+  },
+);
+
+bdd.thenStep(
+  'specs-structure 技能包含选型判定表与 studio validate --specs 指引且通过 ethics 门禁',
+  (ctx) => {
+    const root = (ctx.fixtures['init'] as { root: string }).root;
+    const content = readFileSync(
+      join(root, '.agents', 'skills', 'llman-sdd-specs-structure', 'SKILL.md'),
+      'utf8',
+    );
+    for (const marker of [
+      'llman-sdd studio validate --specs',
+      'llman-sdd spec transitions',
+      'llman-sdd validate --specs --strict',
+      'llman-sdd studio open',
+      '@transitions',
+      '@flow',
+      '@states',
+      ...ETHICS_KEYS,
+    ]) {
+      if (!content.includes(marker)) {
+        throw new Error(`llman-sdd-specs-structure/SKILL.md missing required marker: ${marker}`);
+      }
+    }
+    if (content.includes('studio coverage')) {
+      throw new Error('llman-sdd-specs-structure must not mention unshipped studio coverage');
+    }
+  },
+);
+
+bdd.thenStep(
+  'studio-onboard 与 studio-collab 技能含反向提炼与协商回执指引且通过 ethics 门禁',
+  (ctx) => {
+    const root = (ctx.fixtures['init'] as { root: string }).root;
+    const onboard = readFileSync(
+      join(root, '.agents', 'skills', 'llman-sdd-studio-onboard', 'SKILL.md'),
+      'utf8',
+    );
+    const collab = readFileSync(
+      join(root, '.agents', 'skills', 'llman-sdd-studio-collab', 'SKILL.md'),
+      'utf8',
+    );
+    for (const marker of ['llman-sdd studio open', 'llman-sdd studio validate', ...ETHICS_KEYS]) {
+      if (!onboard.includes(marker)) {
+        throw new Error(`llman-sdd-studio-onboard/SKILL.md missing marker: ${marker}`);
+      }
+    }
+    for (const marker of [
+      'llman-sdd studio diff',
+      'llman-sdd studio comment reply',
+      'llman-sdd studio revise',
+      'llman-sdd studio apply',
+      ...ETHICS_KEYS,
+    ]) {
+      if (!collab.includes(marker)) {
+        throw new Error(`llman-sdd-studio-collab/SKILL.md missing marker: ${marker}`);
+      }
+    }
+  },
+);
 
 // ---------------------------------------------------------------------------
 // r80 — repo's own committed skills stay fresh against the golden baseline
@@ -376,3 +488,47 @@ bdd.thenStep('gitignore 含 eval-local-results 与 groups-yaml 两行', (ctx) =>
     problems.push('.gitignore 缺 eval/groups.yaml(明文密钥合法落点)');
   if (problems.length > 0) throw new Error(problems.join('; '));
 });
+
+// ── r163: Human Theorems global read-only injection & lean core skills ──
+
+bdd.when('渲染全部 skills 与 llmanspec AGENTS 模板', (ctx) => {
+  const cfg =
+    (ctx.fixtures['init'] as { cfg?: string } | undefined)?.cfg ??
+    'schema: spec-driven\nlocale: zh-Hans\n';
+  const root = mkdtempSync(join(tmpdir(), 'llman-sdd-r163-'));
+  mkdirSync(join(root, 'llmanspec'), { recursive: true });
+  writeFileSync(join(root, 'llmanspec', 'config.yaml'), cfg);
+  runCli(['init', '--update', root], root);
+  ctx.fixtures['r163Root'] = root;
+});
+
+bdd.thenStep(
+  'AGENTS 模板与核心技能均含 llmanspec/theorems 只读遵循约束且通过 ethics 门禁',
+  (ctx) => {
+    const root = ctx.fixtures['r163Root'] as string;
+    try {
+      const agents = readFileSync(join(root, 'llmanspec', 'AGENTS.md'), 'utf8');
+      if (!agents.includes('llmanspec/theorems/')) {
+        throw new Error('llmanspec/AGENTS.md missing llmanspec/theorems/ read-only guidance');
+      }
+      for (const skill of [
+        'llman-sdd-propose',
+        'llman-sdd-apply',
+        'llman-sdd-verify',
+        'llman-sdd-archive',
+      ]) {
+        const content = readFileSync(join(root, '.agents', 'skills', skill, 'SKILL.md'), 'utf8');
+        if (!content.includes('llmanspec/theorems/')) {
+          throw new Error(`${skill}/SKILL.md missing llmanspec/theorems/ read-only constraint`);
+        }
+        for (const key of ETHICS_KEYS) {
+          if (!content.includes(key)) {
+            throw new Error(`${skill}/SKILL.md missing ethics key ${key}`);
+          }
+        }
+      }
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  },
+);

@@ -26,6 +26,10 @@ export const OPTIONAL_SKILL_FILES: readonly string[] = [
   'llman-sdd-arch-review.md',
   'llman-sdd-wayfinder.md',
   'llman-sdd-research.md',
+  'llman-sdd-studio-drift.md',
+  'llman-sdd-studio-onboard.md',
+  'llman-sdd-studio-collab.md',
+  'llman-sdd-specs-structure.md',
 ];
 
 export const UNIT_FILES: readonly string[] = [

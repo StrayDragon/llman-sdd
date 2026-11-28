@@ -1140,55 +1140,35 @@ bdd.thenStep('各 proposal 均不含 stage 字段', (ctx) => {
   }
 });
 
-// r34 — stage 状态机场景大纲行展开
-interface StageOutlineFixture {
-  repo: TempRepo;
-  id: string;
-}
+// r34 — 文件组合推断 stage（设计 / 任务 / 绑定三键，不是事件迁移）
+bdd.given(
+  '一个设计文件 "{design}"、任务文件 "{tasks}"、分支绑定 "{binding}" 的 change',
+  (ctx, design, tasks, binding) => {
+    const root = mkdtempSync(join(tmpdir(), 'llman-stage-combo-'));
+    mkdirSync(join(root, 'llmanspec'), { recursive: true });
+    writeFileSync(join(root, 'llmanspec', 'config.yaml'), 'schema: spec-driven\n');
+    const id = 'file-combo';
+    const dir = join(root, 'llmanspec', 'changes', id);
+    mkdirSync(dir, { recursive: true });
+    const fm = ['---', 'depends_on: []', 'title: 文件组合'];
+    if (binding === '有') {
+      fm.push('branch: sdd/file-combo', 'base_branch: main', 'base_sha: abc');
+    }
+    fm.push('---', '', '## Why', 'x', '');
+    writeFileSync(join(dir, 'proposal.md'), fm.join('\n'));
+    if (design === '有') writeFileSync(join(dir, 'design.md'), '# design\n');
+    if (tasks === '有') writeFileSync(join(dir, 'tasks.md'), '# Tasks\n- [ ] t\n');
+    ctx.fixtures['stage工作区'] = { root };
+    ctx.fixtures['文件组合id'] = id;
+  },
+);
 
-bdd.given('一个处于 "{from}" 阶段的 change 工作区', (ctx, from) => {
-  const repo = makeTempRepo();
-  const id = 'demo-stage-machine';
-  const files: Record<string, string> = {};
-  if (from !== 'draft') files['design.md'] = '# design\n';
-  if (from === 'planned' || from === 'full') files['tasks.md'] = '# Tasks\n- [ ] t\n';
-  seedChange(repo, id, {
-    proposal: '---\ndepends_on: []\n---\n\n## Why\nx\n',
-    files,
-  });
-  repo.run('git', ['add', '-A']);
-  repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'seed']);
-  if (from === 'full') {
-    repo.run('git', ['switch', '-qc', 'feat/bind']);
-    repo.run('bun', [CLI, 'change', 'start', id]);
+bdd.thenStep('文件组合推断的 stage 为 "{stage}"', (ctx, stage) => {
+  const { stages } = ctx.fixtures['stage结果'] as { stages: Record<string, string> };
+  const id = ctx.fixtures['文件组合id'] as string;
+  if (stages[id] !== stage) {
+    throw new Error(`expected ${id} stage ${stage}, got ${JSON.stringify(stages)}`);
   }
-  ctx.fixtures['stage大纲'] = { repo, id } satisfies StageOutlineFixture;
-  ctx.fixtures['stage工作区'] = { root: repo.root };
-});
-
-bdd.when('执行 stage 迁移事件 "{event}"', (ctx, event) => {
-  const { repo, id } = ctx.fixtures['stage大纲'] as StageOutlineFixture;
-  const dir = join(repo.root, 'llmanspec', 'changes', id);
-  if (event === 'add_design') {
-    writeFileSync(join(dir, 'design.md'), '# design\n');
-  } else if (event === 'add_tasks') {
-    writeFileSync(join(dir, 'tasks.md'), '# Tasks\n- [ ] t\n');
-  } else if (event === 'bind_branch') {
-    repo.run('git', ['switch', '-qc', 'feat/bind']);
-    repo.run('bun', [CLI, 'change', 'start', id]);
-  } else {
-    throw new Error(`unknown stage event: ${event}`);
-  }
-  repo.run('git', ['add', '-A']);
-  repo.run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', `event:${event}`]);
-});
-
-bdd.thenStep('该 change 的 stage 迁移为 "{to}"', (ctx, to) => {
-  const { repo, id } = ctx.fixtures['stage大纲'] as StageOutlineFixture;
-  const result = repo.run('bun', [CLI, 'list', '--json']);
-  const parsed = JSON.parse(result.stdout) as { changes?: { name: string; stage: string }[] };
-  const stage = (parsed.changes ?? []).find((c) => c.name === id)?.stage;
-  if (stage !== to) throw new Error(`expected stage ${to} for ${id}, got ${stage}`);
 });
 
 // r35 — 纯前导数字目录不计编号

@@ -1238,15 +1238,32 @@ bdd.thenStep('输出不含 "finalize is a pipeline step"', (ctx) => {
 });
 
 // ---------------------------------------------------------------------------
-// r104 — tag-scoped transition-table validation gates
+// r104 / r124–r127 — tag-scoped transition-table graph gates
 // ---------------------------------------------------------------------------
 
-function scFeature(
+const BOUND_STEPS = `      假如 在 "<from>"
+      当 发 "<event>"
+      那么 到 "<to>"`;
+
+const GUARD_STEPS = `      假如 在 "<from>" 且 "<guard>"
+      当 发 "<event>"
+      那么 到 "<to>"`;
+
+const UNBOUND_STEPS = `      假如 固定
+      当 固定
+      那么 固定`;
+
+const ZH_STEPS = `      假如 在 "<初始状态>"
+      当 发 "<事件>"
+      那么 到 "<目标状态>"`;
+
+function transitionFeature(
   cap: string,
   reqId: string,
   scenario: string,
-  stepBlock: string,
-  tableRows: string,
+  steps: string,
+  header: string,
+  rows: string,
   tags = '',
 ): string {
   return `# language: zh-CN
@@ -1258,40 +1275,20 @@ function scFeature(
     系统 MUST x
 
 ${tags}    场景大纲: ${scenario}
-${stepBlock}
+${steps}
       例子:
-        | from | event | to |
-${tableRows}
+        ${header}
+${rows}
 `;
 }
 
-const GOOD_STEPS = `      假如 在 "<from>"
-      当 发 "<event>"
-      那么 到 "<to>"`;
-
-const GOOD_ROWS = `        | a | e1 | b |
-        | b | e2 | c |`;
-
-const ISLAND_ROWS = `        | a | e1 | b |
-        | orphan | e0 | c |`;
-
-function incompleteFeature(cap: string, reqId: string): string {
-  return `# language: zh-CN
-# purpose: ${cap}
-功能: ${cap}
-
-  @req:${reqId}
-  规则: rule
-    系统 MUST x
-
-    场景大纲: incomplete
-      假如 在 "<from>"
-      当 发 "<event>"
-      那么 到 "<to>"
-      例子:
-        | from | to |
-        | a | b |
-`;
+function wireTransition(
+  ctx: { fixtures: Record<string, unknown> },
+  cap: string,
+  feature: string,
+): void {
+  const repo = transitionsRepo({ [`${cap}.feature`]: feature });
+  ctx.fixtures['validate仓库'] = { repo };
 }
 
 function transitionsRepo(files: Record<string, string>): TempRepo {
@@ -1304,243 +1301,538 @@ function transitionsRepo(files: Record<string, string>): TempRepo {
   return repo;
 }
 
-// --- 场景: tag 定界四级判定 -----------------------------------------------
+const ISLAND_ROWS = `        | a | e1 | b |
+        | orphan | e0 | c |`;
 
-bdd.given(
-  '一个分别含挂 @no-transitions 的孤岛缺陷特征词表、挂 @transitions 的残缺列表现、双 tag 同挂场景与无 tag 孤岛缺陷特征词表的临时仓库',
-  (ctx) => {
-    const repo = transitionsRepo({
-      'sc-escape.feature': scFeature(
-        'sc-escape',
-        'r50',
-        'escape',
-        GOOD_STEPS,
-        ISLAND_ROWS,
-        '    @no-transitions\n',
-      ),
-      'sc-force.feature': `# language: zh-CN
-# purpose: sc-force
-功能: sc-force
+const CYCLE_ROWS = `        | on | toggle | off |
+        | off | toggle | on |`;
 
-  @req:r51
-  规则: rule
+bdd.given('一个挂 @no-transitions 且含孤岛状态的流转表临时仓库', (ctx) => {
+  wireTransition(
+    ctx,
+    'sc-escape',
+    transitionFeature(
+      'sc-escape',
+      'r50',
+      'escape',
+      BOUND_STEPS,
+      '| from | event | to |',
+      ISLAND_ROWS,
+      '    @no-transitions\n',
+    ),
+  );
+});
+
+bdd.given('一个挂 @transitions 且缺 event 列的流转表临时仓库', (ctx) => {
+  wireTransition(
+    ctx,
+    'sc-force',
+    transitionFeature(
+      'sc-force',
+      'r51',
+      'force',
+      BOUND_STEPS,
+      '| from | to |',
+      '        | a | b |',
+      '    @transitions\n',
+    ),
+  );
+});
+
+bdd.given('一个同时挂 @transitions 与 @no-transitions 的合法流转表临时仓库', (ctx) => {
+  wireTransition(
+    ctx,
+    'sc-conflict',
+    transitionFeature(
+      'sc-conflict',
+      'r52',
+      'conflict',
+      BOUND_STEPS,
+      '| from | event | to |',
+      CYCLE_ROWS,
+      '    @transitions @no-transitions\n',
+    ),
+  );
+});
+
+bdd.given('一个无 tag 且含孤岛状态的流转表临时仓库', (ctx) => {
+  wireTransition(
+    ctx,
+    'sc-island',
+    transitionFeature(
+      'sc-island',
+      'r53',
+      'island',
+      BOUND_STEPS,
+      '| from | event | to |',
+      ISLAND_ROWS,
+    ),
+  );
+});
+
+bdd.given('一个无 tag 且缺 event 列的流转表临时仓库', (ctx) => {
+  wireTransition(
+    ctx,
+    'sc-missing-event',
+    transitionFeature(
+      'sc-missing-event',
+      'r54',
+      'missing-event',
+      BOUND_STEPS,
+      '| from | to |',
+      '        | a | b |\n        | b | a |',
+    ),
+  );
+});
+
+bdd.given('一个步骤未绑定 from/event/to 占位符的流转表临时仓库', (ctx) => {
+  wireTransition(
+    ctx,
+    'sc-unbound',
+    transitionFeature(
+      'sc-unbound',
+      'r55',
+      'unbound',
+      UNBOUND_STEPS,
+      '| from | event | to |',
+      CYCLE_ROWS,
+    ),
+  );
+});
+
+bdd.given('一个事件单元格为空的流转表临时仓库', (ctx) => {
+  wireTransition(
+    ctx,
+    'sc-empty',
+    transitionFeature(
+      'sc-empty',
+      'r56',
+      'empty',
+      BOUND_STEPS,
+      '| from | event | to |',
+      '        | a | e1 | b |\n        | b |  | a |',
+    ),
+  );
+});
+
+bdd.given('一个只有一个状态的流转表临时仓库', (ctx) => {
+  wireTransition(
+    ctx,
+    'sc-one',
+    transitionFeature(
+      'sc-one',
+      'r57',
+      'one',
+      BOUND_STEPS,
+      '| from | event | to |',
+      '        | a | loop | a |',
+    ),
+  );
+});
+
+bdd.given('一个使用中文列名且来回切换的合法流转表临时仓库', (ctx) => {
+  wireTransition(
+    ctx,
+    'sc-zh',
+    transitionFeature(
+      'sc-zh',
+      'r58',
+      'zh',
+      ZH_STEPS,
+      '| 初始状态 | 事件 | 目标状态 |',
+      '        | on | toggle | off |\n        | off | toggle | on |',
+    ),
+  );
+});
+
+bdd.given('一个使用中文列名且缺事件列的流转表临时仓库', (ctx) => {
+  wireTransition(
+    ctx,
+    'sc-zh-missing',
+    transitionFeature(
+      'sc-zh-missing',
+      'r59',
+      'zh-missing',
+      `      假如 在 "<初始状态>"
+      当 发 "<事件>"
+      那么 到 "<目标状态>"`,
+      '| 初始状态 | 目标状态 |',
+      '        | on | off |\n        | off | on |',
+    ),
+  );
+});
+
+bdd.given('一个含守卫列但步骤未绑定守卫占位符的流转表临时仓库', (ctx) => {
+  wireTransition(
+    ctx,
+    'sc-guard',
+    transitionFeature(
+      'sc-guard',
+      'r60',
+      'guard',
+      BOUND_STEPS,
+      '| from | event | guard | to |',
+      '        | a | go | g1 | b |\n        | b | back | g1 | a |',
+    ),
+  );
+});
+
+bdd.given('一个同一事件指向两个目标状态的流转表临时仓库', (ctx) => {
+  wireTransition(
+    ctx,
+    'sc-conflict-target',
+    transitionFeature(
+      'sc-conflict-target',
+      'r61',
+      'conflict-target',
+      BOUND_STEPS,
+      '| from | event | to |',
+      '        | a | go | b |\n        | a | go | c |\n        | b | back | a |\n        | c | back | a |',
+    ),
+  );
+});
+
+bdd.given('一个同一转移重复两行的流转表临时仓库', (ctx) => {
+  wireTransition(
+    ctx,
+    'sc-dup',
+    transitionFeature(
+      'sc-dup',
+      'r62',
+      'dup',
+      BOUND_STEPS,
+      '| from | event | to |',
+      '        | a | go | b |\n        | a | go | b |\n        | b | back | a |',
+    ),
+  );
+});
+
+bdd.given('一个同一事件按不同守卫通往不同目标且都能回到初始状态的流转表临时仓库', (ctx) => {
+  wireTransition(
+    ctx,
+    'sc-guards',
+    transitionFeature(
+      'sc-guards',
+      'r63',
+      'guards',
+      GUARD_STEPS,
+      '| from | event | guard | to |',
+      '        | a | go | g1 | b |\n        | a | go | g2 | c |\n        | b | back | g1 | a |\n        | c | back | g2 | a |',
+    ),
+  );
+});
+
+bdd.given('一个存在终态但有状态到不了终态的流转表临时仓库', (ctx) => {
+  wireTransition(
+    ctx,
+    'sc-terminal',
+    transitionFeature(
+      'sc-terminal',
+      'r64',
+      'terminal',
+      BOUND_STEPS,
+      '| from | event | to |',
+      '        | a | e1 | b |\n        | a | e2 | c |\n        | b | self | b |',
+    ),
+  );
+});
+
+bdd.given('一个没有终态且存在回不到初始状态的环区的流转表临时仓库', (ctx) => {
+  wireTransition(
+    ctx,
+    'sc-sink',
+    transitionFeature(
+      'sc-sink',
+      'r65',
+      'sink',
+      BOUND_STEPS,
+      '| from | event | to |',
+      '        | a | e1 | b |\n        | b | e2 | c |\n        | c | e3 | b |',
+    ),
+  );
+});
+
+bdd.given('一个进入后只指向自身的吸收态流转表临时仓库', (ctx) => {
+  wireTransition(
+    ctx,
+    'sc-absorb',
+    transitionFeature(
+      'sc-absorb',
+      'r66',
+      'absorb',
+      BOUND_STEPS,
+      '| from | event | to |',
+      '        | a | e1 | b |\n        | b | e2 | b |',
+    ),
+  );
+});
+
+bdd.given('一个两个状态互相到达的合法流转表临时仓库', (ctx) => {
+  wireTransition(
+    ctx,
+    'sc-cycle',
+    transitionFeature('sc-cycle', 'r67', 'cycle', BOUND_STEPS, '| from | event | to |', CYCLE_ROWS),
+  );
+});
+
+const STATE_STEPS = `      假如 状态 <状态>
+      当 读取属性
+      那么 子机为 <子机>`;
+
+function nestedPairFeature(
+  cap: string,
+  nestCell: string,
+  opts?: { extraHostRow?: string; hostState?: string; childNestsHost?: boolean },
+): string {
+  const hostState = opts?.hostState ?? 'on';
+  const extra = opts?.extraHostRow ?? '';
+  const childStates = opts?.childNestsHost
+    ? `
+    @states
+    场景大纲: 子属性
+${STATE_STEPS}
+      例子:
+        | 状态 | 子机 |
+        | idle | @req:r80 |
+`
+    : '';
+  return `# language: zh-CN
+# purpose: ${cap}
+功能: ${cap}
+
+  @req:r80
+  规则: host
     系统 MUST x
 
     @transitions
-    场景大纲: force
-      假如 在 "<from>"
-      当 发 "<event>"
-      那么 到 "<to>"
+    场景大纲: host-flow
+${BOUND_STEPS}
       例子:
-        | from | to |
-        | a | b |
+        | from | event | to |
+${CYCLE_ROWS}
+
+    @states
+    场景大纲: 状态属性
+${STATE_STEPS}
+      例子:
+        | 状态 | 子机 |
+        | ${hostState} | ${nestCell} |${extra}
+
+  @req:r81
+  规则: child
+    系统 MUST y
+
+    @transitions
+    场景大纲: child-flow
+${BOUND_STEPS}
+      例子:
+        | from | event | to |
+        | idle | run | done |
+        | done | reset | idle |
+${childStates}
+`;
+}
+
+bdd.given('一个 @states 引用不存在 req 的临时仓库', (ctx) => {
+  wireTransition(ctx, 'n1-red', nestedPairFeature('n1-red', '@req:r999'));
+});
+
+bdd.given('一个 @states 引用同仓另一规则唯一状态机的临时仓库', (ctx) => {
+  wireTransition(ctx, 'n1-green', nestedPairFeature('n1-green', '@req:r81'));
+});
+
+bdd.given('一个两台机器互相嵌套成环的临时仓库', (ctx) => {
+  wireTransition(ctx, 'n2-red', nestedPairFeature('n2-red', '@req:r81', { childNestsHost: true }));
+});
+
+bdd.given('一个单向嵌套无环的临时仓库', (ctx) => {
+  wireTransition(ctx, 'n2-green', nestedPairFeature('n2-green', '@req:r81'));
+});
+
+bdd.given('一个 @states 宿主状态不在转移表中的临时仓库', (ctx) => {
+  wireTransition(ctx, 'n3-red', nestedPairFeature('n3-red', '@req:r81', { hostState: 'ghost' }));
+});
+
+bdd.given('一个 @states 宿主状态存在于转移表的临时仓库', (ctx) => {
+  wireTransition(ctx, 'n3-green', nestedPairFeature('n3-green', '@req:r81'));
+});
+
+bdd.given('一个同一宿主状态在 @states 中出现两行的临时仓库', (ctx) => {
+  wireTransition(
+    ctx,
+    'n4-red',
+    nestedPairFeature('n4-red', '@req:r81', {
+      extraHostRow: '\n        | on | @req:r81 |',
+    }),
+  );
+});
+
+bdd.given('一个每个宿主状态在 @states 中只出现一行的临时仓库', (ctx) => {
+  wireTransition(ctx, 'n4-green', nestedPairFeature('n4-green', '@req:r81'));
+});
+
+bdd.given('一个同规则两台机器共享状态名且 @states 映射该名的临时仓库', (ctx) => {
+  wireTransition(
+    ctx,
+    'n5-red',
+    `# language: zh-CN
+# purpose: n5-red
+功能: n5-red
+
+  @req:r82
+  规则: multi
+    系统 MUST x
+
+    @transitions
+    场景大纲: ma
+${BOUND_STEPS}
+      例子:
+        | from | event | to |
+${CYCLE_ROWS}
+
+    @transitions
+    场景大纲: mb
+${BOUND_STEPS}
+      例子:
+        | from | event | to |
+        | on | x | other |
+        | other | y | on |
+
+    @states
+    场景大纲: 状态属性
+${STATE_STEPS}
+      例子:
+        | 状态 | 子机 |
+        | on | @req:r82#mb |
 `,
-      'sc-conflict.feature': scFeature(
-        'sc-conflict',
-        'r52',
-        'conflict',
-        GOOD_STEPS,
-        GOOD_ROWS,
-        '    @transitions @no-transitions\n',
-      ),
-      'sc-island3.feature': scFeature('sc-island3', 'r53', 'island', GOOD_STEPS, ISLAND_ROWS),
-    });
-    ctx.fixtures['validate仓库'] = { repo };
-  },
-);
+  );
+});
 
-bdd.thenStep(
-  '@no-transitions 孤岛表不报错,@transitions 残缺表报缺必填列 ERROR,双 tag 同挂报冲突 ERROR,无 tag 孤岛表照常报 ERROR',
-  (ctx) => {
-    const r = ctx.fixtures['validate结果'] as { code: number; stdout: string };
-    if (r.code === 0) throw new Error('validate must fail for the conflict/island defects');
-    const parsed = JSON.parse(r.stdout) as {
-      items?: {
-        id: string;
-        valid: boolean;
-        issues: { level: string; path: string; message: string }[];
-      }[];
-    };
-    const byId = new Map((parsed.items ?? []).map((i) => [i.id, i]));
-    const messagesOf = (id: string): string[] =>
-      (byId.get(id)?.issues ?? [])
-        .filter((x) => x.path.includes('/transitions/'))
-        .map((x) => x.message);
-    if (!byId.get('sc-escape')?.valid || messagesOf('sc-escape').length > 0) {
-      throw new Error('@no-transitions must fully escape the island table');
-    }
-    const force = messagesOf('sc-force');
-    if (
-      byId.get('sc-force')?.valid ||
-      !force.some((m) => m.includes('requires a runnable non-empty Examples table'))
-    ) {
-      throw new Error('@transitions must force E1 on the malformed table');
-    }
-    const conflict = messagesOf('sc-conflict');
-    if (
-      byId.get('sc-conflict')?.valid ||
-      !conflict.some((m) => m.includes('conflicting @transitions and @no-transitions tags'))
-    ) {
-      throw new Error('both tags must conflict-ERROR');
-    }
-    if (
-      byId.get('sc-island3')?.valid ||
-      !messagesOf('sc-island3').some((m) => m.includes('unreachable state'))
-    ) {
-      throw new Error('no-tag sniff must still catch the island table');
-    }
-  },
-);
+bdd.given('一个同规则两台机器状态名互不重叠且 @states 可消歧的临时仓库', (ctx) => {
+  wireTransition(
+    ctx,
+    'n5-green',
+    `# language: zh-CN
+# purpose: n5-green
+功能: n5-green
 
-// --- 场景: 四道门禁对嗅探路径逐类拦截 ---------------------------------------
+  @req:r83
+  规则: multi
+    系统 MUST x
 
-bdd.given(
-  '一个无任何 tag 且分别含残缺表头漏列或假步骤未绑定占位符、非确定性冲突、孤岛不可达状态与死锁陷阱状态四类缺陷表的临时仓库',
-  (ctx) => {
-    const repo = transitionsRepo({
-      'sc-incomplete.feature': incompleteFeature('sc-incomplete', 'r9'),
-      'sc-fake.feature': scFeature(
-        'sc-fake',
-        'r10',
-        'fake',
-        `      假如 固定
-      当 固定
-      那么 固定`,
-        GOOD_ROWS,
-      ),
-      'sc-nondet.feature': scFeature(
-        'sc-nondet',
-        'r11',
-        'dup',
-        GOOD_STEPS,
-        `        | a | e1 | b |
-        | a | e1 | c |`,
-      ),
-      'sc-island2.feature': scFeature('sc-island2', 'r12', 'island', GOOD_STEPS, ISLAND_ROWS),
-      'sc-dead.feature': scFeature(
-        'sc-dead',
-        'r13',
-        'dead',
-        GOOD_STEPS,
-        `        | a | e1 | trap |
-        | a | e2 | b |
-        | trap | self | trap |
-        | b | fin | done |`,
-      ),
-    });
-    ctx.fixtures['validate仓库'] = { repo };
-  },
-);
+    @transitions
+    场景大纲: ma
+${BOUND_STEPS}
+      例子:
+        | from | event | to |
+${CYCLE_ROWS}
 
-bdd.thenStep(
-  '四类状态流转缺陷均被自动发现并判 ERROR 且对应 capability valid 为 false 且退出码非零',
-  (ctx) => {
-    const r = ctx.fixtures['validate结果'] as { code: number; stdout: string };
-    if (r.code === 0) throw new Error('validate must fail for transition defects');
-    const parsed = JSON.parse(r.stdout) as {
-      items?: {
-        id: string;
-        valid: boolean;
-        issues: { level: string; path: string; message: string }[];
-      }[];
-    };
-    const caps = ['sc-incomplete', 'sc-fake', 'sc-nondet', 'sc-island2', 'sc-dead'];
-    for (const cap of caps) {
-      const item = (parsed.items ?? []).find((i) => i.id === cap);
-      if (!item || item.valid) throw new Error(`${cap} must be invalid`);
-      if (!item.issues.some((x) => x.level === 'ERROR' && x.path.includes('/transitions/'))) {
-        throw new Error(`${cap} must carry transitions ERROR`);
-      }
-    }
-    const messages = (parsed.items ?? []).flatMap((i) => i.issues.map((x) => x.message));
-    const need = [
-      'transition scenario',
-      'steps must bind placeholders',
-      'non-deterministic or duplicate transition',
-      'unreachable state',
-      'deadlock state',
-    ];
-    for (const fragment of need) {
-      if (!messages.some((m) => m.includes(fragment))) {
-        throw new Error(`missing transition defect message containing: ${fragment}`);
-      }
-    }
-  },
-);
+    @transitions
+    场景大纲: mb
+${BOUND_STEPS}
+      例子:
+        | from | event | to |
+        | idle | run | done |
+        | done | reset | idle |
 
-// --- 场景: E4 死锁消息按实际违反不变式表述 ----------------------------------
+    @states
+    场景大纲: 状态属性
+${STATE_STEPS}
+      例子:
+        | 状态 | 子机 |
+        | idle | @req:r86 |
 
-bdd.given(
-  '一个分别含无法到达终态的死锁表、无终态且无法回到初始状态的单向环区表与合法纯环表的临时仓库',
-  (ctx) => {
-    const repo = transitionsRepo({
-      'sc-term-dead.feature': scFeature(
-        'sc-term-dead',
-        'r60',
-        'term-dead',
-        GOOD_STEPS,
-        `        | a | e1 | b |
-        | a | e2 | c |
-        | b | self | b |`,
-      ),
-      'sc-sink-cycle.feature': scFeature(
-        'sc-sink-cycle',
-        'r61',
-        'sink-cycle',
-        GOOD_STEPS,
-        `        | a | e1 | b |
-        | b | e2 | c |
-        | c | e3 | b |`,
-      ),
-      'sc-pure-cycle.feature': scFeature(
-        'sc-pure-cycle',
-        'r62',
-        'pure-cycle',
-        GOOD_STEPS,
-        `        | on | toggle | off |
-        | off | toggle | on |`,
-      ),
-    });
-    ctx.fixtures['validate仓库'] = { repo };
-  },
-);
+  @req:r86
+  规则: child
+    系统 MUST y
 
-bdd.thenStep(
-  '死锁表消息含无法到达终态,单向环区表消息含无法回到初始状态,合法纯环表不报错',
-  (ctx) => {
-    const r = ctx.fixtures['validate结果'] as { code: number; stdout: string };
-    if (r.code === 0) throw new Error('validate must fail for the two E4 defects');
-    const parsed = JSON.parse(r.stdout) as {
-      items?: {
-        id: string;
-        valid: boolean;
-        issues: { level: string; path: string; message: string }[];
-      }[];
-    };
-    const byId = new Map((parsed.items ?? []).map((i) => [i.id, i]));
-    const transitionsMsgs = (id: string): string[] =>
-      (byId.get(id)?.issues ?? [])
-        .filter((x) => x.path.includes('/transitions/'))
-        .map((x) => x.message);
-    if (
-      byId.get('sc-term-dead')?.valid ||
-      !transitionsMsgs('sc-term-dead').some((m) => m.includes('cannot reach any terminal state'))
-    ) {
-      throw new Error('terminal-deadlock table must report cannot-reach-terminal');
-    }
-    if (
-      byId.get('sc-sink-cycle')?.valid ||
-      !transitionsMsgs('sc-sink-cycle').some((m) =>
-        m.includes('cannot return to the initial state'),
-      )
-    ) {
-      throw new Error('sink-cycle table must report cannot-return-to-initial');
-    }
-    if (!byId.get('sc-pure-cycle')?.valid || transitionsMsgs('sc-pure-cycle').length > 0) {
-      throw new Error('pure cycle table must pass clean');
-    }
-  },
-);
+    @transitions
+    场景大纲: child-flow
+${BOUND_STEPS}
+      例子:
+        | from | event | to |
+        | a | e | b |
+        | b | e | a |
+`,
+  );
+});
+
+bdd.given('一个同时挂 @flow 与 @no-transitions 的合法流转表临时仓库', (ctx) => {
+  wireTransition(
+    ctx,
+    'flow-conflict',
+    transitionFeature(
+      'flow-conflict',
+      'r84',
+      'conflict',
+      BOUND_STEPS,
+      '| from | event | to |',
+      CYCLE_ROWS,
+      '    @flow @no-transitions\n',
+    ),
+  );
+});
+
+bdd.given('一个挂 @flow 且含回不到初始状态的环区的流转表临时仓库', (ctx) => {
+  wireTransition(
+    ctx,
+    'flow-trap',
+    transitionFeature(
+      'flow-trap',
+      'r85',
+      'trap',
+      BOUND_STEPS,
+      '| from | event | to |',
+      `        | on | go | trapped |
+        | trapped | stay | trapped |`,
+      '    @flow\n',
+    ),
+  );
+});
+
+bdd.thenStep('该流转表判 ERROR 且消息含 "{text}"', (ctx, text) => {
+  const r = ctx.fixtures['validate结果'] as { code: number; stdout: string };
+  if (r.code === 0) throw new Error(`expected non-zero exit\n${r.stdout}`);
+  const parsed = JSON.parse(r.stdout) as {
+    items?: {
+      id: string;
+      valid: boolean;
+      issues: { level: string; path: string; message: string }[];
+    }[];
+  };
+  const gates = (parsed.items ?? []).filter((item) => item.id !== 'sample');
+  if (gates.length !== 1) {
+    throw new Error(`expected one gate spec, got ${gates.map((item) => item.id).join(',')}`);
+  }
+  const item = gates[0];
+  if (item === undefined || item.valid) throw new Error(`gate spec must be invalid:\n${r.stdout}`);
+  const hit = item.issues.find(
+    (issue) =>
+      issue.level === 'ERROR' &&
+      issue.path.includes('/transitions/') &&
+      issue.message.includes(text),
+  );
+  if (hit === undefined) {
+    throw new Error(
+      `missing transition ERROR containing "${text}": ${JSON.stringify(item.issues)}`,
+    );
+  }
+});
+
+bdd.thenStep('该 capability 通过且无状态流转 ERROR', (ctx) => {
+  const r = ctx.fixtures['validate结果'] as { code: number; stdout: string };
+  if (r.code !== 0) throw new Error(`expected exit 0, got ${r.code}\n${r.stdout}`);
+  const parsed = JSON.parse(r.stdout) as {
+    items?: { id: string; valid: boolean; issues: { path: string; message: string }[] }[];
+  };
+  const items = parsed.items ?? [];
+  if (items.length === 0) throw new Error(`no spec items in:\n${r.stdout}`);
+  for (const item of items) {
+    if (!item.valid) throw new Error(`${item.id} must be valid:\n${r.stdout}`);
+    const hit = item.issues.filter((issue) => issue.path.includes('/transitions/'));
+    if (hit.length > 0) throw new Error(`unexpected transition issues: ${JSON.stringify(hit)}`);
+  }
+});
 
 // ---------------------------------------------------------------------------
 // fix-review-sweep-path — spec id 推导路径形态无关(validation r12)
@@ -1579,6 +1871,63 @@ bdd.thenStep('各 capability 均 valid 为 true 且无 spec id 失配 ERROR', (c
   if (result.failed || mismatch.length !== 0) {
     throw new Error(
       `absolute-path sweep must be green with zero id-mismatch ERRORs:\n${result.lines.join('\n')}`,
+    );
+  }
+});
+
+// ── r161: Human Theorems lock sealing & tamper rejection ──
+
+bdd.given('一个包含人类定理文档的临时仓库', (ctx) => {
+  const dir = mkdtempSync(join(tmpdir(), 'llman-sdd-bdd-theorems-'));
+  mkdirSync(join(dir, 'llmanspec', 'specs'), { recursive: true });
+  mkdirSync(join(dir, 'llmanspec', 'theorems'), { recursive: true });
+  writeFileSync(join(dir, 'llmanspec', 'config.yaml'), 'schema: spec-driven\nlocale: zh-Hans\n');
+  const file = join(dir, 'llmanspec', 'theorems', 'core.md');
+  writeFileSync(
+    file,
+    [
+      '---',
+      'title: "核心不变量"',
+      'owner: human',
+      '---',
+      '',
+      '## theorem:no-silent-drop — 禁止静默丢弃事件',
+      '- **statement**: 所有关键事件写入失败时必须显式报错。',
+      '- **gate**: `true`',
+      '',
+    ].join('\n'),
+  );
+  ctx.fixtures['r161Repo'] = { dir, file };
+});
+
+bdd.when('依次运行 theorem lock、theorem check，再篡改定理正文后再次运行 theorem check', (ctx) => {
+  const { dir, file } = ctx.fixtures['r161Repo'] as { dir: string; file: string };
+  try {
+    const lockRes = runCli(['theorem', 'lock', '-d', dir], dir);
+    const checkSealed = runCli(['theorem', 'check', '-d', dir], dir);
+    runCli(['theorem', 'unlock', '-d', dir], dir);
+    writeFileSync(file, `${readFileSync(file, 'utf8')}\n# tampered\n`);
+    const checkTampered = runCli(['theorem', 'check', '-d', dir], dir);
+    ctx.fixtures['r161Res'] = { lockRes, checkSealed, checkTampered };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+bdd.thenStep('封签后 check 退出码为 0 且篡改后 check 退出码非零并指明篡改文件', (ctx) => {
+  const { lockRes, checkSealed, checkTampered } = ctx.fixtures['r161Res'] as {
+    lockRes: { status: number };
+    checkSealed: { status: number };
+    checkTampered: { status: number; stderr: string };
+  };
+  if (lockRes.status !== 0 || checkSealed.status !== 0) {
+    throw new Error(
+      `expected lock & sealed check rc 0, got ${lockRes.status} / ${checkSealed.status}`,
+    );
+  }
+  if (checkTampered.status === 0 || !checkTampered.stderr.includes('core.md')) {
+    throw new Error(
+      `expected tampered check non-zero mentioning core.md, got rc=${checkTampered.status} stderr=${checkTampered.stderr}`,
     );
   }
 });

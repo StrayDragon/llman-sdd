@@ -155,6 +155,12 @@ const REQUIRED_PER_FILE: Readonly<Record<string, readonly string[]>> = {
   ],
   'skills/llman-sdd-wayfinder.md': ['disable-model-invocation: true'],
   'skills/llman-sdd-specs-compact.md': ['project dedupe-req-ids'],
+  'skills/llman-sdd-specs-structure.md': [
+    'studio validate --specs',
+    'spec transitions',
+    'validate --specs --strict',
+    'studio open',
+  ],
   // entry-vs-completion semantics of readyToImplement lives in the shared units
   'units/skills/stage-guard.md': [
     'specs-landed gate|specs-landed 门',

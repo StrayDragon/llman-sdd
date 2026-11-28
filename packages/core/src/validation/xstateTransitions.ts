@@ -1,10 +1,9 @@
 /**
- * XState-powered transition-table validation (validation r104): tag-scoped
+ * Transition-table validation (validation r104, r124–r127): tag-scoped
  * discovery (@transitions force / @no-transitions escape / shape sniff),
- * Examples-table driven gates E1–E4. Pure — no I/O.
+ * Examples-table driven graph gates. The walk is @statelyai/graph. Pure — no I/O.
  */
 import { createGraph, addNode, addEdge, genBFS, hasPath } from '@statelyai/graph';
-import { createMachine } from 'xstate';
 
 import type { RuleIR, ScenarioIR } from '../spec/ir.ts';
 import type { ValidationItem } from './validate.ts';
@@ -20,6 +19,15 @@ const FROM_HEADERS = new Set(['from', '初始状态']);
 const EVENT_HEADERS = new Set(['event', '事件']);
 const TO_HEADERS = new Set(['to', '目标状态']);
 const GUARD_HEADERS = new Set(['guard', '守卫']);
+const STATE_HEADERS = new Set(['state', '状态']);
+const SUBMACHINE_HEADERS = new Set(['submachine', '子机']);
+const GATEWAY_HEADERS = new Set(['gateway', '网关']);
+const GATEWAY_TRUE = new Set(['是', 'yes', 'true']);
+
+export const FORCE_TRANSITIONS_TAG = 'transitions';
+export const ESCAPE_TRANSITIONS_TAG = 'no-transitions';
+export const FORCE_FLOW_TAG = 'flow';
+export const STATES_TAG = 'states';
 
 export interface ColumnMap {
   from: string;
@@ -38,6 +46,53 @@ function headerIndex(headers: string[], names: Set<string>): number {
     if (names.has(h) || names.has(h.toLowerCase())) return i;
   }
   return -1;
+}
+
+export interface StateColumnMap {
+  state: string;
+  submachine?: string;
+  gateway?: string;
+}
+
+export function resolveStateColumns(headers: string[]): StateColumnMap | null {
+  const stateIdx = headerIndex(headers, STATE_HEADERS);
+  if (stateIdx === -1) return null;
+  const subIdx = headerIndex(headers, SUBMACHINE_HEADERS);
+  const gwIdx = headerIndex(headers, GATEWAY_HEADERS);
+  return {
+    state: headers[stateIdx] ?? 'state',
+    ...(subIdx === -1 ? {} : { submachine: headers[subIdx] }),
+    ...(gwIdx === -1 ? {} : { gateway: headers[gwIdx] }),
+  };
+}
+
+export function isGatewayCell(value: string): boolean {
+  return GATEWAY_TRUE.has(value.trim().toLowerCase());
+}
+
+export interface SubmachineRef {
+  reqId: string;
+  scenarioName: string | null;
+  raw: string;
+}
+
+/** Parse `@req:<id>` or `@req:<id>#<scenario>`. Invalid / empty → null. */
+export function parseSubmachineRef(cell: string): SubmachineRef | null {
+  const raw = cell.trim();
+  if (raw === '') return null;
+  const m = /^@req:([A-Za-z0-9_-]+)(?:#(.+))?$/u.exec(raw);
+  if (!m?.[1]) return { reqId: '', scenarioName: null, raw };
+  return { reqId: m[1], scenarioName: m[2]?.trim() ? m[2].trim() : null, raw };
+}
+
+export function isStatesOutline(sc: ScenarioIR): boolean {
+  if (sc.tags.includes(STATES_TAG)) return true;
+  for (const ex of sc.examples ?? []) {
+    if (resolveStateColumns(ex.headers) !== null && resolveTransitionColumns(ex.headers) === null) {
+      return true;
+    }
+  }
+  return false;
 }
 
 export function resolveTransitionColumns(headers: string[]): ColumnMap | null {
@@ -66,9 +121,6 @@ export function isTransitionOutline(sc: ScenarioIR): boolean {
   return false;
 }
 
-export const FORCE_TRANSITIONS_TAG = 'transitions';
-export const ESCAPE_TRANSITIONS_TAG = 'no-transitions';
-
 /**
  * Single source of truth for `spec transitions` introspection (peripheral r105):
  * the discovery contract as enforced above — alias families, sniff rule, tags
@@ -80,9 +132,12 @@ export const TRANSITIONS_INTROSPECTION = {
     { role: 'event', aliases: ['event', '事件'] },
     { role: 'to', aliases: ['to', '目标状态'] },
     { role: 'guard', aliases: ['guard', '守卫'], optional: true },
+    { role: 'state', aliases: ['state', '状态'] },
+    { role: 'submachine', aliases: ['submachine', '子机'], optional: true },
+    { role: 'gateway', aliases: ['gateway', '网关'], optional: true },
   ],
   discovery:
-    'no-tag scenario outline: examples header hitting at least 2 of the 3 families (from/event/to) is scoped in as a transition table',
+    'no-tag scenario outline: examples header hitting at least 2 of the 3 families (from/event/to) is scoped in as a transition table; @states outlines are never sniffed as transition or decision tables',
   tags: [
     {
       tag: '@transitions',
@@ -92,12 +147,29 @@ export const TRANSITIONS_INTROSPECTION = {
       tag: '@no-transitions',
       semantics: 'total escape even when the sniff matches (both tags together is an ERROR)',
     },
+    {
+      tag: '@flow',
+      semantics:
+        'mark a transition outline as flowchart dialect (graphKind=flow); apply E1/E2/E3 plus F3/F4 warnings, skip E4; conflicting with @no-transitions is ERROR',
+    },
+    {
+      tag: '@states',
+      semantics:
+        'state-attribute outline (columns state|状态, optional submachine|子机 and gateway|网关); never sniffed as transition or decision table; maps nested machines and gateway flags onto states of transition outlines in the same rule',
+    },
   ],
   gates: [
     'E1 structure & placeholder binding (columns from/event/to, runnable, steps bind <from>/<event>/<to>/<guard>)',
     'E2 determinism (same (from, event, guard) must not target different states)',
     'E3 reachability (every state reachable from the first-row from state)',
-    'E4 deadlock/trap (with terminal states: reach one; without: return to the initial state)',
+    'E4 deadlock/trap (with terminal states: reach one; without: return to the initial state; skipped for @flow)',
+    'F3 (warning, @flow only) gateway out-degree < 2',
+    'F4 (warning, @flow only) placeholder step name',
+    'N1 dangling nested @req reference (missing req or target rule has no state machine)',
+    'N2 nested machine cycle (report cycle path)',
+    'N3 host state does not exist in the host machine',
+    'N4 host state mapped more than once in the same rule',
+    'N5 host state name is ambiguous across multiple machines in the same rule',
   ],
 } as const;
 
@@ -109,11 +181,13 @@ export type TransitionDecision = 'conflict' | 'skip' | 'force' | 'sniff';
  * shape sniff. Tags carry no leading `@` in the IR (parser strips it).
  */
 export function resolveTransitionDecision(sc: ScenarioIR): TransitionDecision {
+  if (sc.tags.includes(STATES_TAG) || isStatesOutline(sc)) return 'skip';
   const force = sc.tags.includes(FORCE_TRANSITIONS_TAG);
+  const flow = sc.tags.includes(FORCE_FLOW_TAG);
   const escape = sc.tags.includes(ESCAPE_TRANSITIONS_TAG);
-  if (force && escape) return 'conflict';
+  if ((force || flow) && escape) return 'conflict';
   if (escape) return 'skip';
-  if (force) return 'force';
+  if (force || flow) return 'force';
   return 'sniff';
 }
 
@@ -125,7 +199,7 @@ function stepBindsPlaceholder(text: string, col: string): boolean {
   return placeholderVariants(col).some((v) => text.includes(v));
 }
 
-function extractTransitions(sc: ScenarioIR): TransitionEdge[] {
+export function extractTransitions(sc: ScenarioIR): TransitionEdge[] {
   const transitions: TransitionEdge[] = [];
   for (const block of sc.examples ?? []) {
     const cols = resolveTransitionColumns(block.headers);
@@ -227,15 +301,6 @@ export function validateTransitionScenario(
   }
 
   const initial = transitions[0]?.from ?? '';
-  try {
-    createMachine({
-      id: 'transitions',
-      initial,
-      states: Object.fromEntries([...states].map((s) => [s, {}])) as Record<string, object>,
-    });
-  } catch {
-    // createMachine structural sanity — transitions drive graph below
-  }
 
   const graph = createGraph();
   for (const s of states) addNode(graph, { id: s });
@@ -272,6 +337,11 @@ export function validateTransitionScenario(
   // non-terminal state must reach one; without any terminal state (cyclic
   // machine) every state must be able to return to the initial state. E3 has
   // already guaranteed all states are reachable FROM the initial state.
+  // @flow dialect skips E4 (flowchart F-series covers liveness via F1–F4).
+  if (sc.tags.includes(FORCE_FLOW_TAG)) {
+    return items;
+  }
+
   const terminalStates = [...states].filter((s) => (outTargets.get(s)?.size ?? 0) === 0);
 
   if (terminalStates.length > 0) {
@@ -297,15 +367,55 @@ export function validateTransitionScenario(
   return items;
 }
 
+function validateStatesScenario(cap: string, rule: RuleIR, sc: ScenarioIR): ValidationItem[] {
+  const items: ValidationItem[] = [];
+  const id = anchor(cap, rule);
+  const cols =
+    sc.examples?.map((ex) => resolveStateColumns(ex.headers)).find((c) => c !== null) ?? null;
+  if (!sc.runnable || !sc.examples || sc.examples.length === 0 || cols === null) {
+    items.push({
+      level: 'ERROR',
+      id,
+      message: `state-attribute scenario \`${sc.name}\` requires a runnable Examples table with a state|状态 column`,
+    });
+    return items;
+  }
+
+  const given = sc.steps.find((s) => s.kind === 'given');
+  const then = sc.steps.find((s) => s.kind === 'then');
+  const stateOk = given !== undefined && stepBindsPlaceholder(given.text, cols.state);
+  const subOk =
+    cols.submachine === undefined ||
+    (then !== undefined && stepBindsPlaceholder(then.text, cols.submachine));
+  if (!stateOk || !subOk) {
+    items.push({
+      level: 'ERROR',
+      id,
+      message: `state-attribute scenario \`${sc.name}\` steps must bind placeholders <state> in Given${cols.submachine !== undefined ? ' and <submachine> in Then' : ''}`,
+    });
+  }
+  return items;
+}
+
 export function validateTransitionsForRule(cap: string, rule: RuleIR): ValidationItem[] {
   const items: ValidationItem[] = [];
   for (const sc of rule.scenarios) {
+    if (sc.tags.includes(STATES_TAG) || isStatesOutline(sc)) {
+      if (sc.tags.includes(STATES_TAG)) {
+        items.push(...validateStatesScenario(cap, rule, sc));
+      }
+      continue;
+    }
     const decision = resolveTransitionDecision(sc);
     if (decision === 'conflict') {
+      const flow = sc.tags.includes(FORCE_FLOW_TAG);
+      const force = sc.tags.includes(FORCE_TRANSITIONS_TAG);
+      const pair =
+        flow && !force ? '@flow and @no-transitions' : '@transitions and @no-transitions';
       items.push({
         level: 'ERROR',
         id: anchor(cap, rule),
-        message: `scenario \`${sc.name}\` carries conflicting @transitions and @no-transitions tags — keep exactly one`,
+        message: `scenario \`${sc.name}\` carries conflicting ${pair} tags — keep exactly one`,
       });
       continue;
     }
@@ -316,25 +426,4 @@ export function validateTransitionsForRule(cap: string, rule: RuleIR): Validatio
     items.push(...validateTransitionScenario(cap, rule, sc));
   }
   return items;
-}
-
-export function parseTransitionExpr(expr: string): TransitionEdge {
-  const trimmed = expr.trim();
-  const m = trimmed.match(/^([^:]+):([\w-]+)(?:\[([^\]]+)\])?->(.+)$/u);
-  if (!m) {
-    throw new Error(`invalid transition expression: ${expr}`);
-  }
-  const from = m[1];
-  const event = m[2];
-  const guard = m[3];
-  const to = m[4];
-  if (from === undefined || event === undefined || to === undefined) {
-    throw new Error(`invalid transition expression: ${expr}`);
-  }
-  return {
-    from: from.trim(),
-    event: event.trim(),
-    to: to.trim(),
-    guard: guard?.trim() === '' ? undefined : guard?.trim(),
-  };
 }

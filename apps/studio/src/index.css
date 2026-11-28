@@ -1,0 +1,692 @@
+@import 'tailwindcss';
+@import '@xyflow/react/dist/style.css';
+
+/* =========================================================================
+   Studio Web Crafted Light Visual Dialects (Ported 1:1 from studio-demo.html)
+   Linear (Cool Engineering Gray) + Washi (Warm Vermilion Ink Paper)
+   ========================================================================= */
+:root,
+html[data-skin='linear'] {
+  --bg: #f5f6f8;
+  --grid-dot: #d0d5df;
+  --grid-line: rgba(148, 163, 184, 0.14);
+  --surface: #ffffff;
+  --surface-subtle: #f1f3f6;
+  --surface-hover: #e8ebf0;
+  --paper-warm: #f7f5f0;
+  --paper-border: #e5e0d5;
+  --border: #c4cddb;
+  --border-strong: #7e8ca1;
+  --edge-stroke: #5c6b82;
+  --group-teal-bd: #549e92;
+  --group-blue-bd: #6c85df;
+  --group-amber-bd: #b88342;
+  --group-violet-bd: #8b66dc;
+  --ink: #14171f;
+  --ink-hover: #252a38;
+  --text: #171b24;
+  --text-secondary: #4b5465;
+  --text-muted: #7f899b;
+
+  --accent: #2f54eb;
+  --accent-soft: #eef2ff;
+  --accent-border: #bac8ff;
+
+  /* 4 Semantic Type Ink Wells (Monochrome-first, Subtle Tinted Wells) */
+  --t-machine: #0d7a6c;
+  --t-machine-bg: #eefaf7;
+  --t-machine-bd: #b5e4db;
+  --t-flow: #6d28d9;
+  --t-flow-bg: #f5f3ff;
+  --t-flow-bd: #d8c8ff;
+  --t-decision: #2f54eb;
+  --t-decision-bg: #eef2ff;
+  --t-decision-bd: #c5d1ff;
+  --t-doc: #9a5b13;
+  --t-doc-bg: #fcf6ec;
+  --t-doc-bd: #ebd4b0;
+
+  --green: #0f7b55;
+  --green-soft: #eefaf4;
+  --green-border: #b7e4cf;
+  --amber: #9a5b13;
+  --amber-soft: #fcf6ec;
+  --amber-border: #ebd4b0;
+  --red: #c92a2a;
+  --red-soft: #fdf0f0;
+  --red-border: #f5c2c2;
+
+  --radius-island: 9px;
+  --radius-card: 10px;
+  --shadow-island: 0 1px 2px rgba(20, 23, 31, 0.05), 0 6px 18px rgba(20, 23, 31, 0.045);
+  --shadow-card: 0 1px 2px rgba(20, 23, 31, 0.04), 0 4px 12px rgba(20, 23, 31, 0.04);
+  --shadow-float: 0 12px 32px rgba(20, 23, 31, 0.12), 0 2px 6px rgba(20, 23, 31, 0.05);
+  --font: -apple-system, BlinkMacSystemFont, 'Inter', 'PingFang SC', 'Noto Sans SC', sans-serif;
+  --mono: ui-monospace, 'JetBrains Mono', 'SFMono-Regular', Menlo, monospace;
+}
+
+html[data-skin='washi'] {
+  --bg: #f9f8f4;
+  --grid-dot: #dcd5c8;
+  --grid-line: rgba(180, 170, 154, 0.12);
+  --surface: #ffffff;
+  --surface-subtle: #f3f0e8;
+  --surface-hover: #eae5da;
+  --paper-warm: #f7f4ec;
+  --paper-border: #e8e1d3;
+  --border: #ccc3b4;
+  --border-strong: #82786a;
+  --edge-stroke: #665d51;
+  --group-teal-bd: #b36b4c;
+  --group-blue-bd: #688641;
+  --group-amber-bd: #8c7e6c;
+  --group-violet-bd: #8b66dc;
+  --ink: #24211d;
+  --ink-hover: #38332d;
+  --text: #24211d;
+  --text-secondary: #5d574e;
+  --text-muted: #948c7e;
+
+  --accent: #b54116;
+  --accent-soft: #fdf2ec;
+  --accent-border: #f0c0aa;
+
+  --t-machine: #b54116;
+  --t-machine-bg: #fdf2ec;
+  --t-machine-bd: #f0c0aa;
+  --t-flow: #6d28d9;
+  --t-flow-bg: #f5f3ff;
+  --t-flow-bd: #d8c8ff;
+  --t-decision: #476f16;
+  --t-decision-bg: #f2f8e9;
+  --t-decision-bd: #c5df9d;
+  --t-doc: #6e675e;
+  --t-doc-bg: #f3f0e8;
+  --t-doc-bd: #d4ccbc;
+
+  --green: #166534;
+  --green-soft: #eefaf4;
+  --green-border: #b7e4cf;
+  --amber: #9a5b13;
+  --amber-soft: #fcf6ec;
+  --amber-border: #ebd4b0;
+  --red: #b91c1c;
+  --red-soft: #fdf0f0;
+  --red-border: #f5c2c2;
+
+  --radius-island: 11px;
+  --radius-card: 12px;
+  --shadow-island: 0 2px 8px rgba(36, 33, 29, 0.05), 0 6px 20px rgba(36, 33, 29, 0.035);
+  --shadow-card: 0 2px 10px rgba(36, 33, 29, 0.045), 0 1px 2px rgba(36, 33, 29, 0.04);
+  --shadow-float: 0 16px 40px rgba(36, 33, 29, 0.11), 0 2px 6px rgba(36, 33, 29, 0.04);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Crisp Tactile Floating Islands */
+.studio-island {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-island);
+  box-shadow: var(--shadow-island);
+}
+
+.studio-float {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-float);
+}
+
+.studio-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  transition:
+    border-color 0.14s ease,
+    box-shadow 0.14s ease;
+}
+
+.studio-card:hover {
+  border-color: var(--border-strong);
+}
+
+.studio-card-warm {
+  background: var(--paper-warm);
+  border: 1px solid var(--paper-border);
+  border-radius: 7px;
+}
+
+/* 4 Semantic Type Icon Wells */
+.type-icon-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  flex: none;
+}
+.type-icon-box.machine {
+  background: var(--t-machine-bg);
+  color: var(--t-machine);
+  border: 1px solid var(--t-machine-bd);
+}
+.type-icon-box.flow {
+  background: var(--t-flow-bg);
+  color: var(--t-flow);
+  border: 1px solid var(--t-flow-bd);
+}
+.type-icon-box.decision {
+  background: var(--t-decision-bg);
+  color: var(--t-decision);
+  border: 1px solid var(--t-decision-bd);
+}
+.type-icon-box.doc {
+  background: var(--t-doc-bg);
+  color: var(--t-doc);
+  border: 1px solid var(--t-doc-bd);
+}
+
+/* Color-Coded 4-Level Verification Hardness Pills */
+.hardness-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.hardness-pill.doc {
+  background: var(--surface-subtle);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+.hardness-pill.tested {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid var(--accent-border);
+}
+.hardness-pill.drift-guarded {
+  background: var(--green-soft);
+  color: var(--green);
+  border: 1px solid var(--green-border);
+}
+.hardness-pill.formal {
+  background: var(--amber-soft);
+  color: var(--amber);
+  border: 1px solid var(--amber-border);
+}
+
+/* Hover-Revealed Card Action Row (Zero Clutter on 17-Card Main View!) */
+.studio-spec-card .mini-act-row {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.14s ease;
+}
+.studio-spec-card:hover .mini-act-row,
+.studio-spec-card.is-selected .mini-act-row {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Interactive Connector Port Dots (Matching studio-demo.html) */
+.react-flow__handle.studio-port {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1.5px solid var(--border-strong);
+  transition:
+    transform 0.12s ease,
+    background 0.12s ease,
+    border-color 0.12s ease,
+    box-shadow 0.12s ease;
+}
+.react-flow__handle.studio-port:hover {
+  transform: scale(1.45);
+  border-color: var(--accent);
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.react-flow__edge:hover .studio-edge-vis {
+  stroke-width: 2.6;
+  filter: drop-shadow(0 0 4px rgba(47, 84, 235, 0.28));
+}
+.react-flow__edge:hover .studio-edge-label {
+  border-color: var(--accent);
+}
+
+.sub-drill-pill {
+  margin-top: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 5px;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.12s,
+    color 0.12s,
+    border-color 0.12s;
+}
+.sub-drill-pill:hover {
+  background: var(--accent);
+  color: #ffffff;
+  border-color: var(--accent);
+}
+.sub-drill-pill.flow-pill {
+  border-color: var(--t-flow-bd);
+  background: var(--t-flow-bg);
+  color: var(--t-flow);
+}
+.sub-drill-pill.flow-pill:hover {
+  background: var(--t-flow);
+  color: #ffffff;
+  border-color: var(--t-flow);
+}
+
+/* Exclusive Domain Group Frames (Axiom 5) */
+.group-frame {
+  border-radius: 14px;
+  border: 1.5px dashed var(--border-strong);
+  background: rgba(100, 116, 139, 0.055);
+  transition:
+    border-color 0.14s ease,
+    background 0.14s ease;
+}
+.group-frame.tone-teal {
+  border-color: var(--group-teal-bd);
+  background: rgba(13, 122, 108, 0.048);
+}
+.group-frame.tone-blue {
+  border-color: var(--group-blue-bd);
+  background: rgba(47, 84, 235, 0.045);
+}
+.group-frame.tone-amber {
+  border-color: var(--group-amber-bd);
+  background: rgba(154, 91, 19, 0.045);
+}
+.group-frame.tone-violet {
+  border-color: var(--group-violet-bd);
+  background: rgba(109, 40, 217, 0.042);
+}
+
+/* Outer nest group wrapping parent portals + inner machine boundary */
+.parent-context-frame {
+  border-radius: 20px;
+  border: 1.5px dashed var(--border);
+  background: rgba(148, 163, 184, 0.025);
+}
+.nest-frame-crumb {
+  position: absolute;
+  left: 16px;
+  top: -16px;
+  z-index: 6;
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px 3px 5px;
+  border-radius: 9px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-island);
+  white-space: nowrap;
+}
+.nest-crumb-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 500;
+  padding: 2px 7px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition:
+    background 0.12s,
+    color 0.12s;
+}
+.nest-crumb-btn:hover {
+  background: var(--surface-subtle);
+  color: var(--ink);
+}
+.nest-crumb-btn.back {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+.nest-crumb-btn.back:hover {
+  background: var(--accent);
+  color: #ffffff;
+}
+.nest-crumb-btn.current {
+  background: var(--ink);
+  color: #ffffff;
+  font-weight: 600;
+  cursor: default;
+}
+.nest-crumb-chevron {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.sep-v {
+  width: 1px;
+  height: 14px;
+  background: var(--border);
+  margin: 0 3px;
+}
+
+/* Box-in-Box Machine Boundary & Nested Stacked Shadow */
+.machine-boundary-frame {
+  border-radius: 16px;
+  border: 1.5px dashed var(--border-strong);
+  background: rgba(148, 163, 184, 0.032);
+}
+.machine-boundary-frame.is-nested {
+  border-style: solid;
+  border-color: rgba(47, 84, 235, 0.36);
+  background: rgba(47, 84, 235, 0.028);
+}
+.sm-has-sub {
+  box-shadow:
+    var(--shadow-card),
+    4px 4px 0 -1px var(--surface),
+    4px 4px 0 0 var(--border-strong);
+}
+
+/* Concentric Radial Pie Menu (Signature Demo Right-Click Interaction) */
+.radial-menu {
+  position: fixed;
+  z-index: 80;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.radial-ring-halo {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: 50%;
+  border: 1px dashed var(--border-strong);
+  background: rgba(255, 255, 255, 0.42);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  animation: radPop 0.13s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.radial-core {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 32px;
+  height: 32px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: var(--ink);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-float);
+  pointer-events: auto;
+  cursor: pointer;
+  border: none;
+  transition: transform 0.12s ease;
+  animation: radPop 0.13s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.radial-core:hover {
+  transform: translate(-50%, -50%) scale(1.08);
+}
+.radial-petal {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  height: 30px;
+  padding: 0 11px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  box-shadow: 0 4px 14px rgba(20, 23, 31, 0.11);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  cursor: pointer;
+  pointer-events: auto;
+  white-space: nowrap;
+  transition:
+    transform 0.11s ease,
+    background 0.11s ease,
+    border-color 0.11s ease,
+    color 0.11s ease;
+  animation: radPop 0.15s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.radial-petal:hover {
+  background: var(--ink);
+  color: #ffffff;
+  border-color: var(--ink);
+  transform: translate(-50%, -50%) scale(1.06);
+}
+.radial-petal.danger:hover {
+  background: var(--red);
+  border-color: var(--red);
+  color: #ffffff;
+}
+@keyframes radPop {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.76);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+/* Floating Inline Node & Edge Editors (Zero window.prompt!) */
+.inline-canvas-editor {
+  position: fixed;
+  z-index: 65;
+  transform: translate(-50%, -50%);
+  background: var(--surface);
+  border: 1.5px solid var(--accent);
+  border-radius: 9px;
+  padding: 8px 9px;
+  box-shadow: var(--shadow-float);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 256px;
+}
+
+/* Hover-Enlarging Minimap + Axiom 1 Proximity Anchor Shift */
+.react-flow__minimap {
+  transform-origin: bottom right;
+  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 10px !important;
+  background: var(--surface) !important;
+  box-shadow: var(--shadow-island) !important;
+  margin: 0 12px 12px 0 !important;
+}
+.react-flow__minimap:hover {
+  transform: scale(1.65);
+}
+body.wl-open .react-flow__minimap {
+  transform: translateX(-356px);
+}
+body.wl-open .react-flow__minimap:hover {
+  transform: translateX(-356px) scale(1.65);
+}
+
+/* Semantic Cursor Discipline: default arrow on blank canvas, grab only while actively panning */
+.react-flow__pane {
+  cursor: default !important;
+}
+.react-flow__pane.dragging {
+  cursor: grabbing !important;
+}
+
+/* Background frames MUST NOT swallow clicks/drags inside groups or machine boundary */
+.react-flow__node-domainGroup,
+.react-flow__node-machineBoundary,
+.react-flow__node-parentContext {
+  pointer-events: none !important;
+  cursor: default !important;
+}
+.react-flow__node-portalPill {
+  cursor: pointer !important;
+}
+
+/* React Flow Group Node Selection Frame Cleanup */
+.react-flow__node-domainGroup,
+.react-flow__node-machineBoundary,
+.react-flow__node-parentContext,
+.react-flow__node-portalPill,
+.react-flow__node-stickyNote,
+.react-flow__node-specCard,
+.react-flow__node-stateNode {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+.studio-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+@keyframes studio-sync-pulse-ours {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(154, 91, 19, 0.55);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(154, 91, 19, 0);
+  }
+}
+
+@keyframes studio-sync-pulse-theirs {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(15, 123, 85, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(15, 123, 85, 0);
+  }
+}
+
+@keyframes studio-sync-pulse-focus {
+  0%,
+  100% {
+    box-shadow: 0 0 0 2px rgba(20, 23, 31, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 9px rgba(20, 23, 31, 0.08);
+  }
+}
+
+@keyframes studio-sync-edge-glow {
+  0%,
+  100% {
+    stroke-opacity: 1;
+  }
+  50% {
+    stroke-opacity: 0.32;
+  }
+}
+
+@keyframes studio-sync-attention {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.08);
+  }
+}
+
+.studio-sync-pulse-ours {
+  animation: studio-sync-pulse-ours 1.35s ease-in-out infinite;
+}
+
+.studio-sync-pulse-theirs {
+  animation: studio-sync-pulse-theirs 1.35s ease-in-out infinite;
+}
+
+.studio-sync-pulse-focus {
+  animation: studio-sync-pulse-focus 0.85s ease-in-out infinite;
+}
+
+.studio-sync-edge-ours,
+.studio-sync-edge-theirs,
+.studio-sync-edge-focus {
+  animation: studio-sync-edge-glow 1.2s ease-in-out infinite;
+}
+
+.studio-sync-edge-focus {
+  animation-duration: 0.75s;
+}
+
+.studio-sync-attention-icon {
+  animation: studio-sync-attention 1.4s ease-in-out infinite;
+}
+
+.react-flow__node-stateNode:has([data-sync-pulse]) {
+  overflow: visible !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .studio-sync-pulse-ours,
+  .studio-sync-pulse-theirs,
+  .studio-sync-pulse-focus,
+  .studio-sync-edge-ours,
+  .studio-sync-edge-theirs,
+  .studio-sync-edge-focus,
+  .studio-sync-attention-icon {
+    animation: none;
+  }
+}
+
+/* Browser-Grade Tab Drag Reorder Drop Indicators */
+.tab-drop-before {
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.tab-drop-after {
+  box-shadow: inset -2px 0 0 var(--accent);
+}

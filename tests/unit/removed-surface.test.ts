@@ -30,6 +30,7 @@ const registerProject = (await import('../../apps/cli/src/commands/project.ts'))
 const registerReview = (await import('../../apps/cli/src/commands/review.ts')).registerReview;
 const registerShow = (await import('../../apps/cli/src/commands/show.ts')).registerShow;
 const registerSpec = (await import('../../apps/cli/src/commands/spec.ts')).registerSpec;
+const registerStudio = (await import('../../apps/cli/src/commands/studio.ts')).registerStudio;
 const registerValidate = (await import('../../apps/cli/src/commands/validate.ts')).registerValidate;
 const cliShared = await import('../../apps/cli/src/cli-shared.ts');
 const { version } = cliShared;
@@ -57,6 +58,7 @@ function buildProgram(): Command {
   registerArchive(program, ctx);
   registerReview(program, ctx);
   registerConfig(program, ctx);
+  registerStudio(program, ctx);
   return program;
 }
 

@@ -200,6 +200,7 @@ coverage/
 ### llman sdd derived cache
 llmanspec/.context/
 llmanspec/.sdd-state.json
+.llman-sdd/
 
 # Playbook eval local results and user-filled group locators
 .local/eval/

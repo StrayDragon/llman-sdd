@@ -6,7 +6,7 @@
   @req:r1
   规则: 工作区布局
     仓库 MUST 采用 Bun workspaces 单仓布局:根 package.json 声明 workspaces 且 MUST 包含 packages/core 与 apps/cli
-    两个工作区(包 exports 直指 .ts 源码,core 无构建步骤)。packages/core MUST NOT 依赖任何 apps/* 工作区。.bun-version MUST 存在且
+    两个工作区(包 exports 直指 .ts 源码,core 无构建步骤);可选引入基于 rsbuild 的 Web 工作区 apps/studio(构建静态产物 apps/studio/dist)。packages/core MUST NOT 依赖任何 apps/* 工作区。.bun-version MUST 存在且
     CI MUST 以同一文件钉版(bun-version-file);bun.lock MUST 入库并使用 --frozen-lockfile 安装。
 
     场景: 工作区布局合约对账通过
@@ -18,10 +18,10 @@
   规则: 质量门禁
     justfile MUST 提供 check 聚合门禁(typecheck = tsc --noEmit、oxlint、oxfmt --check 三项全过)与 qa 聚合门禁;qa MUST
     依次聚合 check、bun test、check:skills-template-render(skills 模板渲染基线门)、check:stc(模板中文文风门,
-    合约见 init-generators r97)、pending-gate(未绑定需求门)与
-    check:schema(config schema 产物漂移)。根 package.json 的 qa 脚本 MUST 聚合同一集合;CI MUST 运行同一集合,不得多于或少于本地 qa。
+    合约见 init-generators r97)、pending-gate(未绑定需求门)、
+    check:schema(config schema 产物漂移)与 qa-studio-e2e(Studio 真实浏览器门)。justfile 的 qa-* 单门配方 MUST 均被 qa 聚合。根 package.json 的 qa 脚本 MUST 聚合同一集合;CI MUST 运行同一集合,不得多于或少于本地 qa。
     上述三处一致性 MUST 由只读对账断言锁定,缺项 MUST 逐项报出。pre-commit(prek)MUST 至少包含 oxlint 与 oxfmt --write 两个 local
-    hook,并附带 pre-commit-hooks v5 的 whitespace 系检查。justfile MAY 另含不进入 qa 聚合的配方(如外部剧本 `eval`);该配方 MUST
+    hook,并附带 pre-commit-hooks v5 的 whitespace 系检查。justfile MAY 另含不进入 qa 聚合的非 qa-* 配方(如外部剧本 `eval`);该配方 MUST
     NOT 被 qa 调用。
 
     场景: 质量门禁合约对账通过

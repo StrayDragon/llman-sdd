@@ -32,14 +32,15 @@ check:
 
 # 门名真源 = 根 package.json scripts(monorepo-structure r2 用语),qa body 直呼脚本不走 just 中转;
 # 三处(justfile/package.json/ci.yml)接线一致由 tests/bdd/assert/quality-gates.ts 对账锁定;
-# 单门 just 入口按 qa- 前缀,check/qa 合约钉名、test 供 skill 文案引用保持原名。
-# 主门禁(等价 CI):check + test + check:stc + skills 渲染 + pending + schema。
+# 单门 just 入口按 qa- 前缀且须被 qa 聚合,check/qa 合约钉名、test 供 skill 文案引用保持原名。
+# 主门禁(等价 CI):check + test + check:stc + skills 渲染 + pending + schema + qa-studio-e2e。
 qa: check
     @{{BUN_RUN}} test {{BUN_TEST_FLAGS}} && echo "[pass] test"
     @{{BUN_RUN}} check:stc && echo "[pass] check:stc"
     @{{BUN_RUN}} check:skills-template-render && echo "[pass] check:skills-template-render"
     @{{BUN_RUN}} pending-gate && echo "[pass] pending-gate"
     @{{BUN_RUN}} check:schema && echo "[pass] check:schema"
+    @{{BUN_RUN}} qa-studio-e2e && echo "[pass] qa-studio-e2e"
 
 # 测试:单元 + BDD runner(tests/bdd)
 test:
@@ -81,6 +82,10 @@ perf:
 # 性能回归冒烟门(不进 qa):任一 op 均值超量级阈值即红;精确基准另行观测
 check-perf:
     bun scripts/perf-baseline.ts --check
+
+# Studio 真实浏览器 E2E(单门;qa 聚合同名脚本,合约 studio-web r156/r165/r166)
+qa-studio-e2e:
+    bun run qa-studio-e2e
 
 # 单元测试覆盖率报告(不进 qa):仅 unit 直接导入面可归因;BDD 以真实 CLI
 # 子进程执行,覆盖率不归因到 runner 进程,故不纳入

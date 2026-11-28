@@ -18,8 +18,8 @@
 //   BIN_NAME           — output filename (default llman-sdd)
 //   BUN_COMPILE_TARGET — bun cross-compile target, e.g. bun-linux-arm64
 //                        (default: host target)
-import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { extname, join } from 'node:path';
 // fileURLToPath is required for Windows runners: URL.pathname yields "/D:/..."
 // which Bun.build cannot open as a directory.
 import { fileURLToPath } from 'node:url';
@@ -76,6 +76,31 @@ try {
   );
 }
 
+/** Collect built Studio Web static assets (`apps/studio/dist/`) for single-binary co-distribution. */
+const TEXT_ASSET_EXTS = new Set(['.html', '.js', '.mjs', '.css', '.json', '.svg', '.map', '.txt']);
+function collectStudioAssets(
+  dir: string,
+  prefix: string,
+  out: Record<string, { encoding: 'utf8' | 'base64'; content: string }>,
+): void {
+  for (const name of readdirSync(dir)) {
+    const full = join(dir, name);
+    const rel = prefix === '' ? name : `${prefix}/${name}`;
+    if (statSync(full).isDirectory()) {
+      collectStudioAssets(full, rel, out);
+    } else if (TEXT_ASSET_EXTS.has(extname(name).toLowerCase())) {
+      out[rel] = { encoding: 'utf8', content: readFileSync(full, 'utf8') };
+    } else {
+      out[rel] = { encoding: 'base64', content: readFileSync(full).toString('base64') };
+    }
+  }
+}
+const studioDistRoot = fileURLToPath(new URL('../../studio/dist', import.meta.url));
+const studioAssets: Record<string, { encoding: 'utf8' | 'base64'; content: string }> = {};
+if (existsSync(studioDistRoot)) {
+  collectStudioAssets(studioDistRoot, '', studioAssets);
+}
+
 const result = await Bun.build({
   entrypoints: [fileURLToPath(new URL('../src/main.ts', import.meta.url))],
   target: 'bun',
@@ -84,6 +109,9 @@ const result = await Bun.build({
     'process.env.LLMAN_SDD_DEV_BUILD_EMBEDDED_TEMPLATES': JSON.stringify(templates),
     ...(wasmB64 !== ''
       ? { 'process.env.LLMAN_SDD_DEV_BUILD_EMBEDDED_7ZZ_WASM_B64': JSON.stringify(wasmB64) }
+      : {}),
+    ...(Object.keys(studioAssets).length > 0
+      ? { 'process.env.LLMAN_SDD_DEV_BUILD_EMBEDDED_STUDIO_ASSETS': JSON.stringify(studioAssets) }
       : {}),
   },
   compile: {
@@ -98,5 +126,6 @@ if (!result.success) {
 }
 console.log(
   `built ${outfile} (version ${version}, ${Object.keys(templates).length} templates embedded` +
-    `${wasmB64 !== '' ? ', 7zz.wasm embedded' : ''})`,
+    `${wasmB64 !== '' ? ', 7zz.wasm embedded' : ''}` +
+    `${Object.keys(studioAssets).length > 0 ? `, ${Object.keys(studioAssets).length} studio assets embedded` : ''})`,
 );

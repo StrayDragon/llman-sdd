@@ -1,0 +1,314 @@
+/**
+ * Root Studio Web Workbench Application.
+ * Coordinates initial bootstrap, Deep-Link focus restore, SSE live refresh (self-echo filtered),
+ * pagehide keepalive flush, and global keyboard shortcuts (⌘K, ⌘Z/⌘⇧Z, Alt+←/→/↑, Esc).
+ */
+import { parseStudioDeepLink } from '@llman-sdd/core/studio';
+import { useEffect } from 'react';
+
+import { studioApi } from './api/client.ts';
+import { BottomChrome } from './components/BottomChrome.tsx';
+import { ChangeDagPanel } from './components/ChangeDagPanel.tsx';
+import { CommentPopover } from './components/CommentPopover.tsx';
+import { GuidedTourOverlay, ShortcutCheatSheetModal } from './components/ErgonomicsModals.tsx';
+import { InPanelFindBar } from './components/InPanelFindBar.tsx';
+import {
+  PromptWorkbenchModal,
+  RevisionDrawer,
+  SaveGuardModal,
+  SearchPaletteModal,
+  ShareDeepLinkModal,
+} from './components/Modals.tsx';
+import { NewTabQuickPage } from './components/NewTabQuickPage.tsx';
+import { SpecDocCanvas } from './components/SpecDocCanvas.tsx';
+import { StateMachineCanvas } from './components/StateMachineCanvas.tsx';
+import { SyncConflictDock } from './components/SyncConflictDock.tsx';
+import { TheoremsDrawer } from './components/TheoremsDrawer.tsx';
+import { TopChrome } from './components/TopChrome.tsx';
+import { WorldlineDrawer } from './components/WorldlineDrawer.tsx';
+import { useStudioStore, type CanvasFocus } from './store/studioStore.ts';
+
+function readInitialWsKeyFromLocation(): string | undefined {
+  const m = /^\/p\/([^/]+)/u.exec(window.location.pathname);
+  if (m?.[1]) {
+    try {
+      return decodeURIComponent(m[1]);
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
+}
+
+function canvasFocusFromUnknown(raw: unknown): CanvasFocus | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const rec = raw as { kind?: unknown; id?: unknown };
+  if (
+    (rec.kind === 'forest' ||
+      rec.kind === 'macro-edge' ||
+      rec.kind === 'state' ||
+      rec.kind === 'edge') &&
+    typeof rec.id === 'string' &&
+    rec.id !== ''
+  ) {
+    return { kind: rec.kind, id: rec.id };
+  }
+  return null;
+}
+
+function readInitialFocusContext(): {
+  wsKey?: string;
+  targetKind?: string;
+  targetId?: string;
+  nest: string[];
+  focus: CanvasFocus | null;
+} {
+  const parsedLink = parseStudioDeepLink(window.location.search, window.location.hash);
+  let wsKey: string | undefined;
+  let nest = parsedLink.nest;
+  let focus: CanvasFocus | null = parsedLink.focus;
+  let targetKind = parsedLink.kind;
+  let targetId = parsedLink.target;
+  try {
+    const el = document.getElementById('studio-focus-context');
+    if (el?.textContent) {
+      const parsed = JSON.parse(el.textContent) as {
+        wsKey?: string;
+        targetKind?: string;
+        targetId?: string;
+        nest?: string[];
+        focus?: unknown;
+      };
+      if (parsed && typeof parsed === 'object') {
+        wsKey = parsed.wsKey;
+        if (typeof parsed.targetKind === 'string') targetKind = parsed.targetKind;
+        if (typeof parsed.targetId === 'string') targetId = parsed.targetId;
+        if (Array.isArray(parsed.nest) && parsed.nest.length > 0) nest = parsed.nest;
+        const fromJson = canvasFocusFromUnknown(parsed.focus);
+        if (fromJson) focus = fromJson;
+      }
+    }
+  } catch {
+    // Ignore malformed inline focus context
+  }
+  return { wsKey, targetKind, targetId, nest, focus };
+}
+
+function isEditableElement(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable;
+}
+
+export function App() {
+  const {
+    loading,
+    error,
+    tabs,
+    activeTabId,
+    toastMsg,
+    init,
+    refreshInPlace,
+    flushPendingSaves,
+    setCmdkOpen,
+    setPanelFindOpen,
+    setShortcutsOpen,
+    setTheoremsOpen,
+    closeTour,
+    navBack,
+    navForward,
+    jumpNestLevel,
+    closeCommentPopover,
+    setSettingsOpen,
+    setLinterOpen,
+    undoActiveMachine,
+    redoActiveMachine,
+    showToast,
+  } = useStudioStore();
+
+  // 1. Bootstrap + Deep-Link Focus Restore + SSE live refresh (NEVER re-runs on nestStack changes)
+  useEffect(() => {
+    const focusCtx = readInitialFocusContext();
+    const initialWs = readInitialWsKeyFromLocation() ?? focusCtx.wsKey;
+    void init(initialWs).then(() => {
+      const st = useStudioStore.getState();
+      const targetId = focusCtx.targetId;
+      const hasDeep =
+        (targetId !== undefined && targetId !== 'default') ||
+        focusCtx.nest.length > 0 ||
+        focusCtx.focus !== null;
+      if (!hasDeep) return;
+      st.applyDeepLink({
+        kind: focusCtx.targetKind ?? 'macro',
+        target: targetId ?? 'default',
+        nest: focusCtx.nest,
+        focus: focusCtx.focus,
+      });
+    });
+
+    const unsubscribe = studioApi.subscribeEvents((ev) => {
+      if (ev.type === 'ping') return;
+      const activeWs = useStudioStore.getState().activeWorkspace;
+      if (!activeWs || ev.wsKey !== activeWs.wsKey) return;
+      if (ev.type === 'git-head-changed') {
+        showToast(`检测到分支切换至 ${ev.branch}，正在刷新工作区状态`);
+        void init(activeWs.wsKey);
+      } else if (
+        ev.type === 'specs-changed' ||
+        ev.type === 'state-updated' ||
+        ev.type === 'views-updated'
+      ) {
+        useStudioStore.getState().ingestSseActivity(ev);
+        void refreshInPlace(activeWs.wsKey);
+      }
+    });
+
+    const onPageHide = (): void => {
+      void flushPendingSaves({ keepalive: true });
+    };
+    // Global Native ContextMenu Takeover (matching studio-demo.html:9629 — zero browser menu leak!)
+    const onGlobalContextMenu = (ev: MouseEvent): void => {
+      const target = ev.target instanceof HTMLElement ? ev.target : null;
+      if (target?.closest('input, textarea, [contenteditable="true"]')) return;
+      if (target?.closest('.select-text') && window.getSelection()?.toString()) return;
+      ev.preventDefault();
+    };
+    window.addEventListener('pagehide', onPageHide);
+    window.addEventListener('contextmenu', onGlobalContextMenu, true);
+    return () => {
+      unsubscribe();
+      window.removeEventListener('pagehide', onPageHide);
+      window.removeEventListener('contextmenu', onGlobalContextMenu, true);
+    };
+  }, [init, refreshInPlace, flushPendingSaves, showToast]);
+
+  // 2. Global keyboard shortcuts (reads live store state cleanly without tearing down SSE)
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent): void => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setCmdkOpen(true);
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        setPanelFindOpen(true);
+        return;
+      }
+      if (e.key === 'Escape') {
+        setCmdkOpen(false);
+        setPanelFindOpen(false);
+        setShortcutsOpen(false);
+        setTheoremsOpen(false);
+        closeTour();
+        setSettingsOpen(false);
+        setLinterOpen(false);
+        closeCommentPopover();
+        return;
+      }
+      if (isEditableElement(e.target)) return;
+
+      if (
+        (e.key === '?' || e.key === '？' || (e.shiftKey && e.code === 'Slash')) &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.altKey
+      ) {
+        e.preventDefault();
+        const cur = useStudioStore.getState().shortcutsOpen;
+        setShortcutsOpen(!cur);
+        return;
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) redoActiveMachine();
+        else undoActiveMachine();
+      } else if (e.altKey && e.key === 'ArrowLeft') {
+        e.preventDefault();
+        navBack();
+      } else if (e.altKey && e.key === 'ArrowRight') {
+        e.preventDefault();
+        navForward();
+      } else if (e.altKey && e.key === 'ArrowUp') {
+        const depth = useStudioStore.getState().nestStack.length;
+        if (depth > 0) {
+          e.preventDefault();
+          jumpNestLevel(depth - 2);
+        }
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [
+    setCmdkOpen,
+    setPanelFindOpen,
+    setShortcutsOpen,
+    setTheoremsOpen,
+    closeTour,
+    navBack,
+    navForward,
+    jumpNestLevel,
+    closeCommentPopover,
+    setSettingsOpen,
+    setLinterOpen,
+    undoActiveMachine,
+    redoActiveMachine,
+  ]);
+
+  const activeTab = tabs.find((t) => t.id === activeTabId);
+
+  return (
+    <main className="w-full h-full relative select-none">
+      <TopChrome />
+
+      {loading ? (
+        <div
+          className="w-full h-full flex items-center justify-center text-xs"
+          style={{ color: 'var(--text-muted)' }}
+        >
+          正在加载工作区规格与画布...
+        </div>
+      ) : error ? (
+        <div className="w-full h-full flex items-center justify-center p-6">
+          <div className="studio-island max-w-md p-5 text-xs flex flex-col gap-2">
+            <div className="font-semibold text-sm" style={{ color: 'var(--red)' }}>
+              加载工作区失败
+            </div>
+            <div style={{ color: 'var(--text-secondary)' }}>{error}</div>
+          </div>
+        </div>
+      ) : activeTab?.kind === 'new-tab' ? (
+        <NewTabQuickPage />
+      ) : activeTab?.kind === 'doc' ? (
+        <SpecDocCanvas capId={activeTab.targetId} />
+      ) : (
+        <StateMachineCanvas />
+      )}
+
+      <BottomChrome />
+      <SyncConflictDock />
+      <WorldlineDrawer />
+      <TheoremsDrawer />
+      <RevisionDrawer />
+      <CommentPopover />
+      <ChangeDagPanel />
+      <PromptWorkbenchModal />
+      <SaveGuardModal />
+      <ShareDeepLinkModal />
+      <SearchPaletteModal />
+      <InPanelFindBar />
+      <ShortcutCheatSheetModal />
+      <GuidedTourOverlay />
+
+      {toastMsg && (
+        <div
+          className="fixed bottom-16 left-1/2 -translate-x-1/2 z-50 rounded-full px-3.5 py-1.5 text-xs shadow-lg pointer-events-none"
+          style={{ background: 'var(--ink)', color: '#ffffff' }}
+        >
+          {toastMsg}
+        </div>
+      )}
+    </main>
+  );
+}

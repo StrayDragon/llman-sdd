@@ -5,6 +5,11 @@
 此文件由根目录的 `AGENTS.md` 托管块引用。可在此添加项目特定的规则、
 上下文或约定，以便 AI 代理遵守。
 
+## 人类定理（只读硬不变量）
+
+- 若仓库存在 `llmanspec/theorems/`，其中条目为人类维护的只读硬不变量（可运行 `llman-sdd theorem list` 查阅，用 `llman-sdd theorem check` 核验封签与关联门禁）。
+- 每次会话开始前 必须 查阅并严格遵守这些不变量；Agent 不得 擅自修改、删除或绕过 `llmanspec/theorems/` 内任何文件。
+
 <!-- 在此行下方添加你的规则 -->
 <!-- LLMANSPEC:END -->
 
@@ -46,7 +51,7 @@ llman-sdd:spec 驱动开发工作流(TypeScript + Bun),完全接替 Rust llman �
 | 语言 | TypeScript | 仅 typecheck,不参与构建 |
 | 布局 | Bun workspaces | `packages/core` 纯域逻辑;`apps/cli` 命令入口 |
 | 分发 | Bun 直跑 TS + `bun build --compile` | CLI 与二进制不经过打包器 |
-| Web | 未落地;若引入,打包器为 rsbuild | 以独立 change 引入 |
+| Web | `apps/studio/`(rsbuild + React + `@xyflow/react`) | 交互与设计真言以 `llmanspec/specs/studio-web.feature` 为唯一真源 |
 | 工具链 | oxlint + oxfmt、tsc --noEmit、prek、just | oxfmt 忽略 `llmanspec/` 与 `AGENTS.md`(格式归 llman 管) |
 | 测试 | bun:test + `tests/bdd/` Gherkin runner | BDD 选型已终局 |
 
@@ -151,7 +156,7 @@ flowchart LR
 | `eval/` | 外部影响面剧本,不进 `just qa` |
 | `llmanspec/` | `specs/` 行为合约、`changes/` 提案、本文件为项目规则 |
 | `packages/core/templates/` | skill 模板 |
-| justfile | 门禁入口 `just qa`;单门 `qa-` 前缀;`check` / `test` 为合约钉名 |
+| justfile | 门禁入口 `just qa`;单门 `qa-` 前缀须被 qa 聚合;`eval` 等非 qa-* 不进聚合;`check` / `test` 为合约钉名 |
 
 棘轮类基线(只许随 change 下调)落在 `scripts/` 的 json,不把数字抄进本文件。
 
@@ -177,3 +182,24 @@ flowchart LR
 - 同批并行 change 的 `llmanspec/specs/` 必须两两不相交;触碰同一代码文件的改动不得并行
 - worktree 内 `just qa`;合并顺序由 main worktree 串行执行
 - 多 agent 拉起:`wt switch sdd/<id> -x <agent-cli>`;监控 `wt list` / `wt step for-each`
+
+## 演进路线:人类定理与轻量技能
+
+核心目标:增强开发者体验(DX)。随着模型变强,技能减少微观步骤规定,重心收敛到**什么必须成立**与**什么不得被擅自改变**;能自动化的约束下沉到类型、测试、脚本或合并门禁,不把 AI 自检当作唯一保证。
+
+```mermaid
+flowchart LR
+  HT["人类定理(只读硬不变量)"] -->|"OS 权限锁 / 只读注入"| Agent["Agent 会话与轻量 Skills"]
+  SP["llmanspec/specs/(随需求演进)"] --> Agent
+  Agent --> Gate["类型 / 测试 / 脚本 / 合并门禁"]
+  HT --> Studio["Studio 交互预览与高召回检索"]
+  SP --> Studio
+```
+
+| 层 | 变更权 | 定位 | 约束落点 |
+| --- | --- | --- | --- |
+| 人类定理(Human Theorems) | 仅人类(可选只读/`root` 权限锁) | 迭代沉淀的少量高杠杆硬不变量(数据归属、接口兼容、模块边界、资源底线) | 文档宣言 + 可选可执行门禁;全员只读注入与 Studio 预览 |
+| 行为规格(`llmanspec/specs/`) | 人类与 Agent 协作演进 | 顺应需求迭代的可执行行为合约与活产品说明 | Gherkin 规格 + BDD/单测 + Studio 可视化协商 |
+| 轻量技能(`llman-sdd-*`) | 随强模型持续瘦身 | 少管过程细枝末节,守住不变量、事实来源与验证门禁 | `packages/core/templates/` 精简迭代 |
+
+- 剩余演进草案以 `llman-sdd list` 实时输出为准

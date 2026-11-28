@@ -38,9 +38,11 @@ jobs:
       - run: bun run check:stc
       # skills 模板渲染门(runInit vs 快照基线 + .agents/skills 新鲜度,版本号归一化)
       - run: bun run check:skills-template-render
-      # pending 计量门 + config schema 产物漂移门(与 just qa 同集合)
+      # pending 计量门 + config schema 产物漂移门 + Studio 浏览器门(与 just qa 同集合)
       - run: bun run pending-gate
       - run: bun run check:schema
+      - run: bunx playwright-core install --with-deps chromium
+      - run: bun run qa-studio-e2e
       # 双运行时兼容冒烟(spec monorepo-structure r1:Node >= 24)
       - uses: actions/setup-node@v4
         with:

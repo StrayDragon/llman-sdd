@@ -228,3 +228,50 @@
       假如 版本戳被挪到旧路径
       当 再运行 init --update
       那么 新路径写入版本且旧路径文件仍在
+
+  @req:r138
+  规则: Studio CLI 协商技能指引与基线同步
+    内置 zh-Hans 模板中的 `llman-sdd-explore` 与 `llman-sdd-propose` MUST 包含 Studio CLI 协商指引，提示 Agent 收到 Studio 草稿 ID 时优先通过 `llman-sdd studio diff`、`llman-sdd studio validate`、`llman-sdd studio comment reply` 与 `llman-sdd studio revise` 核验与回复，并重申不得在默认分支直接改写 `llmanspec/specs/`；改动模板后 MUST 同步刷新仓库 `.agents/skills/` 与 `tests/golden/` 基线以通过 `check:skills-template-render`。
+
+    场景: explore 与 propose 渲染产物含 Studio CLI 协商指引
+      假如 本仓库的等价 config(zh-Hans 与 bdd 配置)
+      当 渲染全部 skills
+      那么 explore 与 propose 技能均含 Studio CLI 协商指引且符合模板强度词与命令面门禁
+
+  @req:r152
+  规则: llman-sdd-studio-drift 技能模板与基线同步
+    内置 zh-Hans 模板 MUST 新增 `llman-sdd-studio-drift` 技能（经 `init` / `init --update` 渲染到 `.agents/skills/llman-sdd-studio-drift/SKILL.md`），引导编码 Agent 按 4 类直改代码分流法则（纯内部重构放行、合规细化提建议、破坏既有真理修代码、业务意图变化经 `--write-state` 推反向建议）消费 `llman-sdd studio drift` 最小切片包；MUST 通过 ethics 治理门、模板强度词门禁（r97）、check:stc 文风门与 golden 基线一致性比对。
+
+    场景: studio-drift 技能模板渲染含四类分流法则且通过门禁
+      假如 本仓库的等价 config(zh-Hans 与 bdd 配置)
+      当 渲染全部 skills
+      那么 studio-drift 技能包含四类直改代码分流法则与 studio drift 命令指引且通过 ethics 门禁
+
+  @req:r160
+  规则: Studio 接入与协商精简技能套件与基线同步
+    内置 zh-Hans 模板 MUST 新增两份精炼技能 `llman-sdd-studio-onboard`（新项目接入与陌生仓库反向提炼图谱）与 `llman-sdd-studio-collab`（消费 Studio Prompt/深链、结构化不可达回执、图规格体检与写保护三出口），随 `init` / `init --update` 渲染至 `.agents/skills/`。
+    两份模板 MUST 仅引用真实存在的 Studio CLI 命令面（不得虚构子命令），严格通过 ethics 治理门、模板强度词门禁（r97）、check:stc（基线 0）与 golden 基线一致性比对。
+
+    场景: studio-onboard 与 studio-collab 技能渲染含真实 CLI 指引并通过门禁
+      假如 本仓库的等价 config(zh-Hans 与 bdd 配置)
+      当 渲染全部 skills
+      那么 studio-onboard 与 studio-collab 技能含反向提炼与协商回执指引且通过 ethics 门禁
+
+  @req:r163
+  规则: 人类定理全域只读注入与核心技能轻量化精简
+    内置 zh-Hans 模板的 `llmanspec-agents-stub.md` 与共享单元 `units/skills/structured-protocol.md` MUST 注入人类定理（`llmanspec/theorems/`）只读硬不变量遵循约束，明确要求 Agent 会话先查并遵守且不得擅自修改或绕过。
+    核心 4 份技能模板（`llman-sdd-propose`、`llman-sdd-apply`、`llman-sdd-verify`、`llman-sdd-archive`）MUST 保持精简聚焦（不复读共享单元与教材式套话），同时完整保留 r70/r66/r138/r19 全部契约标记并通过 check:stc 与 golden 一致性门禁。
+
+    场景: 渲染产物含人类定理只读注入且精简后的核心技能通过全部门禁
+      假如 本仓库的等价 config(zh-Hans 与 bdd 配置)
+      当 渲染全部 skills 与 llmanspec AGENTS 模板
+      那么 AGENTS 模板与核心技能均含 llmanspec/theorems 只读遵循约束且通过 ethics 门禁
+
+  @req:r175
+  规则: llman-sdd-specs-structure 技能模板与基线同步
+    内置 zh-Hans 模板 MUST 新增 `llman-sdd-specs-structure` 技能（经 `init` / `init --update` 渲染到 `.agents/skills/llman-sdd-specs-structure/SKILL.md`），在规格大段规则文字需要在 Studio 看见行为逻辑时引导按判定表选型（状态机 `@transitions`、流程图 `@flow`、决策表、嵌套 `@states`），且 MUST 只引用已合入 CLI（`studio validate --specs`、`spec transitions`、`validate --specs --strict`、`studio open`），MUST NOT 引用不存在的子命令。MUST 通过 ethics 治理门、模板强度词门禁、check:stc 与 golden 基线一致性比对。
+
+    场景: specs-structure 技能模板渲染含判定表与真实命令面且通过门禁
+      假如 本仓库的等价 config(zh-Hans 与 bdd 配置)
+      当 渲染全部 skills
+      那么 specs-structure 技能包含选型判定表与 studio validate --specs 指引且通过 ethics 门禁

@@ -90,7 +90,8 @@ describe('show resolves specs in both layouts', () => {
     const res = runCli(root, ['show', 'no-such-cap', '--type', 'spec']);
     expect(res.status).toBe(1);
     // D5: 统一错误出口——域错误以单一 `Error: ` 前缀渲染
-    expect(res.stderr.trim()).toBe('Error: spec not found: no-such-cap');
+    expect(res.stderr.trim()).toStartWith('Error: spec not found: no-such-cap');
+    expect(res.stderr).toInclude('Available:');
   });
 
   test('flat spec: default toon and human text both work', () => {

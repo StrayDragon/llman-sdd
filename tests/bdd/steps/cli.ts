@@ -182,6 +182,45 @@ bdd.when('运行 CLI 的 change 分组不带子命令', (ctx) => {
   recordResult(ctx, runCli(['change']));
 });
 
+bdd.when('运行 CLI 的 studio 分组不带子命令', (ctx) => {
+  recordResult(ctx, runCli(['studio']));
+});
+
+bdd.given('一个含活跃 change alpha-fix 与 beta-fix 的临时仓库', (ctx) => {
+  const repo = makeTempRepo();
+  seedChange(repo, 'alpha-fix');
+  seedChange(repo, 'beta-fix');
+  ctx.fixtures['工作区'] = { root: repo.root };
+});
+
+bdd.when('运行 show nonexist', (ctx) => {
+  const root = (ctx.fixtures['工作区'] as { root: string }).root;
+  recordResult(ctx, runCli(['show', 'nonexist'], root));
+});
+
+bdd.thenStep('stderr 含 "change not found: nonexist" 且含 "Available:" 且退出码为 1', (ctx) => {
+  const r = ctx.fixtures['cli结果'] as CliRun;
+  if (
+    r.code !== 1 ||
+    !r.stderr.includes('change not found: nonexist') ||
+    !r.stderr.includes('Available:')
+  ) {
+    throw new Error(
+      `expected not-found with Available, got ${r.code}: ${JSON.stringify(r.stderr)}`,
+    );
+  }
+});
+
+bdd.thenStep('stderr 含 "Usage:" 且不含空的 Error 行', (ctx) => {
+  const r = ctx.fixtures['cli结果'] as CliRun;
+  if (!r.stderr.includes('Usage:')) {
+    throw new Error(`stderr missing Usage: ${JSON.stringify(r.stderr)}`);
+  }
+  if (/(?:^|\n)Error:\s*$/mu.test(r.stderr)) {
+    throw new Error(`stderr has empty Error line: ${JSON.stringify(r.stderr)}`);
+  }
+});
+
 bdd.when('运行 show 不带 change id 参数', (ctx) => {
   recordResult(ctx, runCli(['show']));
 });

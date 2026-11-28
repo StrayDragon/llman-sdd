@@ -9,14 +9,18 @@
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "skipLibCheck": true,
+    "jsx": "react-jsx",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "types": ["bun"],
     "paths": {
-      "@llman-sdd/core": ["./packages/core/src/index.ts"]
+      "@llman-sdd/core": ["./packages/core/src/index.ts"],
+      "@llman-sdd/core/studio": ["./packages/core/src/studio/index.ts"]
     }
   },
   "include": [
     "packages/*/src/**/*.ts",
     "apps/*/src/**/*.ts",
+    "apps/*/src/**/*.tsx",
     "apps/*/scripts/**/*.ts",
     "tests/**/*.ts",
     "scripts/**/*.ts",

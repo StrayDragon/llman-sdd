@@ -14,7 +14,8 @@
   ],
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./studio": "./src/studio/index.ts"
   },
   "scripts": {
     "lint": "bun run --cwd ../.. lint",
@@ -29,9 +30,9 @@
     "@cucumber/messages": "^35.0.0",
     "@statelyai/graph": "^2.6.0",
     "@toon-format/toon": "^4.4.0",
+    "diff": "^8.0.3",
     "ignore": "^7.0.16",
     "nunjucks": "^3.2.4",
-    "xstate": "^5.33.4",
     "yaml": "^2.9.1",
     "zod": "^4.6.7"
   },

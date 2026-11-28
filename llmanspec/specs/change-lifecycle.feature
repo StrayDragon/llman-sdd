@@ -104,8 +104,10 @@
 
   @req:r34
   规则: stage 单调推断规则
-    change stage MUST 按文件存在单调判定:draft(仅 proposal)→ designed(有 design.md)→ planned(design.md 与 tasks.md
-    双全)→ full(另有 branch 绑定);仅有 tasks.md 而无 design.md MUST 仍判 draft;stage MUST 为纯推断量,MUST NOT 写入任何文件。
+    change stage MUST 只由三样东西推断,并且 MUST NOT 写入任何文件:有 design.md 且有 tasks.md 且 proposal 已绑定分支时为 full;
+    有 design.md 且有 tasks.md 时为 planned;仅有 design.md 时为 designed;其余为 draft。
+    分支绑定指 proposal frontmatter 同时具有 branch、base_branch、base_sha。只有 tasks.md、只有绑定、或绑定了但没有 design.md,都仍是 draft。
+    有 design.md 和绑定但没有 tasks.md 时仍是 designed。
 
     场景: tasks-only 判 draft
       假如 一个只有 proposal 与 tasks 的 change 工作区
@@ -120,16 +122,21 @@
       而且 各 proposal 均不含 stage 字段
 
 
-    场景大纲: stage 状态机单调迁移表
-      假如 一个处于 "<from>" 阶段的 change 工作区
-      当 执行 stage 迁移事件 "<event>"
-      那么 该 change 的 stage 迁移为 "<to>"
+    场景大纲: 文件组合推断 stage
+      假如 一个设计文件 "<design>"、任务文件 "<tasks>"、分支绑定 "<binding>" 的 change
+      当 运行 list --json
+      那么 文件组合推断的 stage 为 "<stage>"
 
       例子:
-        | from     | event       | to       |
-        | draft    | add_design  | designed |
-        | designed | add_tasks   | planned  |
-        | planned  | bind_branch | full     |
+        | design | tasks | binding | stage    |
+        | 无     | 无    | 无      | draft    |
+        | 有     | 无    | 无      | designed |
+        | 无     | 有    | 无      | draft    |
+        | 有     | 有    | 无      | planned  |
+        | 有     | 有    | 有      | full     |
+        | 有     | 无    | 有      | designed |
+        | 无     | 有    | 有      | draft    |
+        | 无     | 无    | 有      | draft    |
 
   @req:r35
   规则: next-id 数字编号计数

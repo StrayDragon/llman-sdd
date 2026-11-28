@@ -1,0 +1,43 @@
+---
+depends_on:
+  - add-studio-web-workbench
+  - add-studio-drift-trace
+title: "[Post-MVP] 增强 Studio 可视化三方冲突校准与多 Agent 实时协作流"
+branch: sdd/add-studio-conflict-and-collab
+base_branch: main
+base_sha: 654ec5ac955018e8147432bca74da7a81997c3c1
+---
+
+# 增强 Studio 可视化三方冲突校准与多 Agent 实时协作流
+
+## Why
+
+C3 在「保存变更」前通过 `baseHash` 乐观锁拦截了外部 `git pull` 或其他 Agent 修改 `llmanspec/specs/` 导致的静默覆盖风险，但 MVP 阶段仅提供冲突拦截提示与重新加载/导出选择。当团队同时开启多个 Git Worktree 或多个编码 Agent 并行推进变更时，需要更直观的可视化三方合并裁决与实时协作态势感知，避免人工对照原始 `.feature` 文本解冲突。
+
+## What Changes
+
+- **可视化三方冲突校准（3-Way Semantic Merge）**：
+  - 当 `baseHash` 检测到磁盘真理已前进时，在画布与「对比 & 协商」视图提供结构化三方比对（公共基线 `BASE` vs 本地草稿 `LOCAL` vs 磁盘最新真理 `REMOTE`）；领域算法可用这些词，**生产界面不得出现** `BASE` / `LOCAL` / `REMOTE` / `baseHash` / `409` 等术语。
+  - 冲突出现时 **默认** 把当前本地草稿自动快照进世界线，裁决失误可一键回退；操作栏上方向上展开一眼能懂的提示（面向产品/老板等非技术人员）。
+  - 主路径是 **在现有图表上对比差异，再勾选要把哪些更新合并进当前图**：按状态/转移/守卫列出「你在本画布的调整」与「文件里新来的」，选项为点选对应一侧或「两条都留」。不是丢开画布去对原始 `.feature` 文本。
+  - 裁决完成后自动重跑方言 Linter 并刷新 `baseHash`。
+- **多 Worktree / 多 Agent 实时活动态势流**：
+  - 利用既有 SSE 通道与 `.llman-sdd/studio/states/` 事件元数据；**默认收成右上角小标记**（如「还有人在改 · 2」），点开才看条目，不与冲突条抢操作栏。
+  - 条目用白话（「有人在某条线上留下了看法」「另一处工作区刚保存了这份规格」），一键跳到图上对应对象。
+- **评论 `@agent` 协作上下文增强**：
+  - 在统一就近评论浮窗中支持为评论标记关注角色/待办标签，并支持一键仅打包指定未解决评论子集进入可视化 Prompt 预编辑工作台，提高多轮异步协商信噪比。
+
+## Capabilities
+
+- `studio-core`：新增基于 `BASE / LOCAL / REMOTE` 的纯域三方语义合并与冲突判定函数。
+- `studio-web` / `studio-cli`：新增三方冲突裁决交互、多 Worktree/Agent 活动流推送与评论协作过滤增强。
+
+## Impact
+
+- 依赖 `add-studio-web-workbench`（`baseHash` 乐观锁、SSE 与统一评论浮窗）与 `add-studio-drift-trace`（外部修订建议层裁决范式）。
+- 坚持纯域三方合并算法 100% 离线确定性，绝不静默丢弃人类或磁盘任一侧改动。
+
+## Open Questions
+
+- 冲突时是否自动快照进世界线，以及提示文案口径？**已定**：默认自动拍一格；界面用白话（例如「这份规格在别处被改过了。你在画布上的修改还在。」），动作按钮用「留我刚改的 / 用文件里的新内容 / 两条都留」，禁止技术术语。
+- 活动流如何展现、合并主路径是什么？**已定**：默认小标记，点开再看；冲突与同步的主界面是「图上对比差异 → 勾选更新合并进当前图表」，不是文本三方合并工具。

@@ -1,0 +1,28 @@
+---
+depends_on: []
+title: 嵌套返回贴节点组并记住视口
+branch: sdd/align-studio-nest-chrome
+base_branch: main
+base_sha: dfdfcd02e6bfd12c7cb35fa5db30db6e02b57fb2
+---
+
+# 嵌套返回贴节点组并记住视口
+
+## Why
+
+嵌套下钻的「返回上层」现在是画布顶栏悬浮条，与 demo 的节点组左上贴框不一致；复合节点文案「进入子机」也不对齐 demo 的「进入子状态机 / 进入子流程」。进入子层后视口常停在左上空白，未按 nest 路径记住用户平移。
+
+## What Changes
+
+- 「返回上层」贴在当前机边界框左上角（可含父层标签与当前层标签），不再作为画布顶栏悬浮条。
+- 下钻按钮缺省「进入子状态机」；目标机为流程图时「进入子流程」；若状态带自定义描述则用该描述（本仓 IR 暂无该字段则走缺省）。
+- 视口按 `machineKey + nest 路径` 记忆：某路径首次进入 fitView 居中；用户平移/缩放后再次进入恢复。
+
+## Capabilities
+
+- `studio-web`：嵌套贴框导航、下钻文案、nest 路径视口记忆。
+
+## Impact
+
+- 前端：`apps/studio` 画布边界框与视口 key。
+- 不改 core 抽取/写回、不改 CLI、不加「设为子机」编辑。
