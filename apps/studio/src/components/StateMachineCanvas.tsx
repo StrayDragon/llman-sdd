@@ -83,7 +83,13 @@ import {
   type DistributeAxis,
   type NodeBoxInput,
 } from '../ergonomics/layoutTidy.ts';
-import { divePillLabel, machineCanvasViewKey } from '../nest/chrome.ts';
+import {
+  divePillLabel,
+  machineCanvasViewKey,
+  nestFrameCrumbItems,
+  nestStepDisplayLabel,
+  type NestFrameCrumbItem,
+} from '../nest/chrome.ts';
 import { getParentNestContext } from '../nest/parentContext.ts';
 import { hasSubtreeChanges } from '../nest/subtree.ts';
 import {
@@ -145,9 +151,9 @@ interface MachineBoundaryNodeData extends Record<string, unknown> {
   nested: boolean;
   hostName?: string;
   levelLabel?: string;
-  parentLabel?: string;
-  currentLabel?: string;
+  crumbs?: NestFrameCrumbItem[];
   onJumpOut?: () => void;
+  onJumpToLevel?: (idx: number) => void;
 }
 
 interface PortalPillNodeData extends Record<string, unknown> {
@@ -524,9 +530,15 @@ function MachineBoundaryNode({ data }: NodeProps<Node<MachineBoundaryNodeData>>)
       />
       {data.nested ? (
         <div
-          className="absolute left-3.5 -top-[36px] inline-flex items-center gap-1 pointer-events-auto z-10"
+          className="absolute left-3.5 -top-[36px] inline-flex items-center gap-1 pointer-events-auto z-10 rounded-lg border px-1.5 py-0.5"
           data-nest-crumb="true"
           data-nest-level={data.levelLabel}
+          style={{
+            background: 'var(--surface)',
+            borderColor: 'var(--border-strong)',
+            boxShadow: 'var(--shadow-card)',
+            whiteSpace: 'nowrap',
+          }}
         >
           <button
             type="button"
@@ -534,30 +546,47 @@ function MachineBoundaryNode({ data }: NodeProps<Node<MachineBoundaryNodeData>>)
               e.stopPropagation();
               data.onJumpOut?.();
             }}
-            className="inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-[10.5px] font-semibold cursor-pointer"
-            style={{
-              background: 'var(--accent-soft)',
-              color: 'var(--accent)',
-              borderColor: 'var(--accent-border)',
-              boxShadow: 'var(--shadow-card)',
-            }}
+            className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10.5px] font-semibold cursor-pointer"
+            style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}
           >
             <ArrowLeft size={11} />
-            <span>返回上层{data.parentLabel ? ` ${data.parentLabel}` : ''}</span>
+            <span>返回上层</span>
           </button>
-          {data.currentLabel ? (
+          {(data.crumbs ?? []).map((c, i) => (
             <span
-              className="inline-flex items-center rounded-lg border px-2 py-0.5 text-[10.5px] font-semibold"
-              style={{
-                background: 'var(--ink)',
-                color: '#ffffff',
-                borderColor: 'var(--ink)',
-                boxShadow: 'var(--shadow-card)',
-              }}
+              key={`${c.machineKey}:${String(c.idx)}`}
+              className="inline-flex items-center gap-1"
             >
-              {data.currentLabel}
+              {i > 0 ? (
+                <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                  ›
+                </span>
+              ) : null}
+              {c.current ? (
+                <span
+                  data-nest-step={c.machineKey}
+                  className="inline-flex items-center rounded-md px-2 py-0.5 text-[10.5px] font-semibold"
+                  style={{ background: 'var(--ink)', color: '#ffffff' }}
+                >
+                  {c.label}
+                  {data.levelLabel ? ` ${data.levelLabel}` : ''}
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  data-nest-step={c.machineKey}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    data.onJumpToLevel?.(c.idx);
+                  }}
+                  className="rounded-md px-2 py-0.5 text-[10.5px] font-medium cursor-pointer"
+                  style={{ color: 'var(--text-secondary)', background: 'transparent' }}
+                >
+                  {c.label}
+                </button>
+              )}
             </span>
-          ) : null}
+          ))}
         </div>
       ) : null}
       <div
@@ -1826,9 +1855,12 @@ function StateMachineCanvasInner() {
         nested: nestStack.length > 0,
         hostName: parentCtx?.hostName,
         levelLabel: nestStack.length > 0 ? nestLevelLabel(nestStack.length) : undefined,
-        parentLabel: parentCtx?.parentLabel,
-        currentLabel: nestStack.at(-1)?.label ?? machine.ruleTitle,
-        onJumpOut: () => jumpNestLevel(nestStack.length - 2),
+        crumbs: nestFrameCrumbItems(tabRootKey, tabRootLabel, nestStack, (key) => {
+          const draft = stateDoc.machines[key];
+          return draft?.current ?? draft?.baseline ?? null;
+        }),
+        onJumpOut: () => jumpNestLevel(nestStack.length - 2, parentCtx?.hostUid),
+        onJumpToLevel: (idx) => jumpNestLevel(idx),
       },
     };
 
@@ -2010,7 +2042,14 @@ function StateMachineCanvasInner() {
           focused:
             focusStateUid === s.uid || (canvasFocus?.kind === 'state' && canvasFocus.id === s.uid),
           syncPulse,
-          onDive: s.subMachineKey ? () => diveSubMachine(s.subMachineKey!, s.name) : undefined,
+          onDive: s.subMachineKey
+            ? () => {
+                const sub =
+                  stateDoc.machines[s.subMachineKey!]?.current ??
+                  stateDoc.machines[s.subMachineKey!]?.baseline;
+                diveSubMachine(s.subMachineKey!, nestStepDisplayLabel(sub, s.name));
+              }
+            : undefined,
           onTogglePeek: s.subMachineKey ? () => toggleSubPeek(activeMachineKey, s.uid) : undefined,
           peekOpen: s.subMachineKey ? peekSubNodeIds.has(`${activeMachineKey}:${s.uid}`) : false,
           subtreeDirty: s.subMachineKey

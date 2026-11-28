@@ -1,6 +1,9 @@
 ---
 depends_on: []
 title: 嵌套面包屑展示完整多级路径
+branch: sdd/align-studio-multilevel-nest-crumb
+base_branch: main
+base_sha: 8cd8124a65b404d0504eaaa0324e8544c0801520
 ---
 
 # 嵌套面包屑展示完整多级路径

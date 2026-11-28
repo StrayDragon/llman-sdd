@@ -145,6 +145,16 @@ async function main(): Promise<number> {
     if ((await page.locator('.studio-island[data-nest-crumb]').count()) !== 0) {
       failures.push('nest crumb must not be a canvas-top island');
     }
+    const stepCount = await crumbOnFrame.locator('[data-nest-step]').count();
+    if (stepCount < 3) {
+      failures.push(`expected multilevel crumb with >=3 steps, got ${String(stepCount)}`);
+    }
+    const backText = (await crumbOnFrame.locator('button').first().textContent())
+      ?.replace(/\s+/gu, ' ')
+      .trim();
+    if (backText !== '返回上层') {
+      failures.push(`back button should be exactly 返回上层, got ${String(backText)}`);
+    }
     const portal = page.locator('[data-parent-portal]').first();
     if ((await portal.count()) === 0) {
       failures.push('parent portal missing at L3');

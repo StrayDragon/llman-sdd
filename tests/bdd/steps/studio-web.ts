@@ -68,7 +68,11 @@ import {
   filterShortcutsByView,
   STUDIO_SHORTCUT_REGISTRY,
 } from '../../../apps/studio/src/ergonomics/shortcuts.ts';
-import { divePillLabel, machineCanvasViewKey } from '../../../apps/studio/src/nest/chrome.ts';
+import {
+  divePillLabel,
+  machineCanvasViewKey,
+  nestFrameCrumbItems,
+} from '../../../apps/studio/src/nest/chrome.ts';
 import {
   getParentNestContext,
   nestBreadcrumb,
@@ -1306,4 +1310,42 @@ bdd.thenStep('状态机文案为进入子状态机、流程图文案为进入子
 bdd.thenStep('两条不同 nest 路径的视口 key 不相同', (ctx) => {
   const r = ctx.fixtures['nestChromeOut'] as { viaA: string; viaB: string };
   expect(r.viaA).not.toBe(r.viaB);
+});
+
+bdd.given('一条 Tab 根加两层 nestStack 的路径', (ctx) => {
+  ctx.fixtures['nestCrumbsIn'] = {
+    root: 'root',
+    rootLabel: 'sdd-pipeline',
+    stack: [
+      { machineKey: 'mid', label: '实施' },
+      { machineKey: 'leaf', label: '门禁' },
+    ],
+  };
+});
+
+bdd.when('计算贴框面包屑项', (ctx) => {
+  const { root, rootLabel, stack } = ctx.fixtures['nestCrumbsIn'] as {
+    root: string;
+    rootLabel: string;
+    stack: Array<{ machineKey: string; label: string }>;
+  };
+  ctx.fixtures['nestCrumbsOut'] = nestFrameCrumbItems(root, rootLabel, stack, (key) =>
+    key === 'leaf'
+      ? { ruleTitle: '运行全量门禁', graphKind: 'flow' as const }
+      : key === 'mid'
+        ? { ruleTitle: '实施与验证', graphKind: 'flow' as const }
+        : { ruleTitle: 'sdd-pipeline' },
+  );
+});
+
+bdd.thenStep('项数为 3 且首项为根机、末项为当前层', (ctx) => {
+  const items = ctx.fixtures['nestCrumbsOut'] as ReturnType<typeof nestFrameCrumbItems>;
+  expect(items).toHaveLength(3);
+  expect(items[0]?.label).toBe('sdd-pipeline');
+  expect(items[2]?.label).toBe('运行全量门禁 (子流程)');
+});
+
+bdd.thenStep('仅末项标记为当前层', (ctx) => {
+  const items = ctx.fixtures['nestCrumbsOut'] as ReturnType<typeof nestFrameCrumbItems>;
+  expect(items.map((c) => c.current)).toEqual([false, false, true]);
 });

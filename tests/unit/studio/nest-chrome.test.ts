@@ -1,6 +1,11 @@
 import { expect, test } from 'bun:test';
 
-import { divePillLabel, machineCanvasViewKey } from '../../../apps/studio/src/nest/chrome.ts';
+import {
+  divePillLabel,
+  machineCanvasViewKey,
+  nestFrameCrumbItems,
+  nestStepDisplayLabel,
+} from '../../../apps/studio/src/nest/chrome.ts';
 
 test('divePillLabel defaults by graph dialect and optional subLabel', () => {
   expect(divePillLabel({})).toBe('进入子状态机');
@@ -18,4 +23,31 @@ test('machineCanvasViewKey includes nest path so DAG entries do not share viewpo
   const viaB = machineCanvasViewKey('child', ['hostB', 'child']);
   expect(viaA).not.toBe(viaB);
   expect(viaA).toContain('nest:hostA,child');
+});
+
+test('nestFrameCrumbItems is root plus every nest layer with only last current', () => {
+  const items = nestFrameCrumbItems(
+    'root',
+    'sdd-pipeline',
+    [
+      { machineKey: 'mid', label: '实施' },
+      { machineKey: 'leaf', label: '门禁' },
+    ],
+    (key) =>
+      key === 'leaf'
+        ? { ruleTitle: '运行全量门禁', graphKind: 'flow' }
+        : key === 'mid'
+          ? { ruleTitle: '实施与验证', graphKind: 'flow' }
+          : { ruleTitle: 'sdd-pipeline' },
+  );
+  expect(items.map((c) => c.label)).toEqual([
+    'sdd-pipeline',
+    '实施与验证 (子流程)',
+    '运行全量门禁 (子流程)',
+  ]);
+  expect(items.map((c) => c.current)).toEqual([false, false, true]);
+  expect(items[0]?.idx).toBe(-1);
+  expect(nestStepDisplayLabel({ graphKind: 'flow', ruleTitle: '已含子流程' }, 'x')).toBe(
+    '已含子流程',
+  );
 });
