@@ -168,6 +168,34 @@ bdd.thenStep(
 );
 
 bdd.thenStep(
+  'specs-structure 技能包含选型判定表与 studio validate --specs 指引且通过 ethics 门禁',
+  (ctx) => {
+    const root = (ctx.fixtures['init'] as { root: string }).root;
+    const content = readFileSync(
+      join(root, '.agents', 'skills', 'llman-sdd-specs-structure', 'SKILL.md'),
+      'utf8',
+    );
+    for (const marker of [
+      'llman-sdd studio validate --specs',
+      'llman-sdd spec transitions',
+      'llman-sdd validate --specs --strict',
+      'llman-sdd studio open',
+      '@transitions',
+      '@flow',
+      '@states',
+      ...ETHICS_KEYS,
+    ]) {
+      if (!content.includes(marker)) {
+        throw new Error(`llman-sdd-specs-structure/SKILL.md missing required marker: ${marker}`);
+      }
+    }
+    if (content.includes('studio coverage')) {
+      throw new Error('llman-sdd-specs-structure must not mention unshipped studio coverage');
+    }
+  },
+);
+
+bdd.thenStep(
   'studio-onboard 与 studio-collab 技能含反向提炼与协商回执指引且通过 ethics 门禁',
   (ctx) => {
     const root = (ctx.fixtures['init'] as { root: string }).root;

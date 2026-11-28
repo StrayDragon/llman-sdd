@@ -5,6 +5,9 @@ depends_on:
   - add-studio-nest-context-deeplink
   - add-studio-agent-skills
 title: 规则墙转图技能与 Studio 技能语法对齐
+branch: sdd/add-specs-structure-skill
+base_branch: main
+base_sha: 1f1fb54273f0fef3be6497552fa820739aca31e7
 ---
 
 # 规则墙转图技能与 Studio 技能语法对齐

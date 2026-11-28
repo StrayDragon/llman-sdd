@@ -13,16 +13,34 @@ metadata:
 
 1. **划分领域边界**：读取目录结构、入口模块与数据模型。提炼 3–6 个职责清晰的业务能力（capability），避免塞进单一规格。
 2. **按四类图谱落盘规格**：
-   - **状态机**（生命周期明确）：在 `规则:` 下使用 `@transitions` 标注 `场景大纲:`，表格列头使用 `from | event | guard | to`（或中文列头）。
-   - **流程图**（多分支步骤）：用步骤流转表表达主路径与条件分支，保证无不可达节点与死锁终态。
-   - **决策真值表**（多条件组合判定）：用无 `@transitions` 的 `场景大纲:` 表格（至少两行数据）表达条件列与结果列。
-   - **规则文档**（纯约束说明）：以 `@req:<id>` 挂 `规则:` 块，宜配嵌套 `场景:`。
+   - **状态机**（生命周期明确）：`@transitions` 标注 `场景大纲:`，列头 `from | event | to`（或中文列头）。
+   - **流程图**（顺序步骤与条件分支）：`@flow` 与 `@transitions` 同挂。
+   - **决策表**（多条件组合判定）：无 `@transitions` 的 `场景大纲:`，至少两行条件列与结果列。
+   - **嵌套**（状态内含另一台机）：`@states` 表格列 `状态 | 子机`，子机格写 `@req:<id>`。
 3. **零告警基线自检**：
    - 运行 `llman-sdd validate --specs` 确认结构与 `@req:<id>` 合法。
-   - 运行 `llman-sdd studio validate` 检查状态机与流程图 `E1–E4` / `F1–F4` 诊断，确保无阻断错误。
-4. **打开全景工作台核对**：
-   - 运行 `llman-sdd studio open` 打开当前工作区主视图；初次熟悉图谱交互时，可运行 `llman-sdd studio open --demo` 对照内置自举样例。
-   - 多 Worktree 并行开发时，在不同 Worktree 目录分别运行 `llman-sdd studio open` 会自动复用本机单一 Hub 并按路径严格隔离工作区。
+   - 运行 `llman-sdd studio validate --specs` 检查抽取图诊断，确保无阻断错误。
+4. **打开全景工作台核对**：运行 `llman-sdd studio open` 打开当前工作区主视图。多 Worktree 时在各目录分别运行，会自动复用本机单一 Hub。
+
+最小可抽取示例：
+
+```gherkin
+# language: zh-CN
+# purpose: order
+功能: order
+  @req:r1
+  规则: 订单
+    订单按表流转。
+    @transitions
+    场景大纲: 主流程
+      假如 当前处于 <from>
+      当 触发 <event>
+      那么 流转至 <to>
+      例子:
+        | from | event | to |
+        | 草稿 | 提交 | 待审 |
+        | 待审 | 通过 | 完成 |
+```
 
 ## 边界约束
 

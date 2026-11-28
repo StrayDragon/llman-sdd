@@ -266,3 +266,12 @@
       假如 本仓库的等价 config(zh-Hans 与 bdd 配置)
       当 渲染全部 skills 与 llmanspec AGENTS 模板
       那么 AGENTS 模板与核心技能均含 llmanspec/theorems 只读遵循约束且通过 ethics 门禁
+
+  @req:r175
+  规则: llman-sdd-specs-structure 技能模板与基线同步
+    内置 zh-Hans 模板 MUST 新增 `llman-sdd-specs-structure` 技能（经 `init` / `init --update` 渲染到 `.agents/skills/llman-sdd-specs-structure/SKILL.md`），在规格大段规则文字需要在 Studio 看见行为逻辑时引导按判定表选型（状态机 `@transitions`、流程图 `@flow`、决策表、嵌套 `@states`），且 MUST 只引用已合入 CLI（`studio validate --specs`、`spec transitions`、`validate --specs --strict`、`studio open`），MUST NOT 引用不存在的子命令。MUST 通过 ethics 治理门、模板强度词门禁、check:stc 与 golden 基线一致性比对。
+
+    场景: specs-structure 技能模板渲染含判定表与真实命令面且通过门禁
+      假如 本仓库的等价 config(zh-Hans 与 bdd 配置)
+      当 渲染全部 skills
+      那么 specs-structure 技能包含选型判定表与 studio validate --specs 指引且通过 ethics 门禁

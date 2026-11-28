@@ -11,7 +11,7 @@ metadata:
 
 ## 消费 Studio 导出 Prompt 与深链
 
-1. **读取精确上下文**：先解析 Prompt 中的 `[定位: <图> · 对象(uid)]` 锚点与子树净 Diff，或直接运行 `llman-sdd studio diff <state-id>` 查看结构化语义差异与未解决评论。
+1. **读取精确上下文**：先解析 Prompt 中的 `[定位: <图> · 对象(uid)]` 锚点与子树净 Diff，或直接运行 `llman-sdd studio diff <state-id>` 查看结构化语义差异与未解决评论。canonical 深链可带 `nest`（逗号分隔机器 key，含 Tab 根）与 `focus`（`forest|macro-edge|state|edge:<id>`）；无这两项时既有 `kind`/`target` 行为不变。
 2. **图规格体检**：运行 `llman-sdd studio validate <state-id>` 核对状态机 `E1–E4`、流程图 `F1–F4` 诊断与孤立节点，结合主视图跨分组依赖（交叉桥）评估变更影响面。
 3. **三类协商回写动作**：
    - **回复讨论或回传不可达/冲突回执**：当人类画布意图与代码约束冲突或在技术上不可达时，必须 通过 `llman-sdd studio comment reply <state-id> <comment-id> --body "<根因与备选方案>"` 结构化回写结论，不得 强行妥协实现。
