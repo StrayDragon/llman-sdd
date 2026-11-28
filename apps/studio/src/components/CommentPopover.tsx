@@ -56,9 +56,13 @@ export function CommentPopover() {
     resolveComment,
     reopenComment,
     deleteComment,
+    setCommentWatchTag,
+    togglePromptInclude,
+    promptIncludeIds,
   } = useStudioStore();
 
   const [draftBody, setDraftBody] = useState('');
+  const [draftWatch, setDraftWatch] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
@@ -101,8 +105,9 @@ export function CommentPopover() {
 
   const submitNew = (): void => {
     if (draftBody.trim() === '') return;
-    addComment(commentPopover.anchor, draftBody);
+    addComment(commentPopover.anchor, draftBody, draftWatch.trim() === '' ? undefined : draftWatch);
     setDraftBody('');
+    setDraftWatch('');
   };
 
   return (
@@ -257,7 +262,33 @@ export function CommentPopover() {
                   </div>
                 </div>
               ) : (
-                <div className="leading-relaxed whitespace-pre-wrap">{c.body}</div>
+                <>
+                  <div className="leading-relaxed whitespace-pre-wrap">{c.body}</div>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                    <label
+                      className="inline-flex items-center gap-1 text-[10px]"
+                      style={{ color: 'var(--text-muted)' }}
+                    >
+                      请谁看
+                      <input
+                        value={c.watchTag ?? c.author}
+                        onChange={(e) => setCommentWatchTag(c.id, e.target.value)}
+                        className="w-20 rounded border px-1 py-0.5 text-[10px]"
+                        style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+                      />
+                    </label>
+                    {c.status === 'open' && (
+                      <label className="inline-flex items-center gap-1 text-[10px]">
+                        <input
+                          type="checkbox"
+                          checked={promptIncludeIds.includes(c.id)}
+                          onChange={() => togglePromptInclude(c.id)}
+                        />
+                        带进看法
+                      </label>
+                    )}
+                  </div>
+                </>
               )}
             </div>
           ))
@@ -279,6 +310,19 @@ export function CommentPopover() {
           className="w-full rounded-md border p-2 text-xs outline-none resize-none"
           style={{ borderColor: 'var(--border)', background: 'var(--surface-subtle)' }}
         />
+        <label
+          className="inline-flex items-center gap-1 text-[10px]"
+          style={{ color: 'var(--text-muted)' }}
+        >
+          请谁看
+          <input
+            value={draftWatch}
+            onChange={(e) => setDraftWatch(e.target.value)}
+            placeholder="human / agent / 短标签"
+            className="flex-1 rounded border px-1.5 py-0.5 text-[10px]"
+            style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+          />
+        </label>
         <div className="flex justify-end">
           <button
             type="button"

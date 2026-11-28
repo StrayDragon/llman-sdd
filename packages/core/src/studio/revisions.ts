@@ -30,6 +30,7 @@ export interface AddCommentInput {
   body: string;
   createdAt: string;
   replyTo?: string;
+  watchTag?: string;
 }
 
 export function addStudioComment(doc: StudioStateDoc, input: AddCommentInput): StudioStateDoc {
@@ -47,6 +48,9 @@ export function addStudioComment(doc: StudioStateDoc, input: AddCommentInput): S
     createdAt: input.createdAt,
     status: 'open',
     ...(input.replyTo !== undefined ? { replyTo: input.replyTo } : {}),
+    ...(input.watchTag !== undefined && input.watchTag.trim() !== ''
+      ? { watchTag: input.watchTag.trim() }
+      : {}),
   };
   return {
     ...doc,
@@ -105,6 +109,36 @@ export function editStudioComment(
     updatedAt: input.updatedAt,
     revision: (doc.revision ?? 0) + 1,
     comments: doc.comments.map((c) => (c.id === commentId ? { ...c, body } : c)),
+  };
+}
+
+export function commentWatchTag(comment: StudioComment): string {
+  const tag = comment.watchTag?.trim();
+  return tag !== undefined && tag !== '' ? tag : comment.author;
+}
+
+export function setStudioCommentWatchTag(
+  doc: StudioStateDoc,
+  commentId: string,
+  watchTag: string,
+  updatedAt: string,
+): StudioStateDoc {
+  const exists = doc.comments.some((c) => c.id === commentId);
+  if (!exists) throw new StudioRevisionError(`comment not found: ${commentId}`);
+  const trimmed = watchTag.trim();
+  return {
+    ...doc,
+    updatedAt,
+    revision: (doc.revision ?? 0) + 1,
+    comments: doc.comments.map((c) => {
+      if (c.id !== commentId) return c;
+      if (trimmed === '') {
+        const { watchTag: _unused, ...rest } = c;
+        void _unused;
+        return rest;
+      }
+      return { ...c, watchTag: trimmed };
+    }),
   };
 }
 

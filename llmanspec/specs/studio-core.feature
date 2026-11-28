@@ -89,3 +89,15 @@
       假如 包含中文规则正文、转移守卫与业务评论的 Studio 工作区文档集
       当 分别以中文短语与英文标识符执行 searchWorkspaceBm25
       那么 命中条目按相关性降序返回且携带对应目标锚点与非空命中片段摘要
+
+  @req:r164
+  规则: 纯域三方语义条目与勾选合并
+    Studio 纯域 MUST 提供 `buildSyncItems` 与 `applySyncPicks`（零 I/O、零 `Date.now()`、100% 离线确定性）。三方对齐 MUST 按状态名与转移语义签名 `(from, event, guard, to)`，不得对 `.feature` 正文做行级合并。
+    仅一侧出现的条目 MUST 给出默认勾选（仅画布→ours，仅文件→theirs）；两侧同签名且内容相同 MUST 不进待勾选列表；两侧都有且不同 MUST 不给默认勾选。
+    `applySyncPicks` MUST 支持 ours / theirs / both：both 在不同事件或不同到达状态时把两条都留在当前图；同签名冲突 MUST 禁止 both 并返回可测试的 `blocked` 原因。世界线快照时间 MUST 仅经 `nowIso` 注入。合并结果只改草稿 `current`，MUST NOT 写 `llmanspec/specs/`。
+
+    场景: 三方条目对齐 ours-only、theirs-only、both 与同签名禁止 both
+      假如 一份公共基线状态机、一份画布草稿与一份磁盘重解析状态机
+      当 构建三方条目并对 ours、theirs、both 与同签名 both 分别执行 applySyncPicks
+      那么 仅一侧条目带默认勾选、同签名一致条目不进待勾选
+      而且 ours 保留画布、theirs 并入文件侧、合法 both 两条都留、同签名 both 返回 blocked

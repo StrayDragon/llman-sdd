@@ -1,6 +1,7 @@
 // BDD acceptance steps for llmanspec/specs/studio-cli.feature (r134-r137).
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -18,6 +19,7 @@ import {
 } from '@llman-sdd/core';
 
 import { makeNodeStudioStateIo } from '../../../apps/cli/src/commands/studio.ts';
+import { createStudioHubApp } from '../../../apps/cli/src/studio-server/server.ts';
 import { initGitRepo } from '../../helpers/spawn.ts';
 import { bdd } from '../runner.ts';
 import { CLI } from './shared.ts';
@@ -545,3 +547,109 @@ bdd.thenStep(
     }
   },
 );
+
+// --- r167 ---
+
+bdd.given('一个含状态机草稿且磁盘规格哈希已前进的临时仓库', (ctx) => {
+  const root = makeTempStudioRepo();
+  const specRel = 'llmanspec/specs/expense.feature';
+  const original = readFileSync(join(root, specRel), 'utf8');
+  const hash = createHash('sha256').update(original, 'utf8').digest('hex');
+  const doc = seedDraft(root, 'sync-cli');
+  const withHash = { ...doc, baseHashes: { [specRel]: hash } };
+  writeStudioState(makeNodeStudioStateIo(root), withHash);
+  writeFileSync(
+    join(root, specRel),
+    original.replace(
+      '| 待审批 | 驳回 |  | 已驳回 |',
+      '| 待审批 | 驳回 |  | 已驳回 |\n        | 待审批 | 加急 |  | 已通过 |',
+    ),
+  );
+  const hub = createStudioHubApp({
+    initialDirectory: root,
+    host: '127.0.0.1',
+    port: 0,
+    writeHubFile: false,
+  });
+  ctx.fixtures['r167'] = { root, hub, specRel, original };
+});
+
+bdd.when('依次请求 sync-preview、sync-apply 与 studio diff --json', async (ctx) => {
+  const { root, hub, specRel } = ctx.fixtures['r167'] as {
+    root: string;
+    hub: ReturnType<typeof createStudioHubApp>;
+    specRel: string;
+  };
+  const req = (p: string, init?: RequestInit) => hub.app.request(`http://127.0.0.1:4710${p}`, init);
+  const preview = await req('/api/states/sync-cli/sync-preview', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-studio-token': hub.token },
+  });
+  const previewJson = (await preview.json()) as {
+    stale: boolean;
+    items: Array<{ id: string; defaultPick: string | null }>;
+  };
+  const picks = Object.fromEntries(previewJson.items.map((i) => [i.id, i.defaultPick ?? 'ours']));
+  const specBefore = readFileSync(join(root, specRel), 'utf8');
+  const diffHuman = runCliIn(['studio', 'diff', 'sync-cli'], root);
+  const diffJson = runCliIn(['studio', 'diff', 'sync-cli', '--json'], root);
+  const apply = await req('/api/states/sync-cli/sync-apply', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-studio-token': hub.token },
+    body: JSON.stringify({ picks }),
+  });
+  const applyJson = (await apply.json()) as {
+    ok?: boolean;
+    doc?: { baseHashes?: Record<string, string> };
+  };
+  const specAfter = readFileSync(join(root, specRel), 'utf8');
+  ctx.fixtures['r167Out'] = {
+    preview,
+    previewJson,
+    apply,
+    applyJson,
+    specBefore,
+    specAfter,
+    diffHuman,
+    diffJson,
+  };
+  hub.cleanup();
+  rmSync(root, { recursive: true, force: true });
+});
+
+bdd.thenStep('preview 返回 stale 条目、apply 后 specs 目录零修改且 baseHashes 更新', (ctx) => {
+  const { preview, previewJson, apply, applyJson, specBefore, specAfter } = ctx.fixtures[
+    'r167Out'
+  ] as {
+    preview: { status: number };
+    previewJson: { stale: boolean; items: unknown[] };
+    apply: { status: number };
+    applyJson: { ok?: boolean; doc?: { baseHashes?: Record<string, string> } };
+    specBefore: string;
+    specAfter: string;
+  };
+  if (preview.status !== 200 || previewJson.stale !== true) {
+    throw new Error(`preview not stale: ${JSON.stringify(previewJson)}`);
+  }
+  if (apply.status !== 200 || applyJson.ok !== true) {
+    throw new Error(`apply failed: ${JSON.stringify(applyJson)}`);
+  }
+  if (specAfter !== specBefore) {
+    throw new Error('sync-apply wrote llmanspec/specs/');
+  }
+});
+
+bdd.thenStep('studio diff 人读含「文件和画布对不上」、JSON 含 syncItems', (ctx) => {
+  const { diffHuman, diffJson, previewJson } = ctx.fixtures['r167Out'] as {
+    diffHuman: CliResult;
+    diffJson: CliResult;
+    previewJson: { stale: boolean };
+  };
+  const parsed = JSON.parse(diffJson.stdout) as { syncItems?: unknown[] };
+  if (!diffHuman.stdout.includes('文件和画布对不上')) {
+    throw new Error(`human diff missing 文件和画布对不上: ${diffHuman.stdout}`);
+  }
+  if (!Array.isArray(parsed.syncItems)) {
+    throw new Error(`json diff missing syncItems: ${diffJson.stdout}`);
+  }
+});

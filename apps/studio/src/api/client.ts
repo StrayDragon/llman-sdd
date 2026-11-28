@@ -8,6 +8,8 @@ import {
   exportProposalResponseSchema,
   previewDiffResponseSchema,
   putStateResponseSchema,
+  syncApplyResponseSchema,
+  syncPreviewResponseSchema,
   specDetailResponseSchema,
   studioSearchResponseSchema,
   studioSseEventSchema,
@@ -21,6 +23,9 @@ import {
   type NodePosition,
   type PreviewDiffResponse,
   type PutStateResponse,
+  type SyncApplyRequest,
+  type SyncApplyResponse,
+  type SyncPreviewResponse,
   type SpecDetailResponse,
   type StudioSearchResponse,
   type StudioSseEvent,
@@ -110,11 +115,12 @@ export class StudioApiClient {
     if (res.status === 409) {
       const body = (await res.json()) as {
         error?: string;
+        userMessage?: string;
         currentRevision: number;
         latestDoc: StudioStateDoc;
       };
       throw new StudioConflictError(
-        body.error ?? 'revision conflict',
+        body.userMessage ?? '另一扇窗口刚保存了这份草稿',
         body.currentRevision,
         body.latestDoc,
       );
@@ -154,6 +160,31 @@ export class StudioApiClient {
     if (!res.ok) throw new Error(`POST revision ${action} failed (${String(res.status)})`);
     const body = (await res.json()) as { doc: StudioStateDoc };
     return body.doc;
+  }
+
+  async syncPreview(stateId: string, wsKey?: string): Promise<SyncPreviewResponse> {
+    const qs = wsKey ? `?wsKey=${encodeURIComponent(wsKey)}` : '';
+    const res = await fetch(`/api/states/${encodeURIComponent(stateId)}/sync-preview${qs}`, {
+      method: 'POST',
+      headers: this.writeHeaders(),
+    });
+    if (!res.ok) throw new Error(`POST sync-preview failed (${String(res.status)})`);
+    return syncPreviewResponseSchema.parse(await res.json());
+  }
+
+  async syncApply(
+    stateId: string,
+    picks: SyncApplyRequest['picks'],
+    wsKey?: string,
+  ): Promise<SyncApplyResponse> {
+    const qs = wsKey ? `?wsKey=${encodeURIComponent(wsKey)}` : '';
+    const res = await fetch(`/api/states/${encodeURIComponent(stateId)}/sync-apply${qs}`, {
+      method: 'POST',
+      headers: this.writeHeaders(),
+      body: JSON.stringify({ picks }),
+    });
+    if (!res.ok) throw new Error(`POST sync-apply failed (${String(res.status)})`);
+    return syncApplyResponseSchema.parse(await res.json());
   }
 
   async previewDiff(stateId: string, wsKey?: string): Promise<PreviewDiffResponse> {

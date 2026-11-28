@@ -119,6 +119,7 @@ const commentSchema = z.object({
   createdAt: z.string().min(1),
   status: z.enum(['open', 'resolved']),
   replyTo: z.string().optional(),
+  watchTag: z.string().min(1).optional(),
 });
 
 const revisionOpSchema = z.discriminatedUnion('op', [
@@ -217,6 +218,7 @@ export const studioStateDocSchema = z.object({
   edgeBends: z.record(z.string(), z.record(z.string(), edgeBendOffsetSchema)).optional(),
   comments: z.array(commentSchema),
   revisions: z.array(revisionProposalSchema),
+  syncOpen: z.record(z.string(), z.string().min(1)).optional(),
 });
 
 export function buildInitialTimeline(draft: MachineDraft, createdAt: string): MachineTimeline {

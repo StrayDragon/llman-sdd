@@ -18,6 +18,7 @@ import {
   formatSemanticDiff,
   nextPrefixedUid,
   recordWorldlineCommit,
+  snapshotBeforeSync,
   redoTimeline,
   reopenStudioComment,
   resolveStudioComment,
@@ -37,19 +38,25 @@ import {
   type StudioStateDoc,
   type StudioTabView,
   type StudioTheoremDto,
+  setStudioCommentWatchTag,
+  type StudioSseEvent,
   type StudioViewsDoc,
+  type SyncItem,
+  type SyncPick,
   type TheoremLockStatus,
   type WorkspaceItem,
 } from '@llman-sdd/core/studio';
 import { create } from 'zustand';
 
-import { studioApi, StudioConflictError } from '../api/client.ts';
+import { studioApi, STUDIO_CLIENT_ID, StudioConflictError } from '../api/client.ts';
 import type { EdgePreset } from '../routing/obstacleRouter.ts';
 import {
   createMachineSimulationSession,
   type CompiledSimulationSession,
   type SimulationStepRecord,
 } from '../simulate/xstateCompiler.ts';
+import { foldActivityItems, type ActivityItem } from '../sync/activity.ts';
+import { SYNC_COPY } from '../sync/copy.ts';
 
 export type StudioSkin = 'linear' | 'washi';
 export type CardTier = 'glyph' | 'map' | 'detail';
@@ -124,6 +131,14 @@ export interface StudioStoreState {
   specs: SpecIndexItem[];
   edges: SpecIndexEdge[];
   staleFiles: string[];
+  syncItems: SyncItem[];
+  syncPicks: Record<string, SyncPick>;
+  syncPanelOpen: boolean;
+  syncFocusItemId: string | null;
+  activityItems: ActivityItem[];
+  activityOpen: boolean;
+  activityEvents: StudioSseEvent[];
+  promptIncludeIds: string[];
   theorems: StudioTheoremDto[];
   theoremLockStatus: TheoremLockStatus;
   theoremsOpen: boolean;
@@ -310,7 +325,9 @@ export interface StudioStoreState {
   // Unified 5-kind comments CRUD
   openCommentPopover: (anchor: SemanticAnchor, title: string, x: number, y: number) => void;
   closeCommentPopover: () => void;
-  addComment: (anchor: SemanticAnchor, body: string) => void;
+  addComment: (anchor: SemanticAnchor, body: string, watchTag?: string) => void;
+  setCommentWatchTag: (commentId: string, watchTag: string) => void;
+  togglePromptInclude: (commentId: string) => void;
   editComment: (commentId: string, body: string) => void;
   resolveComment: (commentId: string) => void;
   reopenComment: (commentId: string) => void;
@@ -323,7 +340,15 @@ export interface StudioStoreState {
   openPromptWorkbench: (title: string, subtitle: string, body: string) => void;
   closePromptWorkbench: () => void;
   togglePromptFullscreen: () => void;
-  buildNegotiationPrompt: (machineKey?: string) => string;
+  buildNegotiationPrompt: (machineKey?: string, commentIds?: string[]) => string;
+  enterFileSync: () => Promise<void>;
+  setSyncPick: (itemId: string, pick: SyncPick) => void;
+  bulkSyncPick: (pick: SyncPick) => void;
+  setSyncPanelOpen: (open: boolean) => void;
+  setSyncFocusItemId: (id: string | null) => void;
+  confirmSyncApply: () => Promise<void>;
+  ingestSseActivity: (ev: StudioSseEvent) => void;
+  setActivityOpen: (open: boolean) => void;
 
   // Settings & Chrome
   setSkin: (skin: StudioSkin) => void;
@@ -459,6 +484,21 @@ function savePersistedUiSession(state: StudioStoreState): void {
   }
 }
 
+function foldStudioActivity(
+  events: readonly StudioSseEvent[],
+  wsKey: string | undefined,
+  doc: StudioStateDoc | null | undefined,
+): ActivityItem[] {
+  if (!wsKey) return [];
+  return foldActivityItems({
+    events,
+    selfClientId: STUDIO_CLIENT_ID,
+    activeWsKey: wsKey,
+    comments: doc?.comments ?? [],
+    revisions: doc?.revisions ?? [],
+  });
+}
+
 function applyBootstrapToState(
   boot: BootstrapResponse,
   workspaces: WorkspaceItem[],
@@ -522,6 +562,12 @@ function applyBootstrapToState(
     specs: boot.specs,
     edges: boot.edges,
     staleFiles: boot.staleFiles,
+    syncItems: [],
+    syncPicks: {},
+    syncPanelOpen: false,
+    syncFocusItemId: null,
+    activityEvents: [],
+    activityItems: foldStudioActivity([], boot.workspace.wsKey, boot.stateDoc),
     theorems: boot.theorems ?? [],
     theoremLockStatus: boot.theoremLockStatus ?? 'none',
     specDetails: {},
@@ -614,6 +660,14 @@ export const useStudioStore = create<StudioStoreState>((set, get) => {
     specs: [],
     edges: [],
     staleFiles: [],
+    syncItems: [],
+    syncPicks: {},
+    syncPanelOpen: false,
+    syncFocusItemId: null,
+    activityItems: [],
+    activityOpen: false,
+    activityEvents: [],
+    promptIncludeIds: [],
     theorems: [],
     theoremLockStatus: 'none',
     theoremsOpen: false,
@@ -709,6 +763,9 @@ export const useStudioStore = create<StudioStoreState>((set, get) => {
           const detail = await studioApi.fetchSpecDetail(activeTab.targetId, boot.workspace.wsKey);
           set((prev) => ({ specDetails: { ...prev.specDetails, [activeTab.targetId]: detail } }));
         }
+        if (boot.staleFiles.length > 0) {
+          void get().enterFileSync();
+        }
       } catch (error) {
         set({
           loading: false,
@@ -726,6 +783,7 @@ export const useStudioStore = create<StudioStoreState>((set, get) => {
           studioApi.fetchViews(targetWs).catch(() => null),
         ]);
         const cur = get();
+        const nextDoc = cur.dirtyState ? cur.stateDoc : boot.stateDoc;
         set({
           workspaces: wsRes.workspaces,
           activeWorkspace: boot.workspace,
@@ -736,6 +794,7 @@ export const useStudioStore = create<StudioStoreState>((set, get) => {
           theorems: boot.theorems ?? [],
           theoremLockStatus: boot.theoremLockStatus ?? 'none',
           graphMermaid: boot.graphMermaid,
+          activityItems: foldStudioActivity(cur.activityEvents, boot.workspace.wsKey, nextDoc),
           ...(!cur.dirtyViews && viewsRes?.viewsDoc ? { viewsDoc: viewsRes.viewsDoc } : {}),
           ...(cur.dirtyState
             ? {}
@@ -744,6 +803,9 @@ export const useStudioStore = create<StudioStoreState>((set, get) => {
                 syncedRevision: boot.stateDoc.revision ?? 0,
               }),
         });
+        if (boot.staleFiles.length > 0) {
+          void get().enterFileSync();
+        }
       } catch {
         // Ignore transient SSE background refresh errors
       }
@@ -780,7 +842,7 @@ export const useStudioStore = create<StudioStoreState>((set, get) => {
         } catch (error) {
           if (error instanceof StudioConflictError) {
             set({ saveStatus: 'conflict', syncedRevision: error.currentRevision });
-            get().showToast('检测到其他窗口或 Agent 更新了草稿，请刷新合并');
+            get().showToast('另一扇窗口刚保存了这份草稿');
           } else {
             set({ saveStatus: 'error' });
             get().showToast('自动保存失败，草稿已暂存于本地缓存');
@@ -1565,7 +1627,7 @@ export const useStudioStore = create<StudioStoreState>((set, get) => {
 
     closeCommentPopover: () => set({ commentPopover: null }),
 
-    addComment: (anchor, body) => {
+    addComment: (anchor, body, watchTag) => {
       const doc = get().stateDoc;
       if (!doc || body.trim() === '') return;
       const next = addStudioComment(doc, {
@@ -1573,9 +1635,28 @@ export const useStudioStore = create<StudioStoreState>((set, get) => {
         author: 'human',
         body,
         createdAt: new Date().toISOString(),
+        ...(watchTag !== undefined && watchTag.trim() !== '' ? { watchTag: watchTag.trim() } : {}),
       });
       set({ stateDoc: next });
       scheduleStateSave();
+    },
+
+    setCommentWatchTag: (commentId, watchTag) => {
+      const doc = get().stateDoc;
+      if (!doc) return;
+      set({
+        stateDoc: setStudioCommentWatchTag(doc, commentId, watchTag, new Date().toISOString()),
+      });
+      scheduleStateSave();
+    },
+
+    togglePromptInclude: (commentId) => {
+      const cur = get().promptIncludeIds;
+      set({
+        promptIncludeIds: cur.includes(commentId)
+          ? cur.filter((id) => id !== commentId)
+          : [...cur, commentId],
+      });
     },
 
     editComment: (commentId, body) => {
@@ -1643,7 +1724,7 @@ export const useStudioStore = create<StudioStoreState>((set, get) => {
       set({ promptModal: { ...pm, fullscreen: !pm.fullscreen } });
     },
 
-    buildNegotiationPrompt: (machineKey) => {
+    buildNegotiationPrompt: (machineKey, commentIds) => {
       const s = get();
       const doc = s.stateDoc;
       const ws = s.activeWorkspace;
@@ -1665,7 +1746,12 @@ export const useStudioStore = create<StudioStoreState>((set, get) => {
         );
       }
       const macroDraftLines = s.macroDraftNotes.map((n) => `- [全景结构草稿意图] ${n}`);
-      const openComments = doc.comments.filter((c) => c.status === 'open');
+      const selected = commentIds ?? get().promptIncludeIds;
+      const openComments = doc.comments.filter((c) => {
+        if (c.status !== 'open') return false;
+        if (selected.length === 0) return true;
+        return selected.includes(c.id);
+      });
       const commentLines = openComments.map((c) => {
         const loc =
           c.anchor.kind === 'state'
@@ -1704,6 +1790,92 @@ export const useStudioStore = create<StudioStoreState>((set, get) => {
         `3. 同步更新规格、实现与测试并确保门禁全绿。`,
       ].join('\n');
     },
+
+    enterFileSync: async () => {
+      const s = get();
+      if (!s.stateDoc || !s.activeWorkspace || s.staleFiles.length === 0) {
+        set({ syncItems: [], syncPicks: {}, syncPanelOpen: false });
+        return;
+      }
+      let next = s.stateDoc;
+      const now = new Date().toISOString();
+      for (const [mk, draft] of Object.entries(next.machines)) {
+        if (s.staleFiles.includes(draft.sourceFile)) {
+          next = snapshotBeforeSync(next, mk, now);
+        }
+      }
+      if (next !== s.stateDoc) {
+        set({ stateDoc: next, dirtyState: true });
+        await get().flushPendingSaves();
+      }
+      try {
+        const preview = await studioApi.syncPreview(next.id, s.activeWorkspace.wsKey);
+        const picks: Record<string, SyncPick> = {};
+        for (const item of preview.items) {
+          if (item.defaultPick) picks[item.id] = item.defaultPick;
+        }
+        set({
+          syncItems: preview.items,
+          syncPicks: picks,
+          staleFiles: preview.staleFiles,
+          syncPanelOpen: preview.items.length > 0,
+        });
+      } catch {
+        set({ toastMsg: SYNC_COPY.banner });
+      }
+    },
+
+    setSyncPick: (itemId, pick) => {
+      set({ syncPicks: { ...get().syncPicks, [itemId]: pick } });
+    },
+
+    bulkSyncPick: (pick) => {
+      const picks: Record<string, SyncPick> = { ...get().syncPicks };
+      for (const item of get().syncItems) {
+        picks[item.id] = pick;
+      }
+      set({ syncPicks: picks });
+    },
+
+    setSyncPanelOpen: (syncPanelOpen) => set({ syncPanelOpen }),
+    setSyncFocusItemId: (syncFocusItemId) => set({ syncFocusItemId }),
+
+    confirmSyncApply: async () => {
+      const s = get();
+      if (!s.stateDoc || !s.activeWorkspace) return;
+      try {
+        const res = await studioApi.syncApply(s.stateDoc.id, s.syncPicks, s.activeWorkspace.wsKey);
+        const blocked = res.blocked[0];
+        if (blocked) {
+          get().showToast(SYNC_COPY.sameThing);
+          return;
+        }
+        set({
+          stateDoc: res.doc,
+          syncedRevision: res.doc.revision ?? s.syncedRevision,
+          dirtyState: false,
+          syncItems: [],
+          syncPicks: {},
+          syncPanelOpen: false,
+          syncFocusItemId: null,
+          staleFiles: [],
+        });
+      } catch (error) {
+        get().showToast(error instanceof Error ? error.message : '同步失败');
+      }
+    },
+
+    ingestSseActivity: (ev) => {
+      const s = get();
+      if (!s.activeWorkspace) return;
+      const events = [...s.activityEvents, ev].slice(-40);
+      set({
+        activityEvents: events,
+        activityItems: foldStudioActivity(events, s.activeWorkspace.wsKey, s.stateDoc),
+      });
+    },
+
+    setActivityOpen: (activityOpen) => set({ activityOpen }),
 
     setSkin: (skin) => {
       if (typeof document !== 'undefined') document.documentElement.dataset.skin = skin;

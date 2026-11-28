@@ -67,3 +67,15 @@
       当 依次运行 studio drift --since --fail-on-shadow 与 studio drift --trace --write-state --fail-on-shadow --json
       那么 纯 --since 切片模式退出码为 0 并输出命中锚点的最小切片包
       而且 --trace --write-state --fail-on-shadow 退出码为 1、向本地草稿写入 drift-trace 建议且 specs 目录零修改
+
+  @req:r167
+  规则: Hub 同步预览与落草稿、studio diff 过期条目
+    `POST /api/states/:id/sync-preview` MUST 读磁盘重解析 theirs 并返回 `SyncItem[]` 与是否 stale，MUST NOT 写盘。
+    `POST /api/states/:id/sync-apply` MUST 按 picks 调用 `applySyncPicks`，写入草稿与世界线（若尚未拍过本次冲突格），更新对应文件 `baseHashes` 为当前磁盘哈希，MUST NOT 写 `llmanspec/specs/`。
+    `llman-sdd studio diff` 在目标文件相对 `baseHashes` 过期时，人读模式 MUST 增加「文件和画布对不上」及条目短句；`--json` / `--compact-json` MUST 额外输出 `syncItems`。`studio apply` 护栏不变，同步只改草稿。
+
+    场景: sync-preview 给出条目、sync-apply 只改草稿且 studio diff 报告文件和画布对不上
+      假如 一个含状态机草稿且磁盘规格哈希已前进的临时仓库
+      当 依次请求 sync-preview、sync-apply 与 studio diff --json
+      那么 preview 返回 stale 条目、apply 后 specs 目录零修改且 baseHashes 更新
+      而且 studio diff 人读含「文件和画布对不上」、JSON 含 syncItems

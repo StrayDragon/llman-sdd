@@ -228,8 +228,9 @@ export function WorldlineDrawer() {
                       className="font-mono text-[10px] font-semibold"
                       style={{ color: 'var(--text-muted)' }}
                     >
-                      {entry.id}
-                      {entry.parentId ? ` <- ${entry.parentId}` : ''} · {actorLabel}
+                      {entry.isBase
+                        ? '原规格'
+                        : `${entry.id}${entry.parentId && entry.parentId !== 'BASE' ? ` <- ${entry.parentId}` : ''} · ${actorLabel}`}
                     </span>
                     <div className="inline-flex items-center gap-1">
                       {isHead && (

@@ -62,6 +62,7 @@ import {
   resolveLiveHub,
 } from '../studio-server/hub.ts';
 import { startStudioHub } from '../studio-server/server.ts';
+import { collectDiskSyncPreview } from '../studio-server/syncDisk.ts';
 import { registerStudioMcp } from './studioMcp.ts';
 import { makeNodeStudioStateIo, resolveStateIdOrThrow } from './studioShared.ts';
 
@@ -449,6 +450,7 @@ export function registerStudio(program: Command, ctx: CliContext): void {
 
       const openComments = doc.comments.filter((c) => c.status === 'open');
       const pendingRevisions = doc.revisions.filter((r) => r.status === 'pending');
+      const diskSync = collectDiskSyncPreview(rctx.root, doc);
 
       const payload = {
         stateId: doc.id,
@@ -457,6 +459,9 @@ export function registerStudio(program: Command, ctx: CliContext): void {
         machines: machineDiffs,
         openComments,
         pendingRevisions,
+        ...(diskSync.stale
+          ? { stale: true, staleFiles: diskSync.staleFiles, syncItems: diskSync.items }
+          : {}),
       };
 
       emitStudioOutput(payload, options, () => {
@@ -467,6 +472,14 @@ export function registerStudio(program: Command, ctx: CliContext): void {
             lines.push('', '### Unified Diff Preview', m.unifiedDiff.trimEnd());
           } else if (m.unifiedDiffError) {
             lines.push('', `[preview unavailable: ${m.unifiedDiffError}]`);
+          }
+        }
+        if (diskSync.stale) {
+          lines.push('', '## 文件和画布对不上');
+          for (const item of diskSync.items) {
+            const left = item.labelOurs ?? '（画布没有这一条）';
+            const right = item.labelTheirs ?? '（文件没有这一条）';
+            lines.push(`- ${left} / ${right}`);
           }
         }
         if (openComments.length > 0) {

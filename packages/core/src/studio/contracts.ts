@@ -324,3 +324,54 @@ export const studioSearchResponseSchema = z.object({
   hits: z.array(studioSearchHitSchema),
 });
 export type StudioSearchResponse = z.infer<typeof studioSearchResponseSchema>;
+
+export const syncPickSchema = z.enum(['ours', 'theirs', 'both']);
+export type SyncPickDto = z.infer<typeof syncPickSchema>;
+
+export const syncItemKindSchema = z.enum(['state', 'transition', 'guard', 'doc-rule']);
+
+export const syncTransitionPayloadSchema = z.object({
+  from: z.string().min(1),
+  event: z.string(),
+  guard: z.string().optional(),
+  to: z.string().min(1),
+});
+
+export const syncItemSchema = z.object({
+  id: z.string().min(1),
+  kind: syncItemKindSchema,
+  machineKey: z.string().min(1).optional(),
+  sourceFile: z.string().min(1),
+  oursPresent: z.boolean(),
+  theirsPresent: z.boolean(),
+  labelOurs: z.string().nullable(),
+  labelTheirs: z.string().nullable(),
+  defaultPick: syncPickSchema.nullable(),
+  oursStateName: z.string().optional(),
+  theirsStateName: z.string().optional(),
+  oursTransition: syncTransitionPayloadSchema.optional(),
+  theirsTransition: syncTransitionPayloadSchema.optional(),
+  oursText: z.string().optional(),
+  theirsText: z.string().optional(),
+});
+export type SyncItemDto = z.infer<typeof syncItemSchema>;
+
+export const syncPreviewResponseSchema = z.object({
+  stale: z.boolean(),
+  staleFiles: z.array(z.string()),
+  items: z.array(syncItemSchema),
+  snapshotTaken: z.boolean(),
+});
+export type SyncPreviewResponse = z.infer<typeof syncPreviewResponseSchema>;
+
+export const syncApplyRequestSchema = z.object({
+  picks: z.record(z.string(), syncPickSchema),
+});
+export type SyncApplyRequest = z.infer<typeof syncApplyRequestSchema>;
+
+export const syncApplyResponseSchema = z.object({
+  ok: z.literal(true),
+  doc: studioStateDocSchema,
+  blocked: z.array(z.object({ itemId: z.string(), reason: z.string() })),
+});
+export type SyncApplyResponse = z.infer<typeof syncApplyResponseSchema>;

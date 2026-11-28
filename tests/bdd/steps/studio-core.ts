@@ -35,6 +35,8 @@ import {
   validateCapability,
   validateForestIsolation,
   validateMachineGraph,
+  applySyncPicks,
+  buildSyncItems,
   writeStudioState,
   writeStudioViews,
   type MachineDiagnostic,
@@ -777,3 +779,138 @@ bdd.thenStep('命中条目按相关性降序返回且携带对应目标锚点与
     throw new Error(`unexpected enHits: ${JSON.stringify(enHits)}`);
   }
 });
+
+// ── r164: three-way semantic sync items ──
+
+bdd.given('一份公共基线状态机、一份画布草稿与一份磁盘重解析状态机', (ctx) => {
+  const created = createMachineDraft({
+    capability: 'order',
+    reqId: 'r1',
+    ruleTitle: '订单',
+    scenarioName: '主流程',
+    states: [{ name: '草稿', initial: true }, { name: '待审' }, { name: '完成' }],
+    transitions: [
+      { from: '草稿', event: '提交', to: '待审' },
+      { from: '待审', event: '通过', to: '完成' },
+    ],
+  });
+  const baseline = cloneMachineIR(created.current!);
+  const ours = cloneMachineIR(baseline);
+  ours.states.push({ uid: 's99', name: '已取消' });
+  ours.transitions.push({
+    uid: 'e99',
+    fromUid: ours.states[1]!.uid,
+    event: '驳回',
+    toUid: ours.states[0]!.uid,
+  });
+  const theirs = cloneMachineIR(baseline);
+  theirs.states.push({ uid: 's88', name: '已归档' });
+  theirs.transitions.push({
+    uid: 'e88',
+    fromUid: theirs.states[1]!.uid,
+    event: '加急',
+    toUid: theirs.states[2]!.uid,
+  });
+  const clashOurs = cloneMachineIR(baseline);
+  clashOurs.transitions[1] = { ...clashOurs.transitions[1]!, guard: '金额<=1000' };
+  const clashTheirs = cloneMachineIR(baseline);
+  clashTheirs.transitions[1] = { ...clashTheirs.transitions[1]!, guard: '金额<=9000' };
+  ctx.fixtures['r164'] = {
+    draft: {
+      mode: 'modify' as const,
+      baseline,
+      current: ours,
+      sourceFile: 'llmanspec/specs/order.feature',
+    },
+    theirs,
+    clashDraft: {
+      mode: 'modify' as const,
+      baseline,
+      current: clashOurs,
+      sourceFile: 'llmanspec/specs/order.feature',
+    },
+    clashTheirs,
+  };
+});
+
+bdd.when('构建三方条目并对 ours、theirs、both 与同签名 both 分别执行 applySyncPicks', (ctx) => {
+  const { draft, theirs, clashDraft, clashTheirs } = ctx.fixtures['r164'] as {
+    draft: MachineDraft;
+    theirs: StudioMachineIR;
+    clashDraft: MachineDraft;
+    clashTheirs: StudioMachineIR;
+  };
+  const items = buildSyncItems(draft, theirs);
+  const oursItem = items.find(
+    (i) => i.oursStateName === '已取消' || i.oursTransition?.event === '驳回',
+  );
+  const theirsItem = items.find(
+    (i) => i.theirsStateName === '已归档' || i.theirsTransition?.event === '加急',
+  );
+  const clashItems = buildSyncItems(clashDraft, clashTheirs);
+  const clash = clashItems.find((i) => i.oursPresent && i.theirsPresent);
+  ctx.fixtures['r164Res'] = {
+    items,
+    keepOurs: applySyncPicks(
+      draft,
+      items,
+      Object.fromEntries(items.map((i) => [i.id, 'ours'])),
+      '2026-11-28T00:00:00.000Z',
+    ),
+    takeTheirs: applySyncPicks(
+      draft,
+      items,
+      Object.fromEntries(items.map((i) => [i.id, 'theirs'])),
+      '2026-11-28T00:00:00.000Z',
+    ),
+    both: applySyncPicks(
+      draft,
+      items,
+      {
+        ...(oursItem ? { [oursItem.id]: 'ours' } : {}),
+        ...(theirsItem ? { [theirsItem.id]: 'theirs' } : {}),
+      },
+      '2026-11-28T00:00:00.000Z',
+    ),
+    clashBlocked: clash
+      ? applySyncPicks(clashDraft, clashItems, { [clash.id]: 'both' }, '2026-11-28T00:00:00.000Z')
+      : { blocked: [] },
+  };
+});
+
+bdd.thenStep('仅一侧条目带默认勾选、同签名一致条目不进待勾选', (ctx) => {
+  const { items } = ctx.fixtures['r164Res'] as { items: ReturnType<typeof buildSyncItems> };
+  if (
+    !items.some((i) => i.defaultPick === 'ours') ||
+    !items.some((i) => i.defaultPick === 'theirs')
+  ) {
+    throw new Error(`expected ours/theirs defaults: ${JSON.stringify(items)}`);
+  }
+});
+
+bdd.thenStep(
+  'ours 保留画布、theirs 并入文件侧、合法 both 两条都留、同签名 both 返回 blocked',
+  (ctx) => {
+    const res = ctx.fixtures['r164Res'] as {
+      keepOurs: ReturnType<typeof applySyncPicks>;
+      takeTheirs: ReturnType<typeof applySyncPicks>;
+      both: ReturnType<typeof applySyncPicks>;
+      clashBlocked: { blocked: Array<{ reason: string }> };
+    };
+    const oursNames = res.keepOurs.draft.current!.states.map((s) => s.name);
+    if (!oursNames.includes('已取消') || oursNames.includes('已归档')) {
+      throw new Error('ours pick did not keep canvas-only state');
+    }
+    const theirsNames = res.takeTheirs.draft.current!.states.map((s) => s.name);
+    if (!theirsNames.includes('已归档') || theirsNames.includes('已取消')) {
+      throw new Error('theirs pick did not merge disk-only state');
+    }
+    const bothNames = res.both.draft.current!.states.map((s) => s.name);
+    if (!bothNames.includes('已取消') || !bothNames.includes('已归档')) {
+      throw new Error('legal both did not keep both states');
+    }
+    if (res.clashBlocked.blocked.length === 0) {
+      throw new Error('expected blocked both on signature clash');
+    }
+  },
+);

@@ -96,6 +96,7 @@ import {
   type Segment2D,
 } from '../routing/obstacleRouter.ts';
 import { useStudioStore, type CardTier } from '../store/studioStore.ts';
+import { computeSyncCanvasOverlay } from '../sync/overlay.ts';
 import { RadialMenu, type RadialMenuItem } from './RadialMenu.tsx';
 
 // --- Node & Edge Data Types ---
@@ -158,6 +159,7 @@ interface StateNodeData extends Record<string, unknown> {
   hasError: boolean;
   commentCount: number;
   focused: boolean;
+  syncPulse?: 'ours' | 'theirs' | 'focus';
   onDive?: () => void;
   onInlineEdit: (x: number, y: number) => void;
 }
@@ -173,6 +175,7 @@ interface ObstacleEdgeData extends Record<string, unknown> {
   edgeUid?: string;
   bendOffset?: EdgeBendOffset;
   simClickable?: boolean;
+  syncPulse?: 'ours' | 'theirs' | 'focus';
   onSimClick?: () => void;
   onBendDrag?: (next: EdgeBendOffset) => void;
   onDoubleClick?: (x: number, y: number) => void;
@@ -545,6 +548,13 @@ function PortalPillNode({ data }: NodeProps<Node<PortalPillNodeData>>) {
   );
 }
 
+function syncPulseClass(kind: StateNodeData['syncPulse']): string {
+  if (kind === 'focus') return 'studio-sync-pulse-focus';
+  if (kind === 'ours') return 'studio-sync-pulse-ours';
+  if (kind === 'theirs') return 'studio-sync-pulse-theirs';
+  return '';
+}
+
 function MachineStateNode({ data, selected }: NodeProps<Node<StateNodeData>>) {
   const {
     uid,
@@ -559,6 +569,7 @@ function MachineStateNode({ data, selected }: NodeProps<Node<StateNodeData>>) {
     hasError,
     commentCount,
     focused,
+    syncPulse,
     onDive,
     onInlineEdit,
   } = data;
@@ -576,29 +587,33 @@ function MachineStateNode({ data, selected }: NodeProps<Node<StateNodeData>>) {
     ? 'var(--accent)'
     : hasError
       ? 'var(--red)'
-      : focused || selected
+      : syncPulse === 'focus' || focused || selected
         ? 'var(--ink)'
-        : diffBadge === 'added'
-          ? 'var(--green)'
-          : diffBadge === 'removed'
-            ? 'var(--red)'
-            : diffBadge === 'changed'
-              ? 'var(--amber)'
-              : isGateway
-                ? 'var(--t-flow-bd)'
-                : 'var(--border)';
+        : syncPulse === 'ours'
+          ? 'var(--amber)'
+          : syncPulse === 'theirs' || diffBadge === 'added'
+            ? 'var(--green)'
+            : diffBadge === 'removed'
+              ? 'var(--red)'
+              : diffBadge === 'changed'
+                ? 'var(--amber)'
+                : isGateway
+                  ? 'var(--t-flow-bd)'
+                  : 'var(--border)';
 
   const bgColor = simActive
     ? 'var(--accent-soft)'
-    : diffBadge === 'added'
-      ? 'var(--green-soft)'
-      : diffBadge === 'removed'
-        ? 'var(--red-soft)'
-        : diffBadge === 'changed'
-          ? 'var(--amber-soft)'
-          : isGateway
-            ? 'var(--t-flow-bg)'
-            : 'var(--surface)';
+    : syncPulse === 'ours'
+      ? 'var(--amber-soft)'
+      : syncPulse === 'theirs' || diffBadge === 'added'
+        ? 'var(--green-soft)'
+        : diffBadge === 'removed'
+          ? 'var(--red-soft)'
+          : diffBadge === 'changed'
+            ? 'var(--amber-soft)'
+            : isGateway
+              ? 'var(--t-flow-bg)'
+              : 'var(--surface)';
 
   if (tier === 'glyph') {
     return (
@@ -612,12 +627,13 @@ function MachineStateNode({ data, selected }: NodeProps<Node<StateNodeData>>) {
         <Handle type="target" position={Position.Left} className="studio-port" />
         <Handle type="source" position={Position.Right} className="studio-port" />
         <div
-          className="w-[72px] h-[72px] rounded-[18px] border-2 flex items-center justify-center"
+          className={`w-[72px] h-[72px] rounded-[18px] border-2 flex items-center justify-center ${syncPulseClass(syncPulse)}`}
+          data-sync-pulse={syncPulse}
           style={{
             borderColor,
             background: initial ? 'var(--ink)' : bgColor,
             color: initial ? '#ffffff' : iconColor,
-            boxShadow: 'var(--shadow-card)',
+            boxShadow: syncPulse ? undefined : 'var(--shadow-card)',
           }}
         >
           <StateIcon size={26} />
@@ -639,15 +655,17 @@ function MachineStateNode({ data, selected }: NodeProps<Node<StateNodeData>>) {
         e.stopPropagation();
         onInlineEdit(e.clientX, e.clientY);
       }}
-      className={`studio-card relative cursor-grab active:cursor-grabbing ${subMachineKey ? 'sm-has-sub' : ''}`}
+      className={`studio-card relative cursor-grab active:cursor-grabbing ${subMachineKey ? 'sm-has-sub' : ''} ${syncPulseClass(syncPulse)}`}
+      data-sync-pulse={syncPulse}
       style={{
         width: isDetail ? 236 : 196,
         padding: isDetail ? '11px 13px' : '10px 12px',
         borderColor,
         background: bgColor,
-        borderStyle: diffBadge === 'removed' ? 'dashed' : 'solid',
-        boxShadow:
-          simActive || focused
+        borderStyle: diffBadge === 'removed' || syncPulse === 'theirs' ? 'dashed' : 'solid',
+        boxShadow: syncPulse
+          ? undefined
+          : simActive || focused
             ? `0 0 0 2px ${simActive ? 'var(--accent)' : 'var(--ink)'}, var(--shadow-float)`
             : selected
               ? '0 0 0 1px var(--ink), var(--shadow-float)'
@@ -748,6 +766,7 @@ function ObstacleStateEdge({ id, data }: EdgeProps<Edge<ObstacleEdgeData>>) {
     dashed,
     bendOffset,
     simClickable,
+    syncPulse,
     onSimClick,
     onBendDrag,
     onDoubleClick,
@@ -794,10 +813,19 @@ function ObstacleStateEdge({ id, data }: EdgeProps<Edge<ObstacleEdgeData>>) {
         d={dPath}
         fill="none"
         stroke={stroke}
-        strokeWidth={simClickable ? 2.5 : 1.85}
+        strokeWidth={syncPulse === 'focus' ? 3.1 : simClickable ? 2.5 : syncPulse ? 2.4 : 1.85}
         shapeRendering="geometricPrecision"
         strokeDasharray={dashed ? '6 4' : undefined}
         markerEnd="url(#studio-arrow)"
+        className={
+          syncPulse === 'focus'
+            ? 'studio-sync-edge-focus'
+            : syncPulse === 'ours'
+              ? 'studio-sync-edge-ours'
+              : syncPulse === 'theirs'
+                ? 'studio-sync-edge-theirs'
+                : undefined
+        }
       />
       {label && (
         <EdgeLabelRenderer>
@@ -809,16 +837,40 @@ function ObstacleStateEdge({ id, data }: EdgeProps<Edge<ObstacleEdgeData>>) {
             }}
             data-edge-label=""
             title="按住拖拽微调弧度；双击就地编辑事件与守卫"
-            className="nodrag nopan rounded-md border px-2 py-0.5 text-[10.5px] font-medium select-none"
+            className={`nodrag nopan rounded-md border px-2 py-0.5 text-[10.5px] font-medium select-none ${syncPulseClass(syncPulse)}`}
+            data-sync-pulse={syncPulse}
             style={{
               position: 'absolute',
               transform: `translate(-50%, -50%) translate(${String(lx)}px, ${String(ly)}px)`,
               pointerEvents: 'all',
               cursor: simClickable ? 'pointer' : 'grab',
-              background: simClickable ? 'var(--accent-soft)' : 'var(--surface)',
-              borderColor: simClickable ? 'var(--accent)' : 'var(--border)',
-              color: simClickable ? 'var(--accent)' : 'var(--text-secondary)',
-              boxShadow: 'var(--shadow-card)',
+              background:
+                syncPulse === 'ours'
+                  ? 'var(--amber-soft)'
+                  : syncPulse === 'theirs'
+                    ? 'var(--green-soft)'
+                    : simClickable
+                      ? 'var(--accent-soft)'
+                      : 'var(--surface)',
+              borderColor:
+                syncPulse === 'focus'
+                  ? 'var(--ink)'
+                  : syncPulse === 'ours'
+                    ? 'var(--amber)'
+                    : syncPulse === 'theirs'
+                      ? 'var(--green)'
+                      : simClickable
+                        ? 'var(--accent)'
+                        : 'var(--border)',
+              color:
+                syncPulse === 'ours'
+                  ? 'var(--amber)'
+                  : syncPulse === 'theirs'
+                    ? 'var(--green)'
+                    : simClickable
+                      ? 'var(--accent)'
+                      : 'var(--text-secondary)',
+              boxShadow: syncPulse ? undefined : 'var(--shadow-card)',
             }}
           >
             {label}
@@ -967,6 +1019,8 @@ function StateMachineCanvasInner() {
     simActiveUid,
     worldlineComparing,
     worldlineCompareAId,
+    syncItems,
+    syncFocusItemId,
     collapsedGroups,
     ungroupedDomains,
     stickyNotes,
@@ -1096,6 +1150,22 @@ function StateMachineCanvasInner() {
     const t = setTimeout(() => setFocusStateUid(null), 2200);
     return () => clearTimeout(t);
   }, [focusStateUid, isMacro, rf, setFocusStateUid]);
+
+  useEffect(() => {
+    if (!syncFocusItemId || isMacro || !machine) return;
+    const overlay = computeSyncCanvasOverlay(machine, syncItems, syncFocusItemId);
+    let uid = overlay.focusStateUid;
+    if (!uid && overlay.focusEdgeUid) {
+      const edge =
+        machine.transitions.find((t) => t.uid === overlay.focusEdgeUid) ??
+        overlay.theirsGhostEdges.find((t) => t.uid === overlay.focusEdgeUid);
+      uid = edge?.fromUid ?? null;
+    }
+    if (!uid) return;
+    const node = rf.getNode(uid);
+    if (!node) return;
+    void rf.setCenter(node.position.x + 100, node.position.y + 36, { zoom: 1.05, duration: 260 });
+  }, [syncFocusItemId, isMacro, machine, syncItems, rf]);
 
   // Smooth-pan to active ⌘F In-Panel Find match on macro / machine canvas
   useEffect(() => {
@@ -1482,17 +1552,30 @@ function StateMachineCanvasInner() {
           )
         : null;
 
+    const syncOverlay =
+      !liveOverlayDiff && !driftOverlay
+        ? computeSyncCanvasOverlay(machine, syncItems, syncFocusItemId)
+        : null;
+
     const renderStates = [
       ...machine.states.map((s) => ({ ...s, _removed: false, _drift: false })),
       ...(liveOverlayDiff?.removedStates.map((s) => ({ ...s, _removed: true, _drift: false })) ??
         []),
       ...(driftOverlay?.addedStates.map((s) => ({ ...s, _removed: false, _drift: true })) ?? []),
+      ...(syncOverlay?.theirsGhostStates.map((s) => ({ ...s, _removed: false, _drift: true })) ??
+        []),
     ];
     const renderEdges = [
-      ...machine.transitions.map((t) => ({ ...t, _removed: false, _drift: false })),
+      ...machine.transitions.map((t) => ({
+        ...t,
+        _removed: false,
+        _drift: false,
+      })),
       ...(liveOverlayDiff?.removedEdges.map((t) => ({ ...t, _removed: true, _drift: false })) ??
         []),
       ...(driftOverlay?.addedEdges.map((t) => ({ ...t, _removed: false, _drift: true })) ?? []),
+      ...(syncOverlay?.theirsGhostEdges.map((t) => ({ ...t, _removed: false, _drift: true })) ??
+        []),
     ];
 
     const nodeW = tier === 'glyph' ? 110 : tier === 'detail' ? 236 : 196;
@@ -1674,6 +1757,16 @@ function StateMachineCanvasInner() {
       ).length;
       const isInit = machine.initialStateUid === s.uid;
       const isTerm = !isInit && (outDegree.get(s.uid) ?? 0) === 0;
+      const isSyncOurs = syncOverlay?.oursStateNames.includes(s.name) === true && !s._drift;
+      const isSyncTheirs = Boolean(syncOverlay) && s._drift;
+      const isSyncFocus = syncOverlay?.focusStateUid === s.uid;
+      const syncPulse: StateNodeData['syncPulse'] = isSyncFocus
+        ? 'focus'
+        : isSyncTheirs
+          ? 'theirs'
+          : isSyncOurs
+            ? 'ours'
+            : undefined;
       return {
         id: s.uid,
         type: 'stateNode',
@@ -1694,6 +1787,7 @@ function StateMachineCanvasInner() {
           hasError: errorUids.has(s.uid),
           commentCount: cCount,
           focused: focusStateUid === s.uid,
+          syncPulse,
           onDive: s.subMachineKey ? () => diveSubMachine(s.subMachineKey!, s.name) : undefined,
           onInlineEdit: (x, y) => {
             if (s._removed || s._drift) return;
@@ -1813,6 +1907,16 @@ function StateMachineCanvasInner() {
       const isAdded = liveOverlayDiff?.addedEdgeUids.includes(t.uid) === true || t._drift;
       const simClickable =
         mode === 'simulate' && t.fromUid === simActiveUid && !t._removed && !t._drift;
+      const isSyncOursEdge = syncOverlay?.oursEdgeUids.includes(t.uid) === true;
+      const isSyncTheirsEdge = Boolean(syncOverlay) && t._drift;
+      const isSyncFocusEdge = syncOverlay?.focusEdgeUid === t.uid;
+      const syncPulse: ObstacleEdgeData['syncPulse'] = isSyncFocusEdge
+        ? 'focus'
+        : isSyncTheirsEdge
+          ? 'theirs'
+          : isSyncOursEdge
+            ? 'ours'
+            : undefined;
       flowE.push({
         id: `${t.uid}${t._removed ? '-rem' : t._drift ? '-drift' : ''}`,
         source: t.fromUid,
@@ -1825,16 +1929,21 @@ function StateMachineCanvasInner() {
           ly: lp.ly,
           stroke: t._removed
             ? '#dc2626'
-            : isAdded
+            : isSyncTheirsEdge || isAdded
               ? '#15803d'
-              : simClickable
-                ? '#2f54eb'
-                : contrastPalette.edgeDefault,
+              : isSyncFocusEdge
+                ? '#14171f'
+                : isSyncOursEdge
+                  ? '#9a5b13'
+                  : simClickable
+                    ? '#2f54eb'
+                    : contrastPalette.edgeDefault,
           dashed: t._removed || t._drift,
           machineKey: activeMachineKey,
           edgeUid: t.uid,
           bendOffset,
           simClickable,
+          syncPulse,
           onSimClick: () => triggerSimEvent(t.event),
           onBendDrag:
             !t._removed && !t._drift
@@ -1872,6 +1981,8 @@ function StateMachineCanvasInner() {
     machine,
     activeMachineKey,
     liveOverlayDiff,
+    syncItems,
+    syncFocusItemId,
     mode,
     simActiveUid,
     collapsedGroups,

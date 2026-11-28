@@ -40,6 +40,7 @@ import {
 } from '../drift/reconcileOverlay.ts';
 import { readTourCompleted } from '../ergonomics/guidedTour.ts';
 import { useStudioStore } from '../store/studioStore.ts';
+import { activityBadgeLabel, SYNC_COPY } from '../sync/copy.ts';
 
 const TIPS = [
   '空白处或节点/连线右键呼出同心径向菜单，可原地新建、插中间态、改事件或留评论',
@@ -97,6 +98,9 @@ export function TopChrome() {
     openNewTabPage,
     getActiveMachineKey,
     getDiagnosticsForMachine,
+    activityItems,
+    activityOpen,
+    setActivityOpen,
   } = useStudioStore();
 
   const [wsOpen, setWsOpen] = useState(false);
@@ -145,6 +149,7 @@ export function TopChrome() {
   const driftShadowCount = countShadowEdgesInProposals(hudDriftProposals);
 
   // Single-Slot Top-Center HUD Exclusivity (Axiom 2): CompareBanner > DriftCalibrationBanner > SimulateBanner > Tips Capsule
+  // File-sync lives in SyncConflictDock above the bottom operation bar, not this slot.
   // Context-Aware Chrome (matching studio-demo.html): hide Tips & graph banners on + New Tab & Doc pages to prevent overlap!
   const renderTopCenterHud = () => {
     if (isStartPage) return null;
@@ -576,6 +581,27 @@ export function TopChrome() {
 
       {/* Top-Right Dock: Custom Workspace Pill + Clickable Linter Pill + Worldline + Undo/Redo + ⌘K */}
       <div className="fixed top-3 right-3 z-30 flex items-center gap-1.5">
+        {activityItems.length > 0 && (
+          <div className="relative">
+            <button
+              type="button"
+              aria-label={activityBadgeLabel(activityItems.length)}
+              onClick={() => setActivityOpen(!activityOpen)}
+              className="studio-island h-8 px-2.5 text-[11px] font-medium cursor-pointer"
+            >
+              {activityBadgeLabel(activityItems.length)}
+            </button>
+            {activityOpen && (
+              <div className="studio-float absolute right-0 top-10 z-50 w-72 p-2 text-xs">
+                {activityItems.map((item) => (
+                  <div key={item.id} className="rounded-md px-2 py-1.5">
+                    {item.label}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         <div className="studio-island relative flex items-center gap-1 p-[3px] text-xs">
           {/* Custom Workspace Pill */}
           <button
@@ -676,7 +702,7 @@ export function TopChrome() {
               {saveStatus === 'saving'
                 ? '保存中'
                 : saveStatus === 'conflict'
-                  ? '并发冲突'
+                  ? SYNC_COPY.tabRevision
                   : saveStatus === 'error'
                     ? '保存失败'
                     : '已保存'}

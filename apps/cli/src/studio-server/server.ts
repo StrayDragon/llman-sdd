@@ -22,6 +22,8 @@ import { basename, dirname, join, relative, resolve } from 'node:path';
 import { serve, type ServerType } from '@hono/node-server';
 import {
   acceptRevisionProposal,
+  applyDocSyncPicks,
+  applySyncPicks,
   buildDemoStudioDrafts,
   buildDemoStudioWebDrafts,
   buildForestGraph,
@@ -55,9 +57,14 @@ import {
   renderUpdatedFeatureSource,
   resolveInstanceRoot,
   ruleHasRunnableScenario,
+  closeSyncSnapshot,
   searchWorkspaceBm25,
+  snapshotBeforeSync,
   specIdOf,
   studioSearchRequestSchema,
+  syncApplyRequestSchema,
+  syncApplyResponseSchema,
+  syncPreviewResponseSchema,
   textfoldRequestSchema,
   validateStateId,
   worktreeList,
@@ -93,6 +100,7 @@ import {
 import { renderNegotiatedMarkdown, resolveNegotiatedFormat } from './negotiate.ts';
 import { createLoopbackSecurityMiddleware, generateStudioToken } from './security.ts';
 import { loadStudioAsset, renderSpaHtmlWithFocus } from './static.ts';
+import { collectDiskSyncPreview } from './syncDisk.ts';
 
 export interface StudioHubOptions {
   initialDirectory: string;
@@ -796,6 +804,8 @@ export function createStudioHubApp(options: StudioHubOptions): CreatedStudioHubA
         status: 409 as const,
         body: {
           error: 'revision conflict: state document was updated by another tab or Agent',
+          userMessage: '另一扇窗口刚保存了这份草稿',
+          conflictKind: 'revision',
           currentRevision,
           latestDoc: existingDoc,
         },
@@ -1028,6 +1038,128 @@ export function createStudioHubApp(options: StudioHubOptions): CreatedStudioHubA
     } catch (error) {
       return c.json({ error: error instanceof Error ? error.message : String(error) }, 400);
     }
+  });
+
+  const handleSyncPreview = (stateId: string, wsKey: string | undefined) => {
+    const rec = resolveWs(wsKey);
+    if (!rec) return { status: 404 as const, body: { error: 'workspace not found' } };
+    try {
+      const stateIo = makeNodeStudioStateIo(rec.item.instanceRoot);
+      const doc = readStudioState(stateIo, validateStateId(stateId));
+      const preview = collectDiskSyncPreview(rec.item.instanceRoot, doc);
+      const body = syncPreviewResponseSchema.parse({
+        stale: preview.stale,
+        staleFiles: preview.staleFiles,
+        items: preview.items,
+        snapshotTaken: false,
+      });
+      return { status: 200 as const, body };
+    } catch (error) {
+      return {
+        status: 400 as const,
+        body: { error: error instanceof Error ? error.message : String(error) },
+      };
+    }
+  };
+
+  app.post('/api/states/:id/sync-preview', (c) => {
+    const res = handleSyncPreview(c.req.param('id'), c.req.query('wsKey'));
+    return c.json(res.body, res.status);
+  });
+
+  app.post('/api/p/:wsKey/states/:id/sync-preview', (c) => {
+    const res = handleSyncPreview(c.req.param('id'), c.req.param('wsKey'));
+    return c.json(res.body, res.status);
+  });
+
+  const handleSyncApply = async (stateId: string, wsKey: string | undefined, raw: unknown) => {
+    const rec = resolveWs(wsKey);
+    if (!rec) return { status: 404 as const, body: { error: 'workspace not found' } };
+    const parsed = syncApplyRequestSchema.safeParse(raw);
+    if (!parsed.success) {
+      return {
+        status: 400 as const,
+        body: { error: 'invalid sync-apply payload', issues: parsed.error.issues },
+      };
+    }
+    try {
+      const stateIo = makeNodeStudioStateIo(rec.item.instanceRoot);
+      let doc = readStudioState(stateIo, validateStateId(stateId));
+      const preview = collectDiskSyncPreview(rec.item.instanceRoot, doc);
+      const now = new Date().toISOString();
+      const blocked: Array<{ itemId: string; reason: string }> = [];
+      const machineKeys = new Set(
+        preview.items.map((item) => item.machineKey).filter((k): k is string => k !== undefined),
+      );
+      for (const mk of machineKeys) {
+        doc = snapshotBeforeSync(doc, mk, now);
+      }
+      for (const mk of machineKeys) {
+        const draft = doc.machines[mk];
+        if (!draft) continue;
+        const machineItems = preview.items.filter((item) => item.machineKey === mk);
+        const result = applySyncPicks(draft, machineItems, parsed.data.picks, now);
+        blocked.push(...result.blocked);
+        doc = {
+          ...doc,
+          machines: { ...doc.machines, [mk]: result.draft },
+        };
+        doc = closeSyncSnapshot(doc, mk);
+      }
+      const nextDocDrafts = { ...doc.docDrafts };
+      let docDraftsChanged = false;
+      for (const [capId, docDraft] of Object.entries(doc.docDrafts ?? {})) {
+        const docItems = preview.items.filter(
+          (item) => item.kind === 'doc-rule' && item.sourceFile === docDraft.sourceFile,
+        );
+        if (docItems.length === 0) continue;
+        const result = applyDocSyncPicks(docDraft, docItems, parsed.data.picks);
+        blocked.push(...result.blocked);
+        nextDocDrafts[capId] = result.docDraft;
+        docDraftsChanged = true;
+      }
+      const nextHashes = { ...doc.baseHashes };
+      for (const file of preview.staleFiles) {
+        const diskHash = preview.diskHashes[file];
+        if (diskHash !== undefined) nextHashes[file] = diskHash;
+      }
+      const nextRevision = (doc.revision ?? 0) + 1;
+      const nextDoc = {
+        ...doc,
+        revision: nextRevision,
+        updatedAt: now,
+        baseHashes: nextHashes,
+        ...(docDraftsChanged ? { docDrafts: nextDocDrafts } : {}),
+      };
+      lastSelfStateWriteAt = Date.now();
+      writeStudioState(stateIo, nextDoc);
+      broadcastEvent({
+        type: 'state-updated',
+        wsKey: rec.item.wsKey,
+        stateId: nextDoc.id,
+        revision: nextRevision,
+        originClientId: null,
+      });
+      const body = syncApplyResponseSchema.parse({ ok: true, doc: nextDoc, blocked });
+      return { status: 200 as const, body };
+    } catch (error) {
+      return {
+        status: 400 as const,
+        body: { error: error instanceof Error ? error.message : String(error) },
+      };
+    }
+  };
+
+  app.post('/api/states/:id/sync-apply', async (c) => {
+    const raw = (await c.req.json().catch(() => null)) as unknown;
+    const res = await handleSyncApply(c.req.param('id'), c.req.query('wsKey'), raw);
+    return c.json(res.body, res.status);
+  });
+
+  app.post('/api/p/:wsKey/states/:id/sync-apply', async (c) => {
+    const raw = (await c.req.json().catch(() => null)) as unknown;
+    const res = await handleSyncApply(c.req.param('id'), c.req.param('wsKey'), raw);
+    return c.json(res.body, res.status);
   });
 
   // --- Export Proposal Draft (NEVER writes llmanspec/specs/) ---

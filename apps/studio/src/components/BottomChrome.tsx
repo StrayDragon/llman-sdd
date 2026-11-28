@@ -700,6 +700,19 @@ export function BottomChrome() {
             </button>
             <button
               type="button"
+              onClick={() =>
+                openPromptWorkbench(
+                  '生成调整 Prompt',
+                  '只带我勾的看法',
+                  buildNegotiationPrompt(activeMachineKey),
+                )
+              }
+              className="inline-flex items-center gap-1 rounded-md px-2 py-1 cursor-pointer hover:bg-black/5"
+            >
+              <span>只带我勾的看法</span>
+            </button>
+            <button
+              type="button"
               onClick={() => setSaveModalOpen(true)}
               className="inline-flex items-center gap-1 rounded-md px-3 py-1 font-medium cursor-pointer"
               style={{ background: 'var(--ink)', color: '#ffffff' }}

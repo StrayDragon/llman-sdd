@@ -22,6 +22,8 @@ import {
   healthResponseSchema,
   parseCapability,
   recordWorldlineCommit,
+  snapshotBeforeSync,
+  SYNC_SNAPSHOT_LABEL,
   reopenStudioComment,
   resolveStudioComment,
   specDetailResponseSchema,
@@ -31,6 +33,7 @@ import {
   viewsResponseSchema,
   type SpecIndexEdge,
   type SpecIndexItem,
+  commentWatchTag,
   type StudioStateDoc,
 } from '@llman-sdd/core';
 
@@ -75,6 +78,12 @@ import {
   type RectBox,
 } from '../../../apps/studio/src/routing/obstacleRouter.ts';
 import { createMachineSimulationSession } from '../../../apps/studio/src/simulate/xstateCompiler.ts';
+import { foldActivityItems } from '../../../apps/studio/src/sync/activity.ts';
+import {
+  copyContainsForbidden,
+  pickTopHudSlot,
+  SYNC_COPY,
+} from '../../../apps/studio/src/sync/copy.ts';
 import {
   ALL_STUDIO_INVARIANTS,
   buildCleanSnapshot,
@@ -743,16 +752,16 @@ bdd.thenStep('违规快照逐条命中 6 类违规且干净快照零违规', (ct
   expect(res.clean).toEqual([]);
 });
 
-bdd.thenStep('justfile 提供独立 qa-studio-e2e 门禁且日常 qa 不依赖浏览器', () => {
+bdd.thenStep('justfile 提供 qa-studio-e2e 单门且 just qa 聚合该门', () => {
   const root = join(import.meta.dirname, '..', '..', '..');
   const justfile = readFileSync(join(root, 'justfile'), 'utf8');
   expect(justfile).toMatch(/^qa-studio-e2e:/mu);
   const qaRecipe = /^qa:[^\n]*\n((?:[ \t]+[^\n]*\n)*)/mu.exec(justfile)?.[0] ?? '';
-  expect(qaRecipe).not.toContain('e2e');
+  expect(qaRecipe).toContain('qa-studio-e2e');
   const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as {
     scripts: Record<string, string>;
   };
-  expect(pkg.scripts['qa']).not.toContain('e2e');
+  expect(pkg.scripts['qa']).toContain('qa-studio-e2e');
 });
 
 // ── r157: onboarding, shortcut registry, multi-select tidy & zoom-out contrast ──
@@ -939,3 +948,141 @@ bdd.thenStep(
     ).toBe(true);
   },
 );
+
+// ── r165 / r166: file-sync HUD copy, worldline snapshot, activity, prompt subset ──
+
+bdd.given('一份含画布草稿与已前进磁盘哈希的 Studio 会话', (ctx) => {
+  const created = buildDemoStudioWebDrafts()[0]!;
+  const doc = createStudioStateDoc({
+    id: 'sync-hud',
+    title: 'sync',
+    createdAt: '2026-11-28T00:00:00.000Z',
+    drafts: [created],
+  });
+  const key = created.current?.machineKey ?? Object.keys(doc.machines)[0]!;
+  ctx.fixtures['r165'] = { doc, key };
+});
+
+bdd.when('进入同步态并分别读取冲突条文案、世界线快照格与多 Tab 修订冲突提示', (ctx) => {
+  const { doc, key } = ctx.fixtures['r165'] as { doc: StudioStateDoc; key: string };
+  const snapped = snapshotBeforeSync(doc, key, '2026-11-28T01:00:00.000Z');
+  const hud = pickTopHudSlot({
+    syncOpen: true,
+    worldlineComparing: true,
+    hasDrift: true,
+    simulating: true,
+    showTips: true,
+  });
+  const visible = [
+    SYNC_COPY.banner,
+    SYNC_COPY.attentionTitle,
+    SYNC_COPY.snapshotHint,
+    SYNC_COPY.yours,
+    SYNC_COPY.incoming,
+    SYNC_COPY.lookItemByItem,
+    SYNC_COPY.tabRevision,
+  ].join('\n');
+  ctx.fixtures['r165Res'] = { snapped, key, hud, visible };
+});
+
+bdd.thenStep('世界线含「刚才在画布上的版本」、冲突条含规定白话且不含技术术语', (ctx) => {
+  const { snapped, key, visible } = ctx.fixtures['r165Res'] as {
+    snapped: StudioStateDoc;
+    key: string;
+    visible: string;
+  };
+  const labels = snapped.timelines[key]?.entries.map((e) => e.label) ?? [];
+  expect(labels).toContain(SYNC_SNAPSHOT_LABEL);
+  expect(visible).toContain(SYNC_COPY.banner);
+  expect(copyContainsForbidden(visible)).toBeNull();
+});
+
+bdd.thenStep('多 Tab 提示为「另一扇窗口刚保存了这份草稿」且顶栏中轴浮条不超过 1', (ctx) => {
+  const { hud } = ctx.fixtures['r165Res'] as { hud: ReturnType<typeof pickTopHudSlot> };
+  expect(hud).toBe('worldline-compare');
+  expect(SYNC_COPY.yours).toBe('你在本画布的调整');
+  expect(SYNC_COPY.tabRevision).toBe('另一扇窗口刚保存了这份草稿');
+});
+
+bdd.given('一份含他处保存事件、Agent 开放评论与 drift-trace 建议的 Studio 会话', (ctx) => {
+  let doc = createStudioStateDoc({
+    id: 'act-1',
+    title: 'act',
+    createdAt: '2026-11-28T00:00:00.000Z',
+    drafts: [],
+  });
+  doc = addStudioComment(doc, {
+    anchor: { kind: 'machine', machineKey: 'order/r1/主流程' },
+    author: 'agent',
+    body: '建议补一条超时边',
+    createdAt: '2026-11-28T00:00:00.000Z',
+  });
+  doc = {
+    ...doc,
+    revisions: [
+      {
+        id: 'rv1',
+        machineKey: 'order/r1/主流程',
+        author: 'agent',
+        source: 'drift-trace',
+        rationale: 'trace',
+        ops: [],
+        createdAt: 't',
+        status: 'pending',
+      },
+    ],
+  };
+  ctx.fixtures['r166'] = { doc };
+});
+
+bdd.when('折叠活动条目、为评论设置请谁看并分别生成全部与勾选子集 Prompt', (ctx) => {
+  const { doc } = ctx.fixtures['r166'] as { doc: StudioStateDoc };
+  const items = foldActivityItems({
+    events: [
+      {
+        type: 'state-updated',
+        wsKey: 'other@main@root',
+        stateId: 'workspace-draft',
+        revision: 2,
+        originClientId: 'peer-tab',
+      },
+    ],
+    selfClientId: 'this-tab',
+    activeWsKey: 'llman-sdd@main@root',
+    comments: doc.comments,
+    revisions: doc.revisions,
+  });
+  const c = doc.comments[0]!;
+  const fromDisk = foldActivityItems({
+    events: [],
+    selfClientId: 'this-tab',
+    activeWsKey: 'llman-sdd@main@root',
+    comments: doc.comments,
+    revisions: doc.revisions,
+  });
+  ctx.fixtures['r166Res'] = {
+    items,
+    fromDisk,
+    defaultWatch: commentWatchTag(c),
+    allOpen: doc.comments.filter((x) => x.status === 'open').map((x) => x.body),
+    subset: [c.body],
+  };
+});
+
+bdd.thenStep('活动条目为白话且 N>0 才显示标记、缺省请谁看等于作者', (ctx) => {
+  const { items, fromDisk, defaultWatch } = ctx.fixtures['r166Res'] as {
+    items: ReturnType<typeof foldActivityItems>;
+    fromDisk: ReturnType<typeof foldActivityItems>;
+    defaultWatch: string;
+  };
+  expect(items.length).toBeGreaterThan(0);
+  expect(items.every((i) => copyContainsForbidden(i.label) === null)).toBe(true);
+  expect(fromDisk.some((i) => i.kind === 'agent-comment')).toBe(true);
+  expect(defaultWatch).toBe('agent');
+});
+
+bdd.thenStep('未勾选 Prompt 含全部未解决看法、勾选后只含被勾条目且按钮无 @agent', (ctx) => {
+  const { allOpen, subset } = ctx.fixtures['r166Res'] as { allOpen: string[]; subset: string[] };
+  expect(allOpen.length).toBeGreaterThanOrEqual(subset.length);
+  expect(SYNC_COPY.promptSubset.includes('@agent')).toBe(false);
+});

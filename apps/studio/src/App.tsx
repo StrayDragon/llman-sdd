@@ -21,6 +21,7 @@ import {
 import { NewTabQuickPage } from './components/NewTabQuickPage.tsx';
 import { SpecDocCanvas } from './components/SpecDocCanvas.tsx';
 import { StateMachineCanvas } from './components/StateMachineCanvas.tsx';
+import { SyncConflictDock } from './components/SyncConflictDock.tsx';
 import { TheoremsDrawer } from './components/TheoremsDrawer.tsx';
 import { TopChrome } from './components/TopChrome.tsx';
 import { WorldlineDrawer } from './components/WorldlineDrawer.tsx';
@@ -123,6 +124,7 @@ export function App() {
         ev.type === 'state-updated' ||
         ev.type === 'views-updated'
       ) {
+        useStudioStore.getState().ingestSseActivity(ev);
         void refreshInPlace(activeWs.wsKey);
       }
     });
@@ -251,6 +253,7 @@ export function App() {
       )}
 
       <BottomChrome />
+      <SyncConflictDock />
       <WorldlineDrawer />
       <TheoremsDrawer />
       <RevisionDrawer />

@@ -1,8 +1,8 @@
 // r2 质量门禁合约对账(只读断言,退出码即判定)。
 // justfile check/qa 聚合门面 + 聚合门指向的 oxlint/oxfmt 脚本 + prek
 // pre-commit hook 面(oxlint、oxfmt --write、whitespace 系)在此锁定;
-// qa 门禁集合(check/test/skills 模板渲染/pending/schema)在 justfile、package.json、
-// ci.yml 三处的接线一致性亦在此锁定(缺项逐项报出)。
+// qa 门禁集合(check/test/skills 模板渲染/pending/schema/studio-e2e)在 justfile、
+// package.json、ci.yml 三处的接线一致性亦在此锁定(缺项逐项报出);qa-* 单门均须被 qa 覆盖。
 import { readFileSync } from 'node:fs';
 
 const fail = (message: string): never => {
@@ -33,8 +33,24 @@ for (const gate of [
   'check:skills-template-render',
   'pending-gate',
   'check:schema',
+  'qa-studio-e2e',
 ]) {
   if (!qaBodyText.includes(gate)) fail(`justfile qa 门缺 ${gate}`);
+}
+
+const QA_STAR_IN_QA_BODY: Record<string, string> = {
+  'qa-pending': 'pending-gate',
+  'qa-stc': 'check:stc',
+  'qa-skills-render': 'check:skills-template-render',
+  'qa-schema': 'check:schema',
+  'qa-studio-e2e': 'qa-studio-e2e',
+};
+const qaStarRecipes = [...just.matchAll(/^qa-([a-z0-9-]+):/gmu)].map((m) => `qa-${m[1] ?? ''}`);
+for (const name of qaStarRecipes) {
+  const token = QA_STAR_IN_QA_BODY[name] ?? name;
+  if (!qaBodyText.includes(token)) {
+    fail(`qa-* recipe ${name} 未被 qa 聚合(qa body 缺 ${token})`);
+  }
 }
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
@@ -46,11 +62,17 @@ if (scripts['format:check'] !== 'oxfmt --check') {
   fail(`format:check script 漂移: ${String(scripts['format:check'])}`);
 }
 const QA_SCRIPT =
-  'bun run check && bun run test && bun run check:stc && bun run check:skills-template-render && bun run pending-gate && bun run check:schema';
+  'bun run check && bun run test && bun run check:stc && bun run check:skills-template-render && bun run pending-gate && bun run check:schema && bun run qa-studio-e2e';
 if (scripts['qa'] !== QA_SCRIPT) {
   fail(
-    `qa script 未聚合 check + test + check:stc + check:skills-template-render + pending-gate + check:schema: ${String(scripts['qa'])}`,
+    `qa script 未聚合 check + test + check:stc + check:skills-template-render + pending-gate + check:schema + qa-studio-e2e: ${String(scripts['qa'])}`,
   );
+}
+if (
+  typeof scripts['qa-studio-e2e'] !== 'string' ||
+  !scripts['qa-studio-e2e'].includes('tests/e2e/studio/run.ts')
+) {
+  fail(`qa-studio-e2e script 漂移: ${String(scripts['qa-studio-e2e'])}`);
 }
 if (scripts['check:stc'] !== 'bun scripts/check-stc.ts') {
   fail(`check:stc script 漂移: ${String(scripts['check:stc'])}`);
@@ -59,7 +81,7 @@ if (scripts['pending-gate'] !== 'bun scripts/pending-gate.ts') {
   fail(`pending-gate script 漂移: ${String(scripts['pending-gate'])}`);
 }
 
-// CI 必须运行与本地 qa 同一集合(check 三项 + test + 三个脚本门)
+// CI 必须运行与本地 qa 同一集合(check 三项 + test + 脚本门 + studio-e2e)
 const ci = readFileSync('.github/workflows/ci.yml', 'utf8');
 const runSteps = new Set(
   [...ci.matchAll(/^[ \t]*- run:[ \t]*(.+)$/gmu)].map((m) => m[1]?.trim() ?? ''),
@@ -73,6 +95,7 @@ for (const step of [
   'bun run check:skills-template-render',
   'bun run pending-gate',
   'bun run check:schema',
+  'bun run qa-studio-e2e',
 ]) {
   if (!runSteps.has(step)) fail(`ci.yml 缺 run 步 ${step}`);
 }

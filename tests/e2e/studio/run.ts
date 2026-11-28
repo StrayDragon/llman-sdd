@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-// Real-browser E2E gate for Studio Web visual invariants (studio-web r156). Not part of `just qa`.
+// Real-browser E2E gate for Studio Web visual invariants (studio-web r156). Aggregated by `just qa`.
 // Starts an in-process Studio Hub (port 0, no hub file) over a temp git fixture that copies
 // this repo's llmanspec/, drives headless Chromium via playwright-core, collects DOM/SVG
 // geometry and hands it to the pure judge in ./invariants.ts.

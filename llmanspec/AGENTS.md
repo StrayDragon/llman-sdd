@@ -156,7 +156,7 @@ flowchart LR
 | `eval/` | 外部影响面剧本,不进 `just qa` |
 | `llmanspec/` | `specs/` 行为合约、`changes/` 提案、本文件为项目规则 |
 | `packages/core/templates/` | skill 模板 |
-| justfile | 门禁入口 `just qa`;单门 `qa-` 前缀;`check` / `test` 为合约钉名 |
+| justfile | 门禁入口 `just qa`;单门 `qa-` 前缀须被 qa 聚合;`eval` 等非 qa-* 不进聚合;`check` / `test` 为合约钉名 |
 
 棘轮类基线(只许随 change 下调)落在 `scripts/` 的 json,不把数字抄进本文件。
 

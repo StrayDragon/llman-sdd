@@ -73,6 +73,8 @@ export interface StudioComment {
   createdAt: string;
   status: 'open' | 'resolved';
   replyTo?: string;
+  /** Optional "请谁看" tag; defaults to `author` when omitted. */
+  watchTag?: string;
 }
 
 export type RevisionOp =
@@ -160,6 +162,8 @@ export interface StudioStateDoc {
   edgeBends?: Record<string, Record<string, EdgeBendOffset>>;
   comments: StudioComment[];
   revisions: StudioRevisionProposal[];
+  /** Open file-sync sessions: machineKey → worldline snapshot entry id. */
+  syncOpen?: Record<string, string>;
 }
 
 export function makeMachineKey(
